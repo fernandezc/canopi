@@ -12,16 +12,13 @@
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { pressMod } from '../support/canvas'
+import { boxOf, chipFrame, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
-/** The Web Edition's settings record (web/browser-app-data.ts); its settings are merged over the defaults. */
-const SETTINGS_KEY = 'canopi:web-app-data:v2:settings'
 /** The notice's widest place (its max-width in Panels.module.css). */
 const NOTICE_MAX_WIDTH_PX = 480
 const CHROME_INSET_PX = 12
-
-interface Box { readonly x: number, readonly y: number, readonly width: number, readonly height: number }
 
 const LAYOUTS: ReadonlyArray<{ readonly width: number, readonly height: number, readonly locale?: string }> = [
   { width: 1400, height: 900 },
@@ -194,28 +191,9 @@ for (const [name, viewport] of [
 const ZOOM_GROUP_BUTTONS = 6
 const PHONE_ZOOM_COLUMN_BUTTONS = 5
 
-/** The Design map; locale-free (its name is translated). */
-function mapHost(page: Page): Locator {
-  return page.getByRole('application').first()
-}
-
-/**
- * Opens the base fixture in a fresh browser (the earlier open's draft would reopen with its camera), whose Web Edition
- * settings take `locale` and, with `basemapHidden`, hide the basemap so no notice shows.
- */
-async function openBaseFixture(page: Page, { locale = 'en', basemapHidden = false } = {}): Promise<void> {
-  await page.addInitScript((settings) => {
-    localStorage.clear()
-    localStorage.setItem(settings.key, JSON.stringify({ version: 2, settings: settings.values }))
-  }, { key: SETTINGS_KEY, values: basemapHidden ? { locale, basemap_visible: false } : { locale } })
-  await page.goto('')
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.locator('[data-start-screen] button').filter({ hasText: /\.canopi/ }).first().click(),
-  ])
-  await chooser.setFiles(FIXTURE)
-  await expect(mapHost(page)).toBeVisible()
-  await expect(mapHost(page), 'the canvas has drawn the opened Design').not.toHaveAttribute('aria-busy')
+/** Opens the base fixture in a fresh browser with `locale`, and with `basemapHidden` no notice. */
+async function openBaseFixture(page: Page, options: { locale?: string, basemapHidden?: boolean } = {}): Promise<void> {
+  await openFixture(page, FIXTURE, options)
 }
 
 async function expectNoticeWithRetry(page: Page): Promise<{ notice: Locator, retry: Locator }> {
@@ -247,18 +225,8 @@ async function openingFraming(page: Page): Promise<{ handle: { x: number, y: num
   return { handle: { x: Math.round(handle.x * 4) / 4, y: Math.round(handle.y * 4) / 4 }, scale }
 }
 
-async function nextFrames(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-}
-
 async function expectRetryHit(retry: Locator): Promise<void> {
-  const box = await boxOf(retry)
-  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-  const hit = await retry.evaluate((button, at) => {
-    const top = document.elementFromPoint(at.x, at.y)
-    return top !== null && button.contains(top)
-  }, centre)
-  expect(hit, `a click at Retry's centre (${centre.x}, ${centre.y}) reaches Retry`).toBe(true)
+  await expectHitAtCentre(retry, 'Retry')
 }
 
 /** The lines the notice's sentence takes: one client rect per line box of its text. */
@@ -268,25 +236,4 @@ async function lineCount(notice: Locator): Promise<number> {
     range.selectNodeContents(status)
     return new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top))).size
   })
-}
-
-/** The visible map frame the seam publishes on the map area for the chips (`--map-inset-*`), in page pixels. */
-async function chipFrame(page: Page): Promise<{ top: number, right: number, bottom: number, left: number }> {
-  return await page.evaluate(() => {
-    const area = document.querySelector<HTMLElement>('[style*="--map-inset-bottom"]')
-    if (!area) throw new Error('no map area publishes its insets')
-    const box = area.getBoundingClientRect()
-    const inset = (edge: string) => parseFloat(area.style.getPropertyValue(`--map-inset-${edge}`))
-    return { top: box.top + inset('top'), right: box.right - inset('right'), bottom: box.bottom - inset('bottom'), left: box.left + inset('left') }
-  })
-}
-
-async function boxOf(locator: Locator): Promise<Box> {
-  const box = await locator.boundingBox()
-  if (!box) throw new Error('no box: the element is not laid out')
-  return box
-}
-
-function overlap(a: Box, b: Box): boolean {
-  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }
