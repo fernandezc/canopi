@@ -1,7 +1,7 @@
 // The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P and
 // S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as map-notice-layout.spec.ts
 // does for the map notice. Per layout and locale: place an Apple at the centre of the visible map, arm Plant a row, pick
-// it and add two points; the card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view
+// it and add two points (at 1440x900 with the inspection lens open, in the card's slot); the card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view
 // chip, the selection chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom
 // is inside the visible map; its check button, spacing field and mode switch take the click at their centre and are
 // 44 px targets after a tap; every point and dot takes the click at its centre and is a 44 px target after a tap. On
@@ -24,12 +24,14 @@ interface Layout {
   readonly touch: boolean
   /** The labelled tool rail (1440x900 named rail) instead of icons. */
   readonly namedRail?: boolean
+  /** The inspection lens is open first: it shares the card's slot, and the card stacks above it (design check 5c). */
+  readonly lensOpen?: boolean
   readonly name?: string
 }
 
 const LAYOUTS: readonly Layout[] = [
-  { width: 1440, height: 900, locales: ['en', 'de', 'fr', 'ru', 'ja'], touch: false, name: 'icon rail' },
-  { width: 1440, height: 900, locales: ['en', 'de'], touch: false, namedRail: true, name: 'named rail' },
+  { width: 1440, height: 900, locales: ['en', 'de', 'fr', 'ru', 'ja'], touch: false, lensOpen: true, name: 'icon rail' },
+  { width: 1440, height: 900, locales: ['en', 'de'], touch: false, namedRail: true, lensOpen: true, name: 'named rail' },
   { width: 1024, height: 768, locales: ['en', 'de', 'ru'], touch: true },
   { width: 768, height: 1024, locales: ['en', 'fr'], touch: false },
   { width: 761, height: 700, locales: ['en', 'de', 'ru'], touch: false },
@@ -64,6 +66,10 @@ async function openBase(page: Page, layout: Layout, locale: string): Promise<voi
     // The start screen's library covers its open button in the landscape phone layouts.
     openWith: 'shortcut',
   })
+  if (!layout.lensOpen) return
+  const launcher = page.locator('[data-inspection-launcher]')
+  await launcher.click()
+  await expect(launcher, 'the inspection lens is open').toBeHidden()
 }
 
 /** A tap where the layout is touch (apart in time, so taps never make a double tap), else a click. */
@@ -86,7 +92,11 @@ async function drawTwoPoints(page: Page, layout: Layout): Promise<ReadonlyArray<
   const centre = { x: frame.left + half.x, y: frame.top + half.y }
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  await card(page).getByRole('button', { name: /Malus domestica/ }).first().click()
+  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  await expect(apple).toBeVisible()
+  // A covered button would hold the click until the test times out; this names what covers the card at once.
+  await expectHitAtCentre(apple, 'the card\'s species list')
+  await apple.click()
   await press(page, layout, centre)
   await mapHost(page).focus()
   await page.keyboard.press('w')
