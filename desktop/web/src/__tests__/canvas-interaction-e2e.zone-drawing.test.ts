@@ -867,6 +867,36 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  describe('the Esc chain in a polygon draft', () => {
+    function escapeOnMap(): KeyboardEvent {
+      return events.keyDown({ key: 'Escape', target: container })
+    }
+
+    function sessionWithToolLog(): { session: SceneInteractionSession, tools: string[] } {
+      const tools: string[] = []
+      const deps = createInteractionDeps(container, store, testView, { setTool: (name: string) => { tools.push(name) } })
+      return { session: createTestSession(deps), tools }
+    }
+
+    it('cancels a polygon draft first, then returns to Select', () => {
+      const { session, tools } = sessionWithToolLog()
+      session.setTool('polygon')
+      container.focus()
+      events.pointerDown({ x: 20, y: 20 })
+      events.pointerUp({ x: 20, y: 20 })
+      events.pointerDown({ x: 80, y: 20 })
+      events.pointerUp({ x: 80, y: 20 })
+
+      escapeOnMap()
+      expect(tools).not.toContain('select')
+      expect(document.activeElement).toBe(container)
+
+      escapeOnMap()
+      expect(tools.at(-1)).toBe('select')
+      session.dispose()
+    })
+  })
+
   it('cancels polygonal zone drafts with Escape without dirtying the scene', () => {
     const onSceneEditCommit = vi.fn()
     const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })

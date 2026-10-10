@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "Ecke an Kante {{index}} hinzufügen"
     },
+    "point": {
+      "delete": "Punkt löschen",
+      "sharp": "Scharfe Ecke",
+      "smooth": "Runde Ecke"
+    },
     "guideEnd": {
       "label": "Endpunkt der Messhilfe {{index}}"
     },

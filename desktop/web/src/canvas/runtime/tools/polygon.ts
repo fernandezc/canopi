@@ -14,7 +14,8 @@
 // zone and selects it. Its draft is a fill-only polygon of the corners, the rubber band, a disc per corner and the edge
 // and area chips (tools/measure-labels.ts), whose edge chips re-cull on every camera frame.
 
-import type { PointerKind, ToolId } from '../interaction-types'
+import { CLOSE_DISTANCE_PX } from '../../point-editor/rules'
+import type { ToolId } from '../interaction-types'
 import type { WorldPoint } from '../view/types'
 import { createPolygonalZoneDraftMeasurements } from '../zone-measurements'
 import type { DraftShape, DraftStroke } from './draft'
@@ -23,8 +24,6 @@ import type { CanvasTool, ToolCommand, ToolContext, ToolGesture, ToolPoint, Tool
 import { appendPolygonZoneToDraft } from './tool-actions'
 import { DRAFT_STROKE, ZONE_DRAFT_FILL } from './zone-drag'
 
-/** A press this close to the first corner, on screen, closes the shape: a finger's within half ADR 0010's 44 px target. */
-const CLOSE_DISTANCE_PX: Readonly<Record<PointerKind, number>> = Object.freeze({ mouse: 8, pen: 8, touch: 22 })
 /** A press on the last corner moves the rubber band only. */
 const SAME_CORNER_M = 0.0001
 /** The corners' fill carries no stroke: the rubber band draws the edges. */

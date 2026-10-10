@@ -5,16 +5,7 @@ import {
   type ScenePersistedState,
 } from './scene'
 
-type PersistedPatchKey =
-  | 'plantSpeciesColors'
-  | 'plantSpeciesSymbols'
-  | 'plantSpeciesCodes'
-  | 'layers'
-  | 'plants'
-  | 'zones'
-  | 'annotations'
-  | 'measurementGuides'
-  | 'groups'
+type PersistedPatchKey = keyof ScenePersistedState
 
 export interface SceneCommandSnapshot {
   persisted: ScenePersistedState
@@ -32,17 +23,20 @@ export interface SceneCommand {
   readonly after: SceneCommandPatch
 }
 
-const PATCH_KEYS: PersistedPatchKey[] = [
-  'plantSpeciesColors',
-  'plantSpeciesSymbols',
-  'plantSpeciesCodes',
-  'layers',
-  'plants',
-  'zones',
-  'annotations',
-  'measurementGuides',
-  'groups',
-]
+// Every persisted collection, so a new one gets undo the day it is added: tsc fails until it is listed here.
+const PATCH_KEY_SET = {
+  plantSpeciesColors: true,
+  plantSpeciesSymbols: true,
+  plantSpeciesCodes: true,
+  layers: true,
+  plants: true,
+  zones: true,
+  annotations: true,
+  measurementGuides: true,
+  groups: true,
+  plantRows: true,
+} as const satisfies Record<PersistedPatchKey, true>
+const PATCH_KEYS = Object.keys(PATCH_KEY_SET) as PersistedPatchKey[]
 
 export function createScenePatchCommand(
   type: string,

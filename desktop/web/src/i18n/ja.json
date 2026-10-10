@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "辺 {{index}} に角を追加"
     },
+    "point": {
+      "delete": "点を削除",
+      "sharp": "鋭い角",
+      "smooth": "滑らかな角"
+    },
     "guideEnd": {
       "label": "計測ガイドの端点 {{index}}"
     },

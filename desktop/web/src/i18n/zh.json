@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "在第 {{index}} 条边上添加角点"
     },
+    "point": {
+      "delete": "删除点",
+      "sharp": "尖角",
+      "smooth": "平滑角"
+    },
     "guideEnd": {
       "label": "测量参考线端点 {{index}}"
     },
