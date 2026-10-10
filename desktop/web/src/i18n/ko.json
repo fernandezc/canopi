@@ -817,6 +817,10 @@
       "hint": "비워 두면 구역이 종류와 크기로 표시됩니다.",
       "cancel": "취소",
       "rename": "이름 바꾸기"
+    },
+    "plantRow": {
+      "point": "줄의 점 {{index}}",
+      "dot": "줄 구간 {{index}}에 점 추가"
     }
   },
   "worldMap": {

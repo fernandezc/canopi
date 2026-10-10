@@ -7,11 +7,12 @@ import {
   type ToolHarnessOptions,
 } from '../../../__tests__/support/tool-harness'
 import type { CanvasPlantRowGuidance } from '../../session-state'
+import type { ToolHandleId } from '../interaction-types'
 import type { ScenePlantEntity } from '../scene/types'
-import type { WorldPoint } from '../view/types'
+import type { ScreenPoint, WorldPoint } from '../view/types'
 import type { DraftShape } from './draft'
 import { createPlantRowTool } from './plant-row'
-import type { ToolSettingsPort } from './tool'
+import type { CanvasTool, ToolSettingsPort } from './tool'
 import '../../../__tests__/support/camera-tolerance'
 
 vi.mock('./registry', () => ({ TOOL_REGISTRY: {} }))
@@ -47,14 +48,15 @@ function rowHarness(options: ToolHarnessOptions & {
   readonly scale?: number
   readonly intervalM?: number
   readonly plants?: readonly ScenePlantEntity[]
-} = {}): { readonly h: ToolHarness; readonly settings: RowSettings } {
+} = {}): { readonly h: ToolHarness; readonly settings: RowSettings; readonly tool: CanvasTool } {
   const settings = rowSettings(options.intervalM ?? 0.5)
-  useStubTools(createPlantRowTool())
+  const tool = createPlantRowTool()
+  useStubTools(tool)
   const { scale = 1, intervalM: _intervalM, plants = [sourcePlant()], scene, ...rest } = options
   const h = createToolHarness({ viewport: { x: 0, y: 0, scale }, scene: { plants: [...plants], ...scene }, settings, ...rest })
   harnesses.push(h)
   h.arm('plant-spacing')
-  return { h, settings }
+  return { h, settings, tool }
 }
 
 function row(h: ToolHarness): CanvasPlantRowGuidance {
@@ -73,6 +75,11 @@ function ghostPositions(h: ToolHarness): WorldPoint[] {
 
 function lengthLabel(h: ToolHarness): string | undefined {
   return shapesOf(h, 'label').find((label) => label.tone === 'hint-primary')?.text
+}
+
+/** Enter: plants the drawn row (U58). */
+function finish(h: ToolHarness): void {
+  h.host.command({ kind: 'confirm' })
 }
 
 function added(h: ToolHarness): WorldPoint[] {
@@ -190,7 +197,10 @@ describe('Plant a row tool', () => {
     expect(h.renderer.lastDraft()!.shapes.map((shape) => shape.kind)).toEqual(['circle-px', 'polyline', 'ghost', 'ghost', 'ghost', 'label'])
     expect(h.chrome.tooltip).toBeNull()
 
+    // The click adds the row's second point; Enter plants it (U58).
     h.click(end)
+    expect(added(h)).toEqual([])
+    finish(h)
 
     expect(added(h)).toEqual([{ x: 22, y: 30 }, { x: 24, y: 30 }, { x: 26, y: 30 }])
     expect(h.store.persisted.plants[1]).toMatchObject({
@@ -229,6 +239,7 @@ describe('Plant a row tool', () => {
 
     expect(row(h).glyph?.color).toBe('#2F6F4E')
     h.click({ x: 26, y: 30 })
+    finish(h)
     expect(h.store.persisted.plants.filter((plant) => plant.id !== 'source').map((plant) => plant.color))
       .toEqual(['#2F6F4E', '#2F6F4E', '#2F6F4E'])
   })
@@ -255,6 +266,7 @@ describe('Plant a row tool', () => {
 
       block(h)
       h.click({ x: 26, y: 30 })
+      finish(h)
 
       expect(added(h), name).toEqual([])
       expect(h.history.canUndo.value, name).toBe(false)
@@ -280,6 +292,7 @@ describe('Plant a row tool', () => {
     expect(row(h)).toMatchObject({ count: 10000, density: 'blocked' })
 
     h.click({ x: 20, y: 10 })
+    finish(h)
 
     expect(added(h)).toEqual([])
     expect(row(h)).toMatchObject({ phase: 'row', density: 'blocked' })
@@ -294,6 +307,7 @@ describe('Plant a row tool', () => {
     expect(row(h)).toMatchObject({ count: 5000, density: 'dense' })
 
     h.click({ x: 15, y: 10 })
+    finish(h)
 
     expect(h.store.persisted.plants).toHaveLength(5001)
     expect(added(h).at(-1)).toEqual({ x: 15, y: 10 })
@@ -325,6 +339,7 @@ describe('Plant a row tool', () => {
     expect(ghostPositions(h)).toEqual([])
 
     h.click({ x: 21, y: 30 })
+    finish(h)
 
     expect(added(h)).toEqual([])
     expect(h.history.canUndo.value).toBe(false)
@@ -401,6 +416,7 @@ describe('Plant a row tool', () => {
     expect(row(h)).toMatchObject({ count: 100, density: 'normal' })
 
     h.click({ x: 110, y: 10 })
+    finish(h)
 
     expect(h.store.persisted.plants).toHaveLength(101)
   })
@@ -412,6 +428,7 @@ describe('Plant a row tool', () => {
     expect(row(h)).toMatchObject({ count: 101, density: 'dense' })
 
     h.click({ x: 111, y: 10 })
+    finish(h)
 
     expect(h.store.persisted.plants).toHaveLength(102)
     expect(added(h).at(-1)).toEqual({ x: 111, y: 10 })
@@ -512,14 +529,20 @@ describe('Plant a row tool', () => {
     const picked = row(h).focusRequest
     h.host.command({ kind: 'spacing-input', text: '0' })
 
-    // The press commits too, and asks for the field as the release does.
+    // A drag from the picked plant plants a straight row at its release, which asks for the field.
     h.press({ x: 20, y: 30 })
-    expect(row(h).focusRequest).toBe(picked + 1)
+    expect(row(h).focusRequest).toBe(picked)
     h.move({ x: 26, y: 30 })
     h.release({ x: 26, y: 30 })
 
     expect(added(h)).toEqual([])
-    expect(row(h)).toMatchObject({ phase: 'row', intervalValid: false, count: 0, focusRequest: picked + 2 })
+    expect(row(h)).toMatchObject({ phase: 'row', intervalValid: false, count: 0, focusRequest: picked + 1 })
+
+    // So does the finish of a clicked row.
+    h.click({ x: 26, y: 30 })
+    finish(h)
+    expect(added(h)).toEqual([])
+    expect(row(h)).toMatchObject({ phase: 'row', intervalValid: false, focusRequest: picked + 2 })
   })
 
   it('a clamped endpoint stays at the view\'s edge', () => {
@@ -532,6 +555,7 @@ describe('Plant a row tool', () => {
     expect(shapesOf(h, 'polyline')[0]!.points[1]).toEqual({ x: 400, y: 30 })
 
     h.click({ x: 500, y: 30 })
+    finish(h)
 
     expect(added(h)).toEqual([{ x: 120, y: 30 }, { x: 220, y: 30 }, { x: 320, y: 30 }])
   })
@@ -546,5 +570,286 @@ describe('Plant a row tool', () => {
 
     h.host.command({ kind: 'escape' })
     expect(h.host.holdsReorigin()).toBe(false)
+  })
+})
+
+// ── The path (U58: plan section 4 "2.0 plant along a path", A1, A2, A17) ─────────────────────────────────────────────
+
+/** Plant a row at 10 px per metre with the source at (2, 3) m, on screen at (20, 30), every 1 m. */
+function pathHarness(options: { readonly intervalM?: number } = {}): { readonly h: ToolHarness; readonly settings: RowSettings; readonly tool: CanvasTool } {
+  return rowHarness({ scale: 10, intervalM: options.intervalM ?? 1, plants: [sourcePlant({ x: 2, y: 3 })] })
+}
+
+function handleId(id: string): ToolHandleId {
+  return id as ToolHandleId
+}
+
+/** The draft's handle `id` on screen. */
+function screenOf(h: ToolHarness, id: string): ScreenPoint {
+  const handle = h.chrome.handles.find((entry) => entry.id === id)
+  if (!handle) throw new Error(`no handle ${id}; shown: ${h.chrome.handles.map((entry) => entry.id).join(', ')}`)
+  return h.view.view().worldToScreen(handle.anchor)
+}
+
+function pointIds(h: ToolHarness): string[] {
+  return h.chrome.handles.filter((handle) => handle.id.startsWith('point:')).map((handle) => handle.id)
+}
+
+function pointAt(h: ToolHarness, index: number): WorldPoint {
+  const handle = h.chrome.handles.find((entry) => entry.id === `point:draft:${index}`)
+  if (!handle) throw new Error(`no point ${index}`)
+  return handle.anchor
+}
+
+function nearest(points: readonly WorldPoint[], to: WorldPoint): number {
+  return Math.min(...points.map((point) => Math.hypot(point.x - to.x, point.y - to.y)))
+}
+
+describe('Plant a row along a path', () => {
+  it('clicks add points the row bends through, and Enter plants it in one Scene Edit', () => {
+    const { h, tool } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    expect(tool.canFinish?.()).toBe(false)
+    h.click({ x: 80, y: 30 })
+    h.click({ x: 120, y: 70 })
+
+    expect(added(h)).toEqual([])
+    expect(h.history.canUndo.value).toBe(false)
+    expect(row(h)).toMatchObject({ phase: 'row', points: 3, closed: false })
+    expect(tool.canFinish?.()).toBe(true)
+    // The picked plant has no handle while it is drawn; the placed points and the dots between them do.
+    expect(pointIds(h)).toEqual(['point:draft:1', 'point:draft:2'])
+    expect(h.chrome.handles.filter((handle) => handle.glyph === 'midpoint').map((handle) => handle.id)).toEqual(['dot:draft:0', 'dot:draft:1'])
+    expect(h.chrome.activeHandle).toBe('point:draft:2')
+    // A curve of 64 samples per segment.
+    expect(shapesOf(h, 'polyline')[0]!.points).toHaveLength(2 * 64 + 1)
+
+    finish(h)
+
+    const planted = added(h)
+    expect(nearest(planted, { x: 8, y: 3 })).toBeLessThanOrEqual(0.5)
+    expect(planted.at(-1)!.x).toBeGreaterThan(11)
+    expect(h.store.session.selectedTargets.map((target) => target.id)).toEqual(h.store.persisted.plants.map((plant) => plant.id))
+    expect(row(h).phase).toBe('pick')
+    expect(h.chrome.handles).toEqual([])
+    h.undo()
+    expect(h.store.persisted.plants.map((plant) => plant.id)).toEqual(['source'])
+  })
+
+  it('plants on a double-click on the ground or on the last point, not on another point', () => {
+    for (const how of ['ground', 'last point'] as const) {
+      const { h } = pathHarness()
+      h.click({ x: 20, y: 30 })
+      h.click({ x: 80, y: 30 })
+      h.click({ x: 120, y: 70 })
+      if (how === 'ground') {
+        h.click({ x: 120, y: 70 }, { clickCount: 2 })
+      } else {
+        h.click(screenOf(h, 'point:draft:1'), { target: { kind: 'handle', id: handleId('point:draft:1') }, clickCount: 2 })
+        expect(added(h), 'a double-click on another point plants nothing').toEqual([])
+        h.click(screenOf(h, 'point:draft:2'), { target: { kind: 'handle', id: handleId('point:draft:2') }, clickCount: 2 })
+      }
+      expect(added(h).length, how).toBeGreaterThan(5)
+      expect(h.history.canUndo.value, how).toBe(true)
+    }
+  })
+
+  it('closes a loop on a click on the first point from 3 points, and every N m rounds to equal gaps', () => {
+    const { h } = pathHarness({ intervalM: 3 })
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 120, y: 30 })
+    // A click on the first point with fewer than 3 points folds nothing back.
+    h.click({ x: 20, y: 30 })
+    expect(row(h)).toMatchObject({ points: 2, closed: false })
+    h.click({ x: 70, y: 110 })
+    h.click({ x: 21, y: 31 })
+
+    expect(row(h)).toMatchObject({ points: 3, closed: true })
+    expect(h.chrome.handles.filter((handle) => handle.glyph === 'midpoint')).toHaveLength(3)
+    const shown = row(h).loopSpacing!
+    expect(Number.parseFloat(shown)).toBeGreaterThan(2.5)
+    expect(Number.parseFloat(shown)).toBeLessThan(3.5)
+    finish(h)
+
+    // Equal gaps along the curve: their chords differ only by its bend.
+    const ring = [{ x: 2, y: 3 }, ...added(h)]
+    const gaps = ring.map((point, index) => Math.hypot(point.x - ring[(index + 1) % ring.length]!.x, point.y - ring[(index + 1) % ring.length]!.y))
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThanOrEqual(0.6)
+    expect(Math.abs(gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length - Number.parseFloat(shown))).toBeLessThanOrEqual(0.3)
+  })
+
+  it('plants N plants evenly, the picked one included, and never writes the count as the device interval', () => {
+    const { h, settings } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 100, y: 30 })
+    expect(h.host.command({ kind: 'spacing-mode', mode: 'count' })).toBe('handled')
+    expect(row(h)).toMatchObject({ mode: 'count', countText: '9', countValid: true, count: 8 })
+    h.host.command({ kind: 'spacing-input', text: '5' })
+    h.host.command({ kind: 'spacing-commit', via: 'enter' })
+    expect(h.record.focus.at(-1)).toBe('map')
+    expect(row(h)).toMatchObject({ countText: '5', count: 4 })
+    h.host.command({ kind: 'spacing-input', text: '1' })
+    expect(row(h)).toMatchObject({ countValid: false, count: 0 })
+    h.host.command({ kind: 'spacing-input', text: '5' })
+    expect(settings.commitPlantSpacingIntervalM).not.toHaveBeenCalled()
+
+    finish(h)
+
+    expect(added(h)).toEqual([{ x: 4, y: 3 }, { x: 6, y: 3 }, { x: 8, y: 3 }, { x: 10, y: 3 }])
+  })
+
+  it('before planting, a point drags, a dot drag inserts, a dot double-click inserts in place and Alt deletes or sharpens', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 80, y: 30 })
+    h.click({ x: 140, y: 30 })
+
+    // A point drag moves it at the release; the draft follows it live.
+    const second = screenOf(h, 'point:draft:2')
+    h.press(second, { target: { kind: 'handle', id: handleId('point:draft:2') } })
+    h.move({ x: second.x, y: second.y - 20 })
+    expect(pointAt(h, 2)).toEqual({ x: 14, y: 1 })
+    h.release({ x: second.x, y: second.y - 20 })
+    expect(pointAt(h, 2)).toEqual({ x: 14, y: 1 })
+
+    // A still press on a dot inserts nothing; its drag inserts a point where it is released.
+    const dot = screenOf(h, 'dot:draft:0')
+    h.click(dot, { target: { kind: 'handle', id: handleId('dot:draft:0') } })
+    expect(pointIds(h)).toHaveLength(2)
+    h.press(dot, { target: { kind: 'handle', id: handleId('dot:draft:0') } })
+    h.move({ x: 50, y: 60 })
+    h.release({ x: 50, y: 60 })
+    expect(pointIds(h)).toHaveLength(3)
+    expect(pointAt(h, 1)).toEqual({ x: 5, y: 6 })
+
+    // A double-click on a dot inserts a point in place.
+    const inPlace = h.chrome.handles.find((handle) => handle.id === 'dot:draft:2')!.anchor
+    h.click(screenOf(h, 'dot:draft:2'), { target: { kind: 'handle', id: handleId('dot:draft:2') }, clickCount: 2 })
+    expect(pointIds(h)).toHaveLength(4)
+    expect(pointAt(h, 3)).toEqual(inPlace)
+
+    // Alt+click deletes a point, down to 2 points and never the picked plant.
+    h.click(screenOf(h, 'point:draft:1'), { target: { kind: 'handle', id: handleId('point:draft:1') }, mods: { alt: true } })
+    expect(pointIds(h)).toHaveLength(3)
+
+    // Alt while placing makes a sharp point.
+    h.click({ x: 200, y: 50 }, { mods: { alt: true } })
+    expect(h.chrome.handles.find((handle) => handle.id === 'point:draft:4')?.glyph).toBe('corner')
+    expect(h.chrome.handles.find((handle) => handle.id === 'point:draft:3')?.glyph).toBe('vertex')
+    expect(added(h)).toEqual([])
+    expect(h.history.canUndo.value).toBe(false)
+  })
+
+  it('Esc, Backspace and Ctrl+Z step back one point, Ctrl+Shift+Z restores it, and Esc then drops the picked plant', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    for (const x of [60, 100, 140]) h.click({ x, y: 30 })
+    expect(row(h).points).toBe(4)
+
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(row(h).points).toBe(3)
+    expect(h.host.command({ kind: 'remove-last' })).toBe('handled')
+    expect(row(h).points).toBe(2)
+    expect(h.host.transientHistory.undo()).toBe(true)
+    expect(row(h).points).toBe(1)
+    // Only the picked plant left: Ctrl+Z is the scene's again.
+    expect(h.host.transientHistory.canUndo()).toBe(false)
+    expect(h.host.transientHistory.redo()).toBe(true)
+    expect(row(h).points).toBe(2)
+
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(row(h).phase).toBe('pick')
+    expect(h.host.transientHistory.canRedo()).toBe(false)
+    expect(h.host.command({ kind: 'escape' })).toBe('pass')
+    expect(added(h)).toEqual([])
+  })
+
+  it('offers Delete point and Sharp or Smooth corner for a point, from the menu or for the last-touched one', () => {
+    const { h, tool } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 80, y: 30 })
+    expect(tool.pointMenu?.(handleId('point:draft:1'))).toEqual([
+      { action: 'delete-point', disabled: true },
+      { action: 'sharp-corner', disabled: false },
+    ])
+    h.click({ x: 140, y: 30 })
+    expect(tool.pointMenu?.(handleId('point:draft:1'))).toEqual([
+      { action: 'delete-point', disabled: false },
+      { action: 'sharp-corner', disabled: false },
+    ])
+    expect(tool.pointMenu?.(handleId('point:draft:0')), 'the picked plant').toEqual([])
+    expect(tool.pointMenu?.(handleId('dot:draft:0')), 'a dot').toEqual([])
+
+    expect(h.host.command({ kind: 'point-action', handle: handleId('point:draft:1'), action: 'sharp-corner' })).toBe('handled')
+    expect(h.chrome.handles.find((handle) => handle.id === 'point:draft:1')?.glyph).toBe('corner')
+    expect(row(h).touchedPoint).toEqual({ sharp: true, canDelete: true })
+    expect(tool.pointMenu?.(handleId('point:draft:1'))?.[1]).toEqual({ action: 'smooth-corner', disabled: false })
+
+    // The card's buttons act on the last-touched point (handle null): a still click on a point touches it.
+    h.click(screenOf(h, 'point:draft:2'), { target: { kind: 'handle', id: handleId('point:draft:2') } })
+    expect(h.chrome.activeHandle).toBe('point:draft:2')
+    expect(h.host.command({ kind: 'point-action', handle: null, action: 'delete-point' })).toBe('handled')
+    expect(pointIds(h)).toEqual(['point:draft:1'])
+    expect(row(h).touchedPoint).toBeNull()
+    expect(h.host.command({ kind: 'point-action', handle: handleId('point:draft:1'), action: 'delete-point' }), 'below the minimum').toBe('pass')
+
+    // Delete takes the focused point, else the last-touched one.
+    h.click({ x: 140, y: 30 })
+    h.chrome.focusedHandle = handleId('point:draft:1')
+    expect(h.host.command({ kind: 'delete-handle' })).toBe('handled')
+    expect(pointAt(h, 1)).toEqual({ x: 14, y: 3 })
+    expect(added(h)).toEqual([])
+  })
+
+  it('leads the canvas menu with Finish shape from 2 points', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.menu({ x: 200, y: 200 })
+    expect(h.record.menus.at(-1)?.finishShape).toBeUndefined()
+    h.click({ x: 80, y: 30 })
+    h.menu({ x: 200, y: 200 })
+    const finishShape = h.record.menus.at(-1)?.finishShape
+    expect(finishShape).toBeTypeOf('function')
+    finishShape!()
+    expect(added(h).length).toBeGreaterThan(5)
+  })
+
+  it('turns the next point to 45 degree steps from the last one under Shift, never a point drag', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 80, y: 30 })
+    h.hover({ x: 140, y: 45 }, { shift: true })
+    expect(shapesOf(h, 'polyline')[0]!.points.at(-1)!.y).toBeCloseTo(3, 6)
+    h.click({ x: 140, y: 45 }, { mods: { shift: true } })
+    expect(pointAt(h, 2).y).toBeCloseTo(3, 6)
+
+    const point = screenOf(h, 'point:draft:1')
+    h.press(point, { target: { kind: 'handle', id: handleId('point:draft:1') }, mods: { shift: true } })
+    h.move({ x: point.x + 13, y: point.y + 31 }, { shift: true })
+    h.release({ x: point.x + 13, y: point.y + 31 }, { shift: true })
+    expect(pointAt(h, 1)).toEqual({ x: 9.3, y: 6.1 })
+  })
+
+  it('grows the points and dots to 44 px after a finger', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 }, { pointer: 'touch' })
+    h.click({ x: 100, y: 30 }, { pointer: 'touch' })
+    h.click({ x: 260, y: 30 }, { pointer: 'touch' })
+    // Two points, and the one dot with 132 px of room.
+    expect(h.chrome.handles.map((handle) => [handle.id, handle.hitRadiusPx])).toEqual([['point:draft:1', 22], ['point:draft:2', 22], ['dot:draft:1', 22]])
+    expect(row(h).touch).toBe(true)
+  })
+
+  it('sets the length chip beside a dot that sits under it', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.hover({ x: 100, y: 30 })
+    expect(shapesOf(h, 'label')[0]).not.toHaveProperty('beside')
+    h.click({ x: 100, y: 30 })
+    const [label] = shapesOf(h, 'label')
+    expect(label).toMatchObject({ anchor: { x: 6, y: 3 }, text: '8 m', beside: { gapPx: 6 } })
+    expect(Math.abs(label!.beside!.normalPx.y)).toBeCloseTo(1, 9)
   })
 })

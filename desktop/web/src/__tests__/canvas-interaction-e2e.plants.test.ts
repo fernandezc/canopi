@@ -746,7 +746,9 @@ describe('SceneInteractionSession', () => {
 
     expect(draftShapes('ghost')).toHaveLength(2)
 
+    // The press adds the row's second point; Enter plants it (U58).
     events.pointerDown({ x: 51, y: 40 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([
       { x: 4, y: 4 },
       { x: 6, y: 4 },
@@ -787,6 +789,7 @@ describe('SceneInteractionSession', () => {
     expect(draftShapes('ghost')).toHaveLength(xs.length)
 
     events.pointerDown({ x: 71, y: 52 }, { button: 0, shiftKey: true })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position.y)).toEqual(xs.map(() => 4))
     expect(store.persisted.plants.slice(1).map((plant) => plant.position.x)).toEqual(xs)
     session.dispose()
@@ -819,6 +822,7 @@ describe('SceneInteractionSession', () => {
     expect(rowLength()).toBe('380 m')
 
     events.pointerDown({ x: 500, y: 30 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([
       { x: 120, y: 30 },
       { x: 220, y: 30 },

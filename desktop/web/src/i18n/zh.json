@@ -817,6 +817,10 @@
       "hint": "留空则以类型和大小命名该区域。",
       "cancel": "取消",
       "rename": "重命名"
+    },
+    "plantRow": {
+      "point": "行上的点 {{index}}",
+      "dot": "在行段 {{index}} 上添加点"
     }
   },
   "worldMap": {

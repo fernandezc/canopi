@@ -817,6 +817,10 @@
       "hint": "Laat leeg om de zone naar type en grootte te noemen.",
       "cancel": "Annuleren",
       "rename": "Hernoemen"
+    },
+    "plantRow": {
+      "point": "Rijpunt {{index}}",
+      "dot": "Punt toevoegen op rijsegment {{index}}"
     }
   },
   "worldMap": {

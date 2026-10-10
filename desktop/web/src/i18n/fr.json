@@ -817,6 +817,10 @@
       "hint": "Laissez vide pour nommer la zone par son type et sa taille.",
       "cancel": "Annuler",
       "rename": "Renommer"
+    },
+    "plantRow": {
+      "point": "Point de la rangée {{index}}",
+      "dot": "Ajouter un point sur le segment {{index}} de la rangée"
     }
   },
   "worldMap": {

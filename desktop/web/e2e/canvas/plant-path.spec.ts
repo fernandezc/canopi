@@ -4,7 +4,8 @@
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
 // makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; the card's point buttons act on the last-touched
 // point. A drag from the plant still plants a straight row (guard). Both engines unless a test says otherwise; WebKit has
-// taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no baselines.
+// taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no baselines; the path engine's
+// positions are compared bit for bit between Node and each browser, so these tests read exact positions.
 //
 // The base fixture at 1024x768 with grid snapping off, so a click places a point where it lands: its opening camera puts
 // the rectangle zone's north-west corner at (312, 223) and draws 10.414 px per metre; the Apple inside that zone is the
@@ -140,6 +141,15 @@ async function expectOneUndoStep(page: Page, what: string): Promise<void> {
   await expect(undo(page), `${what}: one Undo restores the Design`).toBeDisabled()
 }
 
+/**
+ * Nothing is planted yet: no row's plants are selected, as a finish selects them. Undo is no witness while a row is
+ * drawn: Edit > Undo then takes the draft's last point back (A17). The test's one-Undo-step check after the finish
+ * proves the draft made no Design edit before it.
+ */
+async function expectNothingPlanted(page: Page, what: string): Promise<void> {
+  await expect(selectionChip(page).filter({ hasText: /plants · Apple/ }), what).toHaveCount(0)
+}
+
 /** The Design as File > Download a copy saves it. */
 async function savedDesign(page: Page): Promise<{ plants: StoredPlant[] }> {
   await page.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'File' }).click()
@@ -184,11 +194,11 @@ async function selectedPlants(page: Page): Promise<number> {
   return match ? Number(match[1]) : 1
 }
 
-test.fail('(canopi-f47t.54, P) clicks bend a row through four points and Enter plants it in one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, P) clicks bend a row through four points and Enter plants it in one Undo step', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
-  await expect(undo(page), 'a click adds a point and plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'a click adds a point and plants nothing')
   await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
 
   await page.keyboard.press('Enter')
@@ -196,21 +206,23 @@ test.fail('(canopi-f47t.54, P) clicks bend a row through four points and Enter p
   const row = await savedRow(page)
   expect(row.length, 'the row is planted').toBeGreaterThan(10)
   expect(await selectedPlants(page), 'the selection is the row').toBe(row.length)
-  for (const [name, at] of [['the first point', P1], ['the second point', P2], ['the last point', P3]] as const) {
+  for (const [name, at] of [['the first point', P1], ['the second point', P2]] as const) {
     const point = screenToMetres(at)
     expect(Math.min(...row.map((plant) => distance(plant, point))), `the row passes through ${name}`).toBeLessThanOrEqual(1.2)
   }
+  // Every 2 m from the picked plant: the last plant stands within one interval of the last point.
+  expect(Math.min(...row.map((plant) => distance(plant, screenToMetres(P3)))), 'the row runs to the last point').toBeLessThanOrEqual(2.2)
   const end = screenToMetres(P3)
   expect(Math.max(...row.map((plant) => offLine(plant, { x: 0, y: 0 }, end))), 'the row bends away from the straight line').toBeGreaterThan(3)
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) a double-click on the last point plants the row', async ({ page }) => {
+test('(canopi-f47t.54, P) a double-click on the last point plants the row', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
   await click(page, P2)
-  await expect(undo(page), 'a click adds a point and plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'a click adds a point and plants nothing')
   const last = await pointAt(page, 2)
   await page.mouse.dblclick(last.x, last.y)
   await expect(selectionChip(page), 'the double-click plants the row').toHaveText(/^\d+ plants · Apple/)
@@ -227,7 +239,7 @@ test.fail('(canopi-f47t.54, P) the check button plants the row', async ({ page }
   await click(page, P2)
   const finish = card(page).locator('[data-plant-row-finish]')
   await expect(finish, 'two points show the check button').toBeVisible()
-  await expect(undo(page), 'nothing is planted before the finish').toBeDisabled()
+  await expectNothingPlanted(page, 'nothing is planted before the finish')
   await finish.click()
   await expect(selectionChip(page), 'the check button plants the row').toHaveText(/^\d+ plants · Apple/)
   await expect(finish, 'the planted row leaves no check button').toHaveCount(0)
@@ -242,7 +254,7 @@ test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and ever
   await click(page, APPLE)
   const shown = card(page).locator('[data-plant-row-loop-spacing]')
   await expect(shown, 'the closed loop shows its rounded spacing').toBeVisible()
-  await expect(undo(page), 'closing the loop plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'closing the loop plants nothing')
   const spacing = Number.parseFloat(((await shown.textContent()) ?? '').replace(',', '.'))
   expect(spacing, 'every 3 m rounds to a nearby equal gap').toBeGreaterThan(2.5)
   expect(spacing).toBeLessThan(3.5)
@@ -273,7 +285,7 @@ test.fail('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one i
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) before planting: drag a point, drag a dot to insert, double-click a dot to insert in place, Alt+click deletes a point, Alt while placing makes it sharp', async ({ page }) => {
+test('(canopi-f47t.54, P) before planting: drag a point, drag a dot to insert, double-click a dot to insert in place, Alt+click deletes a point, Alt while placing makes it sharp', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -303,10 +315,10 @@ test.fail('(canopi-f47t.54, P) before planting: drag a point, drag a dot to inse
   await expect.poll(() => pointCount(page), 'Alt while placing still adds a point').toBe(6)
   expect((await pointAt(page, 5)).glyph, 'a point placed with Alt is sharp').toBe('corner')
   expect((await pointAt(page, 4)).glyph, 'a point placed without Alt is smooth').toBe('vertex')
-  await expect(undo(page), 'editing the draft plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'editing the draft plants nothing')
 })
 
-test.fail('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; Esc steps back to the picked plant, drops it, then returns to Select', async ({ page }) => {
+test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; Esc steps back to the picked plant, drops it, then returns to Select', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -350,7 +362,7 @@ test.fail('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on 
 
   await card(page).getByRole('button', { name: 'Delete point' }).click()
   await expect.poll(() => pointCount(page), 'Delete point removes the touched point').toBe(3)
-  await expect(undo(page), 'the card\'s point buttons plant nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'the card\'s point buttons plant nothing')
 })
 
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {
@@ -386,7 +398,7 @@ function plantCurvedRows(engine: { plantAlongPath: (path: unknown, spacing: unkn
   return JSON.stringify(rows.map((row) => ({ count: row.count, spacing: row.effectiveSpacingM, length: row.lengthM, positions: row.positions() })))
 }
 
-test('(canopi-f47t.54, P) probe: the path engine plants a curved row to the same bits in this browser as in Node', async ({ page }) => {
+test('(canopi-f47t.54, P) the path engine plants a curved row to the same bits in this browser as in Node', async ({ page }) => {
   const script = engineScript()
   const inNode = plantCurvedRows(new Function(`${script}; return __plantPath`)())
   await page.goto('about:blank')
@@ -396,64 +408,32 @@ test('(canopi-f47t.54, P) probe: the path engine plants a curved row to the same
 })
 
 /**
- * Probe (stream P's first commit): the riskiest input assumption behind the row's double-click finish. A double-click on
- * an unselected polygon zone's edge midpoint: the first press selects the zone, which shows its midpoint dots, so the
- * second press lands on the dot handle the first press created and arrives as a handle press with a click count of 2
- * (Select's double-click on a dot inserts a corner in place). Nothing hears the native dblclick: the camera keeps the
- * other corners where they were and no text is selected. Alt+click then reaches the recogniser with Alt: it deletes the
- * new corner. Select's zone dots go through the same recogniser, host and handle layer as the row's points.
+ * The double-click on the ground (A1): its first press places a point, whose handle the second press then lands on, as
+ * a handle press with a click count of 2 on the last point, which plants the row through that point. Nothing hears the
+ * native dblclick: no text is selected, and the one Undo step is the row.
  */
-test('(canopi-f47t.54, P) probe: a double-click\'s second press reaches the handle its first press created, with no native dblclick side effect, and Alt reaches the recogniser', async ({ page }) => {
-  // Records each pointerdown's handle and Alt before the canvas hears it; changes nothing.
+test('(canopi-f47t.54, P) a double-click on the ground plants the row through the point its first press placed', async ({ page }) => {
+  // Records each pointerdown's handle before the canvas hears it; changes nothing.
   await page.addInitScript(() => {
-    const downs: Array<{ handle: string | null, alt: boolean }> = []
-    Object.assign(window, { __probeDowns: downs })
+    const downs: Array<string | null> = []
+    Object.assign(window, { __rowDowns: downs })
     window.addEventListener('pointerdown', (event) => {
-      const handle = event.target instanceof Element ? event.target.closest('[data-canvas-handle]')?.getAttribute('data-canvas-handle') ?? null : null
-      downs.push({ handle, alt: event.altKey })
+      downs.push(event.target instanceof Element ? event.target.closest('[data-canvas-handle]')?.getAttribute('data-canvas-handle') ?? null : null)
     }, { capture: true })
   })
-  const downs = () => page.evaluate(() => (window as unknown as { __probeDowns: Array<{ handle: string | null, alt: boolean }> }).__probeDowns.slice())
+  const downs = () => page.evaluate(() => (window as unknown as { __rowDowns: Array<string | null> }).__rowDowns.slice())
   await openBase(page)
-  const polygonEdge = { x: 740, y: 209 }
-  const corners = () => page.locator('[data-canvas-handle^="vertex:"]').evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect()
-    return { id: element.getAttribute('data-canvas-handle') ?? '', x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
-  }))
-  await page.mouse.click(polygonEdge.x, polygonEdge.y)
-  await expect.poll(async () => (await corners()).length, 'the selected polygon shows its corners').toBe(5)
-  const before = await corners()
-  const dots = await page.locator('[data-canvas-handle^="edge-mid:"]').evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect()
-    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-  }))
-  const dot = dots.reduce((near, next) => (Math.hypot(next.x - polygonEdge.x, next.y - polygonEdge.y) < Math.hypot(near.x - polygonEdge.x, near.y - polygonEdge.y) ? next : near))
-  await page.mouse.click(GROUND.x, GROUND.y)
-  await expect.poll(async () => (await corners()).length, 'a click on the ground clears the selection').toBe(0)
+  await pickApple(page)
+  await click(page, P1)
   await page.waitForTimeout(600)
-
-  const pressed = (await downs()).length
-  await page.mouse.dblclick(dot.x, dot.y)
-  await expect.poll(async () => (await corners()).length, 'the second press hit the dot the first press showed and inserted a corner').toBe(6)
-  const [first, second] = (await downs()).slice(pressed)
-  expect(first?.handle ?? null, 'the first press lands on the unselected zone, no handle').toBeNull()
-  expect(second?.handle ?? '', 'the second press lands on the dot handle the first press created').toMatch(/^edge-mid:/)
-  const after = await corners()
-  for (const corner of before) {
-    expect(after.some((moved) => Math.abs(moved.x - corner.x) <= 1 && Math.abs(moved.y - corner.y) <= 1), `corner ${corner.id} stays put: no native dblclick zoom`).toBe(true)
-  }
+  const before = (await downs()).length
+  await page.mouse.dblclick(P2.x, P2.y)
+  await expect(selectionChip(page), 'the double-click plants the row').toHaveText(/^\d+ plants · Apple/)
+  expect((await downs()).slice(before), 'the second press lands on the point the first one placed').toEqual([null, 'point:draft:2'])
   expect(await page.evaluate(() => window.getSelection()?.toString() ?? ''), 'the dblclick selects no text').toBe('')
-  await expectOneUndoStep(page, 'the inserted corner')
-
-  await page.mouse.dblclick(dot.x, dot.y)
-  await expect.poll(async () => (await corners()).length).toBe(6)
-  const inserted = (await corners()).find((corner) => Math.hypot(corner.x - dot.x, corner.y - dot.y) <= 2)
-  if (!inserted) throw new Error('no corner where the dot was')
-  await page.waitForTimeout(600)
-  const beforeAlt = (await downs()).length
-  await click(page, inserted, ['Alt'])
-  expect((await downs()).slice(beforeAlt), 'the Alt+click presses the corner handle with Alt held').toEqual([{ handle: inserted.id, alt: true }])
-  await expect.poll(async () => (await corners()).length, 'Alt+click reaches the recogniser with Alt and deletes the corner').toBe(5)
+  const row = await savedRow(page)
+  expect(Math.min(...row.map((plant) => distance(plant, screenToMetres(P2)))), 'the row runs to the double-clicked point').toBeLessThanOrEqual(2.2)
+  await expectOneUndoStep(page, 'the planted row')
 })
 
 test.describe('touch', () => {
@@ -489,7 +469,7 @@ test.describe('touch', () => {
   test.describe('fingers', () => {
     test.skip(({ browserName }) => browserName !== 'chromium', 'finger drags go through CDP touch input, Chromium-only')
 
-    test.fail('(canopi-f47t.54, P) touch: a finger drags a point before planting (Chromium)', async ({ page }) => {
+    test('(canopi-f47t.54, P) touch: a finger drags a point before planting (Chromium)', async ({ page }) => {
       await openBase(page)
       const fingers = await Fingers.of(page)
       await fingers.tap(GROUND)
@@ -509,7 +489,7 @@ test.describe('touch', () => {
         const moved = await pointAt(page, 1)
         return Math.round(distance(moved, { x: first.x + 40, y: first.y + 20 }))
       }, 'the point follows the finger').toBeLessThanOrEqual(2)
-      await expect(undo(page), 'moving a point plants nothing').toBeDisabled()
+      await expectNothingPlanted(page, 'moving a point plants nothing')
     })
   })
 })

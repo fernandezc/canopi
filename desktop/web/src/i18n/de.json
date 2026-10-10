@@ -817,6 +817,10 @@
       "hint": "Leer lassen, um die Zone nach Art und Größe zu benennen.",
       "cancel": "Abbrechen",
       "rename": "Umbenennen"
+    },
+    "plantRow": {
+      "point": "Reihenpunkt {{index}}",
+      "dot": "Punkt auf Reihenabschnitt {{index}} hinzufügen"
     }
   },
   "worldMap": {
