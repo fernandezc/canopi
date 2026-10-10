@@ -775,7 +775,7 @@ export interface ToolHost {
   gesture(g: Gesture): GestureOutcome
   command(c: ToolCommand): ToolReply
   /** Hits, retargets and opens the canvas menu through ToolHostDeps.menu; quarantines a menu the scene does not admit. */
-  /** handle (U58): the pressed handle of a secondary or long press, or the focused handle for Shift+F10; see §1.4 "Menus". */
+  /** handle (U58): the pressed handle of a secondary or long press, or, for Shift+F10 (source 'keyboard'), the handle the host reads from its focused handle; see §1.4 "Menus". */
   menuAt(at: ScreenPoint | 'selection', source: MenuSource, handle?: ToolHandleId): GestureOutcome
   setTool(id: ToolId, source: ToolSource | null): void
   /** A new source for the armed tool (the session's read-model bridge): forwards to CanvasTool.sourceChanged. */
@@ -1022,16 +1022,16 @@ export type ToolGesture =
 export type ToolCommand =
   | { readonly kind: 'escape' }                                    // only when the tool's Esc layer is top: acts on the transient (a drawing tool removes its last point, §3.7, U58), else 'pass' (the chain's tool layer leaves)
   | { readonly kind: 'confirm' }                                   // Enter, the menu's "Finish shape" and the row tool card's check button (Polygon, Profile, Plant a row: finish)
-  | { readonly kind: 'remove-last' }                               // Backspace: a draft's last point, onto its redo stack (U58); in Select, as delete-handle (U36)
+  | { readonly kind: 'remove-last' }                               // Backspace and Ctrl+Z in a draft: always its last point, onto its redo stack (U58), unless a point handle has focus (then delete-handle); in Select, as delete-handle (U36)
   | { readonly kind: 'rotate-held'; readonly stepDeg: 15 | -15 }   // [ ] while a stamp is held
   | { readonly kind: 'place-at'; readonly world: WorldPoint }      // context menu "Place plants here": snapped by the host; dropped in overview
-  | { readonly kind: 'delete-handle' }                             // Delete on a focused or selected polygon corner (phase 2) or a selected row's last-touched point (U58); Backspace's remove-last does the same in Select (U36); a refused removal keeps the point
+  | { readonly kind: 'delete-handle' }                             // Delete on a focused or selected polygon corner (phase 2) a selected row's or the row draft's focused or last-touched point (U58); Backspace's remove-last does the same in Select (U36); a refused removal keeps the point
   | { readonly kind: 'edit-text' }                                 // Enter / F2 on one selected note
   | { readonly kind: 'undo-transient' } | { readonly kind: 'redo-transient' }
   // The tool card's Plant a row spacing field (CanvasToolCommandSurface.plantRowSpacing, forwarded by the session):
   | { readonly kind: 'spacing-input'; readonly text: string }                 // typing: the preview follows a valid spacing
   | { readonly kind: 'spacing-commit'; readonly via: 'enter' | 'blur' }       // keeps a valid spacing; Enter returns focus to the map, blur moves none
-  | { readonly kind: 'spacing-cancel' }                                       // Esc in the field: drops the source, focus to the map
+  | { readonly kind: 'spacing-cancel' }                                       // Esc in the field: as Esc on the map (U58: the last point, or the picked plant when it is alone), focus to the map
   // U58 (§1.11):
   | { readonly kind: 'spacing-mode'; readonly mode: 'interval' | 'count' }   // the tool card's [Interval | Plants] switch
   | { readonly kind: 'point-action'; readonly handle: ToolHandleId | null; readonly action: PointAction }  // the point menu or the tool card; null = the last-touched point
@@ -1127,7 +1127,7 @@ export interface CanvasTool {
   /** A camera frame on which the host re-emitted nothing (the pointer off the map): rebuild a draft whose look depends on the
    *  scale, such as the polygon's edge chips hidden below 36 px (today's refreshViewportDependent). */
   viewChanged?(): void
-  /** True while the tool holds a draft, pick, row source or Place plants' waiting point: Esc drops it first unless
+  /** True while the tool holds a draft, pick, row source or Place plants' waiting point: Esc acts on it first (a drawing draft loses its last point, U58) unless
    *  `escapeLeaves`, and it holds re-origin, through which it blocks Delete and Ctrl+X (§4.19; §1.6 step 10, `holdsSelectionDeletes`). */
   hasTransient(): boolean
   /** Esc leaves the tool even while it holds a transient, which is then no Esc layer (Place plants' waiting point, U35). */
@@ -1739,7 +1739,7 @@ Rotation from the pointer is never available without Shift (user: deliberate ges
 | click (still) | makes it the last-touched point (Select: the selected corner, U40) | nothing |
 | double-click, double tap | on the last point while drawing: finishes; otherwise nothing | inserts a point in place (one undo step) |
 | Alt+click | deletes it (minimum 2 on an open row, 3 on a loop or a polygon; refused silently below) | nothing |
-| Delete, Backspace with the point focused or last-touched | deletes it (same minimum) | — |
+| Delete with the point focused or last-touched, or Backspace with the point focused | deletes it (same minimum); in a draft, Backspace and Ctrl+Z with no point focused remove the last point (A17) | — |
 | right-click, long press, Shift+F10 with it focused | the point menu (§1.4 "Menus") | the ordinary canvas menu |
 
 Alt held while placing a new row point makes it sharp; sharpness otherwise changes only through the point menu or the tool card. While a new row is drawn, its picked plant (the first point) never moves and cannot be deleted; from 3 points it is the loop's close target. Under Select every point of a row may move or be deleted (the first member follows the first point). Zone corners keep the double-click on the edge itself (U42). Polygon and Profile draft points have no handles, so the point menu and Alt+click apply to row points and zone corners only (convention). Touch has no hover: the curve and ghosts redraw on each tap.
