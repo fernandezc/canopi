@@ -1,4 +1,4 @@
-Status: in progress. Phases 0, F, 1, 2, 3 and R, the 2.0 bug fixes, the 2.0 cleanup, the U-crs redesign, the 2.0 polish batch, the Layers redesign and the step "2.0 live bugs, guards and location" are done (2026-10-02 to 2026-10-10). Next (U57): the step "2.0 plant along a path" (canopi-f47t.54), then the release close (plan section 4); 2.0 ships the week after 12 October. The architecture refactors (U52) are the first step of 2.1, planned after 2.0 ships. Deleted with the plan at the release close.
+Status: in progress. Phases 0, F, 1, 2, 3 and R, the 2.0 bug fixes, the 2.0 cleanup, the U-crs redesign, the 2.0 polish batch, the Layers redesign and the step "2.0 live bugs, guards and location" are done (2026-10-02 to 2026-10-10). Next (U57, U58): the step "2.0 plant along a path" (canopi-f47t.54, amended for U58), then the release close (plan section 4); 2.0 ships the week after 12 October. The architecture refactors (U52) are the first step of 2.1, planned after 2.0 ships. Deleted with the plan at the release close.
 
 # Canvas v2: session brief
 
@@ -13,7 +13,7 @@ One owner per rule; point agents at these instead of restating them.
 - [`AGENTS.md`](../../AGENTS.md): the operating contract, the gates table, data and locale rules, the handoff.
 - [`docs/guides/agentic-delivery.md`](../guides/agentic-delivery.md): Canopi's places, gate commands, review triggers, live and Web checks, tracker, models and tools.
 - The user-level `phased-agentic-delivery` skill: the procedure (design check, one question batch, amendment, commit 0, streams, verified reviews, serial merges, real-environment check, pre-push review, usefulness pass, receipt and retrospective) and the workflow templates and gotchas.
-- [`canvas-v2-plan.md`](canvas-v2-plan.md): section 1 indexes the user's decisions (U1–U56) and where each lives; section 4 holds each step's goal, items and exit; section 7 the open beads.
+- [`canvas-v2-plan.md`](canvas-v2-plan.md): section 1 indexes the user's decisions (U1–U58) and where each lives; section 4 holds each step's goal, items and exit; section 7 the open beads.
 - ADRs 0015–0020 (canvas) and 0021 (stored data); [`canvas-v2-spec.md`](canvas-v2-spec.md) for contracts, read by section only when a step touches it.
 
 ## 2. Read path for the 2.0 plant along a path step
@@ -52,7 +52,7 @@ Read with `bd show`, `bd dep tree canopi-f47t`, `bd list --parent canopi-f47t` a
 
 ## 5. What to do first
 
-1. **Plan and build "2.0 plant along a path"** (plan section 4; canopi-f47t.54, U57) with the skill's loop, starting from its design check; then **run the release close** (plan section 4, "2.0 release close"). Orientation, read-only in the user's checkout: `git -C /home/daylon/projects/canopi status --short --branch` (the user's `.beads.gate.lock` is expected), `df -h /`. In the integration worktree: `git status --short --branch` (clean), `git fetch`, rebase if behind (the guide's Places); check CI on the last pushed commit (`gh run list --branch feature/geolibre-adoption --limit 3`).
+1. **Plan and build "2.0 plant along a path"** (plan section 4; canopi-f47t.54, U57, U58) with the skill's loop, starting from its design check; then **run the release close** (plan section 4, "2.0 release close"). Orientation, read-only in the user's checkout: `git -C /home/daylon/projects/canopi status --short --branch` (the user's `.beads.gate.lock` is expected), `df -h /`. In the integration worktree: `git status --short --branch` (clean), `git fetch`, rebase if behind (the guide's Places); check CI on the last pushed commit (`gh run list --branch feature/geolibre-adoption --limit 3`).
    Then read section 2's path, and run the design check, one question batch (P34 among them), the amendment, its steps 1–10 and the definition of done; the hand-over to canopi-2v5a and canopi-fxil.12 is its last step.
 2. **2.1 architecture comes after 2.0 ships** (plan section 4, "2.1 architecture"); the user reviews the list of future changes first.
 
