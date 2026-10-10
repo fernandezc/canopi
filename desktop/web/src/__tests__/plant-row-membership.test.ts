@@ -9,6 +9,8 @@ vi.mock('../ipc/species', () => ({
 }))
 
 import { createDetachedCanvasRuntimeAppAdapter } from '../canvas/runtime/app-adapter'
+import { createSceneInteractionEventHarness } from './support/canvas-interaction-events'
+import { placeOnHost } from './support/test-view'
 import { SceneCanvasRuntime } from '../canvas/runtime/scene-runtime'
 import { applyPlantRowPositions, attachedPlantRowMembers, plantsById } from '../canvas/runtime/scene/plant-rows'
 import type { SceneEditCoordinator } from '../canvas/runtime/scene-runtime/transactions'
@@ -109,6 +111,141 @@ describe('the row writer through the scene runtime (A7)', () => {
       expect(scene(runtime).plantRows).toEqual(before.plantRows)
       runtime.commandSurface.history.redo()
       expect(rows(runtime)).toEqual({ hedge: members })
+    })
+  })
+})
+
+function select(runtime: SceneCanvasRuntime, ids: readonly string[]): void {
+  expect(sceneEdits(runtime).run('select', (tx) => tx.setSelection(ids.map((id) => ({ kind: 'plant', id }))))).toBe(true)
+}
+
+/** The row's points and members' `at`, which follow a whole-row move. */
+function rowGeometry(runtime: SceneCanvasRuntime) {
+  const row = scene(runtime).plantRows.find((entry) => entry.id === 'hedge')!
+  return { anchors: row.anchors.map((anchor) => anchor.position), at: row.members.map((member) => member.at) }
+}
+
+/** Runs `edit`, checks `after`, then that Undo restores the rows and Redo the edit's. */
+function expectUndoable(runtime: SceneCanvasRuntime, edit: () => void, after: Record<string, string[]>): void {
+  const before = rows(runtime)
+  edit()
+  expect(rows(runtime)).toEqual(after)
+  runtime.commandSurface.history.undo()
+  expect(rows(runtime)).toEqual(before)
+  runtime.commandSurface.history.redo()
+  expect(rows(runtime)).toEqual(after)
+}
+
+describe('a whole row moves as a row (A11)', () => {
+  it('a nudge of all its plants carries its points and every at, and keeps it a row', () => {
+    withRuntime((runtime) => {
+      const start = rowGeometry(runtime)
+      select(runtime, ROW_PLANTS)
+      expectUndoable(runtime, () => {
+        expect(runtime.commandSurface.sceneEdits.nudgeSelected({ x: 0.25, y: -1 })).toBe(true)
+        runtime.commandSurface.sceneEdits.endNudge()
+      }, { hedge: [...ROW_PLANTS] })
+      const moved = rowGeometry(runtime)
+      const shifted = (points: readonly { x: number; y: number }[]) => points.map((point) => ({ x: point.x + 0.25, y: point.y - 1 }))
+      expect(moved.anchors).toEqual(shifted(start.anchors))
+      expect(moved.at).toEqual(scene(runtime).plants.slice(0, 4).map((plant) => plant.position))
+    })
+  })
+
+  it('a rotation of all its plants turns its points and every at about the same pivot', () => {
+    withRuntime((runtime) => {
+      select(runtime, ROW_PLANTS)
+      expectUndoable(runtime, () => runtime.commandSurface.sceneEdits.rotateSelected(90), { hedge: [...ROW_PLANTS] })
+      const moved = rowGeometry(runtime)
+      const plants = scene(runtime).plants.slice(0, 4).map((plant) => plant.position)
+      expect(moved.at).toEqual(plants)
+      // The row lay along x; turned a quarter, its first and last points now share an x.
+      expect(moved.anchors[0]!.x).toBeCloseTo(moved.anchors[1]!.x, 9)
+      expect(Math.abs(moved.anchors[1]!.y - moved.anchors[0]!.y)).toBeCloseTo(6, 4)
+    })
+  })
+
+  it('a move of all its plants with another plant still carries the row', () => {
+    withRuntime((runtime) => {
+      select(runtime, [...ROW_PLANTS, 'apple'])
+      expectUndoable(runtime, () => {
+        runtime.commandSurface.sceneEdits.nudgeSelected({ x: 3, y: 0 })
+        runtime.commandSurface.sceneEdits.endNudge()
+      }, { hedge: [...ROW_PLANTS] })
+    })
+  })
+
+  it('a move-drag of all its plants under Select keeps it a row', async () => {
+    const renderer = { setSnapshot: vi.fn(), setDraft: vi.fn(), requestRender: vi.fn() }
+    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
+    runtime.connectRenderTarget(renderer)
+    const container = document.createElement('div')
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: 400 })
+    Object.defineProperty(container, 'clientHeight', { configurable: true, value: 300 })
+    await runtime.init(container)
+    runtime.documentSurface.loadDocument(rowFile())
+    runtime.documentSurface.resize(400, 300)
+    const events = createSceneInteractionEventHarness(container)
+    try {
+      const first = scene(runtime).plants[0]!.position
+      placeOnHost(runtime.cameraHost, runtime.querySurface.sessionPlane.peek()!, { x: 100 - first.x * 20, y: 150 - first.y * 20, scale: 20 })
+      select(runtime, ROW_PLANTS)
+      const start = rowGeometry(runtime)
+      events.pointerDown({ x: 100, y: 150 })
+      events.pointerMove({ x: 120, y: 150 })
+      events.pointerMove({ x: 140, y: 170 })
+      events.pointerUp({ x: 140, y: 170 })
+      expect(rows(runtime)).toEqual({ hedge: [...ROW_PLANTS] })
+      const moved = rowGeometry(runtime)
+      expect(moved.anchors[0]!.x - start.anchors[0]!.x).toBeCloseTo(2, 6)
+      expect(moved.anchors[0]!.y - start.anchors[0]!.y).toBeCloseTo(1, 6)
+      runtime.commandSurface.history.undo()
+      expect(rowGeometry(runtime)).toEqual(start)
+    } finally {
+      events.dispose()
+      runtime.destroy()
+    }
+  })
+})
+
+describe('any other edit takes plants out of their row (A5)', () => {
+  it('moving some of its plants leaves the rest a row without them', () => {
+    withRuntime((runtime) => {
+      select(runtime, ['h2', 'h3'])
+      expectUndoable(runtime, () => {
+        runtime.commandSurface.sceneEdits.nudgeSelected({ x: 0, y: 1 })
+        runtime.commandSurface.sceneEdits.endNudge()
+      }, { hedge: ['h1', 'h4'] })
+    })
+  })
+
+  it('rotating some of its plants takes them out', () => {
+    withRuntime((runtime) => {
+      select(runtime, ['h1', 'h2', 'apple'])
+      expectUndoable(runtime, () => runtime.commandSurface.sceneEdits.rotateSelected(45), { hedge: ['h3', 'h4'] })
+    })
+  })
+
+  it('deleting or cutting a plant takes it out', () => {
+    withRuntime((runtime) => {
+      select(runtime, ['h4'])
+      expectUndoable(runtime, () => runtime.commandSurface.sceneEdits.deleteSelected(), { hedge: ['h1', 'h2', 'h3'] })
+      select(runtime, ['h1'])
+      expectUndoable(runtime, () => {
+        runtime.commandSurface.sceneEdits.copy()
+        runtime.commandSurface.sceneEdits.deleteSelected()
+      }, { hedge: ['h2', 'h3'] })
+    })
+  })
+
+  it('copies are plain plants: Ctrl+D and paste leave the row as it was', () => {
+    withRuntime((runtime) => {
+      select(runtime, ROW_PLANTS)
+      expectUndoable(runtime, () => runtime.commandSurface.sceneEdits.duplicateSelected(), { hedge: [...ROW_PLANTS] })
+      expect(scene(runtime).plants).toHaveLength(9)
+      runtime.commandSurface.sceneEdits.copy()
+      expectUndoable(runtime, () => runtime.commandSurface.sceneEdits.paste(), { hedge: [...ROW_PLANTS] })
+      expect(scene(runtime).plants).toHaveLength(13)
     })
   })
 })

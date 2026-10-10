@@ -129,3 +129,43 @@ export function rowOfSelection(
   }
   return null
 }
+
+/** The rows a move carries, as they were when it started: each one with only its attached members (A11). */
+export type PlantRowStarts = ReadonlyMap<string, ScenePlantRowEntity>
+
+/**
+ * The rows that move whole with a set of moving plants: each row with an attached member whose attached members all
+ * move. Move-drag, the keyboard nudge and rotation capture them with their plants, and carry them through
+ * `transformPlantRows`; a mover that does not leaves the plants and the row dissolves into plain plants.
+ */
+export function plantRowsMovingWith(
+  scene: Pick<ScenePersistedState, 'plants' | 'plantRows'>,
+  moving: { has(plantId: string): boolean },
+): PlantRowStarts {
+  const plants = plantsById(scene)
+  const starts = new Map<string, ScenePlantRowEntity>()
+  for (const row of scene.plantRows) {
+    const members = attachedPlantRowMembers(row, plants)
+    if (members.length === 0 || !members.every((member) => moving.has(member.plantId))) continue
+    starts.set(row.id, { ...row, members })
+  }
+  return starts
+}
+
+/** Applies the move's transform to each carried row's points and members' `at`, from where they started. */
+export function transformPlantRows(
+  draft: ScenePersistedState,
+  starts: PlantRowStarts,
+  transform: (point: ScenePoint) => ScenePoint,
+): void {
+  if (starts.size === 0) return
+  draft.plantRows = draft.plantRows.map((row) => {
+    const start = starts.get(row.id)
+    if (!start) return row
+    return {
+      ...start,
+      anchors: start.anchors.map((anchor) => ({ position: transform(anchor.position), sharp: anchor.sharp })),
+      members: start.members.map((member) => ({ plantId: member.plantId, at: transform(member.at) })),
+    }
+  })
+}

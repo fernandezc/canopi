@@ -9,6 +9,7 @@ import {
   type ScenePoint,
   type SceneZoneEntity,
 } from '../scene'
+import { plantRowsMovingWith, transformPlantRows, type PlantRowStarts } from '../scene/plant-rows'
 
 /**
  * Rotating a selection about a pivot: the rotation handle's drag and the
@@ -27,6 +28,8 @@ export interface RotationTransformState {
   readonly plants: Map<string, ScenePoint>
   readonly zones: Map<string, ZoneRotationStart>
   readonly annotations: Map<string, AnnotationRotationStart>
+  /** The rows whose plants all turn, which turn with them (A11). */
+  readonly plantRows: PlantRowStarts
 }
 
 interface ZoneRotationStart {
@@ -65,7 +68,7 @@ export function captureRotationTransformState(
   ) {
     return null
   }
-  return state
+  return { ...state, plantRows: plantRowsMovingWith(scene, state.plants) }
 }
 
 function createRotationTransformState(): RotationTransformState {
@@ -73,6 +76,7 @@ function createRotationTransformState(): RotationTransformState {
     plants: new Map(),
     zones: new Map(),
     annotations: new Map(),
+    plantRows: new Map(),
   }
 }
 
@@ -165,6 +169,7 @@ export function applyRotationTransformToDraft(
     return rotateZone(zone, start, pivot, deltaDeg)
   })
 
+  transformPlantRows(draft, state.plantRows, (point) => rotateByDegrees(point, pivot, deltaDeg))
 }
 
 /**
