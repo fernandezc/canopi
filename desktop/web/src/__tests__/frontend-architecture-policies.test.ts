@@ -2319,6 +2319,68 @@ const CANVAS_V2_POLICIES = [
     exceptFrom: ['src/app/my-location/geolocation.ts', ...TEST_SOURCE_PATTERNS],
     properties: ['watchPosition', 'getCurrentPosition', 'clearWatch'],
   },
+  {
+    // Plant along a path (canopi-f47t.54, A8): a stored row's spacing never writes the device setting; only the row
+    // tool's draft does, through the tool contract and today's wiring (the adapters name it ...Meters).
+    kind: 'confine-symbols',
+    name: 'P56 only the row tool and its wiring write the device spacing interval',
+    from: ['src/**'],
+    names: ['commitPlantSpacingIntervalM', 'commitPlantSpacingIntervalMeters'],
+    allowedFrom: [
+      'src/canvas/runtime/tools/plant-row.ts',
+      'src/canvas/runtime/tools/tool.ts',
+      'src/canvas/runtime/interaction-session.ts',
+      'src/canvas/runtime/scene-runtime.ts',
+      'src/canvas/runtime/app-adapter.ts',
+      'src/app/canvas-runtime/app-adapter.ts',
+      ...TEST_SOURCE_PATTERNS,
+    ],
+  },
+  {
+    // A10: the curve, points and dots exist only as the row tool's and Select's drafts and handles; PDF, GeoJSON and the
+    // selection summary read plants only.
+    kind: 'forbid-source-symbols',
+    name: 'P57 rows are not drawn, printed, exported or summarised at rest',
+    from: [
+      'src/canvas/runtime/renderers/world-layers.ts',
+      'src/canvas/runtime/print-snapshot.ts',
+      'src/app/geojson/**',
+      'src/app/map-selection/**',
+    ],
+    names: ['plantRows'],
+  },
+] satisfies readonly ArchitecturePolicy[]
+
+/**
+ * Plant along a path (canopi-f47t.54; A3, A5, A15), checked against the real graph by their own test: they name
+ * src/canvas/plant-path/ and scene/plant-rows.ts, which streams P and R create, so they stay out of the path-drift list
+ * until both have merged; the merge that lands the second moves them into CANVAS_V2_POLICIES.
+ */
+const PLANT_PATH_PENDING_POLICIES = [
+  {
+    // The engine and the shared point editor are pure: no tool host, session, settings or Preact, and of the runtime
+    // only types (view types, ToolHandle, HandleSize, interaction types, the scene).
+    kind: 'forbid-imports',
+    name: 'P54 the point editor and the path engine import only each other and types',
+    from: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
+    exceptFrom: [...TEST_SOURCE_PATTERNS],
+    targets: ['src/**', 'preact', 'preact/**', '@preact/**'],
+    exceptTargets: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
+    allowTypeOnlyTargets: [
+      'src/canvas/runtime/view/types.ts',
+      'src/canvas/runtime/tools/draft.ts',
+      'src/canvas/runtime/tools/select/handle-size.ts',
+      'src/canvas/runtime/interaction-types.ts',
+      'src/canvas/runtime/scene/**',
+    ],
+  },
+  {
+    // A5: membership is derived on read, so no transaction knows rows.
+    kind: 'forbid-imports',
+    name: 'P55 the scene transactions never import the plant row module',
+    from: ['src/canvas/runtime/scene-runtime/transactions.ts'],
+    targets: ['src/canvas/runtime/scene/plant-rows.ts'],
+  },
 ] satisfies readonly ArchitecturePolicy[]
 
 /**
@@ -2940,6 +3002,10 @@ describe('declarative frontend architecture policies', () => {
 
 function canvasV2Policies(id: string): readonly ArchitecturePolicy[] {
   return CANVAS_V2_POLICIES.filter(({ name }) => name.startsWith(`${id} `))
+}
+
+function plantPathPolicies(id: string): readonly ArchitecturePolicy[] {
+  return PLANT_PATH_PENDING_POLICIES.filter(({ name }) => name.startsWith(`${id} `))
 }
 
 function plantedSource(path: string, lines: readonly string[]) {
@@ -3982,6 +4048,115 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       `${P53} src/app/my-location/follow.ts:3 calls geo!['clearWatch']`,
     ])
   })
+})
+
+const P54 = '[P54 the point editor and the path engine import only each other and types]'
+const P55 = '[P55 the scene transactions never import the plant row module]'
+const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
+const P57 = '[P57 rows are not drawn, printed, exported or summarised at rest]'
+
+describe('plant along a path policies (canopi-f47t.54)', () => {
+  it('P54 rejects a point editor or path engine import of a tool, the session or Preact, and a value import of a type home', () => {
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/canvas/runtime/view/types.ts', ['export type WorldPoint = { x: number }']),
+      plantedSource('src/canvas/runtime/tools/draft.ts', ['export type ToolHandle = { id: string }', 'export const glyphs = 1']),
+      plantedSource('src/canvas/runtime/tools/select/handle-size.ts', ['export type HandleSize = number']),
+      plantedSource('src/canvas/runtime/interaction-types.ts', ['export type PointerKind = string']),
+      plantedSource('src/canvas/runtime/scene/types.ts', ['export type ScenePoint = { x: number }']),
+      plantedSource('src/canvas/runtime/tools/tool-host.ts', ['export const host = 1']),
+      plantedSource('src/canvas/session-state.ts', ['export const session = 1']),
+      plantedSource('src/canvas/plant-path/curve.ts', [
+        "import type { WorldPoint } from '../runtime/view/types'",
+        "import type { ScenePoint } from '../runtime/scene/types'",
+        "import { CLOSE } from '../point-editor/rules'",
+        "import { session } from '../session-state'",
+      ]),
+      plantedSource('src/canvas/point-editor/rules.ts', [
+        "import type { PointerKind } from '../runtime/interaction-types'",
+        'export const CLOSE = 1',
+      ]),
+      plantedSource('src/canvas/point-editor/layout.ts', [
+        "import type { ToolHandle } from '../runtime/tools/draft'",
+        "import type { HandleSize } from '../runtime/tools/select/handle-size'",
+        "import { glyphs } from '../runtime/tools/draft'",
+        "import { host } from '../runtime/tools/tool-host'",
+        "import { h } from 'preact'",
+        "import { signal } from '@preact/signals'",
+        "import { curve } from '../plant-path/curve'",
+      ]),
+      plantedSource('src/canvas/point-editor/layout.test.ts', ["import { host } from '../runtime/tools/tool-host'"]),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P54'))).toEqual([
+      `${P54} src/canvas/plant-path/curve.ts:4:1 imports src/canvas/session-state.ts via "../session-state" (static)`,
+      `${P54} src/canvas/point-editor/layout.ts:3:1 imports src/canvas/runtime/tools/draft.ts via "../runtime/tools/draft" (static)`,
+      `${P54} src/canvas/point-editor/layout.ts:4:1 imports src/canvas/runtime/tools/tool-host.ts via "../runtime/tools/tool-host" (static)`,
+      `${P54} src/canvas/point-editor/layout.ts:5:1 imports preact via "preact" (static)`,
+      `${P54} src/canvas/point-editor/layout.ts:6:1 imports @preact/signals via "@preact/signals" (static)`,
+    ])
+  })
+
+  it('P55 rejects a scene transactions import of the plant row module, type-only included', () => {
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/canvas/runtime/scene/plant-rows.ts', ['export const rows = 1', 'export type Row = number']),
+      plantedSource('src/canvas/runtime/scene-runtime/transactions.ts', [
+        "import type { Row } from '../scene/plant-rows'",
+        "import { rows } from '../scene/plant-rows'",
+      ]),
+      plantedSource('src/canvas/runtime/scene-runtime/drag-state.ts', ["import { rows } from '../scene/plant-rows'"]),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P55'))).toEqual([
+      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:1:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
+      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:2:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
+    ])
+  })
+
+  it('P56 confines the device spacing interval writer to the row tool, the tool contract and its wiring', () => {
+    const allowed = [
+      'src/canvas/runtime/tools/plant-row.ts',
+      'src/canvas/runtime/tools/tool.ts',
+      'src/canvas/runtime/interaction-session.ts',
+      'src/canvas/runtime/scene-runtime.ts',
+      'src/canvas/runtime/app-adapter.ts',
+      'src/app/canvas-runtime/app-adapter.ts',
+      TEST_SOURCES,
+    ].join(', ')
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/canvas/runtime/tools/plant-row.ts', ['ctx.settings.commitPlantSpacingIntervalM(2)']),
+      plantedSource('src/app/canvas-runtime/app-adapter.ts', ['export const commitPlantSpacingIntervalM = (m: number) => m']),
+      plantedSource('src/canvas/runtime/tools/select/select-tool.ts', ['ctx.settings.commitPlantSpacingIntervalM(3)']),
+      plantedSource('src/components/canvas/SelectionChip.tsx', ['surface.commitPlantSpacingIntervalM(3)']),
+      plantedSource('src/canvas/runtime/command-surface.ts', ['adapter.settings.commitPlantSpacingIntervalMeters(3)']),
+      plantedSource('src/components/canvas/SelectionChip.test.tsx', ['surface.commitPlantSpacingIntervalM(3)']),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P56'))).toEqual([
+      `${P56} src/canvas/runtime/tools/select/select-tool.ts contains confined symbol commitPlantSpacingIntervalM; allowed sources: ${allowed}`,
+      `${P56} src/components/canvas/SelectionChip.tsx contains confined symbol commitPlantSpacingIntervalM; allowed sources: ${allowed}`,
+      `${P56} src/canvas/runtime/command-surface.ts contains confined symbol commitPlantSpacingIntervalMeters; allowed sources: ${allowed}`,
+    ])
+  })
+
+  it('P57 rejects plantRows in the world layers, the print snapshot, GeoJSON and the map selection summary', () => {
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/canvas/runtime/renderers/world-layers.ts', ['for (const row of scene.plantRows) draw(row)']),
+      plantedSource('src/canvas/runtime/print-snapshot.ts', ['const { plantRows } = persisted']),
+      plantedSource('src/app/geojson/codec.ts', ['export const rows = (s: { plantRows: unknown[] }) => s.plantRows']),
+      plantedSource('src/app/map-selection/summary.ts', ['const count = scene.plants.length']),
+      plantedSource('src/canvas/runtime/tools/plant-row.ts', ['const rows = scene.persisted.plantRows']),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P57'))).toEqual([
+      `${P57} src/canvas/runtime/renderers/world-layers.ts contains forbidden symbol plantRows`,
+      `${P57} src/canvas/runtime/print-snapshot.ts contains forbidden symbol plantRows`,
+      `${P57} src/app/geojson/codec.ts contains forbidden symbol plantRows`,
+    ])
+  })
+
+  it('keeps the real sources within P54 and P55 before the modules they name exist', () => {
+    expect(collectArchitecturePolicyViolations(discoveredSourceGraph(), PLANT_PATH_PENDING_POLICIES)).toEqual([])
+  }, 20_000)
 })
 
 describe('map error logging', () => {
