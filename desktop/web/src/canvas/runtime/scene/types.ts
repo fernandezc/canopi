@@ -70,23 +70,26 @@ export interface SceneMeasurementGuideEntity {
 }
 
 /** How a row spaces its plants: every N metres, or N plants with the first counted (A3). */
-export type ScenePlantRowSpacing =
+type ScenePlantRowSpacing =
   | { kind: 'interval'; metres: number }
   | { kind: 'count'; count: number }
 
-export interface ScenePlantRowAnchor {
+interface ScenePlantRowAnchor {
   position: ScenePoint
   /** A sharp point splits the curve into separate smooth runs. */
   sharp: boolean
 }
 
-export interface ScenePlantRowMember {
+interface ScenePlantRowMember {
   plantId: string
   /** Where the row writer last put the plant; the plant is attached while it lies within 1 mm of it (A5). */
   at: ScenePoint
 }
 
-/** A planted row: its path of points and the plants the row writer placed along it (plan §4, plant along a path). */
+/**
+ * A planted row: its path of points and the plants the row writer placed along it (plan §4, plant along a path). Its parts
+ * are module-private names; a reader names one as `ScenePlantRowEntity['anchors'][number]` (A6's shape).
+ */
 export interface ScenePlantRowEntity {
   kind: 'plant-row'
   id: string
