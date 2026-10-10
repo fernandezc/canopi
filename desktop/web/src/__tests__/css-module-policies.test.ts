@@ -39,6 +39,9 @@ const RAW_CSS_TIME = new RegExp(
   String.raw`(?:^|[^\w.-])${CSS_NUMBER_SOURCE}(?:ms|s)(?![\w-])`,
   'i',
 )
+const RAW_CSS_COLOUR =
+  /(?:^|[^\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|#[0-9a-f]{3,8}\b|(?:^|[^\w-])(?:white|black)(?![\w-])/i
+const ALLOWED_FONT_WEIGHTS = new Set(['400', '600'])
 const GLOBAL_DESIGN_TOKEN_NAMES = collectGlobalDesignTokenNames(
   readFileSync('src/styles/global.css', 'utf8'),
 )
@@ -132,6 +135,25 @@ const CSS_MODULE_POLICIES: readonly CssDeclarationPolicy[] = [
     requiredValue: /$^/,
     accepts: acceptsTransitionDeclaration,
     exceptions: REVIEWED_TRANSITION_EXCEPTIONS,
+  },
+  {
+    // A raw colour does not follow the theme, so it breaks dark mode (system.md: tokens only). Any property is
+    // checked, since shorthands (border, box-shadow, filter: drop-shadow) carry colours too.
+    name: 'CSS Modules draw colour from tokens',
+    properties: ['*'],
+    rawValue: RAW_CSS_COLOUR,
+    requiredValue: /$^/,
+    accepts: () => false,
+    exceptions: [],
+  },
+  {
+    // system.md allows two weights, 400 and 600; a third weight reads as a new level of emphasis.
+    name: 'CSS font weights are 400 or 600',
+    properties: ['font-weight', 'font'],
+    rawValue: /[\s\S]+/,
+    requiredValue: /$^/,
+    accepts: acceptsFontWeightDeclaration,
+    exceptions: [],
   },
 ]
 
@@ -316,6 +338,33 @@ describe('CSS module policy facts', () => {
     })).toBe(false)
   })
 
+  it('rejects a raw colour in any property and a font weight other than 400 or 600', () => {
+    const planted = [{
+      path: 'src/fixture.module.css',
+      declarations: parseCssDeclarations(
+        'src/fixture.module.css',
+        `.item {
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+          border: 1px solid #fff;
+          color: white;
+          background: var(--color-surface);
+          white-space: nowrap;
+          font-weight: 700;
+          font-weight: 600 !important;
+          font: 500 var(--text-sm) var(--font-sans);
+          font: inherit;
+        }`,
+      ),
+    }]
+    expect(collectCssPolicyViolations(planted, CSS_MODULE_POLICIES.slice(-2))).toEqual([
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:2 box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2)',
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:3 border: 1px solid #fff',
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:4 color: white',
+      '[CSS font weights are 400 or 600] src/fixture.module.css:7 font-weight: 700',
+      '[CSS font weights are 400 or 600] src/fixture.module.css:9 font: 500 var(--text-sm) var(--font-sans)',
+    ])
+  })
+
   it('reads only colour tokens global.css defines, so no var(--color-*) silently draws nothing', () => {
     const undefinedReads = cssModuleFacts().flatMap((file) => {
       const local = new Set(file.declarations.map((declaration) => declaration.property))
@@ -343,6 +392,15 @@ function acceptsFontDeclaration({ property, value }: CssDeclarationFact): boolea
     '--text-',
     property === 'font' ? ['--font-', '--line-height'] : [],
   )
+}
+
+function acceptsFontWeightDeclaration({ property, value }: CssDeclarationFact): boolean {
+  const normalized = value.replace(/\s*!important\s*$/i, '').trim()
+  if (CSS_WIDE_VALUES.has(normalized)) return true
+  if (property === 'font-weight') return ALLOWED_FONT_WEIGHTS.has(normalized)
+  // The font shorthand may carry a weight among its components: a bare number or a weight keyword.
+  return splitTopLevelComponents(normalized, true).every((component) =>
+    !/^(?:\d+|bold|bolder|lighter)$/i.test(component) || ALLOWED_FONT_WEIGHTS.has(component))
 }
 
 function acceptsSpacingComponent(component: string): boolean {
