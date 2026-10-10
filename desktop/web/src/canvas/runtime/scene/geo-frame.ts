@@ -4,7 +4,7 @@ import {
   type GeoPosition,
   type SessionPlane,
 } from '../../session-plane'
-import type { ScenePersistedState, ScenePoint, SceneZoneEntity } from './types'
+import type { ScenePersistedState, ScenePlantRowEntity, ScenePoint, SceneZoneEntity } from './types'
 
 // The largest 1e-9 degree grid latitude inside Web Mercator's ±85.0511287798066.
 const GRID_MAX_LATITUDE_DEG = 85.051128779
@@ -98,25 +98,58 @@ export class ScenePlaneReprojector {
     return { ...zone, points: zone.points.map((point) => this.point(point)) }
   }
 
+  plantRow(row: ScenePlantRowEntity): ScenePlantRowEntity {
+    return {
+      ...row,
+      anchors: row.anchors.map((anchor) => ({ ...anchor, position: this.point(anchor.position) })),
+      members: row.members.map((member) => ({ ...member, at: this.point(member.at) })),
+    }
+  }
+
+  // One entry per persisted collection, so a new one cannot be left behind on a re-origin: tsc fails until it is
+  // listed here, moved or kept as it is.
+  private readonly collections: PersistedReprojection = {
+    plantSpeciesColors: keep,
+    plantSpeciesSymbols: keep,
+    plantSpeciesCodes: keep,
+    layers: keep,
+    groups: keep,
+    plants: (plants) => plants.map((plant) => ({ ...plant, position: this.point(plant.position) })),
+    zones: (zones) => zones.map((zone) => this.zone(zone)),
+    annotations: (annotations) => annotations.map((annotation) => ({
+      ...annotation,
+      position: this.point(annotation.position),
+    })),
+    measurementGuides: (guides) => guides.map((guide) => ({
+      ...guide,
+      start: this.point(guide.start),
+      end: this.point(guide.end),
+    })),
+    plantRows: (rows) => rows.map((row) => this.plantRow(row)),
+  }
+
   persisted<T extends Partial<ScenePersistedState>>(state: T): T {
     const next: Partial<ScenePersistedState> = { ...state }
-    if (state.plants) {
-      next.plants = state.plants.map((plant) => ({ ...plant, position: this.point(plant.position) }))
-    }
-    if (state.zones) next.zones = state.zones.map((zone) => this.zone(zone))
-    if (state.annotations) {
-      next.annotations = state.annotations.map((annotation) => ({
-        ...annotation,
-        position: this.point(annotation.position),
-      }))
-    }
-    if (state.measurementGuides) {
-      next.measurementGuides = state.measurementGuides.map((guide) => ({
-        ...guide,
-        start: this.point(guide.start),
-        end: this.point(guide.end),
-      }))
+    for (const key of Object.keys(this.collections) as (keyof ScenePersistedState)[]) {
+      reprojectCollection(this.collections, next, key)
     }
     return next as T
   }
+}
+
+type PersistedReprojection = {
+  readonly [K in keyof ScenePersistedState]: (value: ScenePersistedState[K]) => ScenePersistedState[K]
+}
+
+function keep<T>(value: T): T {
+  return value
+}
+
+function reprojectCollection<K extends keyof ScenePersistedState>(
+  collections: PersistedReprojection,
+  state: Partial<ScenePersistedState>,
+  key: K,
+): void {
+  const value = state[key]
+  if (value !== undefined) state[key] = collections[key](value as ScenePersistedState[K])
 }

@@ -30,6 +30,7 @@ import type {
   SceneObjectGroupEntity,
   ScenePersistedState,
   ScenePlantEntity,
+  ScenePlantRowEntity,
   SceneSessionState,
   SceneZoneEntity,
 } from './types'
@@ -79,6 +80,8 @@ export function hydrateScenePersistedStateInFrame(file: CanopiFile, plane: Sessi
     annotations: (file.annotations ?? []).map((annotation) => hydrateAnnotationEntity(annotation, plane)),
     measurementGuides: (file.measurement_guides ?? []).map((guide, index) => hydrateMeasurementGuideEntity(guide, index, plane)),
     groups: (file.groups ?? []).map(hydrateGroupEntity),
+    // The stored rows are read once `plant_rows` is in the format (plan §4, plant along a path, A4).
+    plantRows: [],
   }
 }
 
@@ -123,6 +126,7 @@ export function cloneScenePersistedState(state: ScenePersistedState): ScenePersi
     annotations: state.annotations.map(cloneAnnotationEntity),
     measurementGuides: state.measurementGuides.map(cloneMeasurementGuideEntity),
     groups: state.groups.map(cloneGroupEntity),
+    plantRows: state.plantRows.map(clonePlantRowEntity),
   }
 }
 
@@ -336,6 +340,15 @@ function cloneGroupEntity(group: SceneObjectGroupEntity): SceneObjectGroupEntity
   return {
     ...group,
     members: cloneSceneObjectGroupMembers(group.members),
+  }
+}
+
+function clonePlantRowEntity(row: ScenePlantRowEntity): ScenePlantRowEntity {
+  return {
+    ...row,
+    anchors: row.anchors.map((anchor) => ({ ...anchor, position: clonePoint(anchor.position) })),
+    spacing: { ...row.spacing },
+    members: row.members.map((member) => ({ ...member, at: clonePoint(member.at) })),
   }
 }
 

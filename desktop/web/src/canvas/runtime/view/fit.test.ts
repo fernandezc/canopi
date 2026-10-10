@@ -41,6 +41,7 @@ function scene(): ScenePersistedState {
     annotations: [note('label', 50, 60, 'A long note\nWith another line', 45), note('sign', -20, -15, 'Gate', null)],
     measurementGuides: [],
     groups: [],
+    plantRows: [],
   }
 }
 
@@ -339,6 +340,7 @@ describe('scene extent', () => {
       annotations: [],
       measurementGuides: [],
       groups: [],
+      plantRows: [],
     }
   }
 

@@ -29,5 +29,6 @@ export function createDefaultScenePersistedState(): ScenePersistedState {
     annotations: [],
     measurementGuides: [],
     groups: [],
+    plantRows: [],
   }
 }
