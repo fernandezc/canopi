@@ -20,7 +20,7 @@ export interface PointMenuItem {
 }
 
 /** A handle press as the host reports it (`handle-drag` start). */
-export interface PointPress {
+interface PointPress {
   readonly role: 'point' | 'dot'
   readonly clickCount: number
   readonly alt: boolean
@@ -34,7 +34,7 @@ export interface PointPress {
  * press on a dot inserts a point there once it drags, and a still press inserts nothing; 'insert': a double-click on a
  * dot inserts a point in place.
  */
-export type PointPressIntent = 'delete' | 'finish' | 'move' | 'insert' | 'insert-drag'
+type PointPressIntent = 'delete' | 'finish' | 'move' | 'insert' | 'insert-drag'
 
 export function pointPressIntent(press: PointPress): PointPressIntent {
   if (press.role === 'dot') return press.clickCount >= 2 ? 'insert' : 'insert-drag'

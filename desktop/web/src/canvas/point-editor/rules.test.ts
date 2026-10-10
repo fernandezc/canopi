@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { CLOSE_DISTANCE_PX, pointMenuItems, pointPressIntent, type PointPress } from './rules'
+import { CLOSE_DISTANCE_PX, pointMenuItems, pointPressIntent } from './rules'
+
+type PointPress = Parameters<typeof pointPressIntent>[0]
 
 const press = (overrides: Partial<PointPress>): PointPress => ({
   role: 'point',
