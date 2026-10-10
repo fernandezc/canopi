@@ -2,6 +2,7 @@
 // fixture in a fresh browser with Web Edition settings, read boxes, test overlap and what a click at a centre reaches,
 // and read the visible map frame the visible-map-area seam publishes for the chips. DOM assertions only, no baselines.
 import type { Locator, Page } from '@playwright/test'
+import { pressMod } from './canvas'
 import { expect } from './offline'
 
 /** The Web Edition's settings record (web/browser-app-data.ts); its settings are merged over the defaults. */
@@ -14,20 +15,45 @@ export function mapHost(page: Page): Locator {
   return page.getByRole('application').first()
 }
 
+export interface OpenOptions {
+  readonly locale?: string
+  /** Hides the basemap, so no map notice shows. */
+  readonly basemapHidden?: boolean
+  /** Other Web Edition settings, such as `snap_to_grid` or `tool_names_visible`. */
+  readonly settings?: Readonly<Record<string, unknown>>
+  /**
+   * Writes the settings once instead of before every navigation, so a reload keeps the Draft the open wrote (a spec
+   * that reopens the Design from its Draft).
+   */
+  readonly keepOnReload?: boolean
+  /** Opens through the start screen's button (default), or its Mod+O shortcut where the start screen's library covers
+   *  the button (740x360). */
+  readonly openWith?: 'button' | 'shortcut'
+}
+
 /**
  * Opens `fixture` in a fresh browser (an earlier open's draft would reopen with its camera), whose Web Edition settings
- * take `locale` and, with `basemapHidden`, hide the basemap so no map notice shows.
+ * take `locale` and the other options.
  */
-export async function openFixture(page: Page, fixture: string, { locale = 'en', basemapHidden = false } = {}): Promise<void> {
-  await page.addInitScript((settings) => {
+export async function openFixture(page: Page, fixture: string, options: OpenOptions = {}): Promise<void> {
+  const { locale = 'en', basemapHidden = false, settings = {}, keepOnReload = false, openWith = 'button' } = options
+  const stored = { key: SETTINGS_KEY, values: { ...settings, locale, ...(basemapHidden ? { basemap_visible: false } : {}) } }
+  const write = (record: typeof stored) => {
     localStorage.clear()
-    localStorage.setItem(settings.key, JSON.stringify({ version: 2, settings: settings.values }))
-  }, { key: SETTINGS_KEY, values: basemapHidden ? { locale, basemap_visible: false } : { locale } })
-  await page.goto('')
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.locator('[data-start-screen] button').filter({ hasText: /\.canopi/ }).first().click(),
-  ])
+    localStorage.setItem(record.key, JSON.stringify({ version: 2, settings: record.values }))
+  }
+  if (keepOnReload) {
+    await page.goto('')
+    await page.evaluate(write, stored)
+    await page.reload()
+  } else {
+    await page.addInitScript(write, stored)
+    await page.goto('')
+  }
+  const open = openWith === 'button'
+    ? () => page.locator('[data-start-screen] button').filter({ hasText: /\.canopi/ }).first().click()
+    : () => pressMod(page, 'o')
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), open()])
   await chooser.setFiles(fixture)
   await expect(mapHost(page)).toBeVisible()
   await expect(mapHost(page), 'the canvas has drawn the opened Design').not.toHaveAttribute('aria-busy')
