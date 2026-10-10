@@ -1,7 +1,7 @@
 // Source rules over the canvas runtime that no import policy expresses: the Settled Scene Authority's write and history
 // roles, typed Scene identity, the shared arrangement kernel, the interaction session's public seam, and the
 // end-to-end suites' event harness. Kept from scene-interaction-tool-boundary.test.ts when the legacy bridge went (end
-// of 0B); its tool rules and its single listener owner moved to the ToolHost's tests and the policies (plan §5).
+// of 0B); its tool rules and its single listener owner moved to the ToolHost's tests and the policies.
 import * as fs from 'node:fs'
 import { describe, expect, it } from 'vitest'
 

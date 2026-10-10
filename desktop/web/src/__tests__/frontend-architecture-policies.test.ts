@@ -1859,7 +1859,7 @@ const SYMBOL_OWNERSHIP_POLICIES = [
 
 /**
  * Callee text of a call on a MapLibre map (`map.x`, `this.map!.x`, `map?.x`, `workspaceMap.x`), for the names that other
- * objects also carry (P1's second rule and P2). Plan section 5 lists the first four; `*Map!.*` and `*Map?.*` give a
+ * objects also carry (P1's second rule and P2). The first four are the plain receivers; `*Map!.*` and `*Map?.*` give a
  * `…Map` receiver the same non-null and optional forms.
  */
 const MAP_RECEIVER_TARGETS = ['*map.*', '*map!.*', '*map?.*', '*Map.*', '*Map!.*', '*Map?.*'] as const
@@ -1892,9 +1892,6 @@ const P2_PROJECTION_POLICY = {
   properties: ['project', 'unproject'],
 } satisfies ArchitecturePolicy
 
-/**
- * Canvas v2 policies (docs/plans/canvas-v2-plan.md section 5). Each name starts with its P-id.
- */
 /** The signals the Settings Projection hydrates and persists (app/settings/projection.ts applyDraftToProjection). */
 const SETTINGS_PROJECTION_SIGNALS = [
   'locale',
@@ -1914,6 +1911,18 @@ const SETTINGS_PROJECTION_SIGNALS = [
   'newDesignDefaults',
 ] as const
 
+/**
+ * Writing a canvas policy. A rule's name starts with its P-id and a space (canvasV2Policies and plantPathPolicies
+ * filter on it); a P-id with several rules gives each its own name. A new rule takes the id after the highest in use
+ * here, in canvas-boundaries.test.ts and in the Rust policies desktop/src/module_layering.rs (P50) and
+ * ci_lane_policy.rs (P51). Its comment names the failure the rule prevents, and no doc restates it. Each rule gets a
+ * planted negative test in this file; each regex rule gets one planted file in canvas-boundaries.test.ts.
+ * forbid-source-symbols has no exceptFrom, so a symbol rule with exemptions is a confine-symbols. Both match every
+ * identifier, property names included, so names must be distinctive. forbid-calls matches targets against the full
+ * callee text and records a property only on member calls, so a bare call needs confine-symbols. A rule lands with the
+ * files it names (the drift check fails otherwise). Every allowlist entry says why it stays and, if it is temporary,
+ * which bead removes it.
+ */
 const CANVAS_V2_POLICIES = [
   {
     kind: 'forbid-calls',
@@ -2181,7 +2190,7 @@ const CANVAS_V2_POLICIES = [
       'src/utils/theme.ts',
       // Design write admission and dialogs still compose app/document-session (canopi-m4v0).
       'src/ipc/design.ts',
-      // Reads the Google key until the release close's P10 commit moves the key path (canopi-k94s).
+      // Reads the Google key until canopi-k94s moves the key path.
       'src/maplibre/satellite-bind.ts',
       ...TEST_SOURCE_PATTERNS,
     ],
@@ -2253,8 +2262,8 @@ const CANVAS_V2_POLICIES = [
   },
   {
     // An import rule, since the key's names are also property names. A namespace import ('*') reads every member, so
-    // it counts too. Readers: settings itself, the key field, the Layers presentation and satellite-bind.ts until the
-    // release close's P10 commit (canopi-k94s). Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
+    // it counts too. Readers: settings itself, the key field, the Layers presentation and satellite-bind.ts until
+    // canopi-k94s moves the key path. Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
     // carries googleMapsApiKey to every caller of the mutation seam, which this rule cannot see.
     kind: 'forbid-imports',
     name: 'P46 the Google key has reviewed readers',
@@ -3309,7 +3318,7 @@ describe('canvas v2 policies, end of 0B', () => {
   })
 
   it('P5 confines DOM, event and camera names in tools to the tool host', () => {
-    // One tool reaching every name of plan §5 P5: dropping any name from the rule drops its line here.
+    // One tool reaching every name of P5: dropping any name from the rule drops its line here.
     const graph = createTypeScriptSourceGraph([
       plantedSource('src/canvas/runtime/tools/planted.ts', [
         'export function planted(event: PointerEvent, key: KeyboardEvent, element: HTMLElement) {',
@@ -3420,7 +3429,7 @@ describe('canvas v2 policies, end of 0B', () => {
   })
 
   it('P7 confines browser globals and DOM events in the input core to the DOM input source', () => {
-    // One input module reaching every name of plan §5 P7: dropping any name from the rule drops its line here.
+    // One input module reaching every name of P7: dropping any name from the rule drops its line here.
     const graph = createTypeScriptSourceGraph([
       plantedSource('src/canvas/runtime/input/recognise.ts', [
         'export function recognise(event: PointerEvent | WheelEvent) {',
@@ -3448,7 +3457,7 @@ describe('canvas v2 policies, end of 0B', () => {
   })
 
   it('P12 confines per-point projection in the renderers to the billboards and the billboard drafts', () => {
-    // One world-layer module reaching every name of plan §5 P12: dropping any name from the rule drops its line here.
+    // One world-layer module reaching every name of P12: dropping any name from the rule drops its line here.
     const graph = createTypeScriptSourceGraph([
       plantedSource('src/canvas/runtime/renderers/world-layers.ts', [
         'export function paint(view: RendererView, quad: WorldQuad, out: Float64Array) {',

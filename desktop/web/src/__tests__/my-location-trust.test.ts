@@ -1,4 +1,4 @@
-// The location trust boundary (canopi-f47t.53; canvas v2 plan section 5; design check A12): a device fix is the user's
+// The location trust boundary (canopi-f47t.53; design check A12): a device fix is the user's
 // whereabouts, and its reading (dot, accuracy, time) never reaches a log, even when the map refuses it. Who may import
 // the session and call the browser's geolocation is P52 and P53 in frontend-architecture-policies.test.ts; the browser
 // half (the saved .canopi, the Draft record and the saved-view path carry no fix) is e2e/canvas/my-location.spec.ts.

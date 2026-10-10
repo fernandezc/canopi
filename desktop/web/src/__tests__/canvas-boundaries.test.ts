@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-// Canvas v2 regex policies (docs/plans/canvas-v2-plan.md section 5): couplings the declarative harness cannot see,
+// Canvas v2 regex policies: couplings the declarative harness cannot see,
 // such as which element a listener is added to or which event type it names. Each policy walks every non-test
 // .ts/.tsx file under src/, blanks comments, applies its regex to the files of its scope and compares the matches per
 // file with its named allowlist, so a coupling reintroduced in a new file, or a new match in a listed one, fails. Each
@@ -31,7 +31,7 @@ interface Source {
 const SRC = new URL('../', import.meta.url)
 const TEST_SOURCE = /(^src\/__tests__\/|\.test\.tsx?$)/
 
-/** The two chrome files that listen on their own elements (plan §5 P6). */
+/** The two chrome files that listen on their own elements (P6). */
 const CHROME_ELEMENT_LISTENERS = [
   'src/canvas/runtime/chrome/text-entry-host.ts',
   'src/canvas/runtime/chrome/handle-layer.ts',
@@ -91,7 +91,7 @@ const P6_REGEX_POLICIES = [
 ] as const satisfies readonly RegexPolicy[]
 
 /**
- * P3b's regexes (plan §5): the scale-and-offset projection in the old spelling (`.scale`, `viewport.x`) and the new
+ * P3b's regexes: the scale-and-offset projection in the old spelling (`.scale`, `viewport.x`) and the new
  * (`pixelsPerMetre`, `metresPerPixelAt`, the operator on either side), a scale copied into a local and a destructured
  * scale. One alternation, so a line is counted once per match.
  */
@@ -137,7 +137,7 @@ const P3B_POLICY = {
 
 
 /**
- * P8's regexes (plan §5): a key listener added directly, and a key type passed to a listener helper
+ * P8's regexes: a key listener added directly, and a key type passed to a listener helper
  * (`listen(window, 'keydown', …)`, as the DOM input source did until F). JSX `onKeyDown` is no match.
  */
 const KEY_LISTENER = new RegExp([
@@ -151,7 +151,7 @@ const P8_POLICY = {
   scope: ['src/**'],
   // The owner; its keyState(event, 'keydown', …) calls also match the helper form.
   except: [KEY_ROUTER],
-  // The handles, the note editor and the unlock button take keys on their own elements.
+  // The handles and the note editor take keys on their own elements.
   allowlist: Object.fromEntries(CHROME_ELEMENT_LISTENERS.map((path) => [path, 1])),
 } as const satisfies RegexPolicy
 
