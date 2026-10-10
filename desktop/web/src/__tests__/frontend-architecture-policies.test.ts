@@ -2341,6 +2341,15 @@ const CANVAS_V2_POLICIES = [
     ],
   },
   {
+    // P56's second route: a settings draft write (`mutateSettingsProjection((d) => { d.plantSpacingIntervalM = x })`)
+    // names neither writer, and P44 sees only `.value` writes. Residual risk: `Object.assign(d, { … })` is not seen.
+    kind: 'forbid-writes',
+    name: 'P56 only the canvas app adapter writes the device spacing draft',
+    from: ['src/**'],
+    exceptFrom: ['src/app/canvas-runtime/app-adapter.ts', ...TEST_SOURCE_PATTERNS],
+    targets: ['*.plantSpacingIntervalM', "*['plantSpacingIntervalM']", '*["plantSpacingIntervalM"]'],
+  },
+  {
     // A10: the curve, points and dots exist only as the row tool's and Select's drafts and handles; PDF, GeoJSON and the
     // selection summary read plants only.
     kind: 'forbid-source-symbols',
@@ -4067,6 +4076,7 @@ const P5_PATH_ENGINE = '[P5 the path engine names no DOM event, element or camer
 const P54 = '[P54 the point editor and the path engine import only each other and types]'
 const P55 = '[P55 the scene transactions never import the plant row module]'
 const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
+const P56_DRAFT = '[P56 only the canvas app adapter writes the device spacing draft]'
 const P57 = '[P57 rows are not drawn, printed, exported or summarised at rest]'
 
 describe('plant along a path policies (canopi-f47t.54)', () => {
@@ -4137,7 +4147,7 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
     ])
   })
 
-  it('P56 confines the device spacing interval writer to the row tool, the tool contract and its wiring', () => {
+  it('P56 confines the device spacing interval writers and the settings draft write to the row tool and its wiring', () => {
     const allowed = [
       'src/canvas/runtime/tools/plant-row.ts',
       'src/canvas/runtime/tools/tool.ts',
@@ -4149,17 +4159,27 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
     ].join(', ')
     const graph = createTypeScriptSourceGraph([
       plantedSource('src/canvas/runtime/tools/plant-row.ts', ['ctx.settings.commitPlantSpacingIntervalM(2)']),
-      plantedSource('src/app/canvas-runtime/app-adapter.ts', ['export const commitPlantSpacingIntervalM = (m: number) => m']),
+      plantedSource('src/app/canvas-runtime/app-adapter.ts', [
+        'export const commitPlantSpacingIntervalM = (m: number) => m',
+        'mutateSettingsProjection((settings) => { settings.plantSpacingIntervalM = 2 })',
+      ]),
       plantedSource('src/canvas/runtime/tools/select/select-tool.ts', ['ctx.settings.commitPlantSpacingIntervalM(3)']),
       plantedSource('src/components/canvas/SelectionChip.tsx', ['surface.commitPlantSpacingIntervalM(3)']),
       plantedSource('src/canvas/runtime/command-surface.ts', ['adapter.settings.commitPlantSpacingIntervalMeters(3)']),
       plantedSource('src/components/canvas/SelectionChip.test.tsx', ['surface.commitPlantSpacingIntervalM(3)']),
+      plantedSource('src/components/canvas/RowSpacingField.tsx', [
+        'mutateSettingsProjection((d) => { d.plantSpacingIntervalM = 2 })',
+        "mutateSettingsProjection((d) => { d['plantSpacingIntervalM'] = 2 })",
+        'const local = { plantSpacingIntervalM: 2 }',
+      ]),
     ])
 
     expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P56'))).toEqual([
       `${P56} src/canvas/runtime/tools/select/select-tool.ts contains confined symbol commitPlantSpacingIntervalM; allowed sources: ${allowed}`,
       `${P56} src/components/canvas/SelectionChip.tsx contains confined symbol commitPlantSpacingIntervalM; allowed sources: ${allowed}`,
       `${P56} src/canvas/runtime/command-surface.ts contains confined symbol commitPlantSpacingIntervalMeters; allowed sources: ${allowed}`,
+      `${P56_DRAFT} src/components/canvas/RowSpacingField.tsx:1 writes d.plantSpacingIntervalM = 2`,
+      `${P56_DRAFT} src/components/canvas/RowSpacingField.tsx:2 writes d['plantSpacingIntervalM'] = 2`,
     ])
   })
 
