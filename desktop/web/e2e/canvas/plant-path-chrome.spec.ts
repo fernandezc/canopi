@@ -95,7 +95,9 @@ async function drawTwoPoints(page: Page, layout: Layout): Promise<ReadonlyArray<
   await page.keyboard.press('p')
   const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
   await expect(apple).toBeVisible()
-  // A covered button would hold the click until the test times out; this names what covers the card at once.
+  // The list scrolls inside the card, so the option is brought into view as a click would; then a covered button,
+  // which would hold the click until the test times out, names what covers the card at once.
+  await apple.scrollIntoViewIfNeeded()
   await expectHitAtCentre(apple, 'the card\'s species list')
   await apple.click()
   await press(page, layout, centre)
