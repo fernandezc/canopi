@@ -63,7 +63,7 @@ function expectMembersAtTheirPlants(design: SavedDesign, members: number): void 
   }
 }
 
-test.fail('(canopi-f47t.54, R) a reopened Design keeps its row: after a Web Draft reload the saved Design holds the row with its six members', async ({ page }) => {
+test('(canopi-f47t.54, R) a reopened Design keeps its row: after a Web Draft reload the saved Design holds the row with its six members', async ({ page }) => {
   await openFixture(page, ROW_FIXTURE, { keepOnReload: true, settings: { snap_to_grid: false } })
   await reopenFromDraft(page)
   expectMembersAtTheirPlants(JSON.parse(await download(page)) as SavedDesign, 6)

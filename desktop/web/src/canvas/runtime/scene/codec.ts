@@ -39,6 +39,9 @@ import {
   normalizeSceneDesignObjectTargets,
 } from './design-object-targets'
 import { cloneSceneObjectGroupMembers } from './group-members'
+import { attachedPlantRowMembers, plantsById } from './plant-rows'
+
+type PlantRow = NonNullable<CanopiFile['plant_rows']>[number]
 
 export interface SceneSerializeOptions {
   now?: Date
@@ -56,6 +59,7 @@ export function designGeoPositions(file: CanopiFile): GeoPosition[] {
   for (const zone of file.zones) positions.push(...zone.points)
   for (const annotation of file.annotations ?? []) positions.push(annotation.position)
   for (const guide of file.measurement_guides ?? []) positions.push(guide.start, guide.end)
+  for (const row of file.plant_rows ?? []) positions.push(...row.anchors.map((anchor) => anchor.position))
   return positions
 }
 
@@ -80,8 +84,7 @@ export function hydrateScenePersistedStateInFrame(file: CanopiFile, plane: Sessi
     annotations: (file.annotations ?? []).map((annotation) => hydrateAnnotationEntity(annotation, plane)),
     measurementGuides: (file.measurement_guides ?? []).map((guide, index) => hydrateMeasurementGuideEntity(guide, index, plane)),
     groups: (file.groups ?? []).map(hydrateGroupEntity),
-    // The stored rows are read once `plant_rows` is in the format (plan §4, plant along a path, A4).
-    plantRows: [],
+    plantRows: hydratePlantRowEntities(file, plane),
   }
 }
 
@@ -91,6 +94,7 @@ export function serializeScenePersistedState(
   options: SceneSerializeOptions = {},
 ): CanopiFile {
   const now = options.now ?? new Date()
+  const plantRows = serializePlantRowEntities(state, plane)
 
   return {
     version: CURRENT_CANOPI_FILE_VERSION,
@@ -104,6 +108,8 @@ export function serializeScenePersistedState(
     zones: state.zones.map((zone) => serializeZoneEntity(zone, plane)),
     annotations: state.annotations.map((annotation) => serializeAnnotationEntity(annotation, plane)),
     measurement_guides: state.measurementGuides.map((guide) => serializeMeasurementGuideEntity(guide, plane)),
+    // Written only when the Design has a row, so a Design without rows saves as before.
+    ...(plantRows.length > 0 ? { plant_rows: plantRows } : {}),
     consortiums: [],
     groups: state.groups.map(serializeGroupEntity),
     timeline: [],
@@ -341,6 +347,47 @@ function cloneGroupEntity(group: SceneObjectGroupEntity): SceneObjectGroupEntity
     ...group,
     members: cloneSceneObjectGroupMembers(group.members),
   }
+}
+
+// A member whose plant is missing is dropped on read, and a row left with no member with it (A5).
+function hydratePlantRowEntities(file: CanopiFile, plane: SessionPlane): ScenePlantRowEntity[] {
+  const plantIds = new Set(file.plants.map((plant) => plant.id))
+  const rows: ScenePlantRowEntity[] = []
+  for (const row of file.plant_rows ?? []) {
+    const members = row.members.filter((member) => plantIds.has(member.plant_id))
+    if (members.length === 0) continue
+    rows.push({
+      kind: 'plant-row',
+      id: row.id,
+      anchors: row.anchors.map((anchor) => ({ position: hydrateGeoPoint(plane, anchor.position), sharp: anchor.sharp })),
+      closed: row.closed,
+      spacing: row.spacing.kind === 'interval'
+        ? { kind: 'interval', metres: row.spacing.interval_m }
+        : { kind: 'count', count: row.spacing.count },
+      members: members.map((member) => ({ plantId: member.plant_id, at: hydrateGeoPoint(plane, member.at) })),
+    })
+  }
+  return rows
+}
+
+// Only attached members are written, and a row with none is not, so a file never names a plant a row no longer holds.
+function serializePlantRowEntities(state: ScenePersistedState, plane: SessionPlane): PlantRow[] {
+  const plants = plantsById(state)
+  const rows: PlantRow[] = []
+  for (const row of state.plantRows) {
+    const members = attachedPlantRowMembers(row, plants)
+    if (members.length === 0) continue
+    rows.push({
+      id: row.id,
+      anchors: row.anchors.map((anchor) => ({ position: serializeGeoPoint(plane, anchor.position), sharp: anchor.sharp })),
+      closed: row.closed,
+      spacing: row.spacing.kind === 'interval'
+        ? { kind: 'interval', interval_m: row.spacing.metres }
+        : { kind: 'count', count: row.spacing.count },
+      members: members.map((member) => ({ plant_id: member.plantId, at: serializeGeoPoint(plane, member.at) })),
+    })
+  }
+  return rows
 }
 
 function clonePlantRowEntity(row: ScenePlantRowEntity): ScenePlantRowEntity {

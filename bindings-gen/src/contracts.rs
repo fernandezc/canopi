@@ -24,6 +24,7 @@ pub(crate) fn render_typescript_contracts() -> Result<String, Box<dyn std::error
         .register::<common_types::design::ObjectGroup>()
         .register::<common_types::design::PanelTarget>()
         .register::<common_types::design::PlacedPlant>()
+        .register::<common_types::design::PlantRow>()
         .register::<common_types::design::GeoPoint>()
         .register::<common_types::design::SpeciesPanelTarget>()
         .register::<common_types::design::SpeciesPanelTargetKind>()

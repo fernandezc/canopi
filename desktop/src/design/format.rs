@@ -348,6 +348,7 @@ pub(crate) fn create_new_design(
         zones: Vec::new(),
         annotations: Vec::new(),
         measurement_guides: Vec::new(),
+        plant_rows: Vec::new(),
         consortiums: Vec::new(),
         groups: Vec::new(),
         timeline: Vec::new(),
@@ -1122,6 +1123,93 @@ mod tests {
         assert_eq!(loaded.map_view, design.map_view);
         assert_eq!(resaved, bytes);
         assert_eq!(loaded.version, CURRENT_CANOPI_FILE_VERSION);
+    }
+
+    /// A Design with one open row of two members, each `at` its plant, as the
+    /// row writer leaves it; the second point is sharp and spacing is typed.
+    fn with_a_plant_row() -> serde_json::Value {
+        let mut value = serde_json::to_value(create_default()).expect("serialize");
+        let plant = |id: &str, lon: f64, lat: f64| {
+            serde_json::json!({
+                "id": id, "canonical_name": "Corylus avellana",
+                "position": { "lon": lon, "lat": lat }
+            })
+        };
+        value["plants"] = serde_json::json!([
+            plant("hazel-1", 3.877_255_558, 43.611_127_131),
+            plant("hazel-2", 3.877_286_264, 43.611_149_513),
+        ]);
+        value["plant_rows"] = serde_json::json!([{
+            "id": "row-1",
+            "anchors": [
+                { "position": { "lon": 3.877_255_558, "lat": 43.611_127_131 }, "sharp": false },
+                { "position": { "lon": 3.877_317_593, "lat": 43.611_172_35 }, "sharp": true },
+                { "position": { "lon": 3.877_379_628, "lat": 43.611_136_175 }, "sharp": false }
+            ],
+            "closed": false,
+            "spacing": { "kind": "interval", "interval_m": 3.5 },
+            "members": [
+                { "plant_id": "hazel-1", "at": { "lon": 3.877_255_558, "lat": 43.611_127_131 } },
+                { "plant_id": "hazel-2", "at": { "lon": 3.877_286_264, "lat": 43.611_149_513 } }
+            ]
+        }]);
+        value
+    }
+
+    #[test]
+    fn a_design_saves_its_plant_rows_and_one_without_them_saves_byte_identically() {
+        let dir = unique_dir("plant_rows_round_trip");
+
+        let plain = encode_design(&create_default()).expect("encode");
+        assert!(!String::from_utf8_lossy(&plain).contains("plant_rows"));
+        let (loaded, resaved) = resaved_bytes(&dir, "plain.canopi", &plain);
+        assert!(loaded.plant_rows.is_empty());
+        assert_eq!(resaved, plain, "a Design without rows stays as it was");
+
+        let value = with_a_plant_row();
+        let design = decode_design_value(value.clone()).expect("a saved row is admitted");
+        assert!(
+            design.extra.is_empty(),
+            "plant_rows is a known field, not extra"
+        );
+        let row = &design.plant_rows[0];
+        assert_eq!(
+            row.spacing,
+            common_types::design::PlantRowSpacing::Interval { interval_m: 3.5 }
+        );
+        assert_eq!(
+            row.anchors
+                .iter()
+                .map(|anchor| anchor.sharp)
+                .collect::<Vec<_>>(),
+            [false, true, false]
+        );
+        for (member, plant) in row.members.iter().zip(&design.plants) {
+            assert_eq!(member.plant_id, plant.id);
+            assert_eq!(
+                member.at, plant.position,
+                "each member is at its plant, bit for bit"
+            );
+        }
+        let bytes = encode_design(&design).expect("encode");
+        let (loaded, resaved) = resaved_bytes(&dir, "row.canopi", &bytes);
+        assert_eq!(loaded.plant_rows, design.plant_rows);
+        assert_eq!(resaved, bytes);
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&resaved).expect("json")["plant_rows"],
+            value["plant_rows"],
+            "the row is written as it was read"
+        );
+
+        let mut counted = with_a_plant_row();
+        counted["plant_rows"][0]["closed"] = serde_json::json!(true);
+        counted["plant_rows"][0]["spacing"] = serde_json::json!({ "kind": "count", "count": 8 });
+        let design =
+            decode_design_value(counted).expect("a closed row counting its plants is admitted");
+        assert_eq!(
+            design.plant_rows[0].spacing,
+            common_types::design::PlantRowSpacing::Count { count: 8 }
+        );
     }
 
     #[test]

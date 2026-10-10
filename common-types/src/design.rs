@@ -199,6 +199,10 @@ pub const DESIGN_FILE_FIELDS: &[DesignFileField] = &[
         owner: DesignFileFieldOwner::Scene,
     },
     DesignFileField {
+        key: "plant_rows",
+        owner: DesignFileFieldOwner::Scene,
+    },
+    DesignFileField {
         key: "consortiums",
         owner: DesignFileFieldOwner::Document,
     },
@@ -268,6 +272,10 @@ pub struct CanopiFile {
     pub annotations: Vec<Annotation>,
     #[serde(default)]
     pub measurement_guides: Vec<MeasurementGuide>,
+    // Planted rows (plan §4, plant along a path), written only when a Design
+    // has one, so a Design without rows saves as before (ADR 0021 additive).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plant_rows: Vec<PlantRow>,
     #[serde(default)]
     pub consortiums: Vec<Consortium>,
     #[serde(default)]
@@ -686,6 +694,53 @@ pub struct MeasurementGuide {
     pub locked: bool,
     pub start: GeoPoint,
     pub end: GeoPoint,
+}
+
+// A planted row: its path of points, how it spaces its plants and the plants
+// the row writer placed along it. A member belongs to the row while its plant
+// lies within 1 mm of `at`, which only the row writer sets; that is decided
+// when the scene reads the row, never stored.
+#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+pub struct PlantRow {
+    pub id: String,
+    // At least 2 points, 3 on a closed row (a loop).
+    pub anchors: Vec<PlantRowAnchor>,
+    pub closed: bool,
+    pub spacing: PlantRowSpacing,
+    // In path order, the first plant first.
+    pub members: Vec<PlantRowMember>,
+}
+
+#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+pub struct PlantRowAnchor {
+    pub position: GeoPoint,
+    // A sharp point splits the curve into separate smooth runs.
+    pub sharp: bool,
+}
+
+// Every `interval_m` metres as typed (above 0), or `count` plants with the
+// first one counted (2 to 5000).
+#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum PlantRowSpacing {
+    Interval {
+        interval_m: f64,
+    },
+    Count {
+        #[serde(deserialize_with = "deserialize_json_u32")]
+        count: u32,
+    },
+}
+
+#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
+pub struct PlantRowMember {
+    pub plant_id: String,
+    // Where the row writer last put the plant.
+    pub at: GeoPoint,
 }
 
 #[derive(Deserialize)]
