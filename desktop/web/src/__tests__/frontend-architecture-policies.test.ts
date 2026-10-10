@@ -2365,7 +2365,8 @@ const PLANT_PATH_PENDING_POLICIES = [
     from: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
     exceptFrom: [...TEST_SOURCE_PATTERNS],
     targets: ['src/**', 'preact', 'preact/**', '@preact/**'],
-    exceptTargets: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
+    // plant-spacing-sequence.ts: the straight-row maths, a pure leaf an open 2-point path calls unchanged (A3).
+    exceptTargets: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**', 'src/canvas/plant-spacing-sequence.ts'],
     allowTypeOnlyTargets: [
       'src/canvas/runtime/view/types.ts',
       'src/canvas/runtime/tools/draft.ts',

@@ -67,6 +67,10 @@ const OPTIONS: UnusedCodeOptions = {
 const KEPT: Readonly<Record<string, string>> = {
   'src/app/lidar/sampler.ts#createSiteSampler': 'Test seam: the app keeps one sampler (siteSampler); sampler.test.ts and '
     + 'profile.test.ts drive the real one over a faked command (canvas-v2-plan.md section 4, architecture finding 3).',
+  'src/canvas/point-editor/rules.ts#pointPressIntent': 'The one point contract (U58) that the row tool, Select and the zone '
+    + 'corners import as streams P, Z and S land (canopi-f47t.54); delete this entry when they do.',
+  'src/canvas/point-editor/rules.ts#pointMenuItems': 'The point menu items (U58) the row tool and Select answer with '
+    + '(canopi-f47t.54); delete this entry when they import it.',
 }
 const KEPT_REASON = /\bcanopi-[a-z0-9]+(?:\.\d+)*\b|\bcanvas-v2-plan\.md section \d+(?:\.\d+)*/
 
