@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
+import { buildSync } from 'esbuild'
 import { pressMod } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
 import { mapHost, openFixture } from '../support/layout'
@@ -365,6 +366,94 @@ test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in o
   expect(distance(end, screenToMetres(P1)), 'the row ends near the release').toBeLessThanOrEqual(0.6)
   for (const plant of row) expect(offLine(plant, source, end), 'the row is straight').toBeLessThanOrEqual(0.02)
   await expectOneUndoStep(page, 'the planted row')
+})
+
+/** The path engine (src/canvas/plant-path/spacing.ts) bundled as one script: `window.__plantPath` in a page. */
+function engineScript(): string {
+  const entry = fileURLToPath(new URL('../../src/canvas/plant-path/spacing.ts', import.meta.url))
+  const [output] = buildSync({ entryPoints: [entry], bundle: true, format: 'iife', globalName: '__plantPath', write: false }).outputFiles
+  return output!.text
+}
+
+/** One curved open row, one loop with a sharp point and one loop counted out, as JSON of their counts, spacings and positions. */
+function plantCurvedRows(engine: { plantAlongPath: (path: unknown, spacing: unknown) => { count: number, effectiveSpacingM: number, lengthM: number, positions(limit?: number): unknown[] } }): string {
+  const at = (x: number, y: number, sharp = false) => ({ position: { x, y }, sharp })
+  const rows = [
+    engine.plantAlongPath({ points: [at(0, 0), at(7.3, 4.1), at(15.2, -2.7), at(23.9, 3.3)], closed: false }, { kind: 'interval', metres: 0.7 }),
+    engine.plantAlongPath({ points: [at(0, 0), at(11.1, 0.4), at(9.7, 10.2, true), at(-1.3, 8.8)], closed: true }, { kind: 'interval', metres: 1.3 }),
+    engine.plantAlongPath({ points: [at(3, 1), at(-4.4, 6.5), at(-9.2, -3.1)], closed: true }, { kind: 'count', count: 17 }),
+  ]
+  return JSON.stringify(rows.map((row) => ({ count: row.count, spacing: row.effectiveSpacingM, length: row.lengthM, positions: row.positions() })))
+}
+
+test('(canopi-f47t.54, P) probe: the path engine plants a curved row to the same bits in this browser as in Node', async ({ page }) => {
+  const script = engineScript()
+  const inNode = plantCurvedRows(new Function(`${script}; return __plantPath`)())
+  await page.goto('about:blank')
+  await page.addScriptTag({ content: script })
+  const inPage = await page.evaluate(`(${plantCurvedRows.toString()})(window.__plantPath)`)
+  expect(inPage, 'the same JSON, bit for bit').toBe(inNode)
+})
+
+/**
+ * Probe (stream P's first commit): the riskiest input assumption behind the row's double-click finish. A double-click on
+ * an unselected polygon zone's edge midpoint: the first press selects the zone, which shows its midpoint dots, so the
+ * second press lands on the dot handle the first press created and arrives as a handle press with a click count of 2
+ * (Select's double-click on a dot inserts a corner in place). Nothing hears the native dblclick: the camera keeps the
+ * other corners where they were and no text is selected. Alt+click then reaches the recogniser with Alt: it deletes the
+ * new corner. Select's zone dots go through the same recogniser, host and handle layer as the row's points.
+ */
+test('(canopi-f47t.54, P) probe: a double-click\'s second press reaches the handle its first press created, with no native dblclick side effect, and Alt reaches the recogniser', async ({ page }) => {
+  // Records each pointerdown's handle and Alt before the canvas hears it; changes nothing.
+  await page.addInitScript(() => {
+    const downs: Array<{ handle: string | null, alt: boolean }> = []
+    Object.assign(window, { __probeDowns: downs })
+    window.addEventListener('pointerdown', (event) => {
+      const handle = event.target instanceof Element ? event.target.closest('[data-canvas-handle]')?.getAttribute('data-canvas-handle') ?? null : null
+      downs.push({ handle, alt: event.altKey })
+    }, { capture: true })
+  })
+  const downs = () => page.evaluate(() => (window as unknown as { __probeDowns: Array<{ handle: string | null, alt: boolean }> }).__probeDowns.slice())
+  await openBase(page)
+  const polygonEdge = { x: 740, y: 209 }
+  const corners = () => page.locator('[data-canvas-handle^="vertex:"]').evaluateAll((elements) => elements.map((element) => {
+    const box = element.getBoundingClientRect()
+    return { id: element.getAttribute('data-canvas-handle') ?? '', x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }
+  }))
+  await page.mouse.click(polygonEdge.x, polygonEdge.y)
+  await expect.poll(async () => (await corners()).length, 'the selected polygon shows its corners').toBe(5)
+  const before = await corners()
+  const dots = await page.locator('[data-canvas-handle^="edge-mid:"]').evaluateAll((elements) => elements.map((element) => {
+    const box = element.getBoundingClientRect()
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  }))
+  const dot = dots.reduce((near, next) => (Math.hypot(next.x - polygonEdge.x, next.y - polygonEdge.y) < Math.hypot(near.x - polygonEdge.x, near.y - polygonEdge.y) ? next : near))
+  await page.mouse.click(GROUND.x, GROUND.y)
+  await expect.poll(async () => (await corners()).length, 'a click on the ground clears the selection').toBe(0)
+  await page.waitForTimeout(600)
+
+  const pressed = (await downs()).length
+  await page.mouse.dblclick(dot.x, dot.y)
+  await expect.poll(async () => (await corners()).length, 'the second press hit the dot the first press showed and inserted a corner').toBe(6)
+  const [first, second] = (await downs()).slice(pressed)
+  expect(first?.handle ?? null, 'the first press lands on the unselected zone, no handle').toBeNull()
+  expect(second?.handle ?? '', 'the second press lands on the dot handle the first press created').toMatch(/^edge-mid:/)
+  const after = await corners()
+  for (const corner of before) {
+    expect(after.some((moved) => Math.abs(moved.x - corner.x) <= 1 && Math.abs(moved.y - corner.y) <= 1), `corner ${corner.id} stays put: no native dblclick zoom`).toBe(true)
+  }
+  expect(await page.evaluate(() => window.getSelection()?.toString() ?? ''), 'the dblclick selects no text').toBe('')
+  await expectOneUndoStep(page, 'the inserted corner')
+
+  await page.mouse.dblclick(dot.x, dot.y)
+  await expect.poll(async () => (await corners()).length).toBe(6)
+  const inserted = (await corners()).find((corner) => Math.hypot(corner.x - dot.x, corner.y - dot.y) <= 2)
+  if (!inserted) throw new Error('no corner where the dot was')
+  await page.waitForTimeout(600)
+  const beforeAlt = (await downs()).length
+  await click(page, inserted, ['Alt'])
+  expect((await downs()).slice(beforeAlt), 'the Alt+click presses the corner handle with Alt held').toEqual([{ handle: inserted.id, alt: true }])
+  await expect.poll(async () => (await corners()).length, 'Alt+click reaches the recogniser with Alt and deletes the corner').toBe(5)
 })
 
 test.describe('touch', () => {
