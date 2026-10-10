@@ -11,9 +11,9 @@ Rules for agents in Canopi. Optimise for user work preserved, reviewable changes
 ## Rules
 
 - **Preserve user work.** Run `git status --short --branch` before editing; pre-existing dirty or untracked files are the user's. Never stage, revert or stash them, and never run `reset --hard` or `checkout -- <file>` unless asked. The stash stack is shared with the user; to set work aside, make a WIP commit.
-- **Behavioural test first, then the fix.** Bug fixes carry a regression test. A seam change (renderer, camera, map, input) also gets a test through the real implementation or browser, since fakes hid seam bugs (advice). Tests sit beside their module; frontend ones may be in `desktop/web/src/__tests__/`.
+- **Behavioural test first, then the fix.** Bug fixes carry a regression test. A test is deleted only in the commit that adds its replacement, or that retires it with the reason no user sees what it checked. A seam change (renderer, camera, map, input) also gets a test through the real implementation or browser, since fakes hid seam bugs (advice). Tests sit beside their module; frontend ones may be in `desktop/web/src/__tests__/`.
 - **Gates run on the changed area** (table below). A gate you cannot run goes in the bead and handoff with its command, reason and residual risk. Coverage floors (`desktop/web/vite.config.ts`, `.cargo/config.toml`) are raised at milestones, never lowered; on a merge conflict keep the higher one.
-- **Authorities are exclusive.** The scene runtime owns design objects and mutates through runtime transactions; Design Edit (`app/design-edit/`) owns budget, timeline, consortiums, views, stories and `extra`; the map layer store owns map layers; settings own device state. Panels read canvas state through read-only runtime queries. Enforced by `frontend-architecture-policies.test.ts`.
+- **Authorities are exclusive.** `DESIGN_FILE_FIELDS` (`common-types/src/design.rs`) gives each Design field one owner: `Scene`, the scene runtime (runtime transactions), or `Document`, Design Edit (`app/design-edit/`). The map layer store owns map layers; settings own device state. Panels read the canvas by read-only runtime queries. Enforced by `frontend-architecture-policies.test.ts`.
 - **Coordinates.** Files store WGS84 lon/lat; runtime geometry is metres in the session plane; camera moves never move objects (ADR 0001).
 - **Native execution.** Every `#[tauri::command]` is executor-backed async or a reviewed bounded synchronous command; no blocking filesystem, SQLite, network, process or unbounded CPU work in one. Enforced by `native_command_policy::tests` and `clippy.toml`.
 - **Secrets.** The Google Maps key never reaches Designs, exports, snapshots, logs, diagnostics or the page markup while masked; map errors go through `maplibre/redact-credentials.ts`. The location reading (dot, accuracy, time) never reaches a Design, Draft, export, snapshot, saved view, log or diagnostics; a camera saved while following is a view. Enforced by `settings-sections.test.tsx`, `map-background.test.ts`, `map-error-redaction.test.ts`, `workspace-map-controls.test.ts`, `problem-report-diagnostics.test.ts`, `my-location-trust.test.ts` and `e2e/canvas/my-location.spec.ts`.
@@ -22,7 +22,7 @@ Rules for agents in Canopi. Optimise for user work preserved, reviewable changes
 - **Data.** Never change the plant catalog's data (`canopi-core.db`). The `.canopi` format and local data may change unasked when that improves the project; name each change in the handoff (ADR 0021). Canopi 2.0 has no migrations: an older `.canopi` is refused with the typed message and left unchanged, older local data is handled as ADR 0021 says, and a LiDAR catalogue bump keeps `source_meta.rs` complete. After 2.0, refuse or migrate is decided per change.
 - **Reuse before writing** (ADR 0002): a geo feature's design check studies GeoLibre's design and crates first, follows them or says why not. Depend on light GeoLibre packages or copy its framework-free modules with attribution, never its React code. A new runtime dependency needs a bead with the reason.
 - **Delete, don't deprecate.** Dead code, tests, docs and dependencies go in the change that kills them.
-- **Banned:** React, Tailwind, Zustand/Redux/MobX, react-i18next (use preact, CSS Modules, `@preact/signals`, `import { t } from '../i18n'`); rusqlite pools, typeshare, string-formatted SQL; raw `rgba()`/`white`/`black` and `font-weight: 500` in CSS Modules.
+- **Banned** (advice): React, Tailwind, Zustand/Redux/MobX, react-i18next (use preact, CSS Modules, `@preact/signals`, `t` from `../i18n`); rusqlite pools, typeshare, string-formatted SQL. CSS Modules: colour tokens, weights 400/600 (`css-module-policies.test.ts`).
 
 ## Quality gates
 
@@ -49,9 +49,7 @@ Docs-only changes skip code gates; say so in the handoff.
 
 ## Documentation
 
-Documents answer four questions: what must never change and why (this file, ADRs); what the finished thing looks like (`.interface-design/`, its boards, the UI gallery); where an area's boundary is (one guide per area); what changed for users (release notes). Wiring lives in module comments and policy tests, not prose.
-
-A guide changes when a rule or boundary changes, and the section is rewritten, not appended; `check_docs.py` enforces size budgets. Plans for unbuilt work sit in `docs/plans/` with a `Status:` line and are deleted when built. Docs are checked against the code each release.
+Which document answers which question: [`docs/README.md`](docs/README.md). A guide changes only when a rule or boundary changes, and is rewritten, never appended (`check_docs.py` budgets). Plans are deleted when built. Wiring lives in module comments and policy tests, not prose.
 
 ## Handoff
 

@@ -4,7 +4,7 @@ Read the [design system](../system.md) and [canvas navigation](canvas-navigation
 
 ## Chrome
 
-- Tool rail: groups separated by rules; the active tool solid ochre with `aria-pressed`; arrow keys move between tools. Labels and key hints show until each tool has been used once (per device), then 52 px icons with labelled tooltips. The labelled rail is 224 px; it keeps to icons when it would leave under 360 px of map or cut a label.
+- Tool rail: groups separated by rules; the active tool solid ochre with `aria-pressed`; arrow keys move between tools. Labels and key hints show until each tool's first use (per device), then 52 px icons with labelled tooltips. The labelled rail is 224 px; it keeps to icons when it would leave under 360 px of map or cut a label.
 - In a short window the last tools fold, in rail order, into More tools before Undo and Redo, which never fold. The rail never scrolls or covers the view chip. The panel rail folds the same way and never covers the inspection launcher or the zoom group.
 - View chip: Grid and Snap to grid as pressed toggles with a check icon; only Snap is on by default.
 - Zoom group: scale bar, zoom out, scale ratio (a menu of common scales), zoom in, Fit to Design (Shift F), then the compass. The attribution pill sits left of it, expanded; it folds into an (i) button only when its band leaves under 360 px.
@@ -16,12 +16,12 @@ Read the [design system](../system.md) and [canvas navigation](canvas-navigation
 - Measurements: light tag (95% surface, ink, 13/600, tabular); the live value under the cursor a dark tag. Zone names and text notes follow the map, never the UI theme: cream with a dark halo over satellite and the Dark basemap, dark with a cream halo over the light basemap and paper; no pill. Lengths: one decimal below 100 m, none above, two below 1 m; areas in ha or m².
 - Every overlay stroke has a dark casing for any imagery.
 - Highlight rings (finder matches, panels pointing at plants) are solid ochre, 2 px over a 5 px halo, never under 8 px radius. A panel never marks a plant with a filled disc or a colour of its own.
-- Labels (View › Labels ▸ None, Codes, Names; Shift L cycles them): text with a contrasting halo, thinned so no label touches another label or symbol. A saved view records the choice. Pinned names and a single selection's name always show.
+- Labels (View › Labels ▸ None, Codes, Names; Shift L cycles): text with a contrasting halo, thinned so no label touches a label or symbol. A saved view records the choice. Pinned names and a single selection's name always show.
 
 ## Selection and the right-click menu
 
 - Selection box: 2 px ochre over a 5 px cream casing, no corner handles, an ochre ring on each selected plant. Rotatable selections keep one rotate handle above, inside the map area; a selected polygon or row adds its points and dots. No action bar.
-- Status chip (bottom centre of the map) names the selection: "12 plants · 3 species · 0.8 m apart", "Zone · Z04 · 118 m² · 46 m"; groups count as their members. Never an id. It carries Select all of this species (Ctrl Shift A), Rename… (one unlocked zone), Select row (a whole row: its spacing) and Clear selection; hidden in overview and during "Where is your site?".
+- Status chip (bottom centre) names the selection: "12 plants · 3 species · 0.8 m apart", "Zone · Z04 · 118 m² · 46 m"; groups count as their members. Never an id. It carries Select all of this species (Ctrl Shift A), Rename… (one unlocked zone), Select row (part of one row; a whole row shows its spacing and Interval | Plants) and Clear selection; hidden in overview and during "Where is your site?".
 - A still right-click on an object selects it and opens the context menu in plain words with the menu bar's shortcuts, under a quiet heading in the chip's words (also its accessible name). Groups: Cut, Copy, Paste, Duplicate · plants: Select all of this species, Plant color ▸, Plant symbol ▸, Show name / Hide name, Species details · Add to calendar…, Set unit cost… · Arrange ▸ (Bring to front, Send to back · Group, Ungroup), Rotate…, Save as stamp (Desktop) · Lock, Unlock · Delete, last, in danger red.
 - Zones get the menu without the plant group and Set unit cost…; a lone zone adds Rename zone… after Duplicate (disabled while locked): a small modal, one Undo. A still right-click on the empty map: Place plants here, Paste (at the pointer), Select all; the selection is kept.
 - Items that do not apply stay listed with `aria-disabled`. The menu is as wide as its longest label and shortcut (up to 400 px), at the pointer or below the selection by keyboard (Menu key, Shift F10), always in view.
@@ -32,14 +32,14 @@ A modal (Edit › Rotate…, the menu, Ctrl Alt R), "Rotate selection": Angle in
 
 ## Tools
 
-- Tool cards (320 px): the species glyph in its map colour or the stamp icon before the tool name; the subject on its own line (bold) and the instruction under it; key hints ending with what the next Esc does ("Esc to clear the stamp", "Esc to clear the row", "Esc to stop placing", "Esc to cancel", "Esc to go back to Select"). Select: one quiet line, "Drag to select · Shift-click adds · Alt-click removes · right-drag pans · wheel zooms" ("pinch zooms" on a trackpad).
+- Tool cards (320 px): the species glyph in its map colour or the stamp icon before the tool name; the subject (bold) on its own line, the instruction under it; key hints ending with what the next Esc does ("Esc to clear the stamp", "Esc to clear the row" (picked plant only), "Esc removes the last point" (row, Polygon, Profile), "Esc to stop placing", "Esc to cancel", "Esc to go back to Select"). Select: one quiet line of its gestures (pinch, not wheel, on a trackpad).
 - Place plants arms without a species: the card holds a compact chooser (plant finder with Stratum and Form: this Design's species, Favorites, recent picks, "Open the full catalog").
 - Place plants previews under the pointer: the symbol at 85% opacity, a dashed ring for the catalog's mature width (none without one) and a dashed line to the nearest plant within 320 px.
 - Plant a row: click a placed plant, then points along a curve (Alt: sharp; the first point closes a loop); Enter, double-click or the check button plants; dragging from it plants a straight row (Ctrl or Cmd skips snapping). Card: Interval (focused on pick) or Plants, length, live count (ochre when dense, red over the limit).
 - Points (rows, zone corners): drag moves; a faint dot inserts on drag or double-click; Alt-click or Delete removes; right-click or long press: Delete point, Sharp or Smooth corner.
 - Place a stamp previews the stamp as ghosts. [ and ] turn a held stamp by 15° about the pointer; placed objects keep the turn and the card says so.
 - Polygon: click adds corners; the first corner, a double-click, Enter or Finish shape (menu) ends it. Esc, Backspace or Ctrl Z removes the last point (also Profile and rows), Ctrl Shift Z restores. Rectangle, Ellipse and Line drag. Shift keeps 45°, squares and circles on screen; live lengths and area. Text note: click places a field; Enter finishes, Shift Enter breaks a line, Esc restores. Measure: drag between two points; the line stays as a guide.
-- Drawing never moves existing objects. Esc follows the chain in the [design system](../system.md); closing a field the tool opened returns focus to the map.
+- Drawing never moves objects. Esc follows the chain in the [design system](../system.md); closing a field the tool opened returns focus to the map.
 
 ## Symbol and colour
 

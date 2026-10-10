@@ -56,7 +56,7 @@ Read this, then your surface's pattern file:
 - Keep the map visible. A panel has one title, a close action, compact controls and a scrolling body; apply actions stay visible.
 - Preview before mutation; each action keeps its command or workbench authority. Selection, focus, hover, visibility and locks stay distinct.
 - Destructive actions confirm and name what is lost, or show an Undo toast (also Ctrl Z). Toasts wait while hovered or focused.
-- Keyboard: every pointer action has a keyboard path, turning the map included; one keyboard owner routes keys. F6 and Shift F6 cycle title bar, tool rail, map and open panel. One Esc does one thing, the tool's first: menu or dialog → text entry → gesture → held pick or draft → Select → selection. Single keys work anywhere except text fields and dialogs and can be turned off; Shift N always resets north.
+- Keyboard: every pointer action has a keyboard path, turning the map included; one keyboard owner routes keys. F6 and Shift F6 cycle title bar, tool rail, map and open panel. One Esc does one thing, in ADR 0020's order: the active tool's first; a drawing draft steps back one point. Single keys work anywhere except text fields and dialogs and can be turned off; Shift N always resets north.
 - Popups anchor to their trigger and stay in the viewport (flipped above, or capped and scrolling). Dialogs are modal, trap focus and return it. Layering uses only the stacking scale in `global.css` (`stacking-order.test.ts`).
 - Locale: numbers, dates, currency and units through `Intl`; message formats for plurals and names inside sentences; buttons, footers and segments wrap instead of clipping; terms from the [UI glossary](../docs/guides/ui-glossary.md).
 

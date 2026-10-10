@@ -356,6 +356,7 @@ jobs:
   # Candidate keeps its own preflight gate.
   build:
     needs: changes
+    # Fork PRs package nothing.
     if: >-
       needs.changes.outputs.rust == 'true' &&
       (github.event_name != 'pull_request' ||

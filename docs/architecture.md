@@ -20,7 +20,7 @@ Canopi is a desktop (Tauri) and Web app for designing agroecological sites on a 
 
 | Owner | Owns | Mutation path |
 |---|---|---|
-| Scene runtime (`SceneStore` via `SceneCanvasRuntime`) | Design objects: plants, zones, annotations, measurement guides, groups, locks, species colours, symbols and codes, scene layers | Runtime transactions |
+| Scene runtime (`SceneStore` via `SceneCanvasRuntime`) | Design objects: plants, plant rows, zones, annotations, measurement guides, groups, locks, species colours, symbols and codes, scene layers | Runtime transactions |
 | Design Edit (`app/design-edit/`) | Budget, currency, timeline, consortiums, description, saved views, stories, site data references (order, eyes, display), extra | Design Edit commands |
 | Map layer store (`app/map-layers/`) | Basemap, satellite, contours, hillshade: order, visibility, opacity, provider | Layer-store actions |
 | Settings | Last view (centre and zoom), basemap style, Google key (device-local credential), locale, theme, pointing device, single-key shortcuts, New Design defaults | Settings actions |
@@ -34,7 +34,7 @@ Canopi is a desktop (Tauri) and Web app for designing agroecological sites on a 
 
 Decided by [ADR 0001](adr/0001-geolocated-map-canvas.md); constants live in `desktop/web/src/canvas/session-plane.ts`.
 
-- **Files store lon/lat.** `.canopi` format v9 (`CURRENT_CANOPI_FILE_VERSION`) stores every persisted position, including saved-view cameras, as `GeoPoint { lon, lat }`; zone and note rotation is degrees clockwise from true north. There is no anchor, Design-level bearing, placement status or altitude, and the obsolete root keys are refused; a bearing belongs only to view cameras.
+- **Files store lon/lat.** `.canopi` format v9 (`CURRENT_CANOPI_FILE_VERSION`) stores every persisted position, including saved-view cameras, as `GeoPoint { lon, lat }`; zone and note rotation is degrees clockwise from true north. There is no Design-level anchor, bearing, placement status or altitude, and the obsolete root keys are refused; a bearing belongs only to view cameras.
 - **Session plane.** On load the codec builds a local Mercator-anchored plane (`canvas/projection.ts`) at the centre of the objects' bounds, or the view centre for an empty Design. All runtime geometry, tools, snapping, measurement, hit testing, LiDAR sampling and PDF layout work in metres there, on north-aligned axes; one view transform (centre, zoom, bearing) maps them to screen pixels ([ADR 0016](adr/0016-one-view-transform.md)).
 - **Re-origin.** When the view centre moves over 10 km from the origin, the runtime rebuilds the plane and re-projects every object from stored lon/lat, losslessly.
 - **Canonical write-back.** Positions are written rounded to 1e-9 degree, latitude clamped to ±85.051128779, longitude clamped to ±180 on save only (re-origin keeps it unclamped). Rounding is idempotent, so an unedited position never drifts (`geolocated-design-codec.test.ts`).
@@ -72,7 +72,7 @@ Every copied file keeps an MIT header naming its source and commit and an entry 
 - **PDF:** one browser-compatible layout and encoder for every edition, never with map backgrounds ([ADR 0008](adr/0008-canvas-pdf-export.md)).
 - **Saving:** always-on continuous save to each Design's home (a file or a Draft), with conflict detection and no unsaved-changes prompts ([ADR 0009](adr/0009-continuous-save.md)).
 - **Interface:** map-first Field Atlas chrome floating over the map, menus for every command, one plant finder and one species row everywhere ([ADR 0010](adr/0010-map-first-interface.md)).
-- **Canvas:** the map turns, editing stays top-down, left selects or draws and right-drag pans ([ADR 0015](adr/0015-rotating-map-and-canvas-controls.md)); one input pipeline ([ADR 0017](adr/0017-input-pipeline-and-gestures.md)), world-space tools ([ADR 0018](adr/0018-narrow-tool-interface.md)), retained rendering ([ADR 0019](adr/0019-rendering-and-the-view-transform.md)) and one key and focus owner ([ADR 0020](adr/0020-focus-and-keyboard-ownership.md)). Status: [canvas v2 plan](plans/canvas-v2-plan.md).
+- **Canvas:** the map turns, editing stays top-down, left selects or draws and right-drag pans ([ADR 0015](adr/0015-rotating-map-and-canvas-controls.md)); one input pipeline ([ADR 0017](adr/0017-input-pipeline-and-gestures.md)), world-space tools ([ADR 0018](adr/0018-narrow-tool-interface.md)), retained rendering ([ADR 0019](adr/0019-rendering-and-the-view-transform.md)) and one key and focus owner ([ADR 0020](adr/0020-focus-and-keyboard-ownership.md)).
 - **Analyses and stories:** analyses are entries in the authored registry `common-types/analysis-registry.json`, generated into Rust and TypeScript, each run by a handwritten executor with recorded provenance; Designs hold saved views and stories presented inside Canopi ([ADR 0011](adr/0011-analyses-provenance-and-stories.md), [data library](guides/data-library.md)).
 - **Vegetation analysis** from ONF Computree methods in an LGPL crate is decided but not built ([ADR 0012](adr/0012-vegetation-analysis.md)).
 - **GeoJSON:** RFC 7946 import and export in both editions through one pure codec (`app/geojson/`); import rejects malformed files before mutation and adds objects in one undoable step.

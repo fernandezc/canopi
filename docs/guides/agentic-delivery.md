@@ -17,13 +17,13 @@ Paths are relative to `/home/daylon/projects/canopi`; use them absolute in comma
 - **Affected**, after a build or fix agent's last commit: `BASE=<branch it builds on> .rq-scratch/tools/quiet-gates.sh <worktree> affected`: tsc, `check:ui`, `vitest related` on the changed files and the policy tests; from a step's commit 0 always every source-text policy test (a related-files selection once skipped a failing one), the locale tests and the stream's own Playwright specs in Chromium and WebKit. **Quick** (the whole suite) is for a worktree with no base.
 - **Gate lines** count only from a run started after the last commit; the shell is zsh with noclobber, so overwrite a log with `>|`.
 - **Slots**: build agents per `free -g` available, one per 6 GiB above a 4 GiB reserve, at most 4 (8 CPUs), re-checked per slot; under 8 GiB, `VITEST_WORKERS=2`.
-- **Ownership** (built in a step's commit 0): `.rq-scratch/tools/<step>-owners.tsv` (path, stream) from the amendment commit; a stream's gate fails a diff outside its rows, and the plan check fails a needed file nobody owns. Known reds are marked in the code (`test.fail()`, `it.fails`, owner and bead in the title), so the state travels with each branch (a shared list was rewritten twice mid-step); `quiet-gates.sh <wt> markers` lists them and `PREPUSH=1` fails on any.
+- **Ownership** (commit 0): `.rq-scratch/tools/<step>-owners.tsv`, tab-separated: path, stream (`*` shared), then `new` for a file the step creates or the chunk (`c0`, `chunk1`, …) when the path changes hands, and a note naming the stream's keys or symbols. `STEP=<step> quiet-gates.sh <wt> plan` fails a path owned twice in one chunk or missing without `new`; with `STREAM=<s>` a stream's gate fails a diff outside its rows. No script finds a needed file nobody owns: commit 0's user-path tests name every file their pass needs (Layers: 16 merge failures and stream holds from unowned files).
+- **Known reds** are marked in the code (`test.fail()`, `it.fails`, owner and bead in the title), so the state travels with each branch (a shared list was rewritten twice mid-step); `quiet-gates.sh <wt> markers` lists them and `PREPUSH=1` fails on any.
 - **Full**, at each merge and (with `PREPUSH=1`) before a push: `.rq-scratch/tools/quiet-gates.sh <worktree> full`, the Frontend row of `AGENTS.md` (tsc, coverage as the suite, the policy tests, check:ui, both builds, docs). Add the Rust and shared-contract rows of `AGENTS.md` when those areas change.
-- **Web check** on any merge touching the renderer, camera, input or map: `cd desktop/web && npm run build:web`, then from the worktree root `docker run --rm --ipc=host -v "$PWD":/work -w /work/desktop/web --user $(id -u):$(id -g) -e HOME=/tmp mcr.microsoft.com/playwright:v1.63.0-noble npx playwright test e2e/canvas --reporter=line`.
+- **Web check** on any merge touching the renderer, camera, input or map: `cd desktop/web && npm run build:web`, then from the worktree root `docker run --rm --ipc=host -v "$PWD":/work -w /work/desktop/web --user $(id -u):$(id -g) -e HOME=/tmp mcr.microsoft.com/playwright:v1.63.0-noble npx playwright test e2e/canvas --project=chromium --project=webkit --reporter=line`.
 - **CI**: `Build & Test` and `Web Edition browsers` on every push; a push whose changes since the branch's last successful push run touch only `docs/`, `.beads/`, `.interface-design/` or Markdown runs only the `docs` job and skips the browsers; a newer push cancels the branch's older run (main always finishes), so check the newest commit's: `gh run list --branch feature/geolibre-adoption --event push`, then poll `gh run view <id> --json status,conclusion`.
-- **CI jobs**: `docs` always; `lint` on code; on a v2 push the Rust jobs (`lint-rust`, `test-rust`, `lidar-native`, `platform-tests`) and packaging run only when a Rust-side path changed, and `test-frontend` when that or `desktop/web/` changed; the path filter in `.github/workflows/build.yml` is the list. Main, PRs and an unknown base run all. Rust caches are saved only from pushes to main and the v2 branch.
+- **CI jobs and packaging targets** per push: the comments on `changes` and its `packaging` step in `.github/workflows/build.yml`.
 - **PRs**: a scratch CI run needs a draft PR into the v2 branch (branch pushes run none): `ci-watch.sh scratch-up <branch> <title>`, `scratch-down <branch>` at the push; `ci-watch.sh <sha>` waits for a push's workflows. A PR from main or the v2 branch runs neither workflow and shows its head's push checks, so nothing tests v2 merged with main: merge main into v2 and push first.
-- **Packaging targets**: a v2 push packages Linux `.deb` and macOS arm, and adds Windows NSIS and Intel macOS (with their sidecar smoke and Common Controls check) when a packaging input changes (the `build.yml` filter). Main, other same-repo PRs and Release Candidate package all four in every format; fork PRs package nothing.
 
 ## Design check
 
@@ -35,13 +35,11 @@ Each stream's first commit probes its riskiest platform assumption in WebKitGTK 
 
 A colour offered in a question carries its contrast on every surface it is drawn on (light and dark map, PDF paper, grayscale print) beside its colour-vision distance (the polish batch's grey, chosen on distance alone, printed at 2.25:1; U48).
 
-Commit 0 writes each user path's Playwright test (Layers' g3, g5) failing, naming its owner stream and every file its pass needs (in Layers 16 merge failures and stream holds traced to files no stream owned).
-
 ## Review lenses
 
-A stream gets a second round when it changes a seam the tests fake (renderer, map, input) or stored data, or after a round-one blocker or major. It reads the fix commits and the files they touched, with the hold list (Layers' full round 2: 134M for 1 new major).
+Seams the tests fake (the skill's second round and live check): the renderer, camera, map and input, plus file dialogs for the live check. Native-only paths: file dialogs, LiDAR import, PDF save, WebKitGTK fit (Layers' native check, 3 % of input, found 3 failures nothing else did). Engines: WebKitGTK natively, Chromium and WebKit in the Web check.
 
-Known seams that streams share, each reviewed once after the streams on both sides merge: the scene render target (`scene-runtime/render-scheduler.ts`, `maplibre/shared-scene-{layer,renderer}.ts`, `app/canvas-map-surface/workspace-activation.ts`), whose create, dispose and Design-switch orders reached phase R's pre-push review twice.
+A seam streams share (a source path the owners file gives to two streams, commit 0 and expected-fail markers aside, or a contract the plan names between two streams' modules) is reviewed once after both sides merge. The scene render target (`scene-runtime/render-scheduler.ts`, `maplibre/shared-scene-{layer,renderer}.ts`, `app/canvas-map-surface/workspace-activation.ts`) is always one: its create, dispose and Design-switch orders reached phase R's pre-push review twice.
 
 Each stream's lens names the resources its code spends (disk space, memory, the executor lane, worker time) and the numerical assumptions it rests on (scale factors, tolerances, units), besides its inputs and states (U-crs stream B passed two rounds with a too-small free-space check and a scale-blind zoom).
 
@@ -51,11 +49,11 @@ A stored-format version (the LiDAR catalogue, the user DB, `.canopi`) bumps once
 
 ## Live check
 
-- Run once a merge changing a seam the tests fake (map, renderer, input, file dialogs) passes its gates, and before the pre-push review. A scenario the Web build can show (labels, colours, panels, menus) is a Playwright test or a gallery entry; the native instance covers only native paths (file dialogs, LiDAR import, PDF save, WebKitGTK fit). Layers' native check (3 % of input) found 3 failures nothing else did.
+- Run once a merge changing a seam the tests fake (map, renderer, input, file dialogs) passes its gates, and before the pre-push review.
 - No Windows, Mac or phone hand check gates a step or the release; one not run is recorded as untested with its risk (U20, U41).
 - `.rq-scratch/tools/live-instance.sh up <commit> <step>` makes the detached worktree nobody edits (Vite hot-reloads edits), the catalog copy, the profile `.rq-scratch/reference/<step>` (relative XDG paths fall back to the user's), identifier `com.canopi.review` and Vite 1431; it refuses when 1431 is taken and reports the bridge PID whose environment is that profile (the user's app usually holds 1420 and 9223: never drive it). `down <step>` stops it by PID and removes the worktree and profile.
-- The bridge works only in debug-profile builds (`desktop/build.rs`). Before driving, check (`ss -ltnp`, `/proc/<pid>/exe`) that its port (9223 or the next free) is that process's. Drive with the Tauri MCP tools; wheels and drags are DOM events on the map host (`.rq-scratch/screenshots/phase-0/drag-helper.js`), not WebKitGTK's native order; Space is `"Space"`; count IPC by wrapping `fetch` for `ipc://localhost`; native file dialogs `x11-dialog.py`. The only "Close" button quits the app (canopi-pj62). Record which host drove each step; stop processes by PID, never `pkill -f`.
-- Launch once, then drive each scenario group with a fresh agent; assert with `webview_execute_js` values; save screenshots, opening them only to judge visuals (phase R's one long agent used 30 % of its input).
+- The bridge works only in debug-profile builds (`desktop/build.rs`). Before driving, check (`ss -ltnp`, `/proc/<pid>/exe`) that its port (9223 or the next free) is that process's.
+- Drive with the Tauri MCP tools, asserting with `webview_execute_js` values; wheels and drags are DOM events on the map host (`.rq-scratch/screenshots/phase-0/drag-helper.js`), not WebKitGTK's native order; Space is `"Space"`; count IPC by wrapping `fetch` for `ipc://localhost`; native file dialogs `x11-dialog.py`. The only "Close" button quits the app (canopi-pj62). Record which host drove each step; stop processes by PID, never `pkill -f`.
 - Frame times count only from a production build in a focused window or the Web build traced in Playwright (the DEV build freezes on each Scene write; an unfocused window's `requestAnimationFrame` runs near 9 Hz).
 
 ## Tracker
@@ -72,7 +70,7 @@ In `.rq-scratch/tools/` (a local git repo; commit tool edits there): `mkwt.sh`, 
 
 ## Workflows and measured cost
 
-A small step (one stream, no shared seam) runs the skill's short loop; a large one the whole loop. Deterministic stages (merges, gates, the live instance, CI) are the main agent's commands, an agent only when one fails. One workflow per stage, from the skill's `workflow-step.js`, chunks in order; never resume after a parallel stage: Layers' two resumes cost 326M tokens (14 %) and 3.9 h.
+Deterministic stages (merges, gates, the live instance, CI) are the main agent's commands, an agent only when one fails.
 
 When a usage limit stops agents, schedule no check-in to resume them: the user types "Resume". Never stop a running workflow on your own initiative; the user decides.
 
