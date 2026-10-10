@@ -1213,6 +1213,69 @@ mod tests {
     }
 
     #[test]
+    fn an_invalid_plant_row_is_refused_at_its_path() {
+        let second_row = |members: serde_json::Value| {
+            let mut row = with_a_plant_row()["plant_rows"][0].clone();
+            row["id"] = serde_json::json!("row-2");
+            row["members"] = members;
+            row
+        };
+        for (pointer, invalid, path) in [
+            (
+                "/plant_rows/0/anchors/1/position/lon",
+                serde_json::json!(181.0),
+                "$.plant_rows[0].anchors[1].position: ",
+            ),
+            (
+                "/plant_rows/0/members/1/at/lat",
+                serde_json::json!(86.0),
+                "$.plant_rows[0].members[1].at: ",
+            ),
+            (
+                "/plant_rows/0/spacing",
+                serde_json::json!({ "kind": "interval", "interval_m": 0.0 }),
+                "$.plant_rows[0].spacing.interval_m: ",
+            ),
+            (
+                "/plant_rows/0/spacing",
+                serde_json::json!({ "kind": "count", "count": 5001 }),
+                "$.plant_rows[0].spacing.count: ",
+            ),
+            (
+                "/plant_rows/0/anchors",
+                serde_json::json!([{
+                    "position": { "lon": 3.877_255_558, "lat": 43.611_127_131 },
+                    "sharp": false
+                }]),
+                "$.plant_rows[0].anchors: expected at least 2 points",
+            ),
+            (
+                "/plant_rows/1",
+                second_row(serde_json::json!([{
+                    "plant_id": "hazel-2",
+                    "at": { "lon": 3.877_286_264, "lat": 43.611_149_513 }
+                }])),
+                "$.plant_rows[1].members[0].plant_id: plant \"hazel-2\" is already in a row",
+            ),
+        ] {
+            let mut value = with_a_plant_row();
+            if pointer == "/plant_rows/1" {
+                value["plant_rows"]
+                    .as_array_mut()
+                    .expect("rows")
+                    .push(invalid);
+            } else {
+                *value.pointer_mut(pointer).expect("field") = invalid;
+            }
+
+            let error = decode_design_value(value).expect_err("an invalid row is refused");
+
+            assert_eq!(error.kind, CanopiDesignIngestionErrorKind::InvalidDocument);
+            assert!(error.message.starts_with(path), "{pointer}: {error}");
+        }
+    }
+
+    #[test]
     fn an_invalid_map_view_is_refused_at_its_path() {
         for (field, invalid, path) in [
             ("zoom", serde_json::json!(27.5), "$.map_view: "),

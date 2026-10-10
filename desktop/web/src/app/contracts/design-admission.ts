@@ -3,6 +3,8 @@ import type { CanopiFile } from '../../types/design'
 
 /** The LiDAR presentation schema this build writes (`common-types/src/lidar.rs`). */
 const LIDAR_PRESENTATION_SCHEMA_VERSION = 1
+/** Most plants a row may count (`PLANT_ROW_MAX_COUNT` in `common-types/src/design.rs`). */
+const PLANT_ROW_MAX_COUNT = 5000
 
 /**
  * Identities and ranges of an admitted current-format Design: the Web mirror
@@ -31,9 +33,36 @@ export function designIdentitiesAndRangesProblem(file: CanopiFile): string | nul
   return uniqueIdsProblem('zones', file.zones.map((zone) => zone.id))
     ?? uniqueIdsProblem('annotations', file.annotations.map((annotation) => annotation.id))
     ?? uniqueIdsProblem('groups', file.groups.map((group) => group.id))
+    ?? plantRowsProblem(file)
     ?? annotationRangesProblem(file)
     ?? layerRangesProblem(file)
     ?? lidarProblem(file)
+}
+
+/** Rows: unique ids, enough points for their shape, a spacing in range, and a plant in at most one row. */
+function plantRowsProblem(file: CanopiFile): string | null {
+  const rows = file.plant_rows ?? []
+  const idProblem = uniqueIdsProblem('plant_rows', rows.map((row) => row.id))
+  if (idProblem) return idProblem
+  const members = new Set<string>()
+  for (const [index, row] of rows.entries()) {
+    const minimum = row.closed ? 3 : 2
+    if (row.anchors.length < minimum) return `$.plant_rows[${index}].anchors: expected at least ${minimum} points`
+    const { spacing } = row
+    if (spacing.kind === 'interval' && !(Number.isFinite(spacing.interval_m) && spacing.interval_m > 0)) {
+      return `$.plant_rows[${index}].spacing.interval_m: expected a finite number above 0`
+    }
+    if (spacing.kind === 'count' && !(spacing.count >= 2 && spacing.count <= PLANT_ROW_MAX_COUNT)) {
+      return `$.plant_rows[${index}].spacing.count: expected 2 to ${PLANT_ROW_MAX_COUNT} plants`
+    }
+    for (const [memberIndex, member] of row.members.entries()) {
+      if (members.has(member.plant_id)) {
+        return `$.plant_rows[${index}].members[${memberIndex}].plant_id: plant ${JSON.stringify(member.plant_id)} is already in a row`
+      }
+      members.add(member.plant_id)
+    }
+  }
+  return null
 }
 
 function annotationRangesProblem(file: CanopiFile): string | null {
