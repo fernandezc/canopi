@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-// The unused-code check (docs/plans/canvas-v2-plan.md, "Unused-code check").
+// The unused-code check (user, 2026-10-02).
 // It lists production files no production import chain reaches from an entry
 // point or a consumer, value and type exports no other module imports, and
 // value and type exports only tests import. The names it reports today are
@@ -8,9 +8,9 @@
 // disappears in the same change, and a name that disappears must leave the
 // snapshot so it cannot come back. Each phase close runs it and deletes what it
 // finds; an entry kept on purpose (a roadmap seam, a test seam) goes in KEPT
-// with the bead id or plan section that needs it. A type export that only
-// names a public signature's parameter or result is harmless; the snapshot
-// keeps the list from growing.
+// with the bead id that needs it (a plan is deleted once built, so it is no
+// reason). A type export that only names a public signature's parameter or
+// result is harmless; the snapshot keeps the list from growing.
 //
 //   npx vitest run src/__tests__/unused-code.test.ts    prints the lists when they change
 
@@ -62,17 +62,17 @@ const OPTIONS: UnusedCodeOptions = {
 
 /**
  * Entries the check reports that stay on purpose. Each reason names the bead id
- * (`canopi-…`) or the plan section (`canvas-v2-plan.md section N`) that needs it.
+ * (`canopi-…`) that needs it.
  */
 const KEPT: Readonly<Record<string, string>> = {
   'src/app/lidar/sampler.ts#createSiteSampler': 'Test seam: the app keeps one sampler (siteSampler); sampler.test.ts and '
-    + 'profile.test.ts drive the real one over a faked command (canvas-v2-plan.md section 4, architecture finding 3).',
+    + 'profile.test.ts drive the real one over a faked command (canopi-f47t.42, d943a93e).',
   'src/canvas/point-editor/rules.ts#pointPressIntent': 'The one point contract (U58) that the row tool, Select and the zone '
     + 'corners import as streams P, Z and S land (canopi-f47t.54); delete this entry when they do.',
   'src/canvas/point-editor/rules.ts#pointMenuItems': 'The point menu items (U58) the row tool and Select answer with '
     + '(canopi-f47t.54); delete this entry when they import it.',
 }
-const KEPT_REASON = /\bcanopi-[a-z0-9]+(?:\.\d+)*\b|\bcanvas-v2-plan\.md section \d+(?:\.\d+)*/
+const KEPT_REASON = /\bcanopi-[a-z0-9]+(?:\.\d+)*\b/
 
 
 /** Parsing the tree takes seconds; both repository tests read one graph. */
@@ -169,9 +169,11 @@ describe('Unused code', () => {
     expect(unmirrored, 'OPTIONS.aliases mirrors vite.config.ts resolve.alias').toEqual([])
   }, GRAPH_TIMEOUT_MS)
 
-  it('names a bead or plan section for every KEPT entry', () => {
+  it('names a bead for every KEPT entry', () => {
+    expect(KEPT_REASON.test('A roadmap seam (canvas-v2-plan.md section 4).')).toBe(false)
+    expect(KEPT_REASON.test('A test seam (canopi-f47t.42).')).toBe(true)
     const vague = Object.entries(KEPT).filter(([, reason]) => !KEPT_REASON.test(reason)).map(([entry]) => entry)
-    expect(vague, 'A KEPT reason names the bead id (canopi-…) or "canvas-v2-plan.md section N"').toEqual([])
+    expect(vague, 'A KEPT reason names the bead id (canopi-…)').toEqual([])
   })
 
   it('reports only the names in the snapshot', () => {
@@ -190,7 +192,7 @@ describe('Unused code', () => {
     const added = keys.flatMap((key) => lists[key].filter((entry) => !(snapshot[key] ?? []).includes(entry))
       .map((entry) => `${key}: ${entry}`))
     expect(added, 'New unused code. Delete the file or export, drop `export` from a name only its own file '
-      + 'reads, or name a roadmap or test seam in KEPT with its bead id or plan section.').toEqual([])
+      + 'reads, or name a roadmap or test seam in KEPT with its bead id.').toEqual([])
 
     const gone = keys.flatMap((key) => (snapshot[key] ?? []).filter((entry) => !lists[key].includes(entry))
       .map((entry) => `${key}: ${entry}`))
