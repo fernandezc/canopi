@@ -1,13 +1,14 @@
-// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P and
-// S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as map-notice-layout.spec.ts
-// does for the map notice. Per layout and locale: place an Apple at the centre of the visible map, arm Plant a row, pick
-// it and add two points (at 1440x900 with the inspection lens open, in the card's slot); the card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view
-// chip, the selection chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom
-// is inside the visible map; its check button, spacing field and mode switch take the click at their centre and are
-// 44 px targets after a tap; every point and dot takes the click at its centre and is a 44 px target after a tap. On
-// phones the top chip slot sits below the card, inside the viewport. Once a row is planted, the selection chip with its
-// spacing field keeps clear of its neighbours (stream S). Both engines; offline, so the map notice shows. DOM assertions
-// only, no baselines. Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`,
+// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P
+// and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
+// map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple at the centre of the visible
+// map, arm Plant a row, pick it and add two points (at 1440x900 with the inspection lens open, in the card's slot); the
+// card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
+// chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the
+// visible map; its check button, spacing field and mode switch take the click at their centre and are 44 px targets
+// after a tap; every point and dot takes the click at its centre and is a 44 px target after a tap. On phones the top
+// chip slot sits below the card, inside the viewport. Once a row is planted, the selection chip with its spacing field
+// keeps clear of its neighbours (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no
+// baselines. Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`,
 // `[data-plant-row-mode]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection chip).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
