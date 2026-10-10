@@ -10,6 +10,7 @@
 //   ../runtime.ts: CanvasDesignObjectSelectionModel
 //   ../../session-state.ts: CanvasToolGuidance
 //   ../../plant-stamp-source.ts: PlantStampSourceInput; ../../saved-object-stamp-payload.ts: SavedObjectStampPayload
+//   ../../point-editor/rules.ts: PointAction, PointMenuItem (it imports only interaction-types.ts, type-only)
 // P5 allows all of them (it forbids view/** values, not type-only view/types.ts, and names none of the others). P5c holds
 // because no listed module reaches maplibre-gl, pixi.js or src/maplibre/**, even through type-only edges, which
 // forbid-transitive-imports follows: checked at 0f05d927 by walking source-facts.ts's graph from each existing module;
@@ -29,6 +30,7 @@ import type { CanvasDesignObjectSelectionModel } from '../runtime'
 import type { CanvasToolGuidance } from '../../session-state'
 import type { PlantStampSourceInput } from '../../plant-stamp-source'
 import type { SavedObjectStampPayload } from '../../saved-object-stamp-payload'
+import type { PointAction, PointMenuItem } from '../../point-editor/rules'
 
 /** Modifiers by meaning, resolved per platform and per phase by the ToolHost. */
 export interface ToolModifiers {
@@ -133,6 +135,10 @@ export type ToolCommand =
   | { readonly kind: 'spacing-input'; readonly text: string }                 // typing: the preview follows a valid spacing
   | { readonly kind: 'spacing-commit'; readonly via: 'enter' | 'blur' }       // keeps a valid spacing; Enter returns focus to the map, blur moves none
   | { readonly kind: 'spacing-cancel' }                                       // Esc in the field: drops the source, focus to the map
+  // Plant a row's path (CanvasToolCommandSurface.plantRowPath, U58): the card's [Interval | Plants] switch, and a point
+  // action from the point menu (that handle) or the card (handle null: the last-touched point).
+  | { readonly kind: 'spacing-mode'; readonly mode: 'interval' | 'count' }
+  | { readonly kind: 'point-action'; readonly handle: ToolHandleId | null; readonly action: PointAction }
 
 /**
  * A 'handled' hover clears and skips the host's passive hover (restyle, tooltip); 'pass' lets it run.
@@ -235,6 +241,9 @@ export interface CanvasTool {
   /** True when the draft can finish now (a polygon with 3 or more corners): the canvas menu then leads with "Finish
    *  shape", which sends the tool 'confirm'. */
   canFinish?(): boolean
+  /** The point menu for a pressed or focused handle (point-editor/rules.ts pointMenuItems); empty when the handle is not a
+   *  point, and the host then opens the ordinary canvas menu (A16). Each entry comes back as a 'point-action' command. */
+  pointMenu?(handle: ToolHandleId): readonly PointMenuItem[]
   /** True while the tool holds a draft, pick, row source or Place plants' waiting point: Esc drops it first unless
    *  `escapeLeaves`, and it holds re-origin (§4.19). */
   hasTransient(): boolean
