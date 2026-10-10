@@ -62,9 +62,43 @@ fn dev_plant_db_path() -> Option<std::path::PathBuf> {
     None
 }
 
+trait MainWindowActivation {
+    fn unminimize(&self);
+    fn show(&self);
+    fn focus(&self);
+}
+
+impl<R: tauri::Runtime> MainWindowActivation for tauri::WebviewWindow<R> {
+    fn unminimize(&self) {
+        let _ = tauri::WebviewWindow::unminimize(self);
+    }
+
+    fn show(&self) {
+        let _ = tauri::WebviewWindow::show(self);
+    }
+
+    fn focus(&self) {
+        let _ = tauri::WebviewWindow::set_focus(self);
+    }
+}
+
+fn restore_and_focus_main_window(window: &impl MainWindowActivation) {
+    window.unminimize();
+    window.show();
+    window.focus();
+}
+
+fn activate_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        restore_and_focus_main_window(&window);
+    }
+}
+
 pub fn run() {
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            activate_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init());
 
     // Localhost only: the bridge can execute script in the webview.
@@ -316,6 +350,32 @@ fn refuse_startup(app: &tauri::App, message: String) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_second_instance_restores_shows_and_focuses_the_main_window() {
+        use std::cell::RefCell;
+
+        struct RecordingWindow(RefCell<Vec<&'static str>>);
+
+        impl super::MainWindowActivation for RecordingWindow {
+            fn unminimize(&self) {
+                self.0.borrow_mut().push("unminimize");
+            }
+
+            fn show(&self) {
+                self.0.borrow_mut().push("show");
+            }
+
+            fn focus(&self) {
+                self.0.borrow_mut().push("focus");
+            }
+        }
+
+        let window = RecordingWindow(RefCell::new(Vec::new()));
+        super::restore_and_focus_main_window(&window);
+
+        assert_eq!(*window.0.borrow(), ["unminimize", "show", "focus"]);
+    }
+
     #[test]
     fn refused_user_databases_get_a_message_and_internal_errors_do_not() {
         let newer = super::db::UserDbInitError::NewerSchemaVersion {
