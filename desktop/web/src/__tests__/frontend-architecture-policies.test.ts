@@ -1870,6 +1870,12 @@ const WORLD_MAP_SOURCES = ['src/components/world-map/**'] as const
 /** P5's and P5c's scope: every tool module. */
 const TOOLS_SOURCES = 'src/canvas/runtime/tools/**'
 
+/** The DOM event, element and camera names P5 confines to the tool host. */
+const P5_DOM_AND_CAMERA_NAMES = [
+  'document', 'window', 'HTMLElement', 'PointerEvent', 'KeyboardEvent', 'clientX', 'addEventListener',
+  'getBoundingClientRect', 'requestAnimationFrame', 'ViewTransform', 'CameraDriver', 'ViewNavigation',
+] as const
+
 /** The tools' own seams, which P5 exempts: the host and the scene index. */
 const TOOL_SEAM_SOURCES = [
   'src/canvas/runtime/tools/tool-host.ts',
@@ -2005,14 +2011,12 @@ const CANVAS_V2_POLICIES = [
     allowTypeOnlyTargets: ['src/canvas/runtime/view/types.ts'],
   },
   {
-    // Only the host converts screen to world: a tool names no DOM event, element or camera.
+    // Only the host converts screen to world: a tool, and the point editor the tools share (U58), name no DOM event,
+    // element or camera. Globals need no import, so the import rules cannot see them. The path engine's half is pending.
     kind: 'confine-symbols',
     name: 'P5 tools name no DOM event, element or camera',
-    from: [TOOLS_SOURCES],
-    names: [
-      'document', 'window', 'HTMLElement', 'PointerEvent', 'KeyboardEvent', 'clientX', 'addEventListener',
-      'getBoundingClientRect', 'requestAnimationFrame', 'ViewTransform', 'CameraDriver', 'ViewNavigation',
-    ],
+    from: [TOOLS_SOURCES, 'src/canvas/point-editor/**'],
+    names: [...P5_DOM_AND_CAMERA_NAMES],
     allowedFrom: ['src/canvas/runtime/tools/tool-host.ts', ...TEST_SOURCE_PATTERNS],
   },
   {
@@ -2354,9 +2358,18 @@ const CANVAS_V2_POLICIES = [
 /**
  * Plant along a path (canopi-f47t.54; A3, A5, A15), checked against the real graph by their own test: they name
  * src/canvas/plant-path/ and scene/plant-rows.ts, which streams P and R create, so they stay out of the path-drift list
- * until both have merged; the merge that lands the second moves them into CANVAS_V2_POLICIES.
+ * until both have merged; the merge that lands the second moves them into CANVAS_V2_POLICIES (the P5 rule here folds
+ * its glob into P5's `from`).
  */
 const PLANT_PATH_PENDING_POLICIES = [
+  {
+    // P5 for the curve engine the tools share (U58): only the tool host converts screen to world.
+    kind: 'confine-symbols',
+    name: 'P5 the path engine names no DOM event, element or camera',
+    from: ['src/canvas/plant-path/**'],
+    names: [...P5_DOM_AND_CAMERA_NAMES],
+    allowedFrom: [...TEST_SOURCE_PATTERNS],
+  },
   {
     // The engine and the shared point editor are pure: no tool host, session, settings or Preact, and of the runtime
     // only types (view types, ToolHandle, HandleSize, interaction types, the scene).
@@ -3300,18 +3313,17 @@ describe('canvas v2 policies, end of 0B', () => {
         'export function toWorld(event: PointerEvent, view: ViewTransform) { return event.clientX * view.scale }',
       ]),
       plantedSource('src/canvas/runtime/tools/polygon.test.ts', ['document.body.dispatchEvent(new PointerEvent("pointerdown"))']),
+      plantedSource('src/canvas/point-editor/layout.ts', ['export const dotAt = (view: ViewTransform) => view.scale']),
+      plantedSource('src/canvas/point-editor/layout.test.ts', ['window.dispatchEvent(new PointerEvent("pointerdown"))']),
     ])
 
-    const confined = [
-      'document', 'window', 'HTMLElement', 'PointerEvent', 'KeyboardEvent', 'clientX', 'addEventListener',
-      'getBoundingClientRect', 'requestAnimationFrame', 'ViewTransform', 'CameraDriver', 'ViewNavigation',
-    ]
-    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P5'))).toEqual(
-      confined.map(
-        (name) =>
-          `${P5_SYMBOLS} src/canvas/runtime/tools/planted.ts contains confined symbol ${name}; allowed sources: src/canvas/runtime/tools/tool-host.ts, ${TEST_SOURCES}`,
+    const allowed = `allowed sources: src/canvas/runtime/tools/tool-host.ts, ${TEST_SOURCES}`
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P5'))).toEqual([
+      ...P5_DOM_AND_CAMERA_NAMES.map(
+        (name) => `${P5_SYMBOLS} src/canvas/runtime/tools/planted.ts contains confined symbol ${name}; ${allowed}`,
       ),
-    )
+      `${P5_SYMBOLS} src/canvas/point-editor/layout.ts contains confined symbol ViewTransform; ${allowed}`,
+    ])
   })
 
   it('P5b rejects value imports of a tool module outside tools/ and of a tool other than the host from the session', () => {
@@ -4051,12 +4063,24 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
   })
 })
 
+const P5_PATH_ENGINE = '[P5 the path engine names no DOM event, element or camera]'
 const P54 = '[P54 the point editor and the path engine import only each other and types]'
 const P55 = '[P55 the scene transactions never import the plant row module]'
 const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
 const P57 = '[P57 rows are not drawn, printed, exported or summarised at rest]'
 
 describe('plant along a path policies (canopi-f47t.54)', () => {
+  it('P5 rejects a DOM, event or camera name in the path engine, which needs no import to reach one', () => {
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/canvas/plant-path/curve.ts', ['export const later = () => requestAnimationFrame(() => {})']),
+      plantedSource('src/canvas/plant-path/curve.test.ts', ['document.body.dispatchEvent(new PointerEvent("pointerdown"))']),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P5'))).toEqual([
+      `${P5_PATH_ENGINE} src/canvas/plant-path/curve.ts contains confined symbol requestAnimationFrame; allowed sources: ${TEST_SOURCES}`,
+    ])
+  })
+
   it('P54 rejects a point editor or path engine import of a tool, the session or Preact, and a value import of a type home', () => {
     const graph = createTypeScriptSourceGraph([
       plantedSource('src/canvas/runtime/view/types.ts', ['export type WorldPoint = { x: number }']),
@@ -4155,7 +4179,7 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
     ])
   })
 
-  it('keeps the real sources within P54 and P55 before the modules they name exist', () => {
+  it('keeps the real sources within the pending P5, P54 and P55 before the modules they name exist', () => {
     expect(collectArchitecturePolicyViolations(discoveredSourceGraph(), PLANT_PATH_PENDING_POLICIES)).toEqual([])
   }, 20_000)
 })
