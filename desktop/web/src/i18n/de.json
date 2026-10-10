@@ -156,7 +156,13 @@
       "interval": "Intervall",
       "generatedCount": "{{count}} erzeugt",
       "commitLimitWarning": "Intervall erhöhen oder Linie verkürzen",
-      "dragAlong": "ziehen Sie entlang der Reihe"
+      "dragAlong": "ziehen Sie entlang der Reihe",
+      "mode": "Abstand",
+      "modeInterval": "Intervall",
+      "modeCount": "Pflanzen",
+      "count": "Pflanzen in der Reihe",
+      "loopSpacing": "Gleiche Abstände von",
+      "length": "Länge"
     },
     "contextMenu": {
       "ariaLabel": "Bearbeitungsbefehle der Zeichenfläche",
@@ -795,7 +801,13 @@
       "recent": "Zuletzt",
       "openCatalog": "Den ganzen Katalog öffnen",
       "noSpecies": "Noch keine Arten hier.",
-      "noMatch": "Keine Art passt zu „{{query}}“."
+      "noMatch": "Keine Art passt zu „{{query}}“.",
+      "escRemovePoint": "Esc entfernt den letzten Punkt",
+      "pathInstruction": "klicken Sie, um Punkte hinzuzufügen, Eingabe pflanzt",
+      "pathTouchInstruction": "tippen Sie, um Punkte hinzuzufügen, Doppeltippen pflanzt",
+      "pathKeys": "Alt setzt einen spitzen Punkt · Umschalt hält 45°-Winkel · {{mod}} schaltet das Einrasten aus",
+      "pathTouchHint": "Punkt ziehen verschiebt ihn · Markierung ziehen fügt einen hinzu · langes Drücken auf einen Punkt zeigt mehr",
+      "pathFinish": "Reihe pflanzen"
     },
     "placePreview": {
       "nearest": "{{distance}} bis {{name}}",

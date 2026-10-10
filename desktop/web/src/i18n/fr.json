@@ -156,7 +156,13 @@
       "interval": "Intervalle",
       "generatedCount": "{{count}} générées",
       "commitLimitWarning": "Augmentez l’intervalle ou raccourcissez la ligne",
-      "dragAlong": "faites glisser le long de la rangée"
+      "dragAlong": "faites glisser le long de la rangée",
+      "mode": "Espacement",
+      "modeInterval": "Intervalle",
+      "modeCount": "Plantes",
+      "count": "Plantes dans la rangée",
+      "loopSpacing": "Écarts égaux de",
+      "length": "Longueur"
     },
     "contextMenu": {
       "ariaLabel": "Commandes d’édition du canevas",
@@ -795,7 +801,13 @@
       "recent": "Récentes",
       "openCatalog": "Ouvrir le catalogue complet",
       "noSpecies": "Aucune espèce ici pour l’instant.",
-      "noMatch": "Aucune espèce ne correspond à « {{query}} »."
+      "noMatch": "Aucune espèce ne correspond à « {{query}} ».",
+      "escRemovePoint": "Échap retire le dernier point",
+      "pathInstruction": "cliquez pour ajouter des points, Entrée plante",
+      "pathTouchInstruction": "touchez pour ajouter des points, un double toucher plante",
+      "pathKeys": "Alt place un point anguleux · Maj garde des angles de 45° · {{mod}} désactive le magnétisme",
+      "pathTouchHint": "Faites glisser un point pour le déplacer · faites glisser une pastille pour en ajouter un · appui long sur un point pour plus",
+      "pathFinish": "Planter la rangée"
     },
     "placePreview": {
       "nearest": "{{distance}} de {{name}}",

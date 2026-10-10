@@ -156,7 +156,13 @@
       "interval": "Interval",
       "generatedCount": "{{count}} generated",
       "commitLimitWarning": "Increase interval or shorten the line",
-      "dragAlong": "drag along the row"
+      "dragAlong": "drag along the row",
+      "mode": "Spacing",
+      "modeInterval": "Interval",
+      "modeCount": "Plants",
+      "count": "Plants in the row",
+      "loopSpacing": "Equal gaps of",
+      "length": "Length"
     },
     "contextMenu": {
       "ariaLabel": "Canvas edit commands",
@@ -795,7 +801,13 @@
       "recent": "Recent",
       "openCatalog": "Open the full catalog",
       "noSpecies": "No species here yet.",
-      "noMatch": "No species match “{{query}}”."
+      "noMatch": "No species match “{{query}}”.",
+      "escRemovePoint": "Esc removes the last point",
+      "pathInstruction": "click to add points, Enter plants",
+      "pathTouchInstruction": "tap to add points, double tap plants",
+      "pathKeys": "Alt adds a sharp point · Shift keeps 45° angles · {{mod}} turns off snapping",
+      "pathTouchHint": "Drag a point to move it · drag a dot to add one · long press a point for more",
+      "pathFinish": "Plant the row"
     },
     "placePreview": {
       "nearest": "{{distance}} to {{name}}",

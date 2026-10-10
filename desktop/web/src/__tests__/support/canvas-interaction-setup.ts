@@ -773,6 +773,7 @@ export function installSceneInteractionFixture(
     events = createSceneInteractionEventHarness(container)
     flushToolCard = setupRerender()
     const latest = () => sessions[sessions.length - 1]?.plantRowSpacing
+    const latestPath = () => sessions[sessions.length - 1]?.plantRowPath
     setCurrentCanvasSession({
       commands: createTestCanvasCommandSurface({
         tools: {
@@ -781,6 +782,11 @@ export function installSceneInteractionFixture(
             commit: (text) => latest()?.commit(text),
             blur: (text) => latest()?.blur(text),
             cancel: () => latest()?.cancel(),
+          },
+          plantRowPath: {
+            finish: () => latestPath()?.finish(),
+            setMode: (mode) => latestPath()?.setMode(mode),
+            pointAction: (action) => latestPath()?.pointAction(action),
           },
         },
       }),

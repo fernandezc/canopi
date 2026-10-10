@@ -243,7 +243,7 @@ describe('Tool card', () => {
     expect(lines()[0]).toBe('Measure')
   })
 
-  it('switches the Esc meaning to cancel while a polygon is being drawn', async () => {
+  it('switches the Esc meaning to removing the last point while a polygon is being drawn (U58)', async () => {
     await choose('polygon')
     expect(lines()).toEqual([
       'Polygon zone',
@@ -252,10 +252,10 @@ describe('Tool card', () => {
     ])
 
     await choose('polygon', { gesture: true })
-    expect(lines()[2]).toBe('Backspace removes the last corner · Shift keeps 45° angles · Esc to cancel')
+    expect(lines()[2]).toBe('Backspace removes the last corner · Shift keeps 45° angles · Esc removes the last point')
   })
 
-  it('tells how to draw a profile line and switches the Esc meaning to cancel while one is drawn (canopi-f47t.42)', async () => {
+  it('tells how to draw a profile line and switches the Esc meaning to removing the last point while one is drawn (canopi-f47t.42, U58)', async () => {
     await choose('profile')
     expect(lines()).toEqual([
       'Profile',
@@ -264,7 +264,7 @@ describe('Tool card', () => {
     ])
 
     await choose('profile', { gesture: true })
-    expect(lines()[2]).toBe('Backspace removes the last point · Shift keeps 45° angles · Esc to cancel')
+    expect(lines()[2]).toBe('Backspace removes the last point · Shift keeps 45° angles · Esc removes the last point')
   })
 
   it.each([
@@ -435,12 +435,18 @@ describe('Tool card', () => {
       blur: Mock<(text: string) => void>
       cancel: Mock<() => void>
     }
+    let path: {
+      finish: Mock<() => void>
+      setMode: Mock<(mode: 'interval' | 'count') => void>
+      pointAction: Mock<(action: 'delete-point' | 'sharp-corner' | 'smooth-corner') => void>
+    }
 
     beforeEach(async () => {
       spacing = { input: vi.fn(), commit: vi.fn(), blur: vi.fn(), cancel: vi.fn() }
+      path = { finish: vi.fn(), setMode: vi.fn(), pointAction: vi.fn() }
       await act(() => {
         setCurrentCanvasSession({
-          commands: createTestCanvasCommandSurface({ tools: { plantRowSpacing: spacing } }),
+          commands: createTestCanvasCommandSurface({ tools: { plantRowSpacing: spacing, plantRowPath: path } }),
           queries: createTestCanvasQuerySurface(),
           documents: createTestCanvasDocumentSurface(),
           keyboard: createTestCanvasKeyboardPort(),
@@ -535,6 +541,101 @@ describe('Tool card', () => {
       await choose('plant-spacing', { gesture: true, plantRow: { ...ROW, intervalValid: false, focusRequest: 2 } })
       expect(document.activeElement).toBe(field())
       other.remove()
+    })
+
+    describe('along a path (U58)', () => {
+      const PATH: CanvasPlantRowGuidance = {
+        ...ROW, focusRequest: 0, count: 7, points: 3, closed: false, mode: 'interval', countText: '', countValid: true,
+        length: '14 m', loopSpacing: null, touchedPoint: { sharp: false, canDelete: true }, touch: false,
+      }
+      const finish = () => container.querySelector<HTMLButtonElement>('[data-plant-row-finish]')
+      const modes = () => [...container.querySelectorAll<HTMLButtonElement>('[data-plant-row-mode]')]
+      const button = (name: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find((entry) => entry.textContent === name)
+
+      it('keeps the straight row\'s card while only the plant is picked', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: { ...ROW, points: 1, mode: 'interval', length: null, touchedPoint: null } })
+        expect(lines().slice(1, 3)).toEqual(['Apple', 'drag along the row'])
+        expect(live().textContent).toContain('Esc to clear the row')
+        expect(finish()).toBeNull()
+        expect(modes()).toEqual([])
+        expect(container.querySelector('[data-plant-row-length]')).toBeNull()
+      })
+
+      it('tells how to draw and plant the path, offers the mode switch, and plants from the check button outside the live region', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: PATH })
+        expect(lines().slice(1, 3)).toEqual(['Apple', 'click to add points, Enter plants'])
+        expect(live().textContent).toContain('Alt adds a sharp point · Shift keeps 45° angles · Ctrl turns off snapping · Esc removes the last point')
+        expect(modes().map((mode) => [mode.dataset.plantRowMode, mode.getAttribute('aria-pressed'), mode.textContent])).toEqual([
+          ['interval', 'true', 'Interval'],
+          ['count', 'false', 'Plants'],
+        ])
+        expect(modes()[0]!.closest('[role="group"]')?.getAttribute('aria-label')).toBe('Spacing')
+        expect(field()!.value).toBe('50 cm')
+
+        // The length moves with the pointer: its own element, never announced.
+        const length = container.querySelector<HTMLElement>('[data-plant-row-length]')!
+        expect(length.textContent).toBe('Length 14 m')
+        expect(length.getAttribute('aria-live')).toBe('off')
+        expect(length.closest('[data-plant-spacing-generated-count]')).toBeNull()
+        expect(live().contains(finish())).toBe(false)
+        expect(finish()!.textContent).toBe('Plant the row')
+
+        await act(() => { modes()[1]!.click() })
+        expect(path.setMode).toHaveBeenCalledWith('count')
+        await act(() => { finish()!.click() })
+        expect(path.finish).toHaveBeenCalledOnce()
+      })
+
+      it('takes a count in Plants mode through the same field commands', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, mode: 'count', countText: '12', focusRequest: 3 } })
+        const input = container.querySelector<HTMLInputElement>('[data-plant-row-count-input]')!
+        expect(field()).toBeNull()
+        expect(input.value).toBe('12')
+        expect(input.getAttribute('inputmode')).toBe('numeric')
+        expect(container.querySelector(`label[for="${input.id}"]`)?.textContent).toBe('Plants in the row')
+        // Switching to Plants focuses the count, as the pick focuses the interval.
+        expect(document.activeElement).toBe(input)
+        input.value = '5'
+        await act(() => { input.dispatchEvent(new Event('input', { bubbles: true })) })
+        expect(spacing.input).toHaveBeenCalledWith('5')
+        await act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) })
+        expect(spacing.commit).toHaveBeenCalledWith('5')
+
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, mode: 'count', countText: '1', countValid: false } })
+        expect(container.querySelector('[data-plant-row-count-input]')!.getAttribute('aria-invalid')).toBe('true')
+      })
+
+      it('shows a loop\'s rounded spacing and acts on the last-touched point', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, closed: true, loopSpacing: '3.1 m' } })
+        expect(container.querySelector('[data-plant-row-loop-spacing]')!.textContent).toBe('3.1 m')
+        expect(container.querySelector('[data-plant-row-loop-spacing]')!.parentElement!.textContent).toBe('Equal gaps of 3.1 m')
+        expect(container.querySelector('[data-plant-row-loop-spacing]')!.closest('[aria-live="off"]')).not.toBeNull()
+
+        await act(() => { button('Sharp corner')!.click() })
+        expect(path.pointAction).toHaveBeenCalledWith('sharp-corner')
+        await act(() => { button('Delete point')!.click() })
+        expect(path.pointAction).toHaveBeenCalledWith('delete-point')
+
+        // A change of the touched point alone re-renders the card.
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, closed: true, loopSpacing: '3.1 m', touchedPoint: { sharp: true, canDelete: false } } })
+        expect(button('Sharp corner')).toBeUndefined()
+        await act(() => { button('Smooth corner')!.click() })
+        expect(path.pointAction).toHaveBeenLastCalledWith('smooth-corner')
+        expect(button('Delete point')!.disabled).toBe(true)
+
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, touchedPoint: null } })
+        expect(button('Delete point')).toBeUndefined()
+      })
+
+      it('gives a finger 44 px targets and the touch hint in place of the keys', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, touch: true } })
+        expect(card()!.hasAttribute('data-touch')).toBe(true)
+        expect(lines().slice(1, 3)).toEqual(['Apple', 'tap to add points, double tap plants'])
+        expect(lines().at(-1)).toBe('Drag a point to move it · drag a dot to add one · long press a point for more')
+
+        await choose('plant-spacing', { gesture: true, plantRow: PATH })
+        expect(card()!.hasAttribute('data-touch')).toBe(false)
+      })
     })
 
     it('keeps the field, its text, focus and selection when the language changes', async () => {

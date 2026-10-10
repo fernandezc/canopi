@@ -9,9 +9,10 @@
 //
 // The base fixture at 1024x768 with grid snapping off, so a click places a point where it lands: its opening camera puts
 // the rectangle zone's north-west corner at (312, 223) and draws 10.414 px per metre; the Apple inside that zone is the
-// row's picked plant. The DOM contract these tests read (stream P builds it): row points and midpoint dots are canvas
-// handles `point:<owner>:<index>` and `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the
-// check button `[data-plant-row-finish]`, the mode switch `[data-plant-row-mode="interval" | "count"]`, the count field
+// row's picked plant. Each test first moves the map 192 px down with the arrow keys (OPENING_PAN_PX). The DOM contract
+// these tests read (stream P builds it): row points and midpoint dots are canvas handles `point:<owner>:<index>` and
+// `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the check button
+// `[data-plant-row-finish]`, the mode switch `[data-plant-row-mode="interval" | "count"]`, the count field
 // `[data-plant-row-count-input]`, a loop's rounded spacing `[data-plant-row-loop-spacing]` and the point buttons named
 // "Sharp corner", "Smooth corner" and "Delete point" (canvas.point.*).
 import { readFileSync } from 'node:fs'
@@ -29,27 +30,39 @@ const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.m
 interface StoredPlant { readonly id: string, readonly canonical_name: string, readonly position: { readonly lon: number, readonly lat: number } }
 
 const BASE_PLANT_IDS = new Set((JSON.parse(readFileSync(FIXTURE, 'utf8')) as { plants: StoredPlant[] }).plants.map((plant) => plant.id))
+/**
+ * The opening camera moved 3 arrow-key steps (3 x 64 px) so the map's content sits lower: the tool card, which grows once
+ * a row has points (1024x768 lays out the named rail and the card beside it, about 250 px tall), then leaves the picked
+ * Apple and the row's points clear, as a user pans to draw beside the card.
+ */
+const OPENING_PAN_PX = 3 * 64
+function onScreen(x: number, y: number): Point {
+  return { x, y: y + OPENING_PAN_PX }
+}
+
 /** The picked Apple, as stored and on screen. */
 const APPLE_ID = '46595420-3ba9-4184-a4b0-b65fb40eff31'
 const APPLE_GEO = { lon: 3.877071839, lat: 43.611230142 }
-const APPLE: Point = { x: 353.7, y: 264.7 }
+const APPLE: Point = onScreen(353.7, 264.7)
 const PX_PER_M = 10.414
 /** Empty ground for the row's points, about 9 to 11 m apart. */
-const P1: Point = { x: 430, y: 345 }
-const P2: Point = { x: 510, y: 300 }
-const P3: Point = { x: 575, y: 370 }
+const P1: Point = onScreen(430, 345)
+const P2: Point = onScreen(510, 300)
+const P3: Point = onScreen(575, 370)
 /** Empty ground for a loop with the Apple: about 11 m from it and from each other. */
-const Q1: Point = { x: 470, y: 265 }
-const Q2: Point = { x: 412, y: 365 }
+const Q1: Point = onScreen(470, 265)
+const Q2: Point = onScreen(412, 365)
 /** Empty ground for a point placed with Alt. */
-const P4: Point = { x: 640, y: 330 }
-/** Empty ground away from the row. */
+const P4: Point = onScreen(640, 330)
+/** Empty ground away from the row (above the row once the map moved down). */
 const GROUND: Point = { x: 560, y: 590 }
 
 test.use({ viewport: { width: 1024, height: 768 } })
 
 async function openBase(page: Page): Promise<void> {
   await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+  await mapHost(page).focus()
+  for (let step = 0; step < OPENING_PAN_PX / 64; step += 1) await page.keyboard.press('ArrowUp')
 }
 
 function undo(page: Page): Locator {
@@ -232,7 +245,7 @@ test('(canopi-f47t.54, P) a double-click on the last point plants the row', asyn
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) the check button plants the row', async ({ page }) => {
+test('(canopi-f47t.54, P) the check button plants the row', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
@@ -246,7 +259,7 @@ test.fail('(canopi-f47t.54, P) the check button plants the row', async ({ page }
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and every N m rounds to equal gaps shown in the card', async ({ page }) => {
+test('(canopi-f47t.54, P) a click on the first point closes a loop and every N m rounds to equal gaps shown in the card', async ({ page }) => {
   await openBase(page)
   await pickApple(page, '3')
   await click(page, Q1)
@@ -268,7 +281,7 @@ test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and ever
   await expectOneUndoStep(page, 'the planted loop')
 })
 
-test.fail('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one included', async ({ page }) => {
+test('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one included', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
@@ -345,7 +358,7 @@ test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ct
   await expect(undo(page), 'stepping back edits nothing').toBeDisabled()
 })
 
-test.fail('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on the last-touched point', async ({ page }) => {
+test('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on the last-touched point', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -439,7 +452,7 @@ test('(canopi-f47t.54, P) a double-click on the ground plants the row through th
 test.describe('touch', () => {
   test.use({ hasTouch: true })
 
-  test.fail('(canopi-f47t.54, P) touch: tapped points get 44 px handles and the check button plants (WebKit touchscreen.tap, Chromium)', async ({ page }) => {
+  test('(canopi-f47t.54, P) touch: tapped points get 44 px handles and the check button plants (WebKit touchscreen.tap, Chromium)', async ({ page }) => {
     await openBase(page)
     await page.touchscreen.tap(GROUND.x, GROUND.y)
     await armRow(page)

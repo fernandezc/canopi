@@ -16,6 +16,7 @@ import type {
   CanvasHistoryCommandSurface,
   CanvasLayerCommandSurface,
   CanvasPlantPresentationCommandSurface,
+  CanvasPlantRowPathCommands,
   CanvasPlantRowSpacingField,
   CanvasSceneEditCommandSurface,
   CanvasToolCommandSurface,
@@ -115,6 +116,8 @@ interface SceneCanvasCommandSurfaceOptions {
   readonly readInteractionTool: () => ToolId | null
   /** The active interaction session's Plant a row spacing field. */
   readonly plantRowSpacing: CanvasPlantRowSpacingField
+  /** The active interaction session's Plant a row path commands (the tool card's check, mode and point buttons). */
+  readonly plantRowPath: CanvasPlantRowPathCommands
   readonly invalidate: () => void
   readonly isRuntimeActive: () => boolean
   readonly isSpatialEditingEnabled: () => boolean
@@ -163,6 +166,7 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
     this.tools = {
       setTool: (id) => this.setTool(id),
       plantRowSpacing: options.plantRowSpacing,
+      plantRowPath: options.plantRowPath,
     }
     // View commands go to navigation as they are: every frame the camera publishes redraws the view and the chrome placed
     // against it, so a refused move redraws nothing.

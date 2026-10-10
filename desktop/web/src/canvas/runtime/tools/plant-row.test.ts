@@ -620,7 +620,9 @@ describe('Plant a row along a path', () => {
     // The picked plant has no handle while it is drawn; the placed points and the dots between them do.
     expect(pointIds(h)).toEqual(['point:draft:1', 'point:draft:2'])
     expect(h.chrome.handles.filter((handle) => handle.glyph === 'midpoint').map((handle) => handle.id)).toEqual(['dot:draft:0', 'dot:draft:1'])
-    expect(h.chrome.activeHandle).toBe('point:draft:2')
+    // No point is touched until one is pressed.
+    expect(h.chrome.activeHandle).toBeNull()
+    expect(row(h).touchedPoint).toBeNull()
     // A curve of 64 samples per segment.
     expect(shapesOf(h, 'polyline')[0]!.points).toHaveLength(2 * 64 + 1)
 

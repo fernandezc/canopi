@@ -108,7 +108,7 @@ export function createPlantRowTool(): CanvasTool {
   /** A press on the picked plant after the pick: its click adds this point at the release, its drag none. */
   let pendingPoint: ToolPoint | null = null
   let pointDrag: PointDrag | null = null
-  /** The point the card's point buttons and Delete act on: the one last added, pressed, moved or inserted. */
+  /** The point the card's point buttons and Delete act on: the one last pressed, moved, inserted or turned sharp. */
   let touched: number | null = null
 
   function context(): ToolContext {
@@ -298,6 +298,10 @@ export function createPlantRowTool(): CanvasTool {
     pointDrag = null
     straightPress = false
     touched = null
+    // "N plants" belongs to the row being drawn; the next row starts every N m (the device's interval).
+    mode = 'interval'
+    countText = ''
+    countValid = true
     showSourcePicking()
   }
 
@@ -389,7 +393,8 @@ export function createPlantRowTool(): CanvasTool {
     // The first point after the pick clears the selection without an undo step, as Polygon's first corner does.
     if (points.length === 1 && tool.scene.selection().length > 0) tool.effects.setSelection([])
     setDraft(editDraft(current, addPoint(current.path, next, point.modifiers.subtractive)))
-    touched = points.length
+    // A new point is not touched: the card's point buttons wait for a press on a point.
+    touched = null
     endpoint = next
   }
 

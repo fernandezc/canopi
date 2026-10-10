@@ -43,7 +43,11 @@ export interface StampChooserProps {
  * stays mounted, so choosing a tool is announced. Place plants carries the
  * species chooser while no species is chosen, or after Change species; Place a
  * stamp opens its saved stamps with Change stamp; Plant a row carries its
- * spacing field and the row's count once a plant is picked.
+ * spacing field and the row's count once a plant is picked, and from its first
+ * point (U58) an [Interval | Plants] switch, the count field in Plants mode, a
+ * loop's rounded spacing and, outside the live region, the row's length, the
+ * last-touched point's Sharp or Smooth corner and Delete point, and the check
+ * button that plants the row (44 px targets after a finger).
  */
 export function ToolCard({ stampChooser: StampChooser }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
@@ -79,6 +83,10 @@ export function ToolCard({ stampChooser: StampChooser }: {
   lastPrompt.current = guidance.promptSpecies
 
   const stampChooser = StampChooser && content?.chooser?.kind === 'stamp' ? content.chooser : null
+  const row = content?.tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
+  // From its first point the row is a path the card can plant, switch and edit (U58).
+  const rowPath = row && (row.points ?? 0) >= 2 ? row : null
+  const rowMode = row?.mode ?? 'interval'
 
   useEffect(() => {
     if (tool !== 'plant-stamp') setChangingSpecies(false)
@@ -103,6 +111,7 @@ export function ToolCard({ stampChooser: StampChooser }: {
     <section
       className={content ? styles.card : styles.idle}
       data-tool-card={content?.tool}
+      data-touch={row && (coarsePointer || row.touch) ? '' : undefined}
       aria-label={content?.title}
     >
       {/* First in the DOM so the title and instruction wrap around it. */}
@@ -136,17 +145,39 @@ export function ToolCard({ stampChooser: StampChooser }: {
                 {content.instruction}
               </span>
             )}
-            {guidance.plantRow?.phase === 'row' && <SpacingField row={guidance.plantRow} />}
-            {content.rowCount && (
-              // Moves with every pointer move, so it is not announced.
-              <span className={styles.count} aria-live="off" data-plant-spacing-generated-count data-density={content.rowCount.density}>
-                {content.rowCount.text}
+            {row && (
+              // One row for the mode switch and the field, so the field stays mounted (and focused) as points come and go.
+              <span className={styles.fieldRow}>
+                {(rowPath || rowMode === 'count') && <RowModeSwitch mode={rowMode} />}
+                {rowMode === 'interval' && <SpacingField row={row} kind="interval" />}
+                {rowMode === 'count' && <SpacingField row={row} kind="count" />}
+              </span>
+            )}
+            {(content.rowCount || rowPath?.length) && (
+              // The count, the length and a loop's gap move with every pointer move, so they are not announced.
+              <span className={styles.facts}>
+                {content.rowCount && (
+                  <span className={styles.count} aria-live="off" data-plant-spacing-generated-count data-density={content.rowCount.density}>
+                    {content.rowCount.text}
+                  </span>
+                )}
+                {rowPath?.length && (
+                  <span className={styles.fact} aria-live="off" data-plant-row-length>
+                    {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
+                  </span>
+                )}
+                {rowPath?.loopSpacing && (
+                  <span className={styles.fact} aria-live="off">
+                    {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
+                  </span>
+                )}
               </span>
             )}
             <span className={styles.hints}>{content.hints}</span>
           </>
         )}
       </div>
+      {rowPath && <RowActions row={rowPath} />}
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
@@ -213,16 +244,72 @@ function CardLead({ lead }: { readonly lead: Lead }) {
   )
 }
 
+/** Plant a row's [Interval | Plants] switch: every N m, or N plants with the picked one counted. */
+function RowModeSwitch({ mode }: { readonly mode: 'interval' | 'count' }) {
+  const path = currentCanvasToolCommandSurface.value?.plantRowPath
+  return (
+    <span className={styles.modes} role="group" aria-label={t('canvas.plantSpacing.mode')}>
+      {(['interval', 'count'] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={styles.mode}
+          aria-pressed={mode === option}
+          data-plant-row-mode={option}
+          onClick={() => path?.setMode(option)}
+        >
+          {t(option === 'interval' ? 'canvas.plantSpacing.modeInterval' : 'canvas.plantSpacing.modeCount')}
+        </button>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * Outside the live region, at the card's foot: the last-touched point's buttons and the check button that plants the
+ * row. Each gives the map its focus back, so Enter and Esc reach the row again.
+ */
+function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
+  const path = currentCanvasToolCommandSurface.value?.plantRowPath
+  const point = row.touchedPoint ?? null
+  const run = (action: () => void) => () => {
+    action()
+    focusOwner.focusMap()
+  }
+  return (
+    <div className={styles.rowActions}>
+      {point && (
+        <span className={styles.pointButtons}>
+          <button type="button" className={styles.pointButton} onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}>
+            {t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}
+          </button>
+          <button type="button" className={styles.pointButton} disabled={!point.canDelete} onClick={run(() => path?.pointAction('delete-point'))}>
+            {t('canvas.point.delete')}
+          </button>
+        </span>
+      )}
+      <button type="button" className={styles.finish} data-plant-row-finish onClick={run(() => path?.finish())}>
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+          <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        {t('canvas.toolCard.pathFinish')}
+      </button>
+    </div>
+  )
+}
+
 /**
  * Plant a row's spacing: the runtime keeps the text and parses it; Enter keeps
  * a valid spacing and gives the map focus back, Esc drops the picked plant,
- * and leaving the field keeps a valid spacing without moving focus.
+ * and leaving the field keeps a valid spacing without moving focus. In Plants
+ * mode the same field takes the count (the picked plant counted).
  */
-function SpacingField({ row }: { readonly row: CanvasPlantRowGuidance }) {
+function SpacingField({ row, kind }: { readonly row: CanvasPlantRowGuidance; readonly kind: 'interval' | 'count' }) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
   const focused = useRef(0)
   const field = currentCanvasToolCommandSurface.value?.plantRowSpacing
+  const count = kind === 'count'
 
   useLayoutEffect(() => {
     if (row.focusRequest === focused.current) return
@@ -232,18 +319,18 @@ function SpacingField({ row }: { readonly row: CanvasPlantRowGuidance }) {
 
   return (
     <span className={styles.field}>
-      <label className={styles.fieldLabel} for={id}>{t('canvas.plantSpacing.interval')}</label>
+      <label className={styles.fieldLabel} for={id}>{t(count ? 'canvas.plantSpacing.count' : 'canvas.plantSpacing.interval')}</label>
       <input
         ref={input}
         id={id}
         className={styles.fieldInput}
         type="text"
-        inputMode="decimal"
+        inputMode={count ? 'numeric' : 'decimal'}
         autoComplete="off"
         spellcheck={false}
-        value={row.interval}
-        aria-invalid={!row.intervalValid}
-        data-plant-spacing-interval-input
+        value={count ? row.countText ?? '' : row.interval}
+        aria-invalid={count ? row.countValid === false : !row.intervalValid}
+        {...(count ? { 'data-plant-row-count-input': '' } : { 'data-plant-spacing-interval-input': '' })}
         onInput={(event) => field?.input(event.currentTarget.value)}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== 'Escape') return

@@ -156,7 +156,13 @@
       "interval": "Intervalo",
       "generatedCount": "{{count}} geradas",
       "commitLimitWarning": "Aumente o intervalo ou encurte a linha",
-      "dragAlong": "arraste ao longo da fileira"
+      "dragAlong": "arraste ao longo da fileira",
+      "mode": "Espaçamento",
+      "modeInterval": "Intervalo",
+      "modeCount": "Plantas",
+      "count": "Plantas na fileira",
+      "loopSpacing": "Espaços iguais de",
+      "length": "Comprimento"
     },
     "contextMenu": {
       "ariaLabel": "Comandos de edição da tela",
@@ -795,7 +801,13 @@
       "recent": "Recentes",
       "openCatalog": "Abrir o catálogo completo",
       "noSpecies": "Ainda não há espécies aqui.",
-      "noMatch": "Nenhuma espécie corresponde a “{{query}}”."
+      "noMatch": "Nenhuma espécie corresponde a “{{query}}”.",
+      "escRemovePoint": "Esc remove o último ponto",
+      "pathInstruction": "clique para adicionar pontos, Enter planta",
+      "pathTouchInstruction": "toque para adicionar pontos, um toque duplo planta",
+      "pathKeys": "Alt coloca um ponto em canto vivo · Shift mantém ângulos de 45° · {{mod}} desativa o ajuste",
+      "pathTouchHint": "Arraste um ponto para movê-lo · arraste uma marca para adicionar um · mantenha um ponto pressionado para mais",
+      "pathFinish": "Plantar a fileira"
     },
     "placePreview": {
       "nearest": "{{distance}} até {{name}}",

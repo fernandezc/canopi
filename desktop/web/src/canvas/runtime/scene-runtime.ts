@@ -89,6 +89,11 @@ export class SceneCanvasRuntime {
         blur: (text) => this._interaction?.plantRowSpacing.blur(text),
         cancel: () => this._interaction?.plantRowSpacing.cancel(),
       },
+      plantRowPath: {
+        finish: () => this._interaction?.plantRowPath.finish(),
+        setMode: (mode) => this._interaction?.plantRowPath.setMode(mode),
+        pointAction: (action) => this._interaction?.plantRowPath.pointAction(action),
+      },
     })
     this._cameraMode = this._construction.frames.viewFrame.peek().mode
     this._installEffects()
