@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "Hoek toevoegen op zijde {{index}}"
     },
+    "point": {
+      "delete": "Punt verwijderen",
+      "sharp": "Scherpe hoek",
+      "smooth": "Vloeiende hoek"
+    },
     "guideEnd": {
       "label": "Eindpunt van meethulp {{index}}"
     },

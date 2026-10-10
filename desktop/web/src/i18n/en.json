@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "Add a corner on edge {{index}}"
     },
+    "point": {
+      "delete": "Delete point",
+      "sharp": "Sharp corner",
+      "smooth": "Smooth corner"
+    },
     "guideEnd": {
       "label": "Measurement guide endpoint {{index}}"
     },

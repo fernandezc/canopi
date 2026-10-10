@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "변 {{index}}에 꼭짓점 추가"
     },
+    "point": {
+      "delete": "점 삭제",
+      "sharp": "뾰족한 꼭짓점",
+      "smooth": "부드러운 꼭짓점"
+    },
     "guideEnd": {
       "label": "측정 가이드 끝점 {{index}}"
     },

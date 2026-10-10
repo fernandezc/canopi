@@ -180,6 +180,11 @@
     "zoneEdgeMidpoint": {
       "label": "Añadir una esquina en el lado {{index}}"
     },
+    "point": {
+      "delete": "Eliminar punto",
+      "sharp": "Esquina viva",
+      "smooth": "Esquina suave"
+    },
     "guideEnd": {
       "label": "Extremo de la guía de medida {{index}}"
     },
