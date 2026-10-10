@@ -663,9 +663,9 @@ const REQUIRED_IMPORT_POLICIES = [
   },
   {
     kind: 'require-imports',
-    name: 'Control Point adapters delegate shared lifecycle ownership',
-    // Select's reshape and guide-end handles are ToolHandle data (tools/select/{reshape,guide-ends}.ts, no chrome);
-    // the session builds the one handle layer that shows them into ToolHostDeps.chrome.
+    name: 'The interaction session builds the handle layer that shows tool handles',
+    // Tools give handles as ToolHandle data, never chrome (P5; e.g. tools/select/{reshape,guide-ends}.ts); the session
+    // builds the one handle layer that shows them into ToolHostDeps.chrome.
     from: ['src/canvas/runtime/interaction-session.ts'],
     targets: ['src/canvas/runtime/chrome/handle-layer.ts'],
   },
@@ -1460,12 +1460,6 @@ const SYMBOL_OWNERSHIP_POLICIES = [
     name: 'Production Web catalog does not carry the in-memory test reader',
     from: ['src/web/**'],
     names: ['createInMemoryReducedSpeciesCatalogReader'],
-  },
-  {
-    kind: 'forbid-source-symbols',
-    name: 'Scene Interaction uses the Control Point Overlay collection',
-    from: ['src/canvas/runtime/tools/tool-host.ts', 'src/canvas/runtime/tools/select/**'],
-    names: ['_zoneControlPoints', '_measurementGuideControlPoints'],
   },
   {
     // The Scene owns layer visibility, locks and opacity; Layers reads them from the scene snapshot and its open row
