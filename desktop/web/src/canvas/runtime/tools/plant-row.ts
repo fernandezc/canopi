@@ -93,7 +93,8 @@ export function createPlantRowTool(): CanvasTool {
   let intervalValid = true
   let countText = ''
   let countValid = true
-  /** Where the next point would go: the pointer's last hover or drag point, the rubber band's end. */
+  /** The rubber band's end: where a pointer over the map would add the next point, from its hover or ground drag until
+   *  it leaves the map or lifts, or the points change (a finger never hovers, so after a tap the row is what plants). */
   let endpoint: WorldPoint | null = null
   /** The preview's row: what the draft draws and the card counts. */
   let preview: { readonly path: PathPoints; readonly planting: PathPlanting; readonly positions: readonly WorldPoint[] } | null = null
@@ -346,8 +347,10 @@ export function createPlantRowTool(): CanvasTool {
 
   // ── Points ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** Every change of the points: the rubber band waits for the pointer's next hover. */
   function setDraft(next: PathDraft): void {
     draft = next
+    endpoint = null
   }
 
   /** A press on the ground after the pick (spec §3.2): finishes, closes the loop, starts a straight drag or adds a point. */
@@ -374,21 +377,20 @@ export function createPlantRowTool(): CanvasTool {
       if (points.length >= 3) {
         setDraft(editDraft(current, closePath(current.path)!))
         touched = null
-        endpoint = null
       }
       return
     }
     placePoint(g.point)
   }
 
-  /** A click's new last point (Alt held: sharp); a click on the last point only moves the rubber band there. */
+  /** A click's new last point (Alt held: sharp); a click on the last point adds none and ends the rubber band there. */
   function placePoint(point: ToolPoint): void {
     const tool = context()
     const current = draft!
     const { points } = current.path
     const next = point.snapped
     if (isSamePoint(points[points.length - 1]!.position, next)) {
-      endpoint = next
+      endpoint = null
       return
     }
     // The first point after the pick clears the selection without an undo step, as Polygon's first corner does.
@@ -396,7 +398,6 @@ export function createPlantRowTool(): CanvasTool {
     setDraft(editDraft(current, addPoint(current.path, next, point.modifiers.subtractive)))
     // A new point is not touched: the card's point buttons wait for a press on a point.
     touched = null
-    endpoint = next
   }
 
   function pressesSource(g: Extract<ToolGesture, { kind: 'press' }>): boolean {
@@ -430,7 +431,6 @@ export function createPlantRowTool(): CanvasTool {
           if (clickCount === 1 && !path.closed && path.points.length >= 3) {
             setDraft(editDraft(draft!, closePath(path)!))
             touched = null
-            endpoint = null
           }
           return
         }
@@ -668,7 +668,8 @@ export function createPlantRowTool(): CanvasTool {
             straightPress = false
             plant(g.point.snapped)
           } else {
-            previewAt(g.point)
+            // The press added its point; the lift adds none, and the band waits for the next hover.
+            endpoint = null
           }
           break
         case 'handle-drag':
@@ -703,6 +704,13 @@ export function createPlantRowTool(): CanvasTool {
           publish()
           // While a source is picked the row replaces the hover restyle and the plant tooltip.
           return 'handled'
+        case 'hover-end':
+          // The pointer left the map (for the card, say): the row is the one the finish plants.
+          if (source && endpoint) {
+            endpoint = null
+            publish()
+          }
+          return 'pass'
         default:
           // A cancelled drag keeps the source and its preview.
           return 'pass'

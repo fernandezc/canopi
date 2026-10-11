@@ -778,6 +778,58 @@ describe('Plant a row along a path', () => {
     expect(added(h)).toEqual([])
   })
 
+  it('counts and draws only the row the finish plants once no pointer hovers the map: after a finger, an edit or the pointer leaving', () => {
+    /** The card, the ghosts and the length chip all describe a row of `plants` plants and `metres` m. */
+    const expectRow = (h: ToolHarness, plants: number, metres: string, why: string): void => {
+      expect(row(h), why).toMatchObject({ count: plants, length: metres })
+      expect(ghostPositions(h), why).toHaveLength(plants)
+      expect(lengthLabel(h), why).toBe(metres)
+    }
+
+    // A finger's taps, then a step back: the removed point leaves no rubber band behind.
+    const stepped = pathHarness().h
+    for (const x of [20, 100, 200]) stepped.click({ x, y: 30 }, { pointer: 'touch' })
+    expectRow(stepped, 18, '18 m', 'two taps')
+    stepped.host.command({ kind: 'undo-transient' })
+    expectRow(stepped, 8, '8 m', 'a step back')
+    stepped.host.command({ kind: 'redo-transient' })
+    expectRow(stepped, 18, '18 m', 'a step forward')
+    stepped.host.command({ kind: 'escape' })
+    expectRow(stepped, 8, '8 m', 'Esc')
+    finish(stepped)
+    expect(added(stepped)).toHaveLength(8)
+
+    // A finger drags the last point back: the row ends at the point, not where it was.
+    const dragged = pathHarness().h
+    for (const x of [20, 100, 200]) dragged.click({ x, y: 30 }, { pointer: 'touch' })
+    dragged.drag(screenOf(dragged, 'point:draft:2'), { x: 150, y: 30 }, { target: { kind: 'handle', id: handleId('point:draft:2') }, pointer: 'touch' })
+    expectRow(dragged, 13, '13 m', 'a point drag')
+    dragged.host.command({ kind: 'point-action', handle: handleId('point:draft:2'), action: 'sharp-corner' })
+    dragged.host.command({ kind: 'delete-handle' })
+    expectRow(dragged, 8, '8 m', 'a deleted point')
+
+    // A finger drag on the ground adds its point at the press; the lift adds none.
+    const ground = pathHarness().h
+    ground.click({ x: 20, y: 30 }, { pointer: 'touch' })
+    ground.drag({ x: 100, y: 30 }, { x: 200, y: 30 }, { pointer: 'touch' })
+    expect(row(ground).points).toBe(2)
+    expectRow(ground, 8, '8 m', 'a ground drag')
+
+    // A mouse hovers past the last point, then leaves the map (for the card): the band goes with it.
+    const left = pathHarness().h
+    left.click({ x: 20, y: 30 })
+    left.click({ x: 100, y: 30 })
+    left.hover({ x: 400, y: 30 })
+    expectRow(left, 38, '38 m', 'the hovering mouse')
+    left.leave()
+    expectRow(left, 8, '8 m', 'the mouse gone')
+    // "N plants" starts from the row the finish plants.
+    left.host.command({ kind: 'spacing-mode', mode: 'count' })
+    expect(row(left)).toMatchObject({ countText: '9', count: 8 })
+    finish(left)
+    expect(added(left)).toHaveLength(8)
+  })
+
   it('offers Delete point and Sharp or Smooth corner for a point, from the menu or for the last-touched one', () => {
     const { h, tool } = pathHarness()
     h.click({ x: 20, y: 30 })
