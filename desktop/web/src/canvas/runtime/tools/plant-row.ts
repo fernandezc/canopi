@@ -4,7 +4,7 @@
 // press on a placed plant picks it as the row's source and first point (the tool card's spacing field asks for focus on
 // that press's release, unless it became a drag). After the pick a click on the ground adds a point (Alt held: a sharp
 // one), and the row follows a smooth curve through them (canvas/plant-path/); a click on the first point with 3 points
-// or more closes a loop (CLOSE_DISTANCE_PX). Enter, a double-click on the ground or the last point, the tool card's check
+// or more closes a loop (its handle, or the ground within CLOSE_DISTANCE_PX). Enter, a double-click on the ground or the last point, the tool card's check
 // button and the menu's "Finish shape" plant it (from 2 points), one Scene Edit that selects the source and the new
 // plants. A press-drag-release from the picked plant with no other point still plants a straight row at its release.
 // Before planting the points follow the shared point contract (point-editor/rules.ts): a point drags; a midpoint dot's
@@ -258,7 +258,8 @@ export function createPlantRowTool(): CanvasTool {
     return { normalPx: normal, gapPx: BESIDE_DOT_GAP_PX }
   }
 
-  /** The draft's handles: every point but the picked plant, and the dots of segments with room on screen. */
+  /** The draft's handles: the placed points, the picked plant once it can close a loop (3 points), and the dots of
+   *  segments with room on screen. */
   function draftHandles(tool: ToolContext): ToolHandle[] {
     const path = pointsOf()
     if (!path || path.points.length < 2) return []
@@ -268,7 +269,7 @@ export function createPlantRowTool(): CanvasTool {
     // A dot drag inserts its point at the release: until then its segment keeps its dot under the pointer.
     const dots = pointDrag ? [] : dotHandles(DRAFT_OWNER, shown, (a, b) => tool.view.screenDistance(a, b), size,
       (index) => tool.translate('canvas.plantRow.dot', { index: index + 1 }))
-    return [...points.slice(1), ...dots]
+    return [...points.slice(path.points.length >= 3 ? 0 : 1), ...dots]
   }
 
   function focusIntervalInput(): void {
@@ -424,8 +425,15 @@ export function createPlantRowTool(): CanvasTool {
         deletePoint(index)
         return
       case 'move':
-        // The picked plant never moves while a new row is drawn.
-        if (index === 0) return
+        // The picked plant never moves while a new row is drawn: from 3 points a press on it closes the loop.
+        if (index === 0) {
+          if (clickCount === 1 && !path.closed && path.points.length >= 3) {
+            setDraft(editDraft(draft!, closePath(path)!))
+            touched = null
+            endpoint = null
+          }
+          return
+        }
         touched = index
         pointDrag = { kind: 'move', index, at: null }
         return

@@ -617,8 +617,8 @@ describe('Plant a row along a path', () => {
     expect(h.history.canUndo.value).toBe(false)
     expect(row(h)).toMatchObject({ phase: 'row', points: 3, closed: false })
     expect(tool.canFinish?.()).toBe(true)
-    // The picked plant has no handle while it is drawn; the placed points and the dots between them do.
-    expect(pointIds(h)).toEqual(['point:draft:1', 'point:draft:2'])
+    // The picked plant has a handle from 3 points on, as the loop's close target; the placed points and the dots too.
+    expect(pointIds(h)).toEqual(['point:draft:0', 'point:draft:1', 'point:draft:2'])
     expect(h.chrome.handles.filter((handle) => handle.glyph === 'midpoint').map((handle) => handle.id)).toEqual(['dot:draft:0', 'dot:draft:1'])
     // No point is touched until one is pressed.
     expect(h.chrome.activeHandle).toBeNull()
@@ -664,6 +664,13 @@ describe('Plant a row along a path', () => {
     h.click({ x: 20, y: 30 })
     expect(row(h)).toMatchObject({ points: 2, closed: false })
     h.click({ x: 70, y: 110 })
+    // The picked plant's handle closes the loop; it never moves.
+    h.drag(screenOf(h, 'point:draft:0'), { x: 40, y: 60 }, { target: { kind: 'handle', id: handleId('point:draft:0') } })
+    expect(row(h)).toMatchObject({ points: 3, closed: true })
+    expect(pointAt(h, 0)).toEqual({ x: 2, y: 3 })
+    h.host.command({ kind: 'escape' })
+    expect(row(h)).toMatchObject({ points: 3, closed: false })
+    // As does a click near it, on the ground.
     h.click({ x: 21, y: 31 })
 
     expect(row(h)).toMatchObject({ points: 3, closed: true })
@@ -717,22 +724,25 @@ describe('Plant a row along a path', () => {
     // A still press on a dot inserts nothing; its drag inserts a point where it is released.
     const dot = screenOf(h, 'dot:draft:0')
     h.click(dot, { target: { kind: 'handle', id: handleId('dot:draft:0') } })
-    expect(pointIds(h)).toHaveLength(2)
+    // The picked plant and two points: from 3 points the picked plant has a handle too.
+    expect(pointIds(h)).toHaveLength(3)
     h.press(dot, { target: { kind: 'handle', id: handleId('dot:draft:0') } })
     h.move({ x: 50, y: 60 })
     h.release({ x: 50, y: 60 })
-    expect(pointIds(h)).toHaveLength(3)
+    expect(pointIds(h)).toHaveLength(4)
     expect(pointAt(h, 1)).toEqual({ x: 5, y: 6 })
 
     // A double-click on a dot inserts a point in place.
     const inPlace = h.chrome.handles.find((handle) => handle.id === 'dot:draft:2')!.anchor
     h.click(screenOf(h, 'dot:draft:2'), { target: { kind: 'handle', id: handleId('dot:draft:2') }, clickCount: 2 })
-    expect(pointIds(h)).toHaveLength(4)
+    expect(pointIds(h)).toHaveLength(5)
     expect(pointAt(h, 3)).toEqual(inPlace)
 
     // Alt+click deletes a point, down to 2 points and never the picked plant.
     h.click(screenOf(h, 'point:draft:1'), { target: { kind: 'handle', id: handleId('point:draft:1') }, mods: { alt: true } })
-    expect(pointIds(h)).toHaveLength(3)
+    expect(pointIds(h)).toHaveLength(4)
+    h.click(screenOf(h, 'point:draft:0'), { target: { kind: 'handle', id: handleId('point:draft:0') }, mods: { alt: true } })
+    expect(pointIds(h), 'never the picked plant').toHaveLength(4)
 
     // Alt while placing makes a sharp point.
     h.click({ x: 200, y: 50 }, { mods: { alt: true } })
@@ -839,8 +849,10 @@ describe('Plant a row along a path', () => {
     h.click({ x: 20, y: 30 }, { pointer: 'touch' })
     h.click({ x: 100, y: 30 }, { pointer: 'touch' })
     h.click({ x: 260, y: 30 }, { pointer: 'touch' })
-    // Two points, and the one dot with 132 px of room.
-    expect(h.chrome.handles.map((handle) => [handle.id, handle.hitRadiusPx])).toEqual([['point:draft:1', 22], ['point:draft:2', 22], ['dot:draft:1', 22]])
+    // The picked plant and two points, and the one dot with 132 px of room.
+    expect(h.chrome.handles.map((handle) => [handle.id, handle.hitRadiusPx])).toEqual([
+      ['point:draft:0', 22], ['point:draft:1', 22], ['point:draft:2', 22], ['dot:draft:1', 22],
+    ])
     expect(row(h).touch).toBe(true)
   })
 
