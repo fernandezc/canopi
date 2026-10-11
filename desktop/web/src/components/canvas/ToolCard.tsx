@@ -1,4 +1,4 @@
-import type { FunctionComponent, RefObject } from 'preact'
+import type { ComponentChildren, FunctionComponent, JSX, RefObject } from 'preact'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
@@ -23,6 +23,7 @@ import {
 import type { CanvasPlantRowGuidance, CanvasToolGuidance } from '../../canvas/session-state'
 import { scrollWheel } from '../../app/settings/state'
 import { t } from '../../i18n'
+import { ButtonTooltip } from '../shared/ButtonTooltip'
 import { ControlIcon } from '../shared/ControlIcon'
 import { SpeciesCommonName } from '../shared/SpeciesIdentity'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
@@ -297,27 +298,53 @@ function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
     <span className={styles.rowActions}>
       {point && (
         <span className={styles.pointButtons}>
-          <button type="button" className={styles.pointButton} data-plant-row-point-action={point.sharp ? 'smooth-corner' : 'sharp-corner'} onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}>
-            {/* The corner the press makes: a curve through the point, or an angle at it. */}
-            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
-              <path d={point.sharp ? 'M4 15.5C4 6 16 6 16 15.5' : 'M4 15.5L10 4.5l6 11'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span className={styles.actionLabel}>{t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}</span>
-          </button>
-          <button type="button" className={styles.pointButton} data-plant-row-point-action="delete-point" disabled={!point.canDelete} onClick={run(() => path?.pointAction('delete-point'))}>
-            <ControlIcon name="trash" />
-            <span className={styles.actionLabel}>{t('canvas.point.delete')}</span>
-          </button>
+          <FootButton
+            className={styles.pointButton}
+            data-plant-row-point-action={point.sharp ? 'smooth-corner' : 'sharp-corner'}
+            name={t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}
+            icon={(
+              // The corner the press makes: a curve through the point, or an angle at it.
+              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+                <path d={point.sharp ? 'M4 15.5C4 6 16 6 16 15.5' : 'M4 15.5L10 4.5l6 11'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            )}
+            onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}
+          />
+          <FootButton
+            className={styles.pointButton}
+            data-plant-row-point-action="delete-point"
+            name={t('canvas.point.delete')}
+            icon={<ControlIcon name="trash" />}
+            disabled={!point.canDelete}
+            onClick={run(() => path?.pointAction('delete-point'))}
+          />
         </span>
       )}
-      <button type="button" className={styles.finish} data-plant-row-finish onClick={run(() => path?.finish())}>
-        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
-          <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        {/* On phones only the icons show, so the foot keeps one line; the names stay for assistive technology. */}
-        <span className={styles.actionLabel}>{t('canvas.toolCard.pathFinish')}</span>
-      </button>
+      <FootButton
+        className={styles.finish}
+        data-plant-row-finish
+        name={t('canvas.toolCard.pathFinish')}
+        icon={<ControlIcon name="check" />}
+        onClick={run(() => path?.finish())}
+      />
     </span>
+  )
+}
+
+/**
+ * A button of the row's foot: its glyph and name. On phones the glyph alone, so the foot keeps one line: an icon-only
+ * button, named by its label and its tooltip.
+ */
+function FootButton({ name, icon, ...button }: {
+  readonly name: string
+  readonly icon: ComponentChildren
+} & Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'icon' | 'name'>) {
+  const phone = phoneLayout.value !== null
+  return (
+    <button type="button" {...button} aria-label={phone ? name : undefined}>
+      {icon}
+      {phone ? <ButtonTooltip label={name} side="top" /> : <span>{name}</span>}
+    </button>
   )
 }
 

@@ -126,9 +126,8 @@
   font-weight: 600;
 }
 
-/* A label the mode switch already shows, and on phones the foot's button names beside their icons: read, not seen. */
-.hiddenLabel,
-.card[data-phone] .actionLabel {
+/* A label the mode switch already shows: read, not seen. */
+.hiddenLabel {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -272,6 +271,8 @@
 
 .pointButton,
 .finish {
+  /* The tooltip of an icon-only button on phones. */
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;

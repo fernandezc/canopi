@@ -5,6 +5,7 @@ import type { ToolId } from '../canvas/runtime/interaction-types'
 import { locale, scrollWheel } from '../app/settings/state'
 import { t } from '../i18n'
 import { activePanel, sidePanel } from '../app/shell/state'
+import { phoneLayout } from '../app/shell/phone-layout'
 import { ToolCard } from '../components/canvas/ToolCard'
 import { armCanvasTool } from '../app/keyboard/arming'
 import { focusOwner } from '../app/keyboard/focus-owner'
@@ -635,6 +636,26 @@ describe('Tool card', () => {
 
         await choose('plant-spacing', { gesture: true, plantRow: PATH })
         expect(card()!.hasAttribute('data-touch')).toBe(false)
+      })
+
+      it('on phones shows the foot\'s buttons as icons, each named and with its tooltip; elsewhere with their names', async () => {
+        const foot = () => [...container.querySelectorAll<HTMLButtonElement>('[data-plant-row-point-action], [data-plant-row-finish]')]
+        const shown = (button: HTMLButtonElement) => [...button.childNodes]
+          .filter((node) => !(node instanceof Element && node.getAttribute('role') === 'tooltip'))
+          .map((node) => node.textContent).join('')
+        const names = ['Sharp corner', 'Delete point', 'Plant the row']
+        try {
+          phoneLayout.value = 'portrait'
+          await choose('plant-spacing', { gesture: true, plantRow: PATH })
+          expect(foot().map((button) => button.getAttribute('aria-label'))).toEqual(names)
+          expect(foot().map((button) => button.querySelector('[role="tooltip"]')?.textContent)).toEqual(names)
+          expect(foot().map(shown)).toEqual(['', '', ''])
+          for (const button of foot()) expect(button.querySelector('svg')).not.toBeNull()
+        } finally {
+          await act(() => { phoneLayout.value = null })
+        }
+        expect(foot().map(shown)).toEqual(names)
+        expect(foot().map((button) => button.querySelector('[role="tooltip"]'))).toEqual([null, null, null])
       })
     })
 
