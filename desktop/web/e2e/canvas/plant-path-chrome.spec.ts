@@ -195,7 +195,7 @@ async function expectTarget(target: Locator, name: string, layout: Layout, side:
   expect(size, `${name} is a ${TOUCH_TARGET_PX} px target after a tap`).toBeGreaterThanOrEqual(TOUCH_TARGET_PX)
 }
 
-async function expectCardClear(page: Page, layout: Layout, locale: string, stage: 'two points' | 'a loop'): Promise<void> {
+async function expectCardClear(page: Page, layout: Layout, locale: string, stage: 'two points' | 'a loop' | 'a half sheet'): Promise<void> {
   const where = `${layout.width}x${layout.height} ${locale} ${stage}`
   const cardBox = await boxOf(card(page))
   for (const [name, selector] of NEIGHBOURS) {
@@ -203,8 +203,8 @@ async function expectCardClear(page: Page, layout: Layout, locale: string, stage
       expect(overlap(cardBox, box), `${where}: the tool card clears ${name}`).toBe(false)
     }
   }
-  // Holding a row the card registers with the visible-map-area seam, so the map notice stands beside it (the overlap
-  // checks above); its bottom is above the framing chrome.
+  // Holding a row the card registers with the visible-map-area seam, so the map notice stands beside it, or below it
+  // on a phone held upright (the overlap checks above); its bottom is above the framing chrome.
   const frame = await framingBottom(page)
   expect(cardBox.y + cardBox.height, `${where}: the card's bottom is inside the visible map`).toBeLessThanOrEqual(frame + 0.5)
   const finish = card(page).locator('[data-plant-row-finish]')
@@ -213,16 +213,19 @@ async function expectCardClear(page: Page, layout: Layout, locale: string, stage
   await expectTarget(finish, `${where}: the check button`, layout, 'both')
   await expectHitAtCentre(card(page).locator('[data-plant-spacing-generated-count]'), `${where}: the row's count`)
   await expectHitAtCentre(card(page).locator('[data-plant-row-length]'), `${where}: the row's length`)
-  // The fields scroll with the card's text, above its foot, which leaves them room to show whole.
+  // The fields scroll with the card's text, above its foot, which leaves them room to show whole; with the panel sheet
+  // at half height a 360x560 phone leaves the card's text less than a field's height above the map notice, so there
+  // they take the tap at their centre once scrolled to.
+  const whole = stage !== 'a half sheet'
   const field = card(page).locator('[data-plant-spacing-interval-input]')
   await field.scrollIntoViewIfNeeded()
-  await expectWhollyShown(field, `${where}: the spacing field`)
+  if (whole) await expectWhollyShown(field, `${where}: the spacing field`)
   await expectTarget(field, `${where}: the spacing field`, layout, 'height')
   const modes = card(page).locator('[data-plant-row-mode]')
   await expect(modes, `${where}: the card offers the mode switch`).toHaveCount(2)
   for (const mode of await modes.all()) {
     await mode.scrollIntoViewIfNeeded()
-    await expectWhollyShown(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`)
+    if (whole) await expectWhollyShown(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`)
     await expectTarget(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`, layout, 'height')
   }
   await expectTarget(finish, `${where}: the check button after a scroll`, layout, 'both')
@@ -323,6 +326,26 @@ test.describe('phones', () => {
       expect(slot.x + slot.width, `${where}: the slot ends inside the viewport`).toBeLessThanOrEqual(layout.width)
       expect(slot.y, `${where}: the slot is above the viewport's bottom`).toBeLessThan(layout.height)
     }
+  })
+})
+
+// On a phone held upright the card covers the map's top edge, so the map notice stays at the bottom, below the card,
+// above the panel sheet: with the sheet at half height (bottom chrome that leaves the map little room), the card still
+// stops above the notice rather than above the sheet.
+test.describe('360×560 half sheet', () => {
+  test.use({ viewport: { width: 360, height: 560 }, hasTouch: true })
+
+  test('(canopi-f47t.54, P) on a phone held upright the tool card stops above the map notice with the panel sheet at half height (360×560 en)', async ({ page }) => {
+    const layout = LAYOUTS.find((each) => each.width === 360 && each.height === 560)!
+    await openBase(page, layout, 'en')
+    await drawTwoPoints(page, layout)
+    // The handle's ArrowUp raises the sheet a step in both engines (a tap on it moved nothing in WebKit's touch emulation).
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('ArrowUp')
+    await expect(page.locator('[data-phone-sheet]'), 'the panel sheet rests at half height').toHaveAttribute('data-phone-sheet', 'half')
+    await expect(card(page).locator('[data-plant-row-finish]'), 'the row is still held').toBeVisible()
+    await nextFrames(page)
+    await expectCardClear(page, layout, 'en', 'a half sheet')
   })
 })
 

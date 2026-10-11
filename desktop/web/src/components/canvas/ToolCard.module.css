@@ -37,10 +37,8 @@
 
 /* Plant a row: the text and the fields scroll above the foot (the row's count and length and the check button that
    plants it), which stays in view whatever the card's height. The body scrolls, not the card, so a focused field
-   scrolls into view above the foot, never under it. Holding a row the card registers with the visible-map-area seam
-   (ToolCard), so status chrome stands beside it, never below: the card stops above the framing chrome alone. */
+   scrolls into view above the foot, never under it. */
 .card[data-row] {
-  --tool-card-room-bottom: var(--map-framing-inset-bottom, 0px);
   display: flex;
   flex-direction: column;
   overflow-y: hidden;
@@ -56,6 +54,13 @@
   /* A field scrolled into view keeps its focus ring in view too. */
   scroll-padding-block: var(--space-1);
   overscroll-behavior: contain;
+}
+
+/* Holding a row the card registers with the visible-map-area seam (ToolCard) as covering the map's left edge, so status
+   chrome (the map notice) stands beside it, never below: the card stops above the framing chrome alone. On a phone held
+   upright it covers the top edge instead, the notice stays below it, and the card stops above all the bottom chrome. */
+.card[data-row]:not([data-phone='portrait']) {
+  --tool-card-room-bottom: var(--map-framing-inset-bottom, 0px);
 }
 
 /* No card: the live region stays mounted but takes no room. */
