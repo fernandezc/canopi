@@ -12,6 +12,7 @@
 // and dots are canvas handles `vertex:<zone>:<index>` and `edge-mid:<zone>:<index>`.
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
+import { buildSync } from 'esbuild'
 import { pressMod } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
 import { mapHost, openFixture } from '../support/layout'
@@ -102,6 +103,127 @@ async function finishAndCountCorners(page: Page): Promise<number> {
   return corners(page)
 }
 
+/**
+ * The real DOM input source and recogniser (src/canvas/runtime/input/), bundled as one script: `window.__shadowInput`.
+ * The probe attaches a second copy to the map host as a shadow that only listens: it applies no effect but the long
+ * press's timer, installs no native-menu listener of its own (so the app's alone decides the native menu), and records
+ * every gesture it recognises: the recogniser log.
+ */
+function shadowInputScript(): string {
+  const input = fileURLToPath(new URL('../../src/canvas/runtime/input/', import.meta.url))
+  const contents = [
+    "export { createDomInputSource } from './dom-input-source'",
+    "export { initialRecogniserState, recognise } from './recognise'",
+    "export { detectPlatform } from './platform'",
+    "export { DEFAULT_THRESHOLDS } from './thresholds'",
+  ].join('\n')
+  const [output] = buildSync({ stdin: { contents, resolveDir: input, loader: 'ts' }, bundle: true, format: 'iife', globalName: '__shadowInput', write: false }).outputFiles
+  return output!.text
+}
+
+interface Logged { readonly kind: string, readonly source?: string, readonly handle?: string, readonly target?: { readonly kind: string, readonly id?: string } }
+interface NativeMenu { readonly prevented: boolean }
+
+/** Records each native contextmenu after every listener has run (window, bubble phase); changes nothing. */
+async function recordNativeMenus(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const menus: Array<{ prevented: boolean }> = []
+    Object.assign(window, { __probeNativeMenus: menus })
+    window.addEventListener('contextmenu', (event) => { menus.push({ prevented: event.defaultPrevented }) })
+  })
+}
+
+/** Attaches the shadow recogniser to the map host; returns a reader of its log since the last read. */
+async function attachShadowRecogniser(page: Page): Promise<() => Promise<Logged[]>> {
+  await page.addScriptTag({ content: shadowInputScript() })
+  await page.evaluate(() => {
+    type Lib = {
+      createDomInputSource(deps: unknown): { attach(sink: (input: unknown) => void): () => void, apply(effects: readonly { kind: string }[]): void }
+      initialRecogniserState(): unknown
+      recognise(state: unknown, input: unknown, config: unknown): { state: unknown, gestures: readonly unknown[], effects: readonly { kind: string }[] }
+      detectPlatform(nav: Navigator, win: unknown): unknown
+      DEFAULT_THRESHOLDS: unknown
+    }
+    const lib = (window as unknown as { __shadowInput: Lib }).__shadowInput
+    const host = document.querySelector<HTMLElement>('[role="application"]')
+    if (!host) throw new Error('no map host')
+    const platform = lib.detectPlatform(navigator, window)
+    const config = { platform, thresholds: lib.DEFAULT_THRESHOLDS }
+    const timers = { set: (delayMs: number, callback: () => void) => window.setTimeout(callback, delayMs), clear: (id: number) => window.clearTimeout(id) }
+    const source = lib.createDomInputSource({ host, platform, timers })
+    const log: unknown[] = []
+    let state = lib.initialRecogniserState()
+    // The shadow leaves the native menu to the app's own listener: its contextmenu listener is not installed.
+    const addEventListener = Document.prototype.addEventListener
+    Document.prototype.addEventListener = function (this: Document, type: string, ...rest: unknown[]) {
+      if (type === 'contextmenu') return
+      return (addEventListener as (...args: unknown[]) => void).call(this, type, ...rest)
+    } as typeof addEventListener
+    try {
+      source.attach((input) => {
+        const result = lib.recognise(state, input, config)
+        state = result.state
+        source.apply(result.effects.filter((effect) => effect.kind === 'set-timer' || effect.kind === 'clear-timer'))
+        log.push(...result.gestures)
+      })
+    } finally {
+      Document.prototype.addEventListener = addEventListener
+    }
+    Object.assign(window, { __shadowLog: log })
+  })
+  return () => page.evaluate(() => (window as unknown as { __shadowLog: Logged[] }).__shadowLog.splice(0))
+}
+
+async function nativeMenus(page: Page): Promise<NativeMenu[]> {
+  return page.evaluate(() => (window as unknown as { __probeNativeMenus: NativeMenu[] }).__probeNativeMenus.splice(0))
+}
+
+function menuRequests(log: readonly Logged[]): Logged[] {
+  return log.filter((gesture) => gesture.kind === 'menu-request')
+}
+
+/**
+ * Probe (stream Z's first commit, amendment section (d)): the riskiest input assumption behind the point menu and the
+ * dot drag. A right-click on a selected polygon's corner reaches the recogniser with the corner handle as its press
+ * target and yields one menu request carrying the handle's id, while the native menu stays shut (every contextmenu is
+ * default-prevented once the app's listeners ran); a press on a midpoint dot dragged past the slop arrives as a press on
+ * that handle and a drag, which the host turns into `handle-drag` moves. The native WebKitGTK right-click is the main
+ * agent's live check.
+ */
+test('(canopi-f47t.54, Z) probe: a right-click on a corner requests one menu carrying its handle with the native menu shut, and a dot drag arrives as a handle drag', async ({ page }) => {
+  await recordNativeMenus(page)
+  await openBase(page)
+  await selectPolygon(page)
+  const readLog = await attachShadowRecogniser(page)
+  const [corner] = await handles(page, 'vertex')
+  if (!corner) throw new Error('the selected polygon shows no corner')
+
+  await page.mouse.click(corner.x, corner.y, { button: 'right' })
+  await expect(page.getByRole('menu'), 'the canvas menu opens').toBeVisible()
+  const rightClick = await readLog()
+  expect(menuRequests(rightClick), 'one menu request, carrying the corner\'s handle').toEqual([{ kind: 'menu-request', at: expect.anything(), source: 'mouse', handle: corner.id }])
+  expect(rightClick.some((gesture) => gesture.kind === 'press'), 'the right press reaches no tool').toBe(false)
+  const menus = await nativeMenus(page)
+  test.info().annotations.push({ type: 'native contextmenu events', description: JSON.stringify(menus) })
+  expect(menus.length, 'the engine sent its native contextmenu').toBeGreaterThan(0)
+  expect(menus.every((menu) => menu.prevented), 'every native contextmenu is prevented: the native menu stays shut').toBe(true)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect.poll(() => corners(page), 'the polygon is still selected').toBe(POLYGON_CORNERS)
+
+  const [dot] = await handles(page, 'edge-mid')
+  if (!dot) throw new Error('the selected polygon shows no midpoint dot')
+  await readLog()
+  await page.mouse.move(dot.x, dot.y)
+  await page.mouse.down()
+  for (let step = 1; step <= 10; step += 1) await page.mouse.move(dot.x, dot.y - 2.5 * step)
+  await page.mouse.up()
+  const drag = (await readLog()).filter((gesture) => gesture.kind !== 'hover' && gesture.kind !== 'hover-end')
+  expect(drag[0], 'the press lands on the dot handle').toMatchObject({ kind: 'press', target: { kind: 'handle', id: dot.id } })
+  expect(drag.slice(1).map((gesture) => gesture.kind), 'past the slop it drags to the release').toEqual(['drag-start', ...Array<string>(drag.length - 3).fill('drag-move'), 'drag-end'])
+  expect(drag.length, 'the drag moves').toBeGreaterThan(3)
+})
+
 test('(canopi-f47t.54, Z) Alt+click on a zone corner deletes it in one Undo step (guard: passes today)', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
@@ -180,6 +302,23 @@ test.fail('(canopi-f47t.54, Z) right-click on a zone corner opens a menu of Dele
 test.describe('long press', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'a finger long press goes through CDP touch input, Chromium-only')
   test.use({ hasTouch: true })
+
+  test('(canopi-f47t.54, Z) probe: a finger long press on a corner requests one menu carrying its handle (Chromium)', async ({ page }) => {
+    await recordNativeMenus(page)
+    await openBase(page)
+    const fingers = await Fingers.of(page)
+    await fingers.tap(POLYGON_EDGE)
+    await expect(selectionChip(page)).toHaveText(/^Polygon zone/)
+    await expect.poll(() => corners(page)).toBe(POLYGON_CORNERS)
+    const readLog = await attachShadowRecogniser(page)
+    const [corner] = await handles(page, 'vertex')
+    await fingers.tap(corner!, { holdMs: 600 })
+    await expect(page.getByRole('menu'), 'the canvas menu opens').toBeVisible()
+    const log = await readLog()
+    expect(menuRequests(log), 'one menu request, carrying the corner\'s handle').toEqual([{ kind: 'menu-request', at: expect.anything(), source: 'long-press', handle: corner!.id }])
+    expect(log.some((gesture) => gesture.kind === 'press' || gesture.kind === 'tap'), 'the held finger reaches no tool').toBe(false)
+    expect((await nativeMenus(page)).every((menu) => menu.prevented), 'the native menu stays shut').toBe(true)
+  })
 
   test.fail('(canopi-f47t.54, Z) a long press on a zone corner opens the point menu (Chromium)', async ({ page }) => {
     await openBase(page)

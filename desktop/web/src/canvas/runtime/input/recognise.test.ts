@@ -3,6 +3,8 @@ import type { Gesture } from './gestures'
 import {
   ANDROID,
   FOREIGN,
+  HANDLES,
+  IOS,
   MAC,
   MAC_GESTURES,
   OWNED_CHROME,
@@ -231,6 +233,38 @@ describe('recognise: 5.1 secondary button', () => {
   it('A18 Shift after the press: a pan, not a rotate', () => {
     const result = run(SEQUENCES.A18)
     expect(kinds(result.gestures)).toEqual(['pan:start', 'pan:move', 'pan:move', 'pan:end'])
+  })
+
+  it.each(HANDLES.map((target) => [target.kind === 'handle' ? target.id : '', target] as const))(
+    'a still right-click on a handle (%s) requests the menu with that handle, wherever it is released (A16)',
+    (id, target) => {
+      const result = run(seq('right-click on a handle', WINDOWS, [
+        down(100, 100, { button: 2, target }),
+        up(101, 100, { button: 2 }),
+      ]))
+      expect(result.gestures).toEqual([{ ...menu(101, 100), handle: id }])
+    },
+  )
+
+  it('a Mac Control-click on a handle requests the menu with that handle; a right-click on the map carries none (A16)', () => {
+    const corner = HANDLES[0]!
+    const mac = run(seq('Control-click on a handle', MAC, [
+      down(100, 100, { ctrl: true, target: corner }),
+      up(100, 100, { ctrl: true }),
+    ]))
+    expect(mac.gestures).toEqual([{ ...menu(100, 100), handle: 'vertex:zone-1:0' }])
+    const surface = run(SEQUENCES.A1)
+    expect(surface.gestures).toHaveLength(1)
+    expect(surface.gestures[0]).not.toHaveProperty('handle')
+  })
+
+  it('a right-drag from a handle pans and requests no menu (A16)', () => {
+    const result = run(seq('right-drag from a handle', WINDOWS, [
+      down(100, 100, { button: 2, target: HANDLES[0] }),
+      move(120, 100, { buttons: 2 }),
+      up(120, 100, { button: 2 }),
+    ]))
+    expect(kinds(result.gestures)).toEqual(['pan:start', 'pan:move', 'pan:end'])
   })
 })
 
@@ -473,6 +507,17 @@ describe('recognise: 5.5 touch and trackpad gestures', () => {
       { kind: 'release-capture', pointerId: 1 }, { kind: 'prevent-default' }, { kind: 'stop-propagation' },
     ])
     expect(result.state.sessions.size).toBe(0)
+  })
+
+  it('a long press on a handle requests the menu with that handle; on the map with none (A16)', () => {
+    const onHandle = run(seq('long press on a corner', IOS, [
+      down(100, 100, { pointer: 'touch', t: 0, target: HANDLES[0] }),
+      { t: 500, raw: { kind: 'tick' } },
+      up(100, 100, { pointer: 'touch', t: 650 }),
+    ]))
+    expect(onHandle.gestures).toEqual([{ kind: 'menu-request', at: { x: 100, y: 100 }, source: 'long-press', handle: 'vertex:zone-1:0' }])
+    const onMap = run(SEQUENCES.E7)
+    expect(onMap.gestures.find((gesture) => gesture.kind === 'menu-request')).not.toHaveProperty('handle')
   })
 
   it('E8 Long press with movement: a drag, no menu; the slop clears the timer', () => {

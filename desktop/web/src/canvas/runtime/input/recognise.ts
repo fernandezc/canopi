@@ -7,7 +7,7 @@
 //
 // It implements spec §2.2 and §5 (fixtures in __fixtures__/sequences.ts): one pointer session at a time, or two fingers;
 // a secondary press (the right button, a Mac Control-click, a pen's barrel) pending until it passes 3 px: a still release
-// opens the menu at the release point (none in overview), a drag pans, and with Shift at the press it turns the view,
+// opens the menu at the release point (none in overview), carrying the handle it pressed (A16), a drag pans, and with Shift at the press it turns the view,
 // stepped while mod is held; no native contextmenu reaches it (the DOM source's listener prevents them); a middle drag, a
 // press with Space held (on a handle too), a primary press in overview and the Pan tool's primary drag pan, a pointer pan
 // carrying the pointer's point and a Pan-tool press ending with cancel('navigate') after its drag; a Shift+middle drag
@@ -24,7 +24,7 @@
 // deadline the source schedules) and goes spent: its lift emits nothing and stops propagation, so the open menu never
 // hears it (A4).
 
-import type { CancelReason, Modifiers, PointerKind } from '../interaction-types'
+import type { CancelReason, Modifiers, PointerKind, ToolHandleId } from '../interaction-types'
 import { ROTATE_DEG_PER_PX } from '../view/navigation-policy'
 import type { ScreenPoint } from '../view/types'
 import type { Gesture, NavigationSource, PressTarget } from './gestures'
@@ -59,6 +59,9 @@ export interface PointerSession {
   /** A held touch press's press, sent when it resolves (past its slop or at its lift); null when the host hears none (an
    *  overview or Space pan). */
   readonly heldPress: { readonly target: PressTarget; readonly mods: Modifiers } | null
+  /** The handle the press landed on, or null: a still secondary release or a long press carries it on its menu request,
+   *  so the host can offer that point's menu (A16). */
+  readonly pressHandle: ToolHandleId | null
 }
 
 /** Two fingers navigating, per MapLibre's two-finger handlers (two_fingers_touch.ts): each move pans by the centroid's
@@ -172,6 +175,7 @@ function down(step: Step, input: RawOf<'down'>, config: RecogniserConfig): void 
     clickCount,
     buttonBit: input.ctrlConsumed ? BUTTON_BITS.primary : BUTTON_BITS[input.role],
     heldPress: null,
+    pressHandle: input.target.kind === 'handle' ? input.target.id : null,
   } as const
 
   const pressTarget: PressTarget = input.target.kind === 'handle' ? { kind: 'handle', id: input.target.id } : { kind: 'surface' }
@@ -345,7 +349,7 @@ function up(step: Step, input: RawOf<'up'>, config: RecogniserConfig): void {
   }
   if (session.role === 'secondary' && !session.slopPassed) {
     // A still secondary click: the menu at the release point (convention), Shift or not; overview has none.
-    if (step.state.context.mode !== 'overview') step.gestures.push({ kind: 'menu-request', at: input.at, source: 'mouse' })
+    if (step.state.context.mode !== 'overview') step.gestures.push(menuRequestOf(session, input.at, 'mouse'))
     return
   }
   if (session.mode === 'rotate') {
@@ -532,6 +536,7 @@ function otherFinger(step: Step, input: RawOf<'down'>): void {
     clickCount: 0,
     buttonBit: BUTTON_BITS.primary,
     heldPress: null,
+    pressHandle: null,
   })
   // Pair pans carry no point: a touch never moves the resting hover (A14).
   step.gestures.push({ kind: 'pan', phase: 'start', deltaPx: ZERO, source: 'touch-two-finger' })
@@ -628,7 +633,14 @@ function tick(step: Step, t: number): void {
   const held = [...step.state.sessions.values()].find((session) => session.mode === 'held' && session.heldPress !== null)
   if (!held) return
   putSession(step, { ...held, mode: 'spent', heldPress: null })
-  step.gestures.push({ kind: 'menu-request', at: held.start, source: 'long-press' })
+  step.gestures.push(menuRequestOf(held, held.start, 'long-press'))
+}
+
+/** A pointer's menu request, carrying the handle its press landed on (A16). */
+function menuRequestOf(session: PointerSession, at: ScreenPoint, source: 'mouse' | 'long-press'): Gesture {
+  return session.pressHandle === null
+    ? { kind: 'menu-request', at, source }
+    : { kind: 'menu-request', at, source, handle: session.pressHandle }
 }
 
 /** The long-press deadline lives only while a held press waits for it: anything that resolves or ends it clears it. */
@@ -689,6 +701,7 @@ function platformGesture(step: Step, input: RawOf<'platform-gesture'>, config: R
       clickCount: 0,
       buttonBit: 0,
       heldPress: null,
+      pressHandle: null,
     })
     step.state = { ...step.state, trackpadTwistDeg: 0 }
     return
