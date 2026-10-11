@@ -410,23 +410,63 @@ function plantCurvedRows(engine: { plantAlongPath: (path: unknown, spacing: unkn
   return JSON.stringify(rows.map((row) => ({ count: row.count, spacing: row.effectiveSpacingM, length: row.lengthM, positions: row.positions() })))
 }
 
-// Design check 5c kept the row's points free ("users pan") on this check: at the fixture's opening framing the row is
-// drawn where it stands. The card grows by its fields and foot at the first point and covers the picked Apple, the
-// loop's close target, so the other tests first move the map (OPENING_PAN_PX); whether users pan or the card gives way
-// is the user's decision.
-test.fail('(canopi-f47t.54, P, user decision) at the opening framing the picked Apple and the first point stay clear of the card once a point is added', async ({ page }) => {
+/** The fixture's Design as stored: every plant, zone corner and label anchor, in metres east and north of the Apple. */
+function designPoints(): Point[] {
+  type Geo = { readonly lon: number, readonly lat: number }
+  const design = JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
+    plants: { position: Geo }[], zones: { points: Geo[] }[], annotations: { position: Geo }[]
+  }
+  return [
+    ...design.plants.map((plant) => plant.position),
+    ...design.zones.flatMap((zone) => zone.points),
+    ...design.annotations.map((annotation) => annotation.position),
+  ].map(metresFromApple)
+}
+
+// Answer 15 (2026-10-11): where the grown card covers the picked plant or the points, the user pans, as with zone
+// corners; the card registers with the visible-map-area seam, so Fit to Design frames the Design clear of it. At the
+// opening framing (not moved) the grown card covers the picked Apple.
+test('(canopi-f47t.54, P) with the grown card shown, Fit to Design frames the Design clear of the card', async ({ page }) => {
   await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
-  const apple = { x: APPLE.x, y: APPLE.y - OPENING_PAN_PX }
-  const first = { x: P1.x, y: P1.y - OPENING_PAN_PX }
+  const opening = (at: Point): Point => ({ x: at.x, y: at.y - OPENING_PAN_PX })
+  const apple = opening(APPLE)
+  // Two points on empty ground right of the card, at the opening framing.
+  const placed = [opening(P3), opening(P4)] as const
   await armRow(page)
   await page.mouse.click(apple.x, apple.y)
   await expect(intervalField(page), 'the pick focuses the spacing field').toBeFocused()
   await page.keyboard.press('Enter')
-  await click(page, first)
-  await expect.poll(() => pointCount(page), 'the picked plant and one point').toBe(2)
-  for (const [name, at] of [['the picked Apple', apple], ['the first point', first]] as const) {
-    const covered = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-tool-card]') !== null, at)
-    expect(covered, `the card leaves ${name} at (${at.x}, ${at.y}) to the map`).toBe(false)
+  for (const at of placed) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and two points').toBe(3)
+  const covered = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-tool-card]') !== null, apple)
+  expect(covered, 'at the opening framing the grown card covers the picked Apple').toBe(true)
+
+  await page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to Design' }).click()
+  // The camera after the fit, from the two points' handles: screen = first + k (metres - first's metres), in complex
+  // numbers (east, south), so a turn or a new scale reads the same.
+  const metres = placed.map((at) => ({ x: (at.x - apple.x) / PX_PER_M, y: -(at.y - apple.y) / PX_PER_M }))
+  // The camera has come to rest: the points read the same twice in a row.
+  let last = ''
+  await expect.poll(async () => {
+    const now = JSON.stringify([await pointAt(page, 1), await pointAt(page, 2)])
+    const still = now === last
+    last = now
+    return still
+  }, { message: 'the fit comes to rest', intervals: [100] }).toBe(true)
+  const [first, second] = JSON.parse(last) as [Handle, Handle]
+  const dm = { re: metres[1]!.x - metres[0]!.x, im: -(metres[1]!.y - metres[0]!.y) }
+  const ds = { re: second.x - first.x, im: second.y - first.y }
+  const norm = dm.re * dm.re + dm.im * dm.im
+  const k = { re: (ds.re * dm.re + ds.im * dm.im) / norm, im: (ds.im * dm.re - ds.re * dm.im) / norm }
+  const toScreen = (m: Point): Point => {
+    const d = { re: m.x - metres[0]!.x, im: -(m.y - metres[0]!.y) }
+    return { x: first.x + k.re * d.re - k.im * d.im, y: first.y + k.re * d.im + k.im * d.re }
+  }
+  const box = await card(page).boundingBox()
+  if (!box) throw new Error('the card is not shown')
+  for (const point of designPoints().map(toScreen)) {
+    const inside = point.x > box.x && point.x < box.x + box.width && point.y > box.y && point.y < box.y + box.height
+    expect(inside, `the Design at (${point.x.toFixed(0)}, ${point.y.toFixed(0)}) is clear of the card ${JSON.stringify(box)}`).toBe(false)
   }
 })
 

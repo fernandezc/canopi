@@ -29,6 +29,7 @@ import { SpeciesCommonName } from '../shared/SpeciesIdentity'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import { SpeciesChooser } from './SpeciesChooser'
 import { ToolIcon } from './toolbar-icons'
+import { useMapOccluder } from '../shared/useMapChrome'
 import { displayedPlantColor } from '../../app/plant-display/state'
 import styles from './ToolCard.module.css'
 
@@ -53,7 +54,9 @@ export interface StampChooserProps {
  * and the check button that plants the row (a 44 px target after a finger).
  * Points are edited where they are, never from the card: their menu (a long
  * press or a right-click), Alt+click and Delete. The text and the fields
- * scroll above the foot, which stays in view.
+ * scroll above the foot, which stays in view. Holding a row the card registers
+ * with the visible-map-area seam; where it still covers the picked plant or
+ * a point, the user pans.
  */
 export function ToolCard({ stampChooser: StampChooser }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
@@ -95,6 +98,9 @@ export function ToolCard({ stampChooser: StampChooser }: {
   const rowPath = row && (row.points ?? 0) >= 2 ? row : null
   const rowMode = row?.mode ?? 'interval'
   usePublishedBottom(section, content !== null)
+  // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
+  // covers the left edge; on a phone held upright, nearly as wide as the map, the top edge.
+  useMapOccluder(section, phoneLayout.value === 'portrait' ? 'top' : 'left', row !== null)
 
   useEffect(() => {
     if (tool !== 'plant-stamp') setChangingSpecies(false)
