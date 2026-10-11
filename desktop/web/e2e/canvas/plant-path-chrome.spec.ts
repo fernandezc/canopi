@@ -1,7 +1,8 @@
 // The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P
 // and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
-// map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple at the centre of the visible
-// map, arm Plant a row, pick it and add two points (at 1440x900 with the inspection lens open, in the card's slot); the
+// map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
+// the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
+// points beside it (at 1440x900 with the inspection lens open, in the card's slot); the
 // card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
 // chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the
 // visible map; its check button, spacing field and mode switch take the click at their centre and are 44 px targets
@@ -12,6 +13,7 @@
 // `[data-plant-row-mode]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection chip).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
+import type { Point } from '../support/fingers'
 import { boxOf, chipFrame, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap, type Box } from '../support/layout'
 import { expect, test } from '../support/offline'
 
@@ -84,38 +86,62 @@ async function press(page: Page, layout: Layout, at: { x: number, y: number }): 
 }
 
 /**
- * Places an Apple at the centre of the visible map (Place plants, from the card's species list), arms Plant a row, picks
- * it, keeps the spacing with Enter and adds two points to the right of it. Returns the picked plant and the two points.
+ * Three spots for the row, one row of them `gap` apart: the lowest, rightmost place in the visible map whose handles
+ * (a point's target, 44 px after a tap) keep clear of the tool card's slot down to its tallest (its max-height: the row
+ * card grows as points come) and of every neighbour shown now, the zoom group included. A user draws there, beside the
+ * card. Returns the picked plant's spot first.
+ */
+async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Point, Point]> {
+  const frame = await chipFrame(page)
+  const cardBox = await boxOf(card(page))
+  const maxHeight = await card(page).evaluate((element) => Number.parseFloat(getComputedStyle(element).maxHeight))
+  const obstacles: Box[] = [{ ...cardBox, height: Number.isFinite(maxHeight) ? maxHeight : frame.bottom - cardBox.y }]
+  for (const [, selector] of NEIGHBOURS) obstacles.push(...await shownBoxes(page, selector))
+  const reach = (layout.touch ? TOUCH_TARGET_PX : 20) / 2 + 4
+  const gap = layout.touch ? 60 : 40
+  const clear = (at: Point) => at.x - reach >= frame.left && at.x + reach <= frame.right && at.y - reach >= frame.top
+    && at.y + reach <= frame.bottom
+    && obstacles.every((box) => !overlap(box, { x: at.x - reach, y: at.y - reach, width: 2 * reach, height: 2 * reach }))
+  for (let y = frame.bottom - reach; y >= frame.top + reach; y -= 4) {
+    for (let x = frame.right - reach; x - 2 * gap >= frame.left + reach; x -= 4) {
+      const spots = [{ x, y }, { x: x - gap, y }, { x: x - 2 * gap, y }] as const
+      if (spots.every(clear)) return spots
+    }
+  }
+  throw new Error(`${layout.width}x${layout.height}: no room for a row beside the tool card in ${JSON.stringify(frame)}, clear of ${JSON.stringify(obstacles)}`)
+}
+
+/**
+ * Places an Apple beside the tool card (Place plants, from the card's species list; rowSpots), clears the selection,
+ * arms Plant a row, picks it, keeps the spacing with Enter and adds two points beside it. Returns the picked plant and
+ * the two points.
  */
 async function drawTwoPoints(page: Page, layout: Layout): Promise<ReadonlyArray<{ x: number, y: number }>> {
-  const frame = await chipFrame(page)
-  const half = { x: (frame.right - frame.left) / 2, y: (frame.bottom - frame.top) / 2 }
-  const centre = { x: frame.left + half.x, y: frame.top + half.y }
   await mapHost(page).focus()
   await page.keyboard.press('p')
   const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
   await expect(apple).toBeVisible()
+  const spots = await rowSpots(page, layout)
   // The list scrolls inside the card, so the option is brought into view as a click would; then a covered button,
   // which would hold the click until the test times out, names what covers the card at once.
   await apple.scrollIntoViewIfNeeded()
   await expectHitAtCentre(apple, 'the card\'s species list')
   await apple.click()
-  await press(page, layout, centre)
+  await press(page, layout, spots[0])
+  // Esc leaves Place plants, the next clears the placed Apple's selection, so its chip covers nothing.
   await mapHost(page).focus()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
   await page.keyboard.press('w')
   await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
-  await press(page, layout, centre)
+  await press(page, layout, spots[0])
   const field = card(page).locator('[data-plant-spacing-interval-input]')
   await expect(field, 'the pick focuses the spacing field').toBeFocused()
   await field.fill('1')
   await page.keyboard.press('Enter')
-  const points = [
-    { x: centre.x + half.x * 0.25, y: centre.y + half.y * 0.1 },
-    { x: centre.x + half.x * 0.5, y: centre.y - half.y * 0.2 },
-  ]
-  for (const point of points) await press(page, layout, point)
+  for (const point of spots.slice(1)) await press(page, layout, point)
   await nextFrames(page)
-  return [centre, ...points]
+  return spots
 }
 
 async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
@@ -165,7 +191,7 @@ for (const layout of LAYOUTS) {
   test.describe(size, () => {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
 
-    test.fail(`(canopi-f47t.54, P) the tool card and its points stay clear of every neighbour at ${size} (${layout.locales.join(' ')})`, async ({ page }) => {
+    test(`(canopi-f47t.54, P) the tool card and its points stay clear of every neighbour at ${size} (${layout.locales.join(' ')})`, async ({ page }) => {
       for (const locale of layout.locales) {
         await openBase(page, layout, locale)
         await drawTwoPoints(page, layout)
@@ -180,7 +206,7 @@ const PHONES = LAYOUTS.filter((layout) => [[390, 844], [360, 560], [740, 360]].s
 test.describe('phones', () => {
   test.use({ hasTouch: true })
 
-  test.fail('(canopi-f47t.54, P) on phones the top chip slot sits below the tool card, inside the viewport (390×844, 360×560, 740×360)', async ({ page }) => {
+  test('(canopi-f47t.54, P) on phones the top chip slot sits below the tool card, inside the viewport (390×844, 360×560, 740×360)', async ({ page }) => {
     for (const layout of PHONES) {
       const where = `${layout.width}x${layout.height}`
       await page.setViewportSize({ width: layout.width, height: layout.height })
