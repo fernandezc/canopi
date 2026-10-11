@@ -49,6 +49,8 @@
   margin: 0 calc(-1 * var(--space-1));
   padding: 0 var(--space-1) var(--space-1);
   overflow-y: auto;
+  /* A field scrolled into view keeps its focus ring in view too. */
+  scroll-padding-block: var(--space-1);
   overscroll-behavior: contain;
 }
 

@@ -370,8 +370,10 @@ function SpacingField({ row, kind, switched = false }: {
   useLayoutEffect(() => {
     if (row.focusRequest === focused.current) return
     focused.current = row.focusRequest
-    // The focus scrolls the card's text and fields to the field: once the row grows, the field may sit below their fold.
-    input.current?.focus()
+    // The card's text and fields scroll to the field: once the row grows, it may sit below their fold. Explicitly, since
+    // WebKit's focus leaves it partly clipped.
+    input.current?.focus({ preventScroll: true })
+    input.current?.scrollIntoView?.({ block: 'nearest' })
   }, [row.focusRequest])
 
   return (
