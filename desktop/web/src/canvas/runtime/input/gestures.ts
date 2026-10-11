@@ -34,5 +34,7 @@ export type Gesture =
   | { kind: 'zoom'; anchorPx: ScreenPoint; factor: number; source: NavigationSource }
   | { kind: 'rotate'; phase: 'start' | 'move' | 'end' | 'cancel'; anchorPx: ScreenPoint; totalDeltaDeg: number; step: boolean; source: NavigationSource }
   // requests
-  | { kind: 'menu-request'; at: ScreenPoint | 'selection'; source: MenuSource }
+  /** handle: the handle a still secondary press or a long press landed on (A16): the host asks the armed tool for its point
+   *  menu; absent on the map's surface and for the keyboard (the host reads the focused handle). */
+  | { kind: 'menu-request'; at: ScreenPoint | 'selection'; source: MenuSource; handle?: ToolHandleId }
   | { kind: 'cancel'; reason: CancelReason }

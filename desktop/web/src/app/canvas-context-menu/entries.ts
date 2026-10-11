@@ -8,6 +8,7 @@ import {
 import { canvasEditAvailable } from '../canvas-commands/edit-availability'
 import { formatShortcut } from '../shell-commands/shortcut-text'
 import type { CanvasContextMenuRequest } from '../../canvas/runtime/app-adapter'
+import type { PointAction } from '../../canvas/point-editor/rules'
 import type { CanvasDesignObjectSelectionModel } from '../../canvas/runtime/runtime'
 import {
   selectionCommandAvailability,
@@ -32,6 +33,7 @@ export type CanvasContextMenuItemId =
   | 'turn-view-to-edge'
   | 'finish-shape'
   | 'profile-line'
+  | PointAction
 
 export interface CanvasContextMenuCommand {
   readonly id: CanvasContextMenuItemId
@@ -86,11 +88,20 @@ export interface CanvasContextMenuProfileLine {
 
 const SEPARATOR = { separator: true } as const
 
+/** The point menu's labels (A16). */
+const POINT_ACTION_LABEL_KEYS: Readonly<Record<PointAction, string>> = {
+  'delete-point': 'canvas.point.delete',
+  'sharp-corner': 'canvas.point.sharp',
+  'smooth-corner': 'canvas.point.smooth',
+}
+
 /**
  * The right-click menu for a request: the selection's commands in plain words
  * with their menu-bar shortcuts, or Paste and Select all on the empty map.
  * Every command runs on the request's scene-edit surface. During a polygon
- * draft that can finish, Finish shape leads every menu. On a zone's edge,
+ * draft that can finish, Finish shape leads every menu. A point menu (a
+ * zone's corner, a row's point) is that point's entries alone, after Finish
+ * shape while drafting. On a zone's edge,
  * Turn view to this edge leads the empty map's menu and comes before Lock in
  * the selection's. The edit commands grey by the table the menu bar reads
  * (`canvas-commands/edit-availability.ts`): while a gesture or tool transient
@@ -137,6 +148,21 @@ export function buildCanvasContextMenuEntries(
         run: () => finishShape(),
       }, SEPARATOR]
     : []
+
+  const pointActions = request.pointActions
+  if (pointActions) {
+    return [
+      ...finishEntries,
+      ...pointActions.map((entry): CanvasContextMenuCommand => ({
+        id: entry.action,
+        label: options.translate(POINT_ACTION_LABEL_KEYS[entry.action]),
+        disabled: entry.disabled,
+        run: () => {
+          if (!entry.disabled) entry.run()
+        },
+      })),
+    ]
+  }
 
   if (!selection || !can) {
     const placePlantsAt = request.placePlantsAt

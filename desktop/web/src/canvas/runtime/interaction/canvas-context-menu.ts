@@ -9,8 +9,8 @@ import type { ScenePoint } from '../scene'
 import type { ViewTransform, WorldQuad } from '../view/types'
 
 /** The optional entries the host carries onto a request; the keyboard menu never has Turn view to this edge. */
-type PointerMenuEntries = Pick<CanvasContextMenuRequest, 'finishShape' | 'turnViewToEdge' | 'holdsSelectionDeletes'>
-type KeyboardMenuEntries = Omit<PointerMenuEntries, 'turnViewToEdge'>
+type PointerMenuEntries = Pick<CanvasContextMenuRequest, 'finishShape' | 'turnViewToEdge' | 'holdsSelectionDeletes' | 'pointActions'>
+type KeyboardMenuEntries = Omit<PointerMenuEntries, 'turnViewToEdge' | 'pointActions'>
 
 interface CanvasContextMenuOptions {
   readonly container: HTMLElement
@@ -20,6 +20,7 @@ interface CanvasContextMenuOptions {
   readonly commands: CanvasContextMenuCommands
   readonly saveSelectionAsObjectStamp?: () => void
   readonly placePlantsAt?: (world: ScenePoint) => void
+  /** Focuses the map: a request's returnFocus when nothing inside the map held focus at the open, or it has gone. */
   readonly returnFocus: () => void
 }
 
@@ -30,7 +31,7 @@ interface CanvasContextMenuOptions {
 export interface CanvasContextMenuController {
   /** `screen` is container-relative; `selection` is null on the empty map. `entries`: the request's optional entries from
    *  the host, Finish shape (a polygon draft that can finish) and Turn view to this edge (the pointer on a zone's edge,
-   *  spec §4.16), and holdsSelectionDeletes (U39). */
+   *  spec §4.16), holdsSelectionDeletes (U39), and a point menu's entries (A16, with a null selection). */
   openAtPointer(screen: ScenePoint, selection: CanvasDesignObjectSelectionModel | null, entries?: PointerMenuEntries): void
   /** Menu key or Shift F10: beside the selection's projected hull (`hull`, the world quad of the screen box of the shapes it
    *  draws, tools/select/selection-hull.ts; tool-host.test.ts "the keyboard menu opens beside a shape drawn level at 45"),
@@ -54,6 +55,7 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
   ): void {
     const adapter = options.adapter
     if (!adapter) return
+    const opener = focusedInside(options.container)
     const request: CanvasContextMenuRequest = {
       anchor,
       world,
@@ -66,7 +68,21 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       ...(entries.finishShape ? { finishShape: entries.finishShape } : {}),
       ...(entries.turnViewToEdge ? { turnViewToEdge: entries.turnViewToEdge } : {}),
       ...(entries.holdsSelectionDeletes ? { holdsSelectionDeletes: true as const } : {}),
-      returnFocus: options.returnFocus,
+      ...(entries.pointActions ? { pointActions: entries.pointActions } : {}),
+      // Focus goes back to its opener inside the map while that is still there (a corner focused for Shift+F10, so
+      // Delete then reaches the corner, U37), else to the map. The app restores focus before it runs the chosen
+      // command (ActionMenu.activate), so the check repeats once that command has run: one that removed the opener
+      // (Delete on a line's end) and left focus nowhere hands it to the map.
+      returnFocus: () => {
+        if (!opener || !options.container.contains(opener)) {
+          options.returnFocus()
+          return
+        }
+        opener.focus({ preventScroll: true })
+        queueMicrotask(() => {
+          if (!options.container.contains(opener) && focusIsLost(options.container.ownerDocument)) options.returnFocus()
+        })
+      },
       closed: () => {
         if (openRequest === request) openRequest = null
       },
@@ -127,6 +143,16 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       this.close()
     },
   }
+}
+
+/** The element inside the map, not the map itself, that holds focus. */
+function focusedInside(container: HTMLElement): HTMLElement | null {
+  const focused = container.ownerDocument.activeElement
+  return focused instanceof HTMLElement && focused !== container && container.contains(focused) ? focused : null
+}
+
+function focusIsLost(document: Document): boolean {
+  return document.activeElement === null || document.activeElement === document.body
 }
 
 function hasSelectedObjects(selection: CanvasDesignObjectSelectionModel): boolean {

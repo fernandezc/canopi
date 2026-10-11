@@ -2403,6 +2403,112 @@ describe('ToolHost', () => {
       expect(h.record.nudges).toHaveLength(4)
     })
 
+    describe('the point menu (A16)', () => {
+      const CORNER = 'vertex:z1:0' as ToolHandleId
+      const DOT = 'edge-mid:z1:0' as ToolHandleId
+      const CORNER_HANDLE: ToolHandle = { id: CORNER, anchor: { x: 30, y: 40 }, hitRadiusPx: 10, glyph: 'vertex', label: 'Corner' }
+
+      /** A Select stand-in whose corners answer the point menu (Delete point) and whose dots answer nothing. */
+      function pointSelect(behaviour: Parameters<typeof stubTool>[1] = {}): StubTool & { readonly asked: ToolHandleId[] } {
+        const asked: ToolHandleId[] = []
+        const select = stubTool('select', {
+          activate: (ctx) => ctx.effects.setHandles([CORNER_HANDLE]),
+          pointMenu: (handle) => {
+            asked.push(handle)
+            return handle.startsWith('vertex:') ? [{ action: 'delete-point', disabled: false }] : []
+          },
+          ...behaviour,
+        })
+        return Object.assign(select, { asked })
+      }
+
+      it('a right-click or a long press on a point opens its point menu there, retargeting nothing; a dot\'s empty answer opens today\'s menu', () => {
+        const select = pointSelect()
+        useStubTools(select, stubTool('rectangle'))
+        const h = harness({ scene: { plants: [appleAt({ x: 50, y: 50 })] } })
+
+        h.host.rawPress('secondary', { kind: 'handle', id: CORNER })
+        expect(h.host.menuAt({ x: 50, y: 50 }, 'mouse', CORNER)).toEqual({})
+        expect(select.asked).toEqual([CORNER])
+        expect(h.record.selections).toEqual([])
+        expect(h.record.menus).toEqual([{
+          at: h.world({ x: 50, y: 50 }),
+          screen: { x: 50, y: 50 },
+          pointActions: [{ action: 'delete-point', disabled: false, run: expect.any(Function) }],
+        }])
+        h.record.menus[0]!.pointActions![0]!.run()
+        expect(select.commands).toEqual([{ kind: 'point-action', handle: CORNER, action: 'delete-point' }])
+
+        h.host.menuAt({ x: 50, y: 50 }, 'long-press', CORNER)
+        expect(h.record.menus.at(-1)!.pointActions).toHaveLength(1)
+        expect(h.record.selections).toEqual([])
+
+        // A dot (an empty answer) opens today's menu at that point, retargeted to the object under it.
+        h.host.menuAt({ x: 50, y: 50 }, 'mouse', DOT)
+        expect(select.asked).toEqual([CORNER, CORNER, DOT])
+        expect(h.record.menus.at(-1)).toEqual({ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 } })
+        expect(h.record.selections).toEqual([[P1]])
+
+        // An entry of a tool since retired sends nothing, as Finish shape.
+        const stale = h.record.menus[0]!.pointActions![0]!
+        h.host.setTool('rectangle', null)
+        stale.run()
+        expect(select.commands).toHaveLength(1)
+      })
+
+      it('a tool with no point menu, or the map itself, gets today\'s menu', () => {
+        useStubTools(stubTool('select'))
+        const h = harness({ scene: { plants: [appleAt({ x: 50, y: 50 })] } })
+        h.host.menuAt({ x: 50, y: 50 }, 'mouse', CORNER)
+        expect(h.record.menus).toEqual([{ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 } }])
+        expect(h.record.selections).toEqual([[P1]])
+      })
+
+      it('Finish shape leads a point menu while the draft can finish', () => {
+        const select = pointSelect({ canFinish: () => true })
+        useStubTools(select)
+        const h = harness()
+        h.host.menuAt({ x: 50, y: 50 }, 'mouse', CORNER)
+        const menu = h.record.menus.at(-1)!
+        expect(menu.finishShape).toBeTypeOf('function')
+        expect(menu.pointActions?.map((entry) => entry.action)).toEqual(['delete-point'])
+        menu.finishShape!()
+        expect(select.commands).toEqual([{ kind: 'confirm' }])
+      })
+
+      it('a point entry runs only when the scene admits it', () => {
+        let busy = false
+        const select = pointSelect()
+        useStubTools(select)
+        const h = harness({
+          admission: { revision: signal(0), runWhenSettled: <T,>(operation: () => T, busyResult: T) => (busy ? busyResult : operation()) },
+        })
+        h.host.menuAt({ x: 50, y: 50 }, 'mouse', CORNER)
+        busy = true
+        h.record.menus.at(-1)!.pointActions![0]!.run()
+        expect(select.commands).toEqual([])
+      })
+
+      it('Shift+F10 on a focused point opens its point menu beside the point; with no point focused, the selection\'s menu', () => {
+        const select = pointSelect()
+        useStubTools(select)
+        const h = harness()
+        h.chrome.focusedHandle = CORNER
+        h.menu('selection', 'keyboard')
+        const screen = h.view.view().worldToScreen(CORNER_HANDLE.anchor)
+        expect(h.record.menus.at(-1)).toEqual({
+          at: CORNER_HANDLE.anchor,
+          screen,
+          pointActions: [{ action: 'delete-point', disabled: false, run: expect.any(Function) }],
+        })
+
+        h.chrome.focusedHandle = null
+        h.menu('selection', 'keyboard')
+        expect(h.record.menus.at(-1)).toEqual({ at: 'selection', screen: null })
+        expect(select.asked).toEqual([CORNER])
+      })
+    })
+
     it('disposing the host closes the canvas menu', () => {
       useStubTools(stubTool('select'))
       const h = harness()
@@ -2454,6 +2560,15 @@ describe('ToolHost', () => {
       expect(opened.at(-1)!.turnViewToEdge).toBe(turnViewToEdge)
       port.open({ at: { x: 50, y: 50 }, screen: { x: 50, y: 50 }, turnViewToEdge })
       expect(opened.at(-1)!.turnViewToEdge).toBe(turnViewToEdge)
+
+      // A point menu (A16): its entries and Finish shape ride on the request, which names no selection.
+      const pointActions = [{ action: 'delete-point' as const, disabled: false, run: vi.fn() }]
+      const finishShape = vi.fn()
+      port.open({ at: { x: 50, y: 50 }, screen: { x: 50, y: 50 }, pointActions, finishShape })
+      expect(opened.at(-1)!.pointActions).toBe(pointActions)
+      expect(opened.at(-1)!.finishShape).toBe(finishShape)
+      expect(opened.at(-1)!.selection).toBeNull()
+      expect(opened.at(-1)!.anchor).toEqual({ left: 50, top: 50, right: 50, bottom: 50 })
 
       store.updatePersisted((draft) => {
         draft.layers = draft.layers.map((layer) => (layer.name === 'plants' ? { ...layer, locked: true } : layer))

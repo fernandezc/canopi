@@ -4,7 +4,8 @@
 // axis ends ('vertex'), as ToolHandle data the host shows through the handle layer, and the geometry of dragging one
 // (a 0.5 m minimum side, a 0.25 m² minimum polygon area), sized for the last pointer (handle-size.ts). The drag itself is
 // point-handle.ts's, edit type 'interaction-zone-control-point'. A polygon also shows a fainter midpoint dot on each edge
-// long enough on screen to keep free outline beside it ('edge-mid'), and its corners are added and removed here (edit type 'interaction-zone-corner'), keeping at least 3; rectangles, ellipses
+// long enough on screen to keep free outline beside it ('edge-mid'), and its corners are added (in place, or by a dot's
+// drag, zoneCornerInsertSubject) and removed here (edit type 'interaction-zone-corner'), keeping at least 3; rectangles, ellipses
 // and lines keep their own reshape. Each handle's label is translated ('canvas.zoneControlPoint.label',
 // 'canvas.zoneEdgeMidpoint.label').
 
@@ -97,7 +98,7 @@ export function zoneControlPointHandles(
   }))
 }
 
-/** One edge's midpoint dot of a polygon: a double-click adds a corner there. */
+/** One edge's midpoint dot of a polygon: a double-click adds a corner there, a drag adds one where it is released. */
 export interface ZoneEdgeMidpoint {
   readonly id: ToolHandleId
   readonly zoneId: string
@@ -138,6 +139,11 @@ export function zoneEdgeMidpointHandles(
 /** True when `controlPoint` is a polygon's corner, which can be removed. */
 export function isPolygonCorner(controlPoint: ZoneControlPoint): boolean {
   return controlPoint.kind === 'polygon-vertex'
+}
+
+/** True while the polygon has a corner to spare: a polygon keeps at least 3 (its area rule may still refuse one). */
+export function canRemovePolygonCorner(zone: SceneZoneEntity): boolean {
+  return zone.zoneType === 'polygon' && zone.points.length > MIN_POLYGON_CORNERS
 }
 
 /** Adds a corner to the polygon on edge `edgeIndex`, at the point of the edge nearest `at`, as one undo step. */
@@ -182,6 +188,30 @@ function nearestOnSegment(point: WorldPoint, start: WorldPoint, end: WorldPoint)
   if (lengthSquared <= 0) return start
   const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
   return { x: start.x + t * dx, y: start.y + t * dy }
+}
+
+/** What dragging edge `edgeIndex`'s midpoint dot edits (A2): a corner inserted on that edge, where the pointer is, kept
+ *  only once the press drags; one undo step at the release. */
+export function zoneCornerInsertSubject(zone: SceneZoneEntity, edgeIndex: number): PointHandleSubject<SceneZoneEntity> {
+  return {
+    editType: CORNER_EDIT,
+    entityId: zone.id,
+    start: cloneZone(zone),
+    reshape: (start, dragged) => {
+      if (start.zoneType !== 'polygon' || edgeIndex < 0 || edgeIndex >= start.points.length) return null
+      const points = [
+        ...start.points.slice(0, edgeIndex + 1).map((entry) => ({ ...entry })),
+        cleanPoint(dragged),
+        ...start.points.slice(edgeIndex + 1).map((entry) => ({ ...entry })),
+      ]
+      if (Math.abs(polygonArea(points)) < MIN_POLYGON_AREA_M2) return null
+      return { ...start, points, rotationDeg: 0 }
+    },
+    equal: zonesEqual,
+    write(draft, zoneId, next) {
+      draft.zones = draft.zones.map((entry) => entry.id === zoneId ? next : entry)
+    },
+  }
 }
 
 /** What dragging `controlPoint` edits. */

@@ -68,7 +68,10 @@ describe('Edit › Cut and Delete during a draft (U39)', () => {
     runCanvasIntent({ type: 'edit', action: 'copy' }, 'menu')
     expect(copy).toHaveBeenCalledTimes(1)
 
-    // Esc drops the draft: Edit › Delete deletes again.
+    // Esc steps the draft back to nothing (A17): Edit › Delete deletes again.
+    events.keyDown({ key: 'Escape', target: container })
+    runCanvasIntent({ type: 'edit', action: 'delete' }, 'menu')
+    expect(deleteSelected).not.toHaveBeenCalled()
     events.keyDown({ key: 'Escape', target: container })
     runCanvasIntent({ type: 'edit', action: 'delete' }, 'menu')
     expect(deleteSelected).toHaveBeenCalledTimes(1)
@@ -107,7 +110,9 @@ describe('Edit › Cut and Delete during a draft (U39)', () => {
     deps.setSelection([plantTarget('plant-1')])
     expect(greyed()).toEqual({ cut: true, copy: false, delete: true })
 
-    // Esc ends the draft and leaves the selection: only the transient history tells the menu bar.
+    // Esc steps the draft back to nothing and leaves the selection: only the transient history tells the menu bar.
+    events.keyDown({ key: 'Escape', target: container })
+    expect(greyed()).toEqual({ cut: true, copy: false, delete: true })
     events.keyDown({ key: 'Escape', target: container })
     expect(greyed()).toEqual({ cut: false, copy: false, delete: false })
     session.dispose()

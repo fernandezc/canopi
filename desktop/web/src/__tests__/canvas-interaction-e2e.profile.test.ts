@@ -113,7 +113,7 @@ describe('SceneInteractionSession: the Profile tool', () => {
     session.dispose()
   })
 
-  it('Esc drops the draft and then leaves the tool, finishing nothing', () => {
+  it('Esc removes the last point and steps back to nothing, then leaves the tool, finishing nothing (A17)', () => {
     const { session, finishProfile } = createProfileSession()
 
     click({ x: 20, y: 20 }, 0)
@@ -121,9 +121,25 @@ describe('SceneInteractionSession: the Profile tool', () => {
     events.keyDown({ key: 'Escape' })
     expect(session.tool).toBe('profile')
     events.keyDown({ key: 'Escape' })
+    expect(session.tool).toBe('profile')
+    events.keyDown({ key: 'Escape' })
 
     expect(session.tool).toBe('select')
     expect(finishProfile).not.toHaveBeenCalled()
+    session.dispose()
+  })
+
+  it('Esc removes only the last point: Enter then finishes the rest (A17)', () => {
+    const { session, finishProfile } = createProfileSession()
+
+    click({ x: 20, y: 20 }, 0)
+    click({ x: 120, y: 20 }, 1000)
+    click({ x: 120, y: 100 }, 2000)
+    events.keyDown({ key: 'Escape' })
+    events.keyDown({ key: 'Enter', cancelable: true })
+
+    expect(finishProfile).toHaveBeenCalledWith([world({ x: 20, y: 20 }), world({ x: 120, y: 20 })])
+    expect(session.tool).toBe('select')
     session.dispose()
   })
 })

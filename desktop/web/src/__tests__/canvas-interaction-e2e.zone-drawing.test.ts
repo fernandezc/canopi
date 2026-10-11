@@ -859,7 +859,8 @@ describe('SceneInteractionSession', () => {
     expect(contextMenuCommand('delete').disabled).toBe(true)
     expect(store.persisted.plants).toHaveLength(2)
 
-    events.keyDown({ key: 'Escape' })
+    // Esc steps the draft back to nothing (A17): the menu retargets again.
+    for (let corner = 0; corner < 3; corner += 1) events.keyDown({ key: 'Escape' })
     openContextMenu({ x: 300, y: 250 })
     expect(currentCanvasSelection.value).toEqual(new Set(['plant-2']))
     expect(contextMenuCommand('cut').disabled).toBe(false)
@@ -878,7 +879,7 @@ describe('SceneInteractionSession', () => {
       return { session: createTestSession(deps), tools }
     }
 
-    it('cancels a polygon draft first, then returns to Select', () => {
+    it('steps a polygon draft back point by point, then returns to Select (A17)', () => {
       const { session, tools } = sessionWithToolLog()
       session.setTool('polygon')
       container.focus()
@@ -888,7 +889,9 @@ describe('SceneInteractionSession', () => {
       events.pointerUp({ x: 80, y: 20 })
 
       escapeOnMap()
+      escapeOnMap()
       expect(tools).not.toContain('select')
+      expect(draftBand()).toBeNull()
       expect(document.activeElement).toBe(container)
 
       escapeOnMap()
@@ -897,7 +900,7 @@ describe('SceneInteractionSession', () => {
     })
   })
 
-  it('cancels polygonal zone drafts with Escape without dirtying the scene', () => {
+  it('steps polygonal zone drafts back with Escape without dirtying the scene (A17)', () => {
     const onSceneEditCommit = vi.fn()
     const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })
     const session = createTestSession(deps)
@@ -907,6 +910,8 @@ describe('SceneInteractionSession', () => {
     events.pointerUp({ x: 10, y: 10 }, { button: 0 })
     events.pointerDown({ x: 60, y: 10 }, { button: 0 })
     events.pointerUp({ x: 60, y: 10 }, { button: 0 })
+    events.keyDown({ key: 'Escape' })
+    expect(draftBand()).not.toBeNull()
     events.keyDown({ key: 'Escape' })
 
     expect(store.persisted.zones).toHaveLength(0)
@@ -1033,9 +1038,10 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  it('cancels redo-only polygonal zone draft history with Escape', () => {
+  it('cancels redo-only polygonal zone draft history with Escape and returns to Select in the same press (A17)', () => {
     const onSceneEditCommit = vi.fn()
-    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })
+    const tools: string[] = []
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit, setTool: (name: string) => { tools.push(name) } })
     const session = createTestSession(deps)
     session.setTool('polygon')
 
@@ -1046,6 +1052,7 @@ describe('SceneInteractionSession', () => {
 
     events.keyDown({ key: 'Escape' })
 
+    expect(tools.at(-1)).toBe('select')
     expect(session.canRedoTransientHistory()).toBe(false)
     expect(session.redoTransientHistory()).toBe(false)
     expect(draftBand()).toBeNull()

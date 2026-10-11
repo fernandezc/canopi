@@ -9,6 +9,7 @@
 // armed, the text entry is closed and no Scene Edit is open. Hovers pass, so the host's passive hover runs, and the tool
 // card's gesture flag stays off.
 
+import { pointMenuItems, pointPressIntent, type PointMenuItem } from '../../../point-editor/rules'
 import type { PointerKind, ToolHandleId } from '../../interaction-types'
 import type { SceneDesignObjectTarget } from '../../scene/design-object-targets'
 import type { SceneMeasurementGuideEntity, SceneZoneEntity } from '../../scene/types'
@@ -23,11 +24,13 @@ import { noteExists, openNoteEntry, selectedEditableNoteId } from './note-edit'
 import { beginPointHandleDrag, type PointHandleDrag } from './point-handle'
 import {
   addPolygonCorner,
+  canRemovePolygonCorner,
   isPolygonCorner,
   removePolygonCorner,
   reshapableZone,
   zoneControlPointHandles,
   zoneControlPoints,
+  zoneCornerInsertSubject,
   zoneEdgeMidpointHandles,
   zoneEdgeMidpoints,
   zoneReshapeSubject,
@@ -271,16 +274,24 @@ export function createSelectTool(): CanvasTool {
     const c = ctx()
     const scene = c.scene.persisted
     const selection = c.scene.selectionModel()
-    // A double-click on an edge's midpoint dot adds a corner there; its single click and its drag do nothing.
+    // Polygon corners and their midpoint dots follow the one point contract (point-editor/rules.ts, A2): a dot's
+    // double-click inserts a corner in place and its drag inserts one that follows the pointer (a still press inserts
+    // nothing); Alt+click on a corner removes it, keeping at least 3, and any other press on it moves it.
     const edgeMidpoint = edgeMidpoints.get(handle)
     if (edgeMidpoint) {
-      if (g.clickCount >= 2) addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.world)
+      const intent = pointPressIntent({ role: 'dot', clickCount: g.clickCount, alt: start.modifiers.subtractive, isLastDraftPoint: false })
+      const zone = reshapableZone(scene, selection)
+      if (intent === 'insert') addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.world)
+      else if (zone?.id === edgeMidpoint.zoneId) {
+        gesture = { kind: 'reshape', drag: beginPointHandleDrag(c, zoneCornerInsertSubject(zone, edgeMidpoint.edgeIndex)) }
+        return
+      }
       gesture = { kind: 'done' }
       return
     }
-    // Alt+click on a polygon corner removes it, keeping at least 3.
     const pressedCorner = reshapePoints.get(handle)
-    if (pressedCorner && isPolygonCorner(pressedCorner) && start.modifiers.subtractive) {
+    if (pressedCorner && isPolygonCorner(pressedCorner)
+      && pointPressIntent({ role: 'point', clickCount: g.clickCount, alt: start.modifiers.subtractive, isLastDraftPoint: false }) === 'delete') {
       removePolygonCorner(c, pressedCorner.zoneId, pressedCorner.index)
       gesture = { kind: 'done' }
       return
@@ -305,6 +316,14 @@ export function createSelectTool(): CanvasTool {
     }
   }
 
+  /** The point menu of a selected polygon's corner: Delete point, refused at 3 corners (A16); nothing for any other handle. */
+  function pointMenu(handle: ToolHandleId): readonly PointMenuItem[] {
+    const corner = reshapePoints.get(handle)
+    const zone = corner && isPolygonCorner(corner) ? reshapableZone(ctx().scene.persisted, ctx().scene.selectionModel()) : null
+    if (!zone || zone.id !== corner!.zoneId) return []
+    return pointMenuItems({ sharpable: false, sharp: false, canDelete: canRemovePolygonCorner(zone) })
+  }
+
   /** Rolls back what the gesture changed. */
   function cancelGesture(): void {
     const current = gesture
@@ -318,13 +337,13 @@ export function createSelectTool(): CanvasTool {
     refreshHandles()
   }
 
-  /** Delete or Backspace on the focused corner, else the selected one: removed, keeping at least 3, and the corner now at
-   *  its index (wrapped to the first) becomes the selected corner, which the handle layer focuses when the removed corner
-   *  had focus, so Delete goes on down to 3 (U37); a refused removal keeps the selected corner and the zone; with
-   *  neither, the key passes. */
-  function deleteCorner(): ToolReply {
+  /** Delete or Backspace on the focused corner, else the selected one, or the point menu's Delete point on `handle`:
+   *  removed, keeping at least 3, and the corner now at its index (wrapped to the first) becomes the selected corner,
+   *  which the handle layer focuses when the removed corner had focus, so Delete goes on down to 3 (U37); a refused
+   *  removal keeps the selected corner and the zone; with neither, the key passes. */
+  function deleteCorner(handle: ToolHandleId | null = null): ToolReply {
     const focused = ctx().focusedHandle()
-    const id = focused && reshapePoints.has(focused) ? focused : selectedCorner
+    const id = handle ?? (focused && reshapePoints.has(focused) ? focused : selectedCorner)
     const corner = id ? reshapePoints.get(id) : undefined
     if (!corner || !isPolygonCorner(corner)) return 'pass'
     if (removePolygonCorner(ctx(), corner.zoneId, corner.index)) {
@@ -390,9 +409,12 @@ export function createSelectTool(): CanvasTool {
     viewChanged() {
       followView()
     },
+    pointMenu,
     command(c): ToolReply {
       // Backspace is the Mac's delete key, so it removes a corner as Delete does.
       if (c.kind === 'delete-handle' || c.kind === 'remove-last') return deleteCorner()
+      // The point menu's Delete point (a corner offers no other entry).
+      if (c.kind === 'point-action') return c.action === 'delete-point' ? deleteCorner(c.handle) : 'pass'
       if (c.kind !== 'edit-text') return 'pass'
       const noteId = selectedEditableNoteId(ctx())
       return noteId && editNote(noteId) ? 'handled' : 'pass'

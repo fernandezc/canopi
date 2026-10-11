@@ -15,6 +15,7 @@
 // from tools/ (P5b).
 
 import { untracked } from '@preact/signals'
+import type { PointAction } from '../../point-editor/rules'
 import { CanvasRuntimeCleanupError, runCanvasRuntimeCleanups } from '../cleanup'
 import type { Gesture, MenuSource, PressTarget } from '../input/gestures'
 import type { TargetClass } from '../input/raw-input'
@@ -135,6 +136,7 @@ export type ContextMenuPortOptions = Parameters<typeof createCanvasContextMenu>[
  * its group (contextMenuTargetAt). A
  * pointer menu carries the host's "Turn view to this edge" onto the app's request. A menu opened during the host's
  * re-origin hold (U39) kept the selection: an object hit gets the kept selection's menu, or the empty map's with none.
+ * A point menu (A16) opens at its point with its own entries and no selection.
  */
 export function createContextMenuPort(options: ContextMenuPortOptions): ContextMenuPort {
   const { scene, selectionModel, ...controllerOptions } = options
@@ -145,6 +147,12 @@ export function createContextMenuPort(options: ContextMenuPortOptions): ContextM
     open(request) {
       const held = request.holdsSelectionDeletes ? { holdsSelectionDeletes: true as const } : {}
       const finish = request.finishShape ? { finishShape: request.finishShape } : {}
+      if (request.pointActions && request.at !== 'selection') {
+        // A point menu (A16) names no selection: its entries are the point's alone.
+        const screen = request.screen ?? controllerOptions.view().worldToScreen(request.at)
+        controller.openAtPointer(screen, null, { ...finish, pointActions: request.pointActions })
+        return
+      }
       if (request.at === 'selection') {
         const selection = selectionModel()
         controller.openFromKeyboard(selection, selectionScreenHull(scene, selection, controllerOptions.view()), {
@@ -1186,6 +1194,36 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     })
   }
 
+  /**
+   * The point menu (A16): the armed tool's entries for the pressed or focused handle, at the press or, from the keyboard,
+   * at the handle, with "Finish shape" while the draft can finish. Null when the tool offers none for it (a dot, the
+   * rotate handle, a tool with no points) or a focused handle is not shown: the ordinary menu opens instead.
+   */
+  function pointMenuAt(at: ScreenPoint | 'selection', handle: ToolHandleId | null): Parameters<ContextMenuPort['open']>[0] | null {
+    if (handle === null) return null
+    const tool = activeTool
+    const items = tool.pointMenu ? callTool(() => tool.pointMenu!(handle)) : []
+    if (items.length === 0) return null
+    const view = frame().view
+    const shown = at === 'selection' ? shownHandles().find((candidate) => candidate.id === handle) : null
+    const screen = at === 'selection' ? (shown ? view.worldToScreen(shown.anchor) : null) : at
+    if (!screen) return null
+    return {
+      at: shown ? shown.anchor : view.screenToWorld(screen),
+      screen,
+      ...(tool.canFinish?.() ? { finishShape: finishShapeOf(tool) } : {}),
+      pointActions: items.map((item) => ({ action: item.action, disabled: item.disabled, run: pointActionOf(tool, handle, item.action) })),
+    }
+  }
+
+  /** A point menu entry: the tool's `point-action` for that point, while the tool that offered it is still armed. */
+  function pointActionOf(tool: CanvasTool, handle: ToolHandleId, action: PointAction): () => void {
+    return () => {
+      if (disposed || activeTool !== tool) return
+      deps.admission.runWhenSettled(() => callTool(() => tool.command({ kind: 'point-action', handle, action })), 'pass' as ToolReply)
+    }
+  }
+
   /** The entries every menu, pointer or keyboard, takes from the armed tool and the hold: "Finish shape" while the tool
    *  can finish its draft, and holdsSelectionDeletes during the re-origin hold (U39). */
   function toolMenuEntries(held: boolean): { readonly finishShape?: () => void; readonly holdsSelectionDeletes?: true } {
@@ -1363,7 +1401,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       const tool = activeTool
       return deps.admission.runWhenSettled(() => callTool(() => tool.command(c)), 'pass' as ToolReply)
     },
-    menuAt(at: ScreenPoint | 'selection', source: MenuSource): GestureOutcome {
+    menuAt(at: ScreenPoint | 'selection', source: MenuSource, handle?: ToolHandleId): GestureOutcome {
       if (disposed) return NOTHING
       // A long press reaches the host as no press: the finger sizes the handles of the selection the menu retargets.
       if (source === 'long-press') pointerKind = 'touch'
@@ -1379,6 +1417,12 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
           return true
         }
         if (deps.chrome.isTextEntryOpen()) focusMap()
+        // A point the armed tool edits, pressed or (from the keyboard) focused, gets its point menu (A16).
+        const pointMenu = pointMenuAt(at, handle ?? (at === 'selection' ? deps.chrome.focusedHandle() : null))
+        if (pointMenu) {
+          deps.menu.open(pointMenu)
+          return true
+        }
         // A press, a tool transient or an entry its commit left open keeps the selection and its deletes (U39).
         const held = holdsReorigin()
         if (at === 'selection') deps.menu.open({ at, screen: null, ...toolMenuEntries(held) })

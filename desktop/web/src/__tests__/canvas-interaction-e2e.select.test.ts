@@ -2831,6 +2831,198 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  it('a right-click on a polygon corner, or Shift+F10 on a focused one, opens the point menu: Delete point alone, one undo step; on a triangle it is refused; a dot gets the zone\'s menu (A16)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: square, fillColor: null, notes: null,
+      }]
+    })
+    const onSceneEditCommit = vi.fn()
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 20 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 20 }, { button: 0 })
+    const handle = (id: string) => container.querySelector<HTMLElement>(`[data-canvas-handle="${id}"]`)!
+    vi.mocked(deps.setSelection).mockClear()
+
+    events.pointerDown({ x: 120, y: 20 }, { button: 2, target: handle('vertex:polygon-1:1') })
+    events.pointerUp({ x: 120, y: 20 }, { button: 2 })
+    expect(contextMenuItemIds()).toEqual(['delete-point'])
+    expect(contextMenuHost.current?.selection).toBeNull()
+    expect(deps.setSelection).not.toHaveBeenCalled()
+    contextMenuCommand('delete-point').run()
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], square[2], square[3]])
+    expect(onSceneEditCommit.mock.calls).toEqual([['interaction-zone-corner']])
+
+    // Three corners left: Delete point is shown, disabled, and removes nothing.
+    handle('vertex:polygon-1:0').focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: handle('vertex:polygon-1:0') })
+    expect(contextMenuItemIds()).toEqual(['delete-point'])
+    expect(contextMenuCommand('delete-point').disabled).toBe(true)
+    contextMenuCommand('delete-point').run()
+    expect(store.persisted.zones[0]!.points).toHaveLength(3)
+    expect(onSceneEditCommit).toHaveBeenCalledOnce()
+
+    // A midpoint dot is no point: the zone's own menu.
+    events.pointerDown({ x: 70, y: 70 }, { button: 2, target: handle('edge-mid:polygon-1:0') })
+    events.pointerUp({ x: 70, y: 70 }, { button: 2 })
+    expect(contextMenuItemIds()).toContain('delete')
+    expect(contextMenuItemIds()).not.toContain('delete-point')
+    session.dispose()
+  })
+
+  it('a point menu opened with Shift+F10 on a focused corner gives focus back to that corner, so Delete then removes the corner, never the zone (A16, U37)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: square, fillColor: null, notes: null,
+      }]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
+
+    // Esc (the menu's restoring close): focus is back on corner 1, and Delete removes it.
+    corner(1).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    expect(contextMenuItemIds()).toEqual(['delete-point'])
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'Delete', code: 'Delete', target: corner(1) })
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], square[2], square[3]])
+    expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
+
+    // A triangle: after Esc, Delete on the corner is refused and the zone stays.
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'Delete', code: 'Delete', target: corner(1) })
+    expect(store.persisted.zones).toHaveLength(1)
+    expect(store.persisted.zones[0]!.points).toHaveLength(3)
+    expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
+    session.dispose()
+  })
+
+  it('Delete point chosen from a keyboard point menu leaves focus on the corner now at its place, as the Delete key does (A16, U37)', () => {
+    const pentagon = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 140, y: 80 }, { x: 70, y: 130 }, { x: 0, y: 80 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: pentagon, fillColor: null, notes: null,
+      }]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
+
+    // The app's menu closes with focus restored, then runs the command (ActionMenu.activate).
+    const choose = () => {
+      const request = contextMenuHost.current!
+      request.returnFocus()
+      contextMenuCommand('delete-point').run()
+    }
+    corner(1).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    choose()
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3], pentagon[4]])
+    expect(document.activeElement).toBe(corner(1))
+
+    // The last corner: focus wraps to the first, as the Delete key's does.
+    corner(3).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(3) })
+    choose()
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3]])
+    expect(document.activeElement).toBe(corner(0))
+    session.dispose()
+  })
+
+  it('a selection command chosen from a menu opened on a line\'s end gives focus to the map once the command removes that end', async () => {
+    store.updatePersisted((draft) => {
+      draft.zones = [makeRectZone('line-1', [{ x: 20, y: 20 }, { x: 120, y: 20 }], { zoneType: 'line' })]
+    })
+    let session: ReturnType<typeof createTestSession> | null = null
+    const commands = createSelectionCommands({
+      deleteSelected: vi.fn(() => {
+        store.updatePersisted((draft) => { draft.zones = [] })
+        session!.refreshMeasurements()
+      }),
+    })
+    const deps = createInteractionDeps(container, store, testView, { selectionCommands: commands })
+    session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 20 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 20 }, { button: 0 })
+    const end = container.querySelector<HTMLElement>('[data-canvas-handle="vertex:line-1:0"]')!
+
+    // A line's end has no point menu: Shift+F10 opens the selection's, with the end as its opener.
+    end.focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: end })
+    expect(contextMenuItemIds()).toContain('delete')
+    // The app's menu closes with focus restored, then runs the command (ActionMenu.activate).
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(end)
+    contextMenuCommand('delete').run()
+    await Promise.resolve()
+
+    expect(store.persisted.zones).toHaveLength(0)
+    expect(end.isConnected).toBe(false)
+    expect(document.activeElement).toBe(container)
+    session.dispose()
+  })
+
+  it('dragging a polygon\'s midpoint dot inserts a corner where it is released, in one undo step; a still press or Esc inserts nothing (A2)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: square, fillColor: null, notes: null,
+      }]
+    })
+    const onSceneEditCommit = vi.fn()
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0, timeStamp: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0, timeStamp: 0 })
+    const dot = () => container.querySelector<HTMLElement>('[data-canvas-handle="edge-mid:polygon-1:0"]')!
+
+    // A still press on the dot inserts nothing.
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 1000 })
+    events.pointerUp({ x: 70, y: 20 }, { button: 0, timeStamp: 1010 })
+    expect(store.persisted.zones[0]!.points).toEqual(square)
+
+    // Esc mid-drag rolls the inserted corner back.
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 3000 })
+    events.pointerMove({ x: 70, y: 0 }, { button: -1, buttons: 1, timeStamp: 3010 })
+    expect(store.persisted.zones[0]!.points).toHaveLength(5)
+    events.keyDown({ key: 'Escape', code: 'Escape' })
+    events.pointerUp({ x: 70, y: 0 }, { button: 0, timeStamp: 3020 })
+    expect(store.persisted.zones[0]!.points).toEqual(square)
+    expect(onSceneEditCommit).not.toHaveBeenCalled()
+
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 5000 })
+    events.pointerMove({ x: 70, y: 10 }, { button: -1, buttons: 1, timeStamp: 5010 })
+    events.pointerMove({ x: 75, y: 0 }, { button: -1, buttons: 1, timeStamp: 5020 })
+    // The corner follows the pointer; nothing is committed before the release.
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], { x: 75, y: 0 }, square[1], square[2], square[3]])
+    expect(onSceneEditCommit).not.toHaveBeenCalled()
+    events.pointerUp({ x: 80, y: 0 }, { button: 0, timeStamp: 5030 })
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], { x: 80, y: 0 }, square[1], square[2], square[3]])
+    expect(onSceneEditCommit.mock.calls).toEqual([['interaction-zone-corner']])
+    session.dispose()
+  })
+
   it('arrow keys do nothing while a polygon corner or midpoint dot holds focus (U36)', () => {
     const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
     store.updatePersisted((draft) => {
