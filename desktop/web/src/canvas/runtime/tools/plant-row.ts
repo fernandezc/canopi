@@ -78,7 +78,7 @@ interface PlantRowSource {
   readonly label: string
 }
 
-/** A live press on a point or a dot: where it is now, and whether it has moved since its press. */
+/** A live press on a point or a dot, and where the pointer has taken it (null until it moves past the press). */
 type PointDrag =
   | { readonly kind: 'move'; readonly index: number; at: WorldPoint | null }
   | { readonly kind: 'insert'; readonly after: number; at: WorldPoint | null }
