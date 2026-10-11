@@ -474,13 +474,12 @@ export function createPlantRowTool(): CanvasTool {
     return true
   }
 
-  function pointIndexOf(handle: ToolHandleId | null): number | null {
-    if (handle === null) return touched
+  function pointIndexOf(handle: ToolHandleId): number | null {
     const parsed = parsePointHandle(handle)
     return parsed?.ownerId === DRAFT_OWNER && parsed.role === 'point' ? parsed.index : null
   }
 
-  function pointAction(handle: ToolHandleId | null, action: PointAction): boolean {
+  function pointAction(handle: ToolHandleId, action: PointAction): boolean {
     const index = pointIndexOf(handle)
     if (index === null || index <= 0 || !draft || !draft.path.points[index]) return false
     if (action === 'delete-point') return deletePoint(index)
@@ -746,7 +745,8 @@ export function createPlantRowTool(): CanvasTool {
           return 'handled'
         case 'delete-handle': {
           // Delete: the focused point, else the last-touched one.
-          const index = pointIndexOf(context().focusedHandle()) ?? touched
+          const focused = context().focusedHandle()
+          const index = (focused === null ? null : pointIndexOf(focused)) ?? touched
           if (index === null || !deletePoint(index)) return 'pass'
           publish()
           return 'handled'
@@ -768,7 +768,8 @@ export function createPlantRowTool(): CanvasTool {
           publish()
           return 'handled'
         case 'point-action':
-          if (!pointAction(c.handle, c.action)) return 'pass'
+          // From the point menu, opened on a point (the card has no point buttons since decision 16).
+          if (c.handle === null || !pointAction(c.handle, c.action)) return 'pass'
           publish()
           return 'handled'
         default:
