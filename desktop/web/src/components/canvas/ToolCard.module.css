@@ -25,7 +25,7 @@
    (ZoomControls.module.css and InspectionLens.module.css `.phone` rules); the top chip slot sits below it
    (`--tool-card-bottom`, published by the card). */
 .card[data-phone] {
-  /* At most 40 % of the map's height, so a row is drawn below it; the text scrolls above the controls. */
+  /* At most 40 % of the map's height, so a row is drawn below it; the text and fields scroll above the row's foot. */
   max-height: min(calc(100cqh - var(--chrome-rail-top) - var(--map-inset-bottom, 0px) - var(--chrome-inset)), 40cqh);
   left: calc(var(--canvas-tool-card-left) + env(safe-area-inset-left));
   right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + 2 * var(--control-size-touch) + var(--space-4) + var(--space-2));
@@ -33,17 +33,23 @@
   max-width: 320px;
 }
 
-/* Plant a row: the text scrolls above the controls, which stay in view whatever the card's height. */
+/* Plant a row: the text and the fields scroll above the foot (the row's count and length and the buttons that act on
+   it), which stays in view whatever the card's height. The body scrolls, not the card, so a focused field scrolls into
+   view above the foot, never under it. */
 .card[data-row] {
   display: flex;
   flex-direction: column;
   overflow-y: hidden;
 }
 
-.card[data-row] .live {
+.card[data-row] .body {
   flex: 0 1 auto;
   min-height: 0;
+  /* Room for the fields' focus rings inside the scrolling box. */
+  margin: 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1) var(--space-1);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* No card: the live region stays mounted but takes no room. */
@@ -99,12 +105,13 @@
   text-transform: uppercase;
 }
 
-/* Plant a row: the mode switch and the spacing field on one row, then the row's count, length and loop gap. */
+/* Plant a row: the mode switch and the spacing field, below the text. */
 .fieldRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
 }
 
 .field {
@@ -119,9 +126,9 @@
   font-weight: 600;
 }
 
-/* A label the mode switch already shows: read, not seen. */
+/* A label the mode switch already shows, and on phones the foot's button names beside their icons: read, not seen. */
 .hiddenLabel,
-.card[data-phone] .finishLabel {
+.card[data-phone] .actionLabel {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -157,8 +164,7 @@
 .facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-3);
-  margin-top: var(--space-1);
+  gap: 0 var(--space-2);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -224,30 +230,31 @@
   outline-offset: -2px;
 }
 
-/* Plant a row's controls, outside the live region: the field (and switch), then once the row has points the point
-   buttons and the check button, at the card's foot. */
-.rowControls {
-  flex: none;
-  margin-top: var(--space-2);
-}
-
-.rowControls[data-path] {
+/* Plant a row's foot, outside the live region: the row's count, then once the row has points its length (and a loop's
+   gap), the touched point's buttons and the check button, on a strip along the card's foot. */
+.rowFoot {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin: var(--space-2) calc(-1 * (var(--space-3) + var(--space-0-5))) calc(-1 * var(--space-3));
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.rowFoot[data-path] {
+  margin: var(--space-1) calc(-1 * (var(--space-3) + var(--space-0-5))) calc(-1 * var(--space-3));
   padding: var(--space-2) calc(var(--space-3) + var(--space-0-5)) var(--space-3);
   border-top: 1px solid var(--color-border);
   background: var(--color-surface);
 }
 
+/* On a phone's narrowest card the two point buttons and the check button, 44 px each, fill one line. */
 .rowActions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-1-5);
+  gap: var(--space-1);
   margin-left: auto;
 }
 
@@ -308,6 +315,7 @@
   min-height: var(--control-size-touch);
 }
 
+.card[data-touch] .pointButton,
 .card[data-touch] .finish {
   min-width: var(--control-size-touch);
 }

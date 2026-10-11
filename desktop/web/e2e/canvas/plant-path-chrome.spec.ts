@@ -2,15 +2,19 @@
 // and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
-// points beside it (at 1440x900 with the inspection lens open, in the card's slot); the
-// card then shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
+// points beside it (at 1440x900 with the inspection lens open, in the card's slot), then touch the last point; each
+// time the card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
 // chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the
-// visible map; its check button, spacing field and mode switch take the click at their centre and are 44 px targets
-// after a tap; every point and dot takes the click at its centre and is a 44 px target after a tap. On phones the top
+// visible map; its check button (and once a point is touched, its point buttons) and the row's count and length take
+// the click at their centre without a scroll, the check button and the point buttons as 44 px targets after a tap;
+// the spacing field and the mode switch do once scrolled into view (the card's text and fields scroll above its
+// foot); every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two points;
+// after the tap that touches a point, in its own test). On phones the top
 // chip slot sits below the card, inside the viewport. Once a row is planted, the selection chip with its spacing field
 // keeps clear of its neighbours (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no
 // baselines. Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`,
-// `[data-plant-row-mode]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection chip).
+// `[data-plant-row-mode]`, `[data-plant-row-point-action]`, `[data-plant-spacing-generated-count]`,
+// `[data-plant-row-length]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection chip).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import type { Point } from '../support/fingers'
@@ -162,8 +166,8 @@ async function expectTarget(target: Locator, name: string, layout: Layout, side:
   expect(size, `${name} is a ${TOUCH_TARGET_PX} px target after a tap`).toBeGreaterThanOrEqual(TOUCH_TARGET_PX)
 }
 
-async function expectCardClear(page: Page, layout: Layout, locale: string): Promise<void> {
-  const where = `${layout.width}x${layout.height} ${locale}`
+async function expectCardClear(page: Page, layout: Layout, locale: string, stage: 'two points' | 'a point touched'): Promise<void> {
+  const where = `${layout.width}x${layout.height} ${locale} ${stage}`
   const cardBox = await boxOf(card(page))
   for (const [name, selector] of NEIGHBOURS) {
     for (const box of await shownBoxes(page, selector)) {
@@ -174,11 +178,28 @@ async function expectCardClear(page: Page, layout: Layout, locale: string): Prom
   expect(cardBox.y + cardBox.height, `${where}: the card's bottom is inside the visible map`).toBeLessThanOrEqual(frame.bottom + 0.5)
   const finish = card(page).locator('[data-plant-row-finish]')
   await expect(finish, `${where}: two points show the check button`).toBeVisible()
-  await expectTarget(finish, 'the check button', layout, 'both')
-  await expectTarget(card(page).locator('[data-plant-spacing-interval-input]'), 'the spacing field', layout, 'height')
+  // The check button, the point buttons and the row's count and length stay in view whatever the card holds.
+  await expectTarget(finish, `${where}: the check button`, layout, 'both')
+  for (const button of await card(page).locator('[data-plant-row-point-action]').all()) {
+    await expectTarget(button, `${where}: the ${await button.getAttribute('data-plant-row-point-action')} button`, layout, 'both')
+  }
+  await expectHitAtCentre(card(page).locator('[data-plant-spacing-generated-count]'), `${where}: the row's count`)
+  await expectHitAtCentre(card(page).locator('[data-plant-row-length]'), `${where}: the row's length`)
+  // The fields scroll with the card's text, above its foot.
+  const field = card(page).locator('[data-plant-spacing-interval-input]')
+  await field.scrollIntoViewIfNeeded()
+  await expectTarget(field, `${where}: the spacing field`, layout, 'height')
   const modes = card(page).locator('[data-plant-row-mode]')
   await expect(modes, `${where}: the card offers the mode switch`).toHaveCount(2)
-  for (const mode of await modes.all()) await expectTarget(mode, `the ${await mode.getAttribute('data-plant-row-mode')} mode`, layout, 'height')
+  for (const mode of await modes.all()) {
+    await mode.scrollIntoViewIfNeeded()
+    await expectTarget(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`, layout, 'height')
+  }
+  await expectTarget(finish, `${where}: the check button after a scroll`, layout, 'both')
+  if (stage === 'two points') await expectHandleTargets(page, layout, where)
+}
+
+async function expectHandleTargets(page: Page, layout: Layout, where: string): Promise<void> {
   const handles = page.locator('[data-canvas-handle^="point:"], [data-canvas-handle^="dot:"]')
   expect(await handles.count(), `${where}: the points are shown`).toBeGreaterThanOrEqual(3)
   for (const handle of await handles.all()) {
@@ -194,12 +215,35 @@ for (const layout of LAYOUTS) {
     test(`(canopi-f47t.54, P) the tool card and its points stay clear of every neighbour at ${size} (${layout.locales.join(' ')})`, async ({ page }) => {
       for (const locale of layout.locales) {
         await openBase(page, layout, locale)
-        await drawTwoPoints(page, layout)
-        await expectCardClear(page, layout, locale)
+        const spots = await drawTwoPoints(page, layout)
+        await expectCardClear(page, layout, locale, 'two points')
+        // A press on the last point touches it: its point buttons join the check button in the card's foot.
+        if (!layout.touch) await page.waitForTimeout(600)
+        await press(page, layout, spots[2]!)
+        await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
+        await nextFrames(page)
+        await expectCardClear(page, layout, locale, 'a point touched')
       }
     })
   })
 }
+
+const TABLET = LAYOUTS.find((layout) => layout.width === 1024 && layout.height === 768)!
+
+test.describe('tablet', () => {
+  test.use({ viewport: { width: TABLET.width, height: TABLET.height }, hasTouch: true })
+
+  // After the tap, Chromium sends mouse-typed boundary events as the handles re-render under the finger; the map's input
+  // source hears a mouse leave, its move makes the pointer a mouse, and the handles shrink to 20 px.
+  test.fail('(canopi-f47t.54, Z) a tap on a row point at 1024×768 keeps the points and dots 44 px targets', async ({ page }) => {
+    await openBase(page, TABLET, 'en')
+    const spots = await drawTwoPoints(page, TABLET)
+    await press(page, TABLET, spots[2]!)
+    await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
+    await nextFrames(page)
+    await expectHandleTargets(page, TABLET, '1024x768 en a point touched')
+  })
+})
 
 const PHONES = LAYOUTS.filter((layout) => [[390, 844], [360, 560], [740, 360]].some(([width, height]) => layout.width === width && layout.height === height))
 

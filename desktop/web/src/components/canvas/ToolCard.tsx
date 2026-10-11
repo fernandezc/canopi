@@ -23,6 +23,7 @@ import {
 import type { CanvasPlantRowGuidance, CanvasToolGuidance } from '../../canvas/session-state'
 import { scrollWheel } from '../../app/settings/state'
 import { t } from '../../i18n'
+import { ControlIcon } from '../shared/ControlIcon'
 import { SpeciesCommonName } from '../shared/SpeciesIdentity'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import { SpeciesChooser } from './SpeciesChooser'
@@ -43,13 +44,14 @@ export interface StampChooserProps {
  * modifiers, Pan what a drag does. It hides in overview and while "Where is your site?" shows. The text is one polite live region that
  * stays mounted, so choosing a tool is announced. Place plants carries the
  * species chooser while no species is chosen, or after Change species; Place a
- * stamp opens its saved stamps with Change stamp; Plant a row carries the
- * row's count and its spacing field (outside the live region) once a plant is
- * picked, and from its first point (U58) the row's length and a loop's rounded
- * gap, an [Interval | Plants] switch with the count field in Plants mode, the
- * last-touched point's Sharp or Smooth corner and Delete point, and the check
- * button that plants the row, kept in view at the card's foot (44 px targets
- * after a finger).
+ * stamp opens its saved stamps with Change stamp; Plant a row carries its
+ * spacing field below the text and the row's count at the card's foot (both
+ * outside the live region) once a plant is picked, and from its first point
+ * (U58) an [Interval | Plants] switch with the count field in Plants mode
+ * beside the field, and in the foot the row's length and a loop's rounded gap,
+ * the last-touched point's Sharp or Smooth corner and Delete point, and the
+ * check button that plants the row (44 px targets after a finger). The text
+ * and the fields scroll above the foot, which stays in view.
  */
 export function ToolCard({ stampChooser: StampChooser }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
@@ -132,58 +134,62 @@ export function ToolCard({ stampChooser: StampChooser }: {
           {t(stampChooser.held ? 'canvas.toolCard.changeStamp' : 'canvas.toolCard.chooseSavedStamp')}
         </button>
       )}
-      <div className={styles.live} role="status" aria-live="polite">
-        {content && (
-          <>
-            <span className={styles.title}>
-              {lead && <CardLead lead={lead} />}
-              {content.title}
-            </span>
-            {/* The subject takes its own line, so a long name never breaks the instruction. */}
-            {content.subject && (
-              <b className={styles.subject}>
-                {content.tool === 'plant-stamp' && species?.englishFallback
-                  ? <SpeciesCommonName name={content.subject} englishFallback />
-                  : content.subject}
-              </b>
-            )}
-            {content.instruction && (
-              <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
-                {content.instruction}
+      {/* The text, then Plant a row's fields: on a row the part that scrolls above the foot. */}
+      <div className={styles.body}>
+        <div className={styles.live} role="status" aria-live="polite">
+          {content && (
+            <>
+              <span className={styles.title}>
+                {lead && <CardLead lead={lead} />}
+                {content.title}
               </span>
-            )}
-            {(content.rowCount || rowPath?.length) && (
-              // The count, the length and a loop's gap move with every pointer move, so they are not announced.
-              <span className={styles.facts}>
-                {content.rowCount && (
-                  <span className={styles.count} aria-live="off" data-plant-spacing-generated-count data-density={content.rowCount.density}>
-                    {content.rowCount.text}
-                  </span>
-                )}
-                {rowPath?.length && (
-                  <span className={styles.fact} aria-live="off" data-plant-row-length>
-                    {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
-                  </span>
-                )}
-                {rowPath?.loopSpacing && (
-                  <span className={styles.fact} aria-live="off">
-                    {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
-                  </span>
-                )}
-              </span>
-            )}
-            <span className={styles.hints}>{content.hints}</span>
-          </>
-        )}
-      </div>
-      {row && (
-        // Plant a row's controls, outside the live region and kept in view at the card's foot once the row has points;
-        // one container from the pick on, so the field stays mounted (and focused) as points come and go.
-        <div className={styles.rowControls} data-path={rowPath ? '' : undefined}>
-          <span className={styles.fieldRow}>
+              {/* The subject takes its own line, so a long name never breaks the instruction. */}
+              {content.subject && (
+                <b className={styles.subject}>
+                  {content.tool === 'plant-stamp' && species?.englishFallback
+                    ? <SpeciesCommonName name={content.subject} englishFallback />
+                    : content.subject}
+                </b>
+              )}
+              {content.instruction && (
+                <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
+                  {content.instruction}
+                </span>
+              )}
+              <span className={styles.hints}>{content.hints}</span>
+            </>
+          )}
+        </div>
+        {row && (
+          // Plant a row's fields, outside the live region; one container from the pick on, so the field stays mounted
+          // (and focused) as points come and go.
+          <div className={styles.fieldRow}>
             {(rowPath || rowMode === 'count') && <RowModeSwitch mode={rowMode} />}
             {rowMode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
             {rowMode === 'count' && <SpacingField row={row} kind="count" switched />}
+          </div>
+        )}
+      </div>
+      {row && (content?.rowCount || rowPath) && (
+        // The row's count, length and loop gap, and the check button that plants that row: the card's foot, in view
+        // whatever the card holds. They move with every pointer move, so they are not announced.
+        <div className={styles.rowFoot} data-path={rowPath ? '' : undefined}>
+          <span className={styles.facts}>
+            {content?.rowCount && (
+              <span className={styles.count} aria-live="off" data-plant-spacing-generated-count data-density={content.rowCount.density}>
+                {content.rowCount.text}
+              </span>
+            )}
+            {rowPath?.length && (
+              <span className={styles.fact} aria-live="off" data-plant-row-length>
+                {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
+              </span>
+            )}
+            {rowPath?.loopSpacing && (
+              <span className={styles.fact} aria-live="off">
+                {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
+              </span>
+            )}
           </span>
           {rowPath && <RowActions row={rowPath} />}
         </div>
@@ -290,11 +296,16 @@ function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
     <span className={styles.rowActions}>
       {point && (
         <span className={styles.pointButtons}>
-          <button type="button" className={styles.pointButton} onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}>
-            {t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}
+          <button type="button" className={styles.pointButton} data-plant-row-point-action={point.sharp ? 'smooth-corner' : 'sharp-corner'} onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}>
+            {/* The corner the press makes: a curve through the point, or an angle at it. */}
+            <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
+              <path d={point.sharp ? 'M4 15.5C4 6 16 6 16 15.5' : 'M4 15.5L10 4.5l6 11'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span className={styles.actionLabel}>{t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}</span>
           </button>
-          <button type="button" className={styles.pointButton} disabled={!point.canDelete} onClick={run(() => path?.pointAction('delete-point'))}>
-            {t('canvas.point.delete')}
+          <button type="button" className={styles.pointButton} data-plant-row-point-action="delete-point" disabled={!point.canDelete} onClick={run(() => path?.pointAction('delete-point'))}>
+            <ControlIcon name="trash" />
+            <span className={styles.actionLabel}>{t('canvas.point.delete')}</span>
           </button>
         </span>
       )}
@@ -302,8 +313,8 @@ function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
         <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
           <path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        {/* On phones only the check shows; the name stays for assistive technology. */}
-        <span className={styles.finishLabel}>{t('canvas.toolCard.pathFinish')}</span>
+        {/* On phones only the icons show, so the foot keeps one line; the names stay for assistive technology. */}
+        <span className={styles.actionLabel}>{t('canvas.toolCard.pathFinish')}</span>
       </button>
     </span>
   )
