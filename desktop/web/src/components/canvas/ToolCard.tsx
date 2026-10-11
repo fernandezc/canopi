@@ -342,7 +342,8 @@ function SpacingField({ row, kind, switched = false }: {
   useLayoutEffect(() => {
     if (row.focusRequest === focused.current) return
     focused.current = row.focusRequest
-    input.current?.focus({ preventScroll: true })
+    // The focus scrolls the card's text and fields to the field: once the row grows, the field may sit below their fold.
+    input.current?.focus()
   }, [row.focusRequest])
 
   return (

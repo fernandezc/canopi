@@ -117,10 +117,10 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
 
 /**
  * Places an Apple beside the tool card (Place plants, from the card's species list; rowSpots), clears the selection,
- * arms Plant a row, picks it, keeps the spacing with Enter and adds two points beside it. Returns the picked plant and
- * the two points.
+ * arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter, and adds two points beside it.
+ * Returns the picked plant and the two points.
  */
-async function drawTwoPoints(page: Page, layout: Layout): Promise<ReadonlyArray<{ x: number, y: number }>> {
+async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<ReadonlyArray<{ x: number, y: number }>> {
   await mapHost(page).focus()
   await page.keyboard.press('p')
   const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
@@ -141,7 +141,7 @@ async function drawTwoPoints(page: Page, layout: Layout): Promise<ReadonlyArray<
   await press(page, layout, spots[0])
   const field = card(page).locator('[data-plant-spacing-interval-input]')
   await expect(field, 'the pick focuses the spacing field').toBeFocused()
-  await field.fill('1')
+  await field.fill(spacing)
   await page.keyboard.press('Enter')
   for (const point of spots.slice(1)) await press(page, layout, point)
   await nextFrames(page)
@@ -156,6 +156,22 @@ async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
     return shown ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null
   }))
   return boxes.filter((box): box is Box => box !== null && box.width > 0 && box.height > 0)
+}
+
+/** `target` shows whole: no box it sits in, up to the tool card, clips it (the card's text and fields scroll). */
+async function expectWhollyShown(target: Locator, name: string): Promise<void> {
+  const clipped = await target.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    for (let box2 = element.parentElement; box2; box2 = box2.parentElement) {
+      if (getComputedStyle(box2).overflowY !== 'visible') {
+        const clip = box2.getBoundingClientRect()
+        if (box.top < clip.top - 0.5 || box.bottom > clip.bottom + 0.5) return `${box.top}-${box.bottom} outside ${clip.top}-${clip.bottom}`
+      }
+      if (box2.hasAttribute('data-tool-card')) break
+    }
+    return null
+  })
+  expect(clipped, `${name} shows whole in the card`).toBeNull()
 }
 
 async function expectTarget(target: Locator, name: string, layout: Layout, side: 'height' | 'both'): Promise<void> {
@@ -223,6 +239,34 @@ for (const layout of LAYOUTS) {
         await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
         await nextFrames(page)
         await expectCardClear(page, layout, locale, 'a point touched')
+      }
+    })
+  })
+}
+
+for (const layout of LAYOUTS) {
+  const size = `${layout.width}×${layout.height}${layout.name ? ` ${layout.name}` : ''}`
+  const locales = layout.locales.slice(0, 2)
+  test.describe(size, () => {
+    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
+
+    // The pick's field takes an invalid spacing, the row grows below it, then the check button plants nothing and hands
+    // the field the focus: the field shows whole, so the press is seen to answer (and a phone's keyboard opens on it).
+    test(`(canopi-f47t.54, P) the check button with an invalid spacing shows the focused field at ${size} (${locales.join(' ')})`, async ({ page }) => {
+      for (const locale of locales) {
+        const where = `${layout.width}x${layout.height} ${locale}`
+        await openBase(page, layout, locale)
+        await drawTwoPoints(page, layout, '0')
+        const field = card(page).locator('[data-plant-spacing-interval-input]')
+        await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
+        const finish = card(page).locator('[data-plant-row-finish]')
+        const box = await boxOf(finish)
+        await press(page, layout, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+        await expect(field, `${where}: the check button focuses the invalid field`).toBeFocused()
+        await expect(finish, `${where}: nothing is planted`).toBeVisible()
+        await nextFrames(page)
+        await expectWhollyShown(field, `${where}: the focused field`)
+        await expectHitAtCentre(field, `${where}: the focused field`)
       }
     })
   })
