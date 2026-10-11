@@ -5,10 +5,11 @@
 // the last point through the host's constraint, its length then snapped, spec §2.3). The spec's `closesAt` may finish on
 // a press (Polygon: within 8 px of the first corner, a finger's within 22 px, Q5, tested on ToolPoint.free); the second
 // press of a double-click, Enter and the canvas menu's "Finish shape" (canFinish) finish a path of `minPoints` or more
-// through the spec's `finish`. Hovers, and the drag after a press, move the rubber band and add nothing. Backspace and
-// Edit › Undo take the last point back onto a redo stack (transient history, no Scene Edit); Esc drops the draft and its
-// redo; an interruption ('navigate') keeps them while the draft has points and drops a redo-only history, as today;
-// overview, a tool change or a document replacement drops them. The draft holds re-origin (hasTransient), so its points
+// through the spec's `finish`. Hovers, and the drag after a press, move the rubber band and add nothing. Backspace,
+// Edit › Undo and Esc take the last point back onto a redo stack (transient history, no Scene Edit), and Ctrl+Shift+Z
+// restores it; the Esc that takes the last point empties the draft and its redo, so the next Esc leaves the tool, and an
+// Esc on a redo-only history drops it and arms Select at once (A17); an interruption ('navigate') keeps them while the
+// draft has points and drops a redo-only history, as today; overview, a tool change or a document replacement drops them. The draft holds re-origin (hasTransient), so its points
 // stay in one plane.
 // Polygon: the first corner clears the selection without an undo step, and the finish is one Scene Edit that adds the
 // zone and selects it. Its draft is a fill-only polygon of the corners, the rubber band, a disc per corner and the edge
@@ -171,6 +172,20 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
     return true
   }
 
+  /** Esc (A17): the last point goes onto the redo stack; the last one left takes the redo with it, so the next Esc
+   *  leaves the tool; a redo-only history goes, and the tool asks for Select in the same press. */
+  function stepBack(): boolean {
+    if (points.length > 1) return undo()
+    if (points.length === 1) {
+      drop()
+      return true
+    }
+    if (redo.length === 0) return false
+    drop()
+    context().effects.requestTool('select')
+    return true
+  }
+
   function drop(): void {
     points = []
     redo = []
@@ -225,9 +240,7 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
         case 'redo-transient':
           return redoPoint() ? 'handled' : 'pass'
         case 'escape':
-          if (!hasTransient()) return 'pass'
-          drop()
-          return 'handled'
+          return stepBack() ? 'handled' : 'pass'
         default:
           return 'pass'
       }

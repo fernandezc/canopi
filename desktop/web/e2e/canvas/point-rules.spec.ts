@@ -265,7 +265,7 @@ test('(canopi-f47t.54, Z) dragging a zone\'s midpoint dot inserts a corner where
   await expectOneUndoStep(page, 'the inserted corner')
 })
 
-test.fail('(canopi-f47t.54, Z) Esc removes the last polygon point, steps back to nothing, then returns to Select; Ctrl+Shift+Z restores a removed point', async ({ page }) => {
+test('(canopi-f47t.54, Z) Esc removes the last polygon point, steps back to nothing, then returns to Select; Ctrl+Shift+Z restores a removed point', async ({ page }) => {
   await openBase(page)
   await drawPolygon(page, NEW_POLYGON)
   await page.keyboard.press('Escape')

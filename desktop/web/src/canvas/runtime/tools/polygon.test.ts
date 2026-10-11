@@ -319,22 +319,41 @@ describe('Polygon tool', () => {
     expect(h.history.canUndo.peek()).toBe(false)
   })
 
-  it('Esc drops the draft and its redo; with nothing held it passes', () => {
+  it('Esc steps the draft back corner by corner onto the redo stack; the Esc that removes the last corner empties it and its redo, and the next passes (A17)', () => {
     const h = harness()
 
     h.click({ x: 10, y: 10 })
     h.click({ x: 60, y: 10 })
+    h.click({ x: 60, y: 50 })
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 60, y: 10 }])
+    expect(h.host.transientHistory.canRedo()).toBe(true)
+    // Ctrl+Shift+Z restores the corner Esc removed.
+    expect(h.host.command({ kind: 'redo-transient' })).toBe('handled')
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 60, y: 10 }, { x: 60, y: 50 }])
+
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }])
+    expect(h.host.activeToolHasEscapeTransient()).toBe(true)
     expect(h.host.command({ kind: 'escape' })).toBe('handled')
     expect(h.renderer.lastDraft()).toBeNull()
+    expect(h.host.transientHistory.canRedo()).toBe(false)
     expect(h.host.activeToolHasEscapeTransient()).toBe(false)
+    expect(h.host.command({ kind: 'escape' })).toBe('pass')
+    expect(h.toolState.value).toBe('polygon')
+    expect(h.history.canUndo.peek()).toBe(false)
+  })
 
-    // Only a redo left: Esc still drops it first, as today.
+  it('Esc with only a redo left drops it and arms Select in the same press (A17)', () => {
+    const h = harness()
+
     h.click({ x: 10, y: 10 })
-    expect(h.host.transientHistory.undo()).toBe(true)
+    expect(h.host.command({ kind: 'remove-last' })).toBe('handled')
     expect(h.host.activeToolHasEscapeTransient()).toBe(true)
     expect(h.host.command({ kind: 'escape' })).toBe('handled')
     expect(h.host.transientHistory.canRedo()).toBe(false)
-    expect(h.host.command({ kind: 'escape' })).toBe('pass')
+    expect(h.toolState.value).toBe('select')
   })
 
   it('transient history steps corners back and forth, and a new corner clears the redo', () => {

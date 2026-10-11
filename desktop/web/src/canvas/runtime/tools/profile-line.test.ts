@@ -140,11 +140,15 @@ describe('Profile tool', () => {
     expect(h.history.canUndo.peek()).toBe(false)
   })
 
-  it('Esc drops the draft first, then passes so the tool layer leaves (spec §3.7)', () => {
+  it('Esc steps the draft back point by point, then passes so the tool layer leaves (spec §3.7, A17)', () => {
     const { h, finishProfile } = harness()
     h.click({ x: 10, y: 10 })
     h.click({ x: 60, y: 10 })
 
+    expect(h.host.activeToolHasEscapeTransient()).toBe(true)
+    expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    // One point left; the rubber band still runs from it to the resting pointer.
+    expect(band(h)).toEqual([{ x: 10, y: 10 }, { x: 60, y: 10 }])
     expect(h.host.activeToolHasEscapeTransient()).toBe(true)
     expect(h.host.command({ kind: 'escape' })).toBe('handled')
     expect(h.renderer.lastDraft()).toBeNull()
