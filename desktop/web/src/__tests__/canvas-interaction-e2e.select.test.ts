@@ -2947,6 +2947,40 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  it('a selection command chosen from a menu opened on a line\'s end gives focus to the map once the command removes that end', async () => {
+    store.updatePersisted((draft) => {
+      draft.zones = [makeRectZone('line-1', [{ x: 20, y: 20 }, { x: 120, y: 20 }], { zoneType: 'line' })]
+    })
+    let session: ReturnType<typeof createTestSession> | null = null
+    const commands = createSelectionCommands({
+      deleteSelected: vi.fn(() => {
+        store.updatePersisted((draft) => { draft.zones = [] })
+        session!.refreshMeasurements()
+      }),
+    })
+    const deps = createInteractionDeps(container, store, testView, { selectionCommands: commands })
+    session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 20 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 20 }, { button: 0 })
+    const end = container.querySelector<HTMLElement>('[data-canvas-handle="vertex:line-1:0"]')!
+
+    // A line's end has no point menu: Shift+F10 opens the selection's, with the end as its opener.
+    end.focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: end })
+    expect(contextMenuItemIds()).toContain('delete')
+    // The app's menu closes with focus restored, then runs the command (ActionMenu.activate).
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(end)
+    contextMenuCommand('delete').run()
+    await Promise.resolve()
+
+    expect(store.persisted.zones).toHaveLength(0)
+    expect(end.isConnected).toBe(false)
+    expect(document.activeElement).toBe(container)
+    session.dispose()
+  })
+
   it('dragging a polygon\'s midpoint dot inserts a corner where it is released, in one undo step; a still press or Esc inserts nothing (A2)', () => {
     const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
     store.updatePersisted((draft) => {

@@ -70,10 +70,18 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       ...(entries.holdsSelectionDeletes ? { holdsSelectionDeletes: true as const } : {}),
       ...(entries.pointActions ? { pointActions: entries.pointActions } : {}),
       // Focus goes back to its opener inside the map while that is still there (a corner focused for Shift+F10, so
-      // Delete then reaches the corner, U37), else to the map.
+      // Delete then reaches the corner, U37), else to the map. The app restores focus before it runs the chosen
+      // command (ActionMenu.activate), so the check repeats once that command has run: one that removed the opener
+      // (Delete on a line's end) and left focus nowhere hands it to the map.
       returnFocus: () => {
-        if (opener && options.container.contains(opener)) opener.focus({ preventScroll: true })
-        else options.returnFocus()
+        if (!opener || !options.container.contains(opener)) {
+          options.returnFocus()
+          return
+        }
+        opener.focus({ preventScroll: true })
+        queueMicrotask(() => {
+          if (!options.container.contains(opener) && focusIsLost(options.container.ownerDocument)) options.returnFocus()
+        })
       },
       closed: () => {
         if (openRequest === request) openRequest = null
@@ -141,6 +149,10 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
 function focusedInside(container: HTMLElement): HTMLElement | null {
   const focused = container.ownerDocument.activeElement
   return focused instanceof HTMLElement && focused !== container && container.contains(focused) ? focused : null
+}
+
+function focusIsLost(document: Document): boolean {
+  return document.activeElement === null || document.activeElement === document.body
 }
 
 function hasSelectedObjects(selection: CanvasDesignObjectSelectionModel): boolean {
