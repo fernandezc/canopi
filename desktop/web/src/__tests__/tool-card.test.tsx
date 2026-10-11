@@ -439,12 +439,11 @@ describe('Tool card', () => {
     let path: {
       finish: Mock<() => void>
       setMode: Mock<(mode: 'interval' | 'count') => void>
-      pointAction: Mock<(action: 'delete-point' | 'sharp-corner' | 'smooth-corner') => void>
     }
 
     beforeEach(async () => {
       spacing = { input: vi.fn(), commit: vi.fn(), blur: vi.fn(), cancel: vi.fn() }
-      path = { finish: vi.fn(), setMode: vi.fn(), pointAction: vi.fn() }
+      path = { finish: vi.fn(), setMode: vi.fn() }
       await act(() => {
         setCurrentCanvasSession({
           commands: createTestCanvasCommandSurface({ tools: { plantRowSpacing: spacing, plantRowPath: path } }),
@@ -547,14 +546,13 @@ describe('Tool card', () => {
     describe('along a path (U58)', () => {
       const PATH: CanvasPlantRowGuidance = {
         ...ROW, focusRequest: 0, count: 7, points: 3, closed: false, mode: 'interval', countText: '', countValid: true,
-        length: '14 m', loopSpacing: null, touchedPoint: { sharp: false, canDelete: true }, touch: false,
+        length: '14 m', loopSpacing: null, touch: false,
       }
       const finish = () => container.querySelector<HTMLButtonElement>('[data-plant-row-finish]')
       const modes = () => [...container.querySelectorAll<HTMLButtonElement>('[data-plant-row-mode]')]
-      const button = (name: string) => [...container.querySelectorAll<HTMLButtonElement>('button')].find((entry) => entry.textContent === name)
 
       it('keeps the straight row\'s card while only the plant is picked', async () => {
-        await choose('plant-spacing', { gesture: true, plantRow: { ...ROW, points: 1, mode: 'interval', length: null, touchedPoint: null } })
+        await choose('plant-spacing', { gesture: true, plantRow: { ...ROW, points: 1, mode: 'interval', length: null } })
         expect(lines().slice(1, 3)).toEqual(['Apple', 'drag along the row'])
         expect(live().textContent).toContain('Esc to clear the row')
         expect(finish()).toBeNull()
@@ -606,26 +604,17 @@ describe('Tool card', () => {
         expect(container.querySelector('[data-plant-row-count-input]')!.getAttribute('aria-invalid')).toBe('true')
       })
 
-      it('shows a loop\'s rounded spacing and acts on the last-touched point', async () => {
+      it('shows a loop\'s rounded spacing; the foot holds the row\'s facts and the check button alone (decision 16: points are edited where they are)', async () => {
         await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, closed: true, loopSpacing: '3.1 m' } })
         expect(container.querySelector('[data-plant-row-loop-spacing]')!.textContent).toBe('3.1 m')
         expect(container.querySelector('[data-plant-row-loop-spacing]')!.parentElement!.textContent).toBe('Equal gaps of 3.1 m')
         expect(container.querySelector('[data-plant-row-loop-spacing]')!.closest('[aria-live="off"]')).not.toBeNull()
 
-        await act(() => { button('Sharp corner')!.click() })
-        expect(path.pointAction).toHaveBeenCalledWith('sharp-corner')
-        await act(() => { button('Delete point')!.click() })
-        expect(path.pointAction).toHaveBeenCalledWith('delete-point')
-
-        // A change of the touched point alone re-renders the card.
-        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, closed: true, loopSpacing: '3.1 m', touchedPoint: { sharp: true, canDelete: false } } })
-        expect(button('Sharp corner')).toBeUndefined()
-        await act(() => { button('Smooth corner')!.click() })
-        expect(path.pointAction).toHaveBeenLastCalledWith('smooth-corner')
-        expect(button('Delete point')!.disabled).toBe(true)
-
-        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, touchedPoint: null } })
-        expect(button('Delete point')).toBeUndefined()
+        // The point menu (a long press or a right-click on a point), Alt+click and Delete edit points; the card offers no
+        // point buttons.
+        const foot = finish()!.closest('[data-path]')!
+        expect([...foot.querySelectorAll('button')]).toEqual([finish()])
+        expect(foot.textContent).toBe('7 generatedLength 14 mPlant the row')
       })
 
       it('gives a finger 44 px targets and the touch hint in place of the keys', async () => {
@@ -638,24 +627,22 @@ describe('Tool card', () => {
         expect(card()!.hasAttribute('data-touch')).toBe(false)
       })
 
-      it('on phones shows the foot\'s buttons as icons, each named and with its tooltip; elsewhere with their names', async () => {
-        const foot = () => [...container.querySelectorAll<HTMLButtonElement>('[data-plant-row-point-action], [data-plant-row-finish]')]
+      it('on phones shows the check button as an icon, named and with its tooltip; elsewhere with its name', async () => {
         const shown = (button: HTMLButtonElement) => [...button.childNodes]
           .filter((node) => !(node instanceof Element && node.getAttribute('role') === 'tooltip'))
           .map((node) => node.textContent).join('')
-        const names = ['Sharp corner', 'Delete point', 'Plant the row']
         try {
           phoneLayout.value = 'portrait'
           await choose('plant-spacing', { gesture: true, plantRow: PATH })
-          expect(foot().map((button) => button.getAttribute('aria-label'))).toEqual(names)
-          expect(foot().map((button) => button.querySelector('[role="tooltip"]')?.textContent)).toEqual(names)
-          expect(foot().map(shown)).toEqual(['', '', ''])
-          for (const button of foot()) expect(button.querySelector('svg')).not.toBeNull()
+          expect(finish()!.getAttribute('aria-label')).toBe('Plant the row')
+          expect(finish()!.querySelector('[role="tooltip"]')?.textContent).toBe('Plant the row')
+          expect(shown(finish()!)).toBe('')
+          expect(finish()!.querySelector('svg')).not.toBeNull()
         } finally {
           await act(() => { phoneLayout.value = null })
         }
-        expect(foot().map(shown)).toEqual(names)
-        expect(foot().map((button) => button.querySelector('[role="tooltip"]'))).toEqual([null, null, null])
+        expect(shown(finish()!)).toBe('Plant the row')
+        expect(finish()!.querySelector('[role="tooltip"]')).toBeNull()
       })
     })
 

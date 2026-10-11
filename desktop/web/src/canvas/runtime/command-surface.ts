@@ -116,7 +116,7 @@ interface SceneCanvasCommandSurfaceOptions {
   readonly readInteractionTool: () => ToolId | null
   /** The active interaction session's Plant a row spacing field. */
   readonly plantRowSpacing: CanvasPlantRowSpacingField
-  /** The active interaction session's Plant a row path commands (the tool card's check, mode and point buttons). */
+  /** The active interaction session's Plant a row path commands (the tool card's check button and mode switch). */
   readonly plantRowPath: CanvasPlantRowPathCommands
   readonly invalidate: () => void
   readonly isRuntimeActive: () => boolean

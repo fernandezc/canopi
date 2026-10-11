@@ -1,4 +1,4 @@
-import type { ComponentChildren, FunctionComponent, JSX, RefObject } from 'preact'
+import type { FunctionComponent, RefObject } from 'preact'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
@@ -49,10 +49,11 @@ export interface StampChooserProps {
  * spacing field below the text and the row's count at the card's foot (both
  * outside the live region) once a plant is picked, and from its first point
  * (U58) an [Interval | Plants] switch with the count field in Plants mode
- * and a loop's rounded gap beside the field, and in the foot the row's length,
- * the last-touched point's Sharp or Smooth corner and Delete point, and the
- * check button that plants the row (44 px targets after a finger). The text
- * and the fields scroll above the foot, which stays in view.
+ * and a loop's rounded gap beside the field, and in the foot the row's length
+ * and the check button that plants the row (a 44 px target after a finger).
+ * Points are edited where they are, never from the card: their menu (a long
+ * press or a right-click), Alt+click and Delete. The text and the fields
+ * scroll above the foot, which stays in view.
  */
 export function ToolCard({ stampChooser: StampChooser }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
@@ -193,7 +194,7 @@ export function ToolCard({ stampChooser: StampChooser }: {
               </span>
             )}
           </span>
-          {rowPath && <RowActions row={rowPath} />}
+          {rowPath && <FinishButton />}
         </div>
       )}
       {choosing && (
@@ -284,65 +285,25 @@ function RowModeSwitch({ mode }: { readonly mode: 'interval' | 'count' }) {
 }
 
 /**
- * The last-touched point's buttons and the check button that plants the row. Each gives the map its focus back, so
- * Enter and Esc reach the row again.
+ * The check button that plants the row; it gives the map its focus back, so Enter and Esc reach the row again. On phones
+ * its glyph alone, so the foot keeps one line: an icon-only button, named by its label and its tooltip.
  */
-function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
+function FinishButton() {
   const path = currentCanvasToolCommandSurface.value?.plantRowPath
-  const point = row.touchedPoint ?? null
-  const run = (action: () => void) => () => {
-    action()
-    focusOwner.focusMap()
-  }
-  return (
-    <span className={styles.rowActions}>
-      {point && (
-        <span className={styles.pointButtons}>
-          <FootButton
-            className={styles.pointButton}
-            data-plant-row-point-action={point.sharp ? 'smooth-corner' : 'sharp-corner'}
-            name={t(point.sharp ? 'canvas.point.smooth' : 'canvas.point.sharp')}
-            icon={(
-              // The corner the press makes: a curve through the point, or an angle at it.
-              <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" focusable="false">
-                <path d={point.sharp ? 'M4 15.5C4 6 16 6 16 15.5' : 'M4 15.5L10 4.5l6 11'} fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            )}
-            onClick={run(() => path?.pointAction(point.sharp ? 'smooth-corner' : 'sharp-corner'))}
-          />
-          <FootButton
-            className={styles.pointButton}
-            data-plant-row-point-action="delete-point"
-            name={t('canvas.point.delete')}
-            icon={<ControlIcon name="trash" />}
-            disabled={!point.canDelete}
-            onClick={run(() => path?.pointAction('delete-point'))}
-          />
-        </span>
-      )}
-      <FootButton
-        className={styles.finish}
-        data-plant-row-finish
-        name={t('canvas.toolCard.pathFinish')}
-        icon={<ControlIcon name="check" />}
-        onClick={run(() => path?.finish())}
-      />
-    </span>
-  )
-}
-
-/**
- * A button of the row's foot: its glyph and name. On phones the glyph alone, so the foot keeps one line: an icon-only
- * button, named by its label and its tooltip.
- */
-function FootButton({ name, icon, ...button }: {
-  readonly name: string
-  readonly icon: ComponentChildren
-} & Omit<JSX.ButtonHTMLAttributes<HTMLButtonElement>, 'icon' | 'name'>) {
+  const name = t('canvas.toolCard.pathFinish')
   const phone = phoneLayout.value !== null
   return (
-    <button type="button" {...button} aria-label={phone ? name : undefined}>
-      {icon}
+    <button
+      type="button"
+      className={styles.finish}
+      data-plant-row-finish
+      aria-label={phone ? name : undefined}
+      onClick={() => {
+        path?.finish()
+        focusOwner.focusMap()
+      }}
+    >
+      <ControlIcon name="check" />
       {phone ? <ButtonTooltip label={name} side="top" /> : <span>{name}</span>}
     </button>
   )

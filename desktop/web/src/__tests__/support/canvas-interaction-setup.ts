@@ -786,7 +786,6 @@ export function installSceneInteractionFixture(
           plantRowPath: {
             finish: () => latestPath()?.finish(),
             setMode: (mode) => latestPath()?.setMode(mode),
-            pointAction: (action) => latestPath()?.pointAction(action),
           },
         },
       }),

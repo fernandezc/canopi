@@ -2,10 +2,11 @@
 // the pick, clicks add points and Enter, a double-click on the last point or the tool card's check button plants the row
 // along a smooth curve through them, in one Undo step; a click on the first point closes a loop; "N plants" counts the
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
-// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; the card's point buttons act on the last-touched
-// point. A drag from the plant still plants a straight row (guard). Both engines unless a test says otherwise; WebKit has
-// taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no baselines; the path engine's
-// positions are compared bit for bit between Node and each browser, so these tests read exact positions.
+// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point (the card
+// offers no point buttons: decision 16). A drag from the plant still plants a straight row (guard). Both engines unless a
+// test says otherwise; WebKit has taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no
+// baselines; the path engine's positions are compared bit for bit between Node and each browser, so these tests read
+// exact positions.
 //
 // The base fixture at 1024x768 with grid snapping off, so a click places a point where it lands: its opening camera puts
 // the rectangle zone's north-west corner at (312, 223) and draws 10.414 px per metre; the Apple inside that zone is the
@@ -13,8 +14,7 @@
 // these tests read (stream P builds it): row points and midpoint dots are canvas handles `point:<owner>:<index>` and
 // `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the check button
 // `[data-plant-row-finish]`, the mode switch `[data-plant-row-mode="interval" | "count"]`, the count field
-// `[data-plant-row-count-input]`, a loop's rounded spacing `[data-plant-row-loop-spacing]` and the point buttons named
-// "Sharp corner", "Smooth corner" and "Delete point" (canvas.point.*).
+// `[data-plant-row-count-input]` and a loop's rounded spacing `[data-plant-row-loop-spacing]`.
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -358,7 +358,8 @@ test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ct
   await expect(undo(page), 'stepping back edits nothing').toBeDisabled()
 })
 
-test('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on the last-touched point', async ({ page }) => {
+// Decision 16 (2026-10-11): points are edited where they are (their menu, Alt+click, Delete), never from the card.
+test('(canopi-f47t.54, P) a click on a point then Delete removes that point; the card offers no point buttons', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -366,16 +367,14 @@ test('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on the l
 
   const second = await pointAt(page, 2)
   await page.mouse.click(second.x, second.y)
-  const sharp = card(page).getByRole('button', { name: 'Sharp corner' })
-  await expect(sharp, 'the card offers Sharp corner for the touched point').toBeVisible()
-  await sharp.click()
-  await expect.poll(async () => (await pointAt(page, 2)).glyph, 'the touched point is sharp').toBe('corner')
-  expect((await pointAt(page, 3)).glyph, 'the last point stays smooth').toBe('vertex')
-  await expect(card(page).getByRole('button', { name: 'Smooth corner' }), 'the card now offers Smooth corner').toBeVisible()
-
-  await card(page).getByRole('button', { name: 'Delete point' }).click()
-  await expect.poll(() => pointCount(page), 'Delete point removes the touched point').toBe(3)
-  await expectNothingPlanted(page, 'the card\'s point buttons plant nothing')
+  const foot = card(page).locator('[data-path]')
+  await expect(foot.getByRole('button'), 'the foot\'s one button plants the row').toHaveCount(1)
+  await expect(foot.locator('[data-plant-row-finish]')).toBeVisible()
+  await page.keyboard.press('Delete')
+  await expect.poll(() => pointCount(page), 'Delete removes the clicked point').toBe(3)
+  const kept = await pointAt(page, 2)
+  expect(Math.hypot(kept.x - P3.x, kept.y - P3.y), 'the last point is kept, the clicked one gone').toBeLessThan(2)
+  await expectNothingPlanted(page, 'Delete plants nothing')
 })
 
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {

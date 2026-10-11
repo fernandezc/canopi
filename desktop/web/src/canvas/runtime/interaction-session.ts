@@ -134,7 +134,7 @@ export interface SceneInteractionSession {
   setTool(id: ToolId): void
   /** Plant a row's spacing field in the tool card; does nothing under another tool. */
   readonly plantRowSpacing: CanvasPlantRowSpacingField
-  /** Plant a row's check button, mode switch and point buttons in the tool card; nothing under another tool. */
+  /** Plant a row's check button and mode switch in the tool card; nothing under another tool. */
   readonly plantRowPath: CanvasPlantRowPathCommands
   prepareForDocumentReplacement(): void
   refreshMeasurements(): void
@@ -181,9 +181,6 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
     }),
     setMode: (mode) => this._spacing(() => {
       this._toolHost.command({ kind: 'spacing-mode', mode })
-    }),
-    pointAction: (action) => this._spacing(() => {
-      this._toolHost.command({ kind: 'point-action', handle: null, action })
     }),
   }
 

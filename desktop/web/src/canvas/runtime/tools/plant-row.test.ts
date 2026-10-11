@@ -622,7 +622,6 @@ describe('Plant a row along a path', () => {
     expect(h.chrome.handles.filter((handle) => handle.glyph === 'midpoint').map((handle) => handle.id)).toEqual(['dot:draft:0', 'dot:draft:1'])
     // No point is touched until one is pressed.
     expect(h.chrome.activeHandle).toBeNull()
-    expect(row(h).touchedPoint).toBeNull()
     // A curve of 64 samples per segment.
     expect(shapesOf(h, 'polyline')[0]!.points).toHaveLength(2 * 64 + 1)
 
@@ -853,7 +852,7 @@ describe('Plant a row along a path', () => {
     expect(added(h)).toEqual([])
   })
 
-  it('offers Delete point and Sharp or Smooth corner for a point, from the menu or for the last-touched one', () => {
+  it('offers Delete point and Sharp or Smooth corner for a point from its menu; Delete takes the focused or last-touched point', () => {
     const { h, tool } = pathHarness()
     h.click({ x: 20, y: 30 })
     h.click({ x: 80, y: 30 })
@@ -871,15 +870,14 @@ describe('Plant a row along a path', () => {
 
     expect(h.host.command({ kind: 'point-action', handle: handleId('point:draft:1'), action: 'sharp-corner' })).toBe('handled')
     expect(h.chrome.handles.find((handle) => handle.id === 'point:draft:1')?.glyph).toBe('corner')
-    expect(row(h).touchedPoint).toEqual({ sharp: true, canDelete: true })
     expect(tool.pointMenu?.(handleId('point:draft:1'))?.[1]).toEqual({ action: 'smooth-corner', disabled: false })
 
-    // The card's buttons act on the last-touched point (handle null): a still click on a point touches it.
+    // With no point focused, Delete takes the last-touched point: a still click on a point touches it.
     h.click(screenOf(h, 'point:draft:2'), { target: { kind: 'handle', id: handleId('point:draft:2') } })
     expect(h.chrome.activeHandle).toBe('point:draft:2')
-    expect(h.host.command({ kind: 'point-action', handle: null, action: 'delete-point' })).toBe('handled')
+    expect(h.host.command({ kind: 'delete-handle' })).toBe('handled')
     expect(pointIds(h)).toEqual(['point:draft:1'])
-    expect(row(h).touchedPoint).toBeNull()
+    expect(h.chrome.activeHandle).toBeNull()
     expect(h.host.command({ kind: 'point-action', handle: handleId('point:draft:1'), action: 'delete-point' }), 'below the minimum').toBe('pass')
 
     // Delete takes the focused point, else the last-touched one.

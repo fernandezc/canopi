@@ -20,7 +20,6 @@ import type { PlantLabelMode } from './plant-display'
 import type { SceneRendererSnapshot } from './renderers/scene-types'
 import type { PointerWorld } from './interaction-ports'
 import type { Modifiers, ToolId } from './interaction-types'
-import type { PointAction } from '../point-editor/rules'
 import type { ViewCommandSurface, ViewReadSurface } from './view/read-surface'
 import type { ViewTransform } from './view/types'
 import type { SpeciesCacheEntry } from './species-cache'
@@ -77,14 +76,12 @@ export interface CanvasPlantRowSpacingField {
   cancel(): void
 }
 
-/** Plant a row's path (U58): the tool card's check button, [Interval | Plants] switch and point buttons. */
+/** Plant a row's path (U58): the tool card's check button and [Interval | Plants] switch. */
 export interface CanvasPlantRowPathCommands {
   /** The check button: plants the drawn row (Enter's finish). */
   finish(): void
   /** Every N m (`interval`) or N plants (`count`, the picked plant counted). */
   setMode(mode: 'interval' | 'count'): void
-  /** A point button: acts on the last-touched point. */
-  pointAction(action: PointAction): void
 }
 
 export interface CanvasToolCommandSurface {

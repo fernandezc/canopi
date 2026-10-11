@@ -50,7 +50,7 @@ export function createTestCanvasCommandSurface(
     tools: {
       setTool: () => {},
       plantRowSpacing: { input: () => {}, commit: () => {}, blur: () => {}, cancel: () => {} },
-      plantRowPath: { finish: () => {}, setMode: () => {}, pointAction: () => {} },
+      plantRowPath: { finish: () => {}, setMode: () => {} },
     },
     viewport: {
       zoomIn: () => {},

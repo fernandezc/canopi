@@ -67,8 +67,6 @@ export interface CanvasPlantRowGuidance {
   readonly length?: string | null
   /** On a loop in "every N m": the equal gap the interval rounds to, formatted. */
   readonly loopSpacing?: string | null
-  /** The last-touched point (never the picked plant): what the card's point buttons act on. */
-  readonly touchedPoint?: { readonly sharp: boolean; readonly canDelete: boolean } | null
   /** The pointer that last pressed or hovered the map was a finger: the card's targets grow to 44 px. */
   readonly touch?: boolean
 }
@@ -118,7 +116,5 @@ function plantRowGuidanceEqual(a: CanvasPlantRowGuidance | null, b: CanvasPlantR
     && a.points === b.points && a.closed === b.closed && a.mode === b.mode
     && a.countText === b.countText && a.countValid === b.countValid
     && a.length === b.length && a.loopSpacing === b.loopSpacing
-    && a.touchedPoint?.sharp === b.touchedPoint?.sharp && a.touchedPoint?.canDelete === b.touchedPoint?.canDelete
-    && (a.touchedPoint == null) === (b.touchedPoint == null)
     && a.touch === b.touch
 }

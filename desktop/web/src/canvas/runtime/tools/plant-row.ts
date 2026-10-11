@@ -9,8 +9,8 @@
 // plants. A press-drag-release from the picked plant with no other point still plants a straight row at its release.
 // Before planting the points follow the shared point contract (point-editor/rules.ts): a point drags; a midpoint dot's
 // drag inserts a point, its double-click inserts one in place; Alt+click, Delete and the point menu delete a point
-// (never the picked plant, never below 2 points, 3 on a loop); the point menu and the card turn a point sharp or smooth.
-// A press, a drag or a point action makes a point the last touched, which the card's point buttons act on. Esc,
+// (never the picked plant, never below 2 points, 3 on a loop); the point menu turns a point sharp or smooth. A press, a
+// drag or a point action makes a point the last touched, which Delete takes when no point has focus. Esc,
 // Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it;
 // the step after the last point drops the picked plant, and with none the chain's tool layer leaves (A17).
 // The row's plants repeat the source at the card's spacing: every N m (Settings keeps the interval) or N plants, the
@@ -109,7 +109,7 @@ export function createPlantRowTool(): CanvasTool {
   /** A press on the picked plant after the pick: its click adds this point at the release, its drag none. */
   let pendingPoint: ToolPoint | null = null
   let pointDrag: PointDrag | null = null
-  /** The point the card's point buttons and Delete act on: the one last pressed, moved, inserted or turned sharp. */
+  /** The point Delete takes when no point has focus: the one last pressed, moved, inserted or turned sharp. */
   let touched: number | null = null
 
   function context(): ToolContext {
@@ -139,7 +139,6 @@ export function createPlantRowTool(): CanvasTool {
 
   function describe(tool: ToolContext): CanvasPlantRowGuidance {
     const path = pointsOf()
-    const touchedPoint = path && touched !== null ? path.points[touched] : undefined
     return {
       phase: source ? 'row' : missed ? 'missed' : 'pick',
       plantName: source?.label ?? null,
@@ -157,9 +156,6 @@ export function createPlantRowTool(): CanvasTool {
       length: preview && path && path.points.length >= 2 ? formatMetricDistance(preview.planting.lengthM) : null,
       loopSpacing: preview?.path.closed && mode === 'interval' && preview.planting.count > 0
         ? formatMetricDistance(preview.planting.effectiveSpacingM)
-        : null,
-      touchedPoint: path && touched !== null && touched > 0 && touchedPoint
-        ? { sharp: touchedPoint.sharp, canDelete: removePoint(path, touched) !== null }
         : null,
       touch: tool.pointer() === 'touch',
     }
@@ -396,7 +392,7 @@ export function createPlantRowTool(): CanvasTool {
     // The first point after the pick clears the selection without an undo step, as Polygon's first corner does.
     if (points.length === 1 && tool.scene.selection().length > 0) tool.effects.setSelection([])
     setDraft(editDraft(current, addPoint(current.path, next, point.modifiers.subtractive)))
-    // A new point is not touched: the card's point buttons wait for a press on a point.
+    // A new point is not touched: Delete waits for a press on a point.
     touched = null
   }
 
