@@ -3,18 +3,20 @@
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
 // points beside it (at 1440x900 with the inspection lens open, in the card's slot), then touch the last point, then
-// close a loop and touch a point again; each time the card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
-// chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the
-// visible map; its check button (and once a point is touched, its point buttons) and the row's count and length take
-// the click at their centre without a scroll, the check button and the point buttons as 44 px targets after a tap;
-// the spacing field and the mode switch show whole and do once scrolled into view (the card's text and fields scroll
-// above its foot); with an invalid spacing the check button focuses the field, which shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two points;
-// after the tap that touches a point, in its own test). On phones the top
+// close a loop and touch a point again; each time the card shares no pixel with the rail, the top chip slot's chips,
+// the zoom group, the view chip, the selection chip, the map notice, the legend, the inspection lens button and the
+// phone sheet's peek; its bottom is inside the visible map; its check button (and once a point is touched, its point
+// buttons) and the row's count and length take the click at their centre without a scroll, the check button and the
+// point buttons as 44 px targets after a tap; the spacing field and the mode switch show whole and do once scrolled
+// into view (the card's text and fields scroll above its foot); with an invalid spacing the check button focuses the
+// field, which shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap
+// (checked with two points; after the tap that touches a point, in its own tests per touch layout). On phones the top
 // chip slot sits below the card, inside the viewport. Once a row is planted, the selection chip with its spacing field
 // keeps clear of its neighbours (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no
 // baselines. Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`,
 // `[data-plant-row-mode]`, `[data-plant-row-point-action]`, `[data-plant-spacing-generated-count]`,
-// `[data-plant-row-length]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection chip).
+// `[data-plant-row-length]`, `point:` and `dot:` canvas handles; `[data-plant-row-spacing-input]` in the selection
+// chip).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import type { Point } from '../support/fingers'
@@ -288,22 +290,29 @@ for (const layout of LAYOUTS) {
   })
 }
 
-const TABLET = LAYOUTS.find((layout) => layout.width === 1024 && layout.height === 768)!
+// A tap that touches a point keeps every point and dot a 44 px target, in each touch layout. At 1024x768, after the
+// tap, Chromium sends mouse-typed boundary events as the handles re-render under the finger; the map's input source
+// hears a mouse leave, its move makes the pointer a mouse, and the handles shrink to 20 px. The fix is in the input
+// source and the tool host (stream Z's files; Z has handed off), so the main agent owns that marker.
+for (const layout of LAYOUTS.filter((each) => each.touch)) {
+  const size = `${layout.width}×${layout.height}`
+  const tablet = layout.width === 1024 && layout.height === 768
+  test.describe(`${size} touched`, () => {
+    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
 
-test.describe('tablet', () => {
-  test.use({ viewport: { width: TABLET.width, height: TABLET.height }, hasTouch: true })
-
-  // After the tap, Chromium sends mouse-typed boundary events as the handles re-render under the finger; the map's input
-  // source hears a mouse leave, its move makes the pointer a mouse, and the handles shrink to 20 px.
-  test.fail('(canopi-f47t.54, Z) a tap on a row point at 1024×768 keeps the points and dots 44 px targets', async ({ page }) => {
-    await openBase(page, TABLET, 'en')
-    const spots = await drawTwoPoints(page, TABLET)
-    await press(page, TABLET, spots[2]!)
-    await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
-    await nextFrames(page)
-    await expectHandleTargets(page, TABLET, '1024x768 en a point touched')
+    const title = `a tap on a row point at ${size} keeps the points and dots 44 px targets`
+    const check = async ({ page }: { page: Page }) => {
+      await openBase(page, layout, 'en')
+      const spots = await drawTwoPoints(page, layout)
+      await press(page, layout, spots[2]!)
+      await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
+      await nextFrames(page)
+      await expectHandleTargets(page, layout, `${layout.width}x${layout.height} en a point touched`)
+    }
+    if (tablet) test.fail(`(canopi-f47t.54, main) ${title}`, check)
+    else test(`(canopi-f47t.54, P) ${title}`, check)
   })
-})
+}
 
 const PHONES = LAYOUTS.filter((layout) => [[390, 844], [360, 560], [740, 360]].some(([width, height]) => layout.width === width && layout.height === height))
 
