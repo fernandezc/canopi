@@ -444,7 +444,8 @@ describe('SceneInteractionSession', () => {
       expect(deletesRun()).toEqual([])
       expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
 
-      // Esc drops the draft: the selection deletes again.
+      // Esc steps the draft back to nothing, one corner at a time (A17): the selection deletes again.
+      events.keyDown({ key: 'Escape', target: container })
       events.keyDown({ key: 'Escape', target: container })
       events.keyDown({ key: 'Delete', target: container })
       expect(deletesRun()).toEqual(['canvas.deleteSelected'])

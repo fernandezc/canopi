@@ -440,7 +440,9 @@ describe('session plane re-origin', () => {
       await settleReorigin()
       expect(sessionPlane(runtime)).toBe(previous)
 
-      // Esc drops the draft: the view has not moved since, and the plane moves to its centre.
+      // Esc steps the draft back to nothing, one corner at a time (A17): the view has not moved since, and the plane
+      // moves to its centre.
+      runtime.keyboardPort!.escape('tool-transient')
       runtime.keyboardPort!.escape('tool-transient')
       await settleReorigin()
       const next = sessionPlane(runtime)
