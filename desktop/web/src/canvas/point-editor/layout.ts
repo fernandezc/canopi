@@ -20,7 +20,7 @@ export function pointHandleId(ownerId: string, index: number): ToolHandleId {
   return `point:${ownerId}:${index}` as ToolHandleId
 }
 
-export function dotHandleId(ownerId: string, index: number): ToolHandleId {
+function dotHandleId(ownerId: string, index: number): ToolHandleId {
   return `dot:${ownerId}:${index}` as ToolHandleId
 }
 

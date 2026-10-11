@@ -10,7 +10,7 @@ import type { PathPoint, PathPoints } from '../plant-path/curve'
 import type { WorldPoint } from '../runtime/view/types'
 
 /** The fewest points a path keeps: 3 on a loop, 2 on an open path. */
-export function minimumPoints(path: PathPoints): number {
+function minimumPoints(path: PathPoints): number {
   return path.closed ? 3 : 2
 }
 

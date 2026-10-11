@@ -5,7 +5,6 @@ import {
   closePath,
   editDraft,
   insertAfter,
-  minimumPoints,
   movePoint,
   removePoint,
   setSharp,
@@ -36,11 +35,9 @@ describe('the point reducer', () => {
   })
 
   it('removes a point down to 2 on an open path and 3 on a loop', () => {
-    expect(minimumPoints(open(0, 1))).toBe(2)
     expect(removePoint(open(0, 5, 10), 1)?.points.map((point) => point.position.x)).toEqual([0, 10])
     expect(removePoint(open(0, 10), 1)).toBeNull()
     const loop = closePath(open(0, 5, 10, 15))!
-    expect(minimumPoints(loop)).toBe(3)
     expect(removePoint(loop, 3)).toMatchObject({ closed: true })
     expect(removePoint(removePoint(loop, 3)!, 0)).toBeNull()
   })

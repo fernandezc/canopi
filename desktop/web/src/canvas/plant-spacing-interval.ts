@@ -47,9 +47,9 @@ function formatDecimal(value: number): string {
 }
 
 /** The most plants "N plants" may ask for, the picked one counted (the stored row's count, 2..=5000). */
-export const PLANT_ROW_MAX_COUNT = 5_000
+const PLANT_ROW_MAX_COUNT = 5_000
 
-export type PlantRowCountParseResult =
+type PlantRowCountParseResult =
   | { valid: true; count: number }
   | { valid: false }
 

@@ -5,7 +5,6 @@ import {
   formatPlantSpacingIntervalInput,
   parsePlantRowCountInput,
   parsePlantSpacingIntervalInput,
-  PLANT_ROW_MAX_COUNT,
 } from '../canvas/plant-spacing-interval'
 import { createPlantRowTool } from '../canvas/runtime/tools/plant-row'
 import { createToolHarness, plantEntity, useStubTools, type ToolHarness } from './support/tool-harness'
@@ -64,7 +63,6 @@ describe('Plant Spacing interval parsing', () => {
 
 describe('Plant a row count parsing', () => {
   it('accepts a whole number of plants from 2 to 5000, the picked plant counted', () => {
-    expect(PLANT_ROW_MAX_COUNT).toBe(5000)
     expect(parsePlantRowCountInput('2')).toEqual({ valid: true, count: 2 })
     expect(parsePlantRowCountInput(' 12 ')).toEqual({ valid: true, count: 12 })
     expect(parsePlantRowCountInput('5000')).toEqual({ valid: true, count: 5000 })

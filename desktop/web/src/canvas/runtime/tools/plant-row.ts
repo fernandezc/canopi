@@ -20,7 +20,7 @@
 // presented radius, the dashed curve, a disc for each plant the row would add (at most 250) and the curve's length in the
 // zone chip format; the points and dots are DOM handles. On a 2-point row all of it is the straight row's, bit for bit.
 
-import { plantAlongPath, type PathPlanting } from '../../plant-path/spacing'
+import { plantAlongPath, type PathPlanting, type PathSpacing } from '../../plant-path/spacing'
 import { flattenPath, pointAlong, type PathPoints } from '../../plant-path/curve'
 import {
   addPoint,
@@ -518,7 +518,7 @@ export function createPlantRowTool(): CanvasTool {
   }
 
   /** The card's spacing, or null while its field's text is not a valid one. */
-  function spacing(): { readonly kind: 'interval'; readonly metres: number } | { readonly kind: 'count'; readonly count: number } | null {
+  function spacing(): PathSpacing | null {
     if (mode === 'count') {
       const parsed = parsePlantRowCountInput(countText)
       countValid = parsed.valid
