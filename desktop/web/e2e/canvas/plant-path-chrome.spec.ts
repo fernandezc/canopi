@@ -2,13 +2,13 @@
 // and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
-// points beside it (at 1440x900 with the inspection lens open, in the card's slot), then touch the last point; each
-// time the card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
+// points beside it (at 1440x900 with the inspection lens open, in the card's slot), then touch the last point, then
+// close a loop and touch a point again; each time the card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection
 // chip, the map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the
 // visible map; its check button (and once a point is touched, its point buttons) and the row's count and length take
 // the click at their centre without a scroll, the check button and the point buttons as 44 px targets after a tap;
-// the spacing field and the mode switch do once scrolled into view (the card's text and fields scroll above its
-// foot); every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two points;
+// the spacing field and the mode switch show whole and do once scrolled into view (the card's text and fields scroll
+// above its foot); with an invalid spacing the check button focuses the field, which shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two points;
 // after the tap that touches a point, in its own test). On phones the top
 // chip slot sits below the card, inside the viewport. Once a row is planted, the selection chip with its spacing field
 // keeps clear of its neighbours (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no
@@ -45,8 +45,8 @@ const LAYOUTS: readonly Layout[] = [
   { width: 700, height: 500, locales: ['en', 'de', 'ru'], touch: false },
   { width: 390, height: 844, locales: ['en', 'de', 'fr', 'ru', 'ja'], touch: true },
   { width: 360, height: 560, locales: ['en', 'de', 'ru'], touch: true },
-  { width: 844, height: 390, locales: ['en', 'de'], touch: true },
-  { width: 740, height: 360, locales: ['en', 'de'], touch: true },
+  { width: 844, height: 390, locales: ['en', 'de', 'ru'], touch: true },
+  { width: 740, height: 360, locales: ['en', 'de', 'ru'], touch: true },
 ]
 
 /** The card's neighbours; an element that is absent or has no area is not one. */
@@ -90,12 +90,13 @@ async function press(page: Page, layout: Layout, at: { x: number, y: number }): 
 }
 
 /**
- * Three spots for the row, one row of them `gap` apart: the lowest, rightmost place in the visible map whose handles
+ * Spots for the row, three in a row `gap` apart and one `gap` above the middle one (it turns the row into a loop; null
+ * where the map leaves no room for it: 360x560): the lowest, rightmost place in the visible map whose handles
  * (a point's target, 44 px after a tap) keep clear of the tool card's slot down to its tallest (its max-height: the row
  * card grows as points come) and of every neighbour shown now, the zoom group included. A user draws there, beside the
  * card. Returns the picked plant's spot first.
  */
-async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Point, Point]> {
+async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Point, Point, Point | null]> {
   const frame = await chipFrame(page)
   const cardBox = await boxOf(card(page))
   const maxHeight = await card(page).evaluate((element) => Number.parseFloat(getComputedStyle(element).maxHeight))
@@ -106,10 +107,13 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
   const clear = (at: Point) => at.x - reach >= frame.left && at.x + reach <= frame.right && at.y - reach >= frame.top
     && at.y + reach <= frame.bottom
     && obstacles.every((box) => !overlap(box, { x: at.x - reach, y: at.y - reach, width: 2 * reach, height: 2 * reach }))
-  for (let y = frame.bottom - reach; y >= frame.top + reach; y -= 4) {
-    for (let x = frame.right - reach; x - 2 * gap >= frame.left + reach; x -= 4) {
-      const spots = [{ x, y }, { x: x - gap, y }, { x: x - 2 * gap, y }] as const
-      if (spots.every(clear)) return spots
+  for (const loop of [true, false]) {
+    for (let y = frame.bottom - reach; y >= frame.top + reach; y -= 4) {
+      for (let x = frame.right - reach; x - 2 * gap >= frame.left + reach; x -= 4) {
+        const row = [{ x, y }, { x: x - gap, y }, { x: x - 2 * gap, y }] as const
+        const off = { x: x - gap, y: y - gap }
+        if (row.every(clear) && (!loop || clear(off))) return [...row, loop ? off : null]
+      }
     }
   }
   throw new Error(`${layout.width}x${layout.height}: no room for a row beside the tool card in ${JSON.stringify(frame)}, clear of ${JSON.stringify(obstacles)}`)
@@ -118,7 +122,7 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
 /**
  * Places an Apple beside the tool card (Place plants, from the card's species list; rowSpots), clears the selection,
  * arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter, and adds two points beside it.
- * Returns the picked plant and the two points.
+ * Returns the picked plant, the two points and a spot off their line.
  */
 async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<ReadonlyArray<{ x: number, y: number }>> {
   await mapHost(page).focus()
@@ -143,7 +147,7 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   await expect(field, 'the pick focuses the spacing field').toBeFocused()
   await field.fill(spacing)
   await page.keyboard.press('Enter')
-  for (const point of spots.slice(1)) await press(page, layout, point)
+  for (const point of spots.slice(1, 3)) await press(page, layout, point)
   await nextFrames(page)
   return spots
 }
@@ -182,7 +186,7 @@ async function expectTarget(target: Locator, name: string, layout: Layout, side:
   expect(size, `${name} is a ${TOUCH_TARGET_PX} px target after a tap`).toBeGreaterThanOrEqual(TOUCH_TARGET_PX)
 }
 
-async function expectCardClear(page: Page, layout: Layout, locale: string, stage: 'two points' | 'a point touched'): Promise<void> {
+async function expectCardClear(page: Page, layout: Layout, locale: string, stage: 'two points' | 'a point touched' | 'a loop with a point touched'): Promise<void> {
   const where = `${layout.width}x${layout.height} ${locale} ${stage}`
   const cardBox = await boxOf(card(page))
   for (const [name, selector] of NEIGHBOURS) {
@@ -201,14 +205,16 @@ async function expectCardClear(page: Page, layout: Layout, locale: string, stage
   }
   await expectHitAtCentre(card(page).locator('[data-plant-spacing-generated-count]'), `${where}: the row's count`)
   await expectHitAtCentre(card(page).locator('[data-plant-row-length]'), `${where}: the row's length`)
-  // The fields scroll with the card's text, above its foot.
+  // The fields scroll with the card's text, above its foot, which leaves them room to show whole.
   const field = card(page).locator('[data-plant-spacing-interval-input]')
   await field.scrollIntoViewIfNeeded()
+  await expectWhollyShown(field, `${where}: the spacing field`)
   await expectTarget(field, `${where}: the spacing field`, layout, 'height')
   const modes = card(page).locator('[data-plant-row-mode]')
   await expect(modes, `${where}: the card offers the mode switch`).toHaveCount(2)
   for (const mode of await modes.all()) {
     await mode.scrollIntoViewIfNeeded()
+    await expectWhollyShown(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`)
     await expectTarget(mode, `${where}: the ${await mode.getAttribute('data-plant-row-mode')} mode`, layout, 'height')
   }
   await expectTarget(finish, `${where}: the check button after a scroll`, layout, 'both')
@@ -239,6 +245,16 @@ for (const layout of LAYOUTS) {
         await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons').toHaveCount(2)
         await nextFrames(page)
         await expectCardClear(page, layout, locale, 'a point touched')
+        // A point off the line and a press on the picked plant close a loop, which adds its equal gaps to the card; then
+        // a press on a point touches it again.
+        if (!spots[3]) continue
+        await press(page, layout, spots[3])
+        await press(page, layout, spots[0]!)
+        await expect(card(page).locator('[data-plant-row-loop-spacing]'), 'the closed loop shows its equal gaps').toBeVisible()
+        await press(page, layout, spots[2]!)
+        await expect(card(page).locator('[data-plant-row-point-action]'), 'the touched point\'s buttons on the loop').toHaveCount(2)
+        await nextFrames(page)
+        await expectCardClear(page, layout, locale, 'a loop with a point touched')
       }
     })
   })

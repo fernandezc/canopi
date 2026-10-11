@@ -48,7 +48,7 @@ export interface StampChooserProps {
  * spacing field below the text and the row's count at the card's foot (both
  * outside the live region) once a plant is picked, and from its first point
  * (U58) an [Interval | Plants] switch with the count field in Plants mode
- * beside the field, and in the foot the row's length and a loop's rounded gap,
+ * and a loop's rounded gap beside the field, and in the foot the row's length,
  * the last-touched point's Sharp or Smooth corner and Delete point, and the
  * check button that plants the row (44 px targets after a finger). The text
  * and the fields scroll above the foot, which stays in view.
@@ -167,11 +167,17 @@ export function ToolCard({ stampChooser: StampChooser }: {
             {(rowPath || rowMode === 'count') && <RowModeSwitch mode={rowMode} />}
             {rowMode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
             {rowMode === 'count' && <SpacingField row={row} kind="count" switched />}
+            {/* A loop's rounded gap beside the spacing it rounds; it moves with the points, so it is not announced. */}
+            {rowPath?.loopSpacing && (
+              <span className={styles.fact} aria-live="off">
+                {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
+              </span>
+            )}
           </div>
         )}
       </div>
       {row && (content?.rowCount || rowPath) && (
-        // The row's count, length and loop gap, and the check button that plants that row: the card's foot, in view
+        // The row's count and length, and the check button that plants that row: the card's foot, in view
         // whatever the card holds. They move with every pointer move, so they are not announced.
         <div className={styles.rowFoot} data-path={rowPath ? '' : undefined}>
           <span className={styles.facts}>
@@ -183,11 +189,6 @@ export function ToolCard({ stampChooser: StampChooser }: {
             {rowPath?.length && (
               <span className={styles.fact} aria-live="off" data-plant-row-length>
                 {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
-              </span>
-            )}
-            {rowPath?.loopSpacing && (
-              <span className={styles.fact} aria-live="off">
-                {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
               </span>
             )}
           </span>

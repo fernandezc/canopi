@@ -105,7 +105,7 @@
   text-transform: uppercase;
 }
 
-/* Plant a row: the mode switch and the spacing field, below the text. */
+/* Plant a row: the mode switch, the spacing field and a loop's rounded gap, below the text. */
 .fieldRow {
   display: flex;
   flex-wrap: wrap;
@@ -161,9 +161,13 @@
   border-color: var(--color-danger);
 }
 
+/* The facts share the buttons' line while their longest word fits beside them, so the foot leaves the text and fields
+   room on a landscape phone; on a narrower card they take a line of their own above the buttons. */
 .facts {
   display: flex;
+  flex: 1 1 0;
   flex-wrap: wrap;
+  min-width: min-content;
   gap: 0 var(--space-2);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
@@ -175,6 +179,8 @@
 
 .fact {
   color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .fact b {
@@ -230,8 +236,8 @@
   outline-offset: -2px;
 }
 
-/* Plant a row's foot, outside the live region: the row's count, then once the row has points its length (and a loop's
-   gap), the touched point's buttons and the check button, on a strip along the card's foot. */
+/* Plant a row's foot, outside the live region: the row's count, then once the row has points its length, the touched
+   point's buttons and the check button, on a strip along the card's foot. */
 .rowFoot {
   display: flex;
   flex: none;
