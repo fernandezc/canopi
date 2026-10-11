@@ -248,7 +248,7 @@ test('(canopi-f47t.54, Z) a click on a zone\'s midpoint dot adds nothing and a d
   await expectOneUndoStep(page, 'the inserted corner')
 })
 
-test.fail('(canopi-f47t.54, Z) dragging a zone\'s midpoint dot inserts a corner where it is released, in one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, Z) dragging a zone\'s midpoint dot inserts a corner where it is released, in one Undo step', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
   const [dot] = await handles(page, 'edge-mid')

@@ -9,7 +9,7 @@
 // armed, the text entry is closed and no Scene Edit is open. Hovers pass, so the host's passive hover runs, and the tool
 // card's gesture flag stays off.
 
-import { pointMenuItems, type PointMenuItem } from '../../../point-editor/rules'
+import { pointMenuItems, pointPressIntent, type PointMenuItem } from '../../../point-editor/rules'
 import type { PointerKind, ToolHandleId } from '../../interaction-types'
 import type { SceneDesignObjectTarget } from '../../scene/design-object-targets'
 import type { SceneMeasurementGuideEntity, SceneZoneEntity } from '../../scene/types'
@@ -30,6 +30,7 @@ import {
   reshapableZone,
   zoneControlPointHandles,
   zoneControlPoints,
+  zoneCornerInsertSubject,
   zoneEdgeMidpointHandles,
   zoneEdgeMidpoints,
   zoneReshapeSubject,
@@ -273,16 +274,24 @@ export function createSelectTool(): CanvasTool {
     const c = ctx()
     const scene = c.scene.persisted
     const selection = c.scene.selectionModel()
-    // A double-click on an edge's midpoint dot adds a corner there; its single click and its drag do nothing.
+    // Polygon corners and their midpoint dots follow the one point contract (point-editor/rules.ts, A2): a dot's
+    // double-click inserts a corner in place and its drag inserts one that follows the pointer (a still press inserts
+    // nothing); Alt+click on a corner removes it, keeping at least 3, and any other press on it moves it.
     const edgeMidpoint = edgeMidpoints.get(handle)
     if (edgeMidpoint) {
-      if (g.clickCount >= 2) addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.world)
+      const intent = pointPressIntent({ role: 'dot', clickCount: g.clickCount, alt: start.modifiers.subtractive, isLastDraftPoint: false })
+      const zone = reshapableZone(scene, selection)
+      if (intent === 'insert') addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.world)
+      else if (zone?.id === edgeMidpoint.zoneId) {
+        gesture = { kind: 'reshape', drag: beginPointHandleDrag(c, zoneCornerInsertSubject(zone, edgeMidpoint.edgeIndex)) }
+        return
+      }
       gesture = { kind: 'done' }
       return
     }
-    // Alt+click on a polygon corner removes it, keeping at least 3.
     const pressedCorner = reshapePoints.get(handle)
-    if (pressedCorner && isPolygonCorner(pressedCorner) && start.modifiers.subtractive) {
+    if (pressedCorner && isPolygonCorner(pressedCorner)
+      && pointPressIntent({ role: 'point', clickCount: g.clickCount, alt: start.modifiers.subtractive, isLastDraftPoint: false }) === 'delete') {
       removePolygonCorner(c, pressedCorner.zoneId, pressedCorner.index)
       gesture = { kind: 'done' }
       return

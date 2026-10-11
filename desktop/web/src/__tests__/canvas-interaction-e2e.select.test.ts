@@ -2874,6 +2874,48 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  it('dragging a polygon\'s midpoint dot inserts a corner where it is released, in one undo step; a still press or Esc inserts nothing (A2)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: square, fillColor: null, notes: null,
+      }]
+    })
+    const onSceneEditCommit = vi.fn()
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit })
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0, timeStamp: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0, timeStamp: 0 })
+    const dot = () => container.querySelector<HTMLElement>('[data-canvas-handle="edge-mid:polygon-1:0"]')!
+
+    // A still press on the dot inserts nothing.
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 1000 })
+    events.pointerUp({ x: 70, y: 20 }, { button: 0, timeStamp: 1010 })
+    expect(store.persisted.zones[0]!.points).toEqual(square)
+
+    // Esc mid-drag rolls the inserted corner back.
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 3000 })
+    events.pointerMove({ x: 70, y: 0 }, { button: -1, buttons: 1, timeStamp: 3010 })
+    expect(store.persisted.zones[0]!.points).toHaveLength(5)
+    events.keyDown({ key: 'Escape', code: 'Escape' })
+    events.pointerUp({ x: 70, y: 0 }, { button: 0, timeStamp: 3020 })
+    expect(store.persisted.zones[0]!.points).toEqual(square)
+    expect(onSceneEditCommit).not.toHaveBeenCalled()
+
+    events.pointerDown({ x: 70, y: 20 }, { button: 0, buttons: 1, target: dot(), timeStamp: 5000 })
+    events.pointerMove({ x: 70, y: 10 }, { button: -1, buttons: 1, timeStamp: 5010 })
+    events.pointerMove({ x: 75, y: 0 }, { button: -1, buttons: 1, timeStamp: 5020 })
+    // The corner follows the pointer; nothing is committed before the release.
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], { x: 75, y: 0 }, square[1], square[2], square[3]])
+    expect(onSceneEditCommit).not.toHaveBeenCalled()
+    events.pointerUp({ x: 80, y: 0 }, { button: 0, timeStamp: 5030 })
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], { x: 80, y: 0 }, square[1], square[2], square[3]])
+    expect(onSceneEditCommit.mock.calls).toEqual([['interaction-zone-corner']])
+    session.dispose()
+  })
+
   it('arrow keys do nothing while a polygon corner or midpoint dot holds focus (U36)', () => {
     const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
     store.updatePersisted((draft) => {
