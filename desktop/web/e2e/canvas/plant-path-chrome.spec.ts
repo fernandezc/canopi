@@ -288,27 +288,20 @@ for (const layout of LAYOUTS) {
   })
 }
 
-// A tap that touches a point keeps every point and dot a 44 px target, in each touch layout. At 1024x768, after the
-// tap, Chromium sends mouse-typed boundary events as the handles re-render under the finger; the map's input source
-// hears a mouse leave, its move makes the pointer a mouse, and the handles shrink to 20 px. The fix is in the input
-// source and the tool host (stream Z's files; Z has handed off), so the main agent owns that marker.
+// A tap that touches a point keeps every point and dot a 44 px target, in each touch layout.
 for (const layout of LAYOUTS.filter((each) => each.touch)) {
   const size = `${layout.width}×${layout.height}`
-  const tablet = layout.width === 1024 && layout.height === 768
   test.describe(`${size} touched`, () => {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
 
-    const title = `a tap on a row point at ${size} keeps the points and dots 44 px targets`
-    const check = async ({ page }: { page: Page }) => {
+    test(`(canopi-f47t.54, P) a tap on a row point at ${size} keeps the points and dots 44 px targets`, async ({ page }) => {
       await openBase(page, layout, 'en')
       const spots = await drawTwoPoints(page, layout)
       await press(page, layout, spots[2]!)
       await expect(page.locator('[data-canvas-handle="point:draft:2"][data-canvas-handle-active]'), 'the tapped point is touched').toHaveCount(1)
       await nextFrames(page)
       await expectHandleTargets(page, layout, `${layout.width}x${layout.height} en a point touched`)
-    }
-    if (tablet) test.fail(`(canopi-f47t.54, main) ${title}`, check)
-    else test(`(canopi-f47t.54, P) ${title}`, check)
+    })
   })
 }
 
