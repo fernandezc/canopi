@@ -411,6 +411,26 @@ function plantCurvedRows(engine: { plantAlongPath: (path: unknown, spacing: unkn
   return JSON.stringify(rows.map((row) => ({ count: row.count, spacing: row.effectiveSpacingM, length: row.lengthM, positions: row.positions() })))
 }
 
+// Design check 5c kept the row's points free ("users pan") on this check: at the fixture's opening framing the row is
+// drawn where it stands. The card grows by its fields and foot at the first point and covers the picked Apple, the
+// loop's close target, so the other tests first move the map (OPENING_PAN_PX); whether users pan or the card gives way
+// is the user's decision.
+test.fail('(canopi-f47t.54, P, user decision) at the opening framing the picked Apple and the first point stay clear of the card once a point is added', async ({ page }) => {
+  await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+  const apple = { x: APPLE.x, y: APPLE.y - OPENING_PAN_PX }
+  const first = { x: P1.x, y: P1.y - OPENING_PAN_PX }
+  await armRow(page)
+  await page.mouse.click(apple.x, apple.y)
+  await expect(intervalField(page), 'the pick focuses the spacing field').toBeFocused()
+  await page.keyboard.press('Enter')
+  await click(page, first)
+  await expect.poll(() => pointCount(page), 'the picked plant and one point').toBe(2)
+  for (const [name, at] of [['the picked Apple', apple], ['the first point', first]] as const) {
+    const covered = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-tool-card]') !== null, at)
+    expect(covered, `the card leaves ${name} at (${at.x}, ${at.y}) to the map`).toBe(false)
+  }
+})
+
 test('(canopi-f47t.54, P) the path engine plants a curved row to the same bits in this browser as in Node', async ({ page }) => {
   const script = engineScript()
   const inNode = plantCurvedRows(new Function(`${script}; return __plantPath`)())
