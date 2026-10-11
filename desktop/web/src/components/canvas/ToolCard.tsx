@@ -311,7 +311,8 @@ function RowActions({ row }: { readonly row: CanvasPlantRowGuidance }) {
 
 /**
  * Plant a row's spacing: the runtime keeps the text and parses it; Enter keeps
- * a valid spacing and gives the map focus back, Esc drops the picked plant,
+ * a valid spacing and gives the map focus back, Esc steps the row back as on
+ * the map (the last point, else the picked plant),
  * and leaving the field keeps a valid spacing without moving focus. In Plants
  * mode the same field takes the count (the picked plant counted). Beside the
  * mode switch (`switched`) its label is read, not shown: the switch names it.

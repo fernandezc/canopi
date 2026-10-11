@@ -515,7 +515,7 @@ describe('Plant a row tool', () => {
     expect(h.record.focus.slice(focus)).toEqual(['map'])
     expect(h.store.persisted.plants).toHaveLength(1)
 
-    // Esc in the field drops the source and gives the map its focus back; the tool stays armed.
+    // Esc in the field with only the picked plant drops it and gives the map its focus back; the tool stays armed.
     h.host.command({ kind: 'spacing-cancel' })
     expect(row(h).phase).toBe('pick')
     expect(h.renderer.lastDraft()).toBeNull()
@@ -828,6 +828,29 @@ describe('Plant a row along a path', () => {
     expect(row(left)).toMatchObject({ countText: '9', count: 8 })
     finish(left)
     expect(added(left)).toHaveLength(8)
+  })
+
+  it('Esc in the card\'s field steps back one point as Esc on the map does, and gives the map its focus', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    for (const x of [60, 100]) h.click({ x, y: 30 })
+    h.host.command({ kind: 'spacing-mode', mode: 'count' })
+    expect(row(h).points).toBe(3)
+
+    expect(h.host.command({ kind: 'spacing-cancel' })).toBe('handled')
+    expect(row(h)).toMatchObject({ phase: 'row', points: 2, mode: 'count' })
+    expect(h.record.focus.at(-1)).toBe('map')
+    expect(h.host.transientHistory.redo()).toBe(true)
+    expect(row(h).points).toBe(3)
+
+    // Down to the picked plant, then the picked plant goes; the tool stays armed.
+    h.host.command({ kind: 'spacing-cancel' })
+    h.host.command({ kind: 'spacing-cancel' })
+    expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    h.host.command({ kind: 'spacing-cancel' })
+    expect(row(h).phase).toBe('pick')
+    expect(h.toolState.peek()).toBe('plant-spacing')
+    expect(added(h)).toEqual([])
   })
 
   it('offers Delete point and Sharp or Smooth corner for a point, from the menu or for the last-touched one', () => {

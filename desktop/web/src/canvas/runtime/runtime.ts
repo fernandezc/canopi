@@ -73,7 +73,7 @@ export interface CanvasPlantRowSpacingField {
   commit(text: string): void
   /** The field lost focus: keeps a valid spacing without moving focus. */
   blur(text: string): void
-  /** Esc in the field: drops the picked plant and gives the map focus back. */
+  /** Esc in the field: as Esc on the map (the last point, else the picked plant), and gives the map focus back. */
   cancel(): void
 }
 

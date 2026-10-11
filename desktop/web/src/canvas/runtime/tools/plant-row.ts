@@ -503,6 +503,13 @@ export function createPlantRowTool(): CanvasTool {
     return true
   }
 
+  /** Esc, on the map or in the card's field (U58): the last point, else the picked plant; false with none picked. */
+  function escapeOnce(): boolean {
+    if (!source) return false
+    if (!stepBackOnce()) clear()
+    return true
+  }
+
   function stepForwardOnce(): boolean {
     const forward = draft ? stepForward(draft) : null
     if (!forward) return false
@@ -596,11 +603,10 @@ export function createPlantRowTool(): CanvasTool {
       return
     }
     if (c.kind === 'spacing-cancel') {
-      // Esc in the field drops the source and gives the map its focus back.
-      const hadSource = source !== null
-      if (hadSource) clear()
+      // Esc in the field is Esc on the map, and gives the map its focus back; with nothing picked the tool leaves.
+      const stepped = escapeOnce()
       tool.effects.requestFocus('map')
-      if (!hadSource) tool.effects.requestTool('select')
+      if (!stepped) tool.effects.requestTool('select')
       return
     }
     const chosen = spacing()
@@ -722,8 +728,7 @@ export function createPlantRowTool(): CanvasTool {
       switch (c.kind) {
         case 'escape':
           // The points step back first, then the picked plant goes; with none Esc passes, and the chain's tool layer leaves.
-          if (!source) return 'pass'
-          if (!stepBackOnce()) clear()
+          if (!escapeOnce()) return 'pass'
           publish()
           return 'handled'
         case 'remove-last': {
