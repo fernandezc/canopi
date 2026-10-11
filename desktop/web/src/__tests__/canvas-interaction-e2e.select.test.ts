@@ -2874,6 +2874,79 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  it('a point menu opened with Shift+F10 on a focused corner gives focus back to that corner, so Delete then removes the corner, never the zone (A16, U37)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: square, fillColor: null, notes: null,
+      }]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
+
+    // Esc (the menu's restoring close): focus is back on corner 1, and Delete removes it.
+    corner(1).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    expect(contextMenuItemIds()).toEqual(['delete-point'])
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'Delete', code: 'Delete', target: corner(1) })
+    expect(store.persisted.zones[0]!.points).toEqual([square[0], square[2], square[3]])
+    expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
+
+    // A triangle: after Esc, Delete on the corner is refused and the zone stays.
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    contextMenuHost.current!.returnFocus()
+    expect(document.activeElement).toBe(corner(1))
+    events.keyDown({ key: 'Delete', code: 'Delete', target: corner(1) })
+    expect(store.persisted.zones).toHaveLength(1)
+    expect(store.persisted.zones[0]!.points).toHaveLength(3)
+    expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
+    session.dispose()
+  })
+
+  it('Delete point chosen from a keyboard point menu leaves focus on the corner now at its place, as the Delete key does (A16, U37)', () => {
+    const pentagon = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 140, y: 80 }, { x: 70, y: 130 }, { x: 0, y: 80 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: pentagon, fillColor: null, notes: null,
+      }]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
+
+    // The app's menu closes with focus restored, then runs the command (ActionMenu.activate).
+    const choose = () => {
+      const request = contextMenuHost.current!
+      request.returnFocus()
+      contextMenuCommand('delete-point').run()
+    }
+    corner(1).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(1) })
+    choose()
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3], pentagon[4]])
+    expect(document.activeElement).toBe(corner(1))
+
+    // The last corner: focus wraps to the first, as the Delete key's does.
+    corner(3).focus()
+    events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(3) })
+    choose()
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3]])
+    expect(document.activeElement).toBe(corner(0))
+    session.dispose()
+  })
+
   it('dragging a polygon\'s midpoint dot inserts a corner where it is released, in one undo step; a still press or Esc inserts nothing (A2)', () => {
     const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
     store.updatePersisted((draft) => {

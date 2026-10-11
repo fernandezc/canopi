@@ -20,6 +20,7 @@ interface CanvasContextMenuOptions {
   readonly commands: CanvasContextMenuCommands
   readonly saveSelectionAsObjectStamp?: () => void
   readonly placePlantsAt?: (world: ScenePoint) => void
+  /** Focuses the map: a request's returnFocus when nothing inside the map held focus at the open, or it has gone. */
   readonly returnFocus: () => void
 }
 
@@ -54,6 +55,7 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
   ): void {
     const adapter = options.adapter
     if (!adapter) return
+    const opener = focusedInside(options.container)
     const request: CanvasContextMenuRequest = {
       anchor,
       world,
@@ -67,7 +69,12 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       ...(entries.turnViewToEdge ? { turnViewToEdge: entries.turnViewToEdge } : {}),
       ...(entries.holdsSelectionDeletes ? { holdsSelectionDeletes: true as const } : {}),
       ...(entries.pointActions ? { pointActions: entries.pointActions } : {}),
-      returnFocus: options.returnFocus,
+      // Focus goes back to its opener inside the map while that is still there (a corner focused for Shift+F10, so
+      // Delete then reaches the corner, U37), else to the map.
+      returnFocus: () => {
+        if (opener && options.container.contains(opener)) opener.focus({ preventScroll: true })
+        else options.returnFocus()
+      },
       closed: () => {
         if (openRequest === request) openRequest = null
       },
@@ -128,6 +135,12 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       this.close()
     },
   }
+}
+
+/** The element inside the map, not the map itself, that holds focus. */
+function focusedInside(container: HTMLElement): HTMLElement | null {
+  const focused = container.ownerDocument.activeElement
+  return focused instanceof HTMLElement && focused !== container && container.contains(focused) ? focused : null
 }
 
 function hasSelectedObjects(selection: CanvasDesignObjectSelectionModel): boolean {

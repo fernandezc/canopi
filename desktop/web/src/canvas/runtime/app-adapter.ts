@@ -121,7 +121,8 @@ export interface CanvasContextMenuRequest {
    * null and the selection's commands are not offered.
    */
   readonly pointActions?: readonly CanvasContextMenuPointAction[]
-  /** Gives keyboard focus back to the map. */
+  /** Gives keyboard focus back to what held it inside the map when the menu opened (a corner focused for Shift+F10)
+   *  while that is still shown, else to the map. */
   returnFocus(): void
   /**
    * The app calls this once the request's menu has closed, however it
