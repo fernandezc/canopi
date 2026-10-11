@@ -124,7 +124,7 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
  * arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter, and adds two points beside it.
  * Returns the picked plant, the two points and a spot off their line.
  */
-async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<ReadonlyArray<{ x: number, y: number }>> {
+async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<readonly [Point, Point, Point, Point | null]> {
   await mapHost(page).focus()
   await page.keyboard.press('p')
   const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
@@ -147,7 +147,7 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   await expect(field, 'the pick focuses the spacing field').toBeFocused()
   await field.fill(spacing)
   await page.keyboard.press('Enter')
-  for (const point of spots.slice(1, 3)) await press(page, layout, point)
+  for (const point of [spots[1], spots[2]]) await press(page, layout, point)
   await nextFrames(page)
   return spots
 }
