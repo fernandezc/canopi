@@ -152,6 +152,15 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   return spots
 }
 
+/** The bottom of the frame the camera fits into (`--map-framing-inset-bottom`): the visible map without status chrome. */
+async function framingBottom(page: Page): Promise<number> {
+  return await page.evaluate(() => {
+    const area = document.querySelector<HTMLElement>('[style*="--map-framing-inset-bottom"]')
+    if (!area) throw new Error('no map area publishes its framing insets')
+    return area.getBoundingClientRect().bottom - parseFloat(area.style.getPropertyValue('--map-framing-inset-bottom'))
+  })
+}
+
 async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
   const boxes = await page.locator(selector).evaluateAll((elements) => elements.map((element) => {
     const rect = element.getBoundingClientRect()
@@ -194,8 +203,10 @@ async function expectCardClear(page: Page, layout: Layout, locale: string, stage
       expect(overlap(cardBox, box), `${where}: the tool card clears ${name}`).toBe(false)
     }
   }
-  const frame = await chipFrame(page)
-  expect(cardBox.y + cardBox.height, `${where}: the card's bottom is inside the visible map`).toBeLessThanOrEqual(frame.bottom + 0.5)
+  // Holding a row the card registers with the visible-map-area seam, so the map notice stands beside it (the overlap
+  // checks above); its bottom is above the framing chrome.
+  const frame = await framingBottom(page)
+  expect(cardBox.y + cardBox.height, `${where}: the card's bottom is inside the visible map`).toBeLessThanOrEqual(frame + 0.5)
   const finish = card(page).locator('[data-plant-row-finish]')
   await expect(finish, `${where}: two points show the check button`).toBeVisible()
   // The check button and the row's count and length stay in view whatever the card holds.

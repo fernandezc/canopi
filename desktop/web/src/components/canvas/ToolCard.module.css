@@ -6,8 +6,10 @@
   top: var(--chrome-rail-top);
   left: var(--canvas-tool-card-left);
   width: min(320px, calc(100% - var(--canvas-tool-card-left) - var(--chrome-inset)));
-  /* A tall card scrolls inside the visible map (in container units, so its computed max-height is in px). */
-  max-height: calc(100cqh - var(--chrome-rail-top) - var(--map-inset-bottom, 0px) - var(--chrome-inset));
+  /* A tall card scrolls inside the visible map (in container units, so its computed max-height is in px), above the
+     chrome at the bottom: all of it, status chrome (the map notice) included, since that does not avoid the card. */
+  --tool-card-room-bottom: var(--map-inset-bottom, 0px);
+  max-height: calc(100cqh - var(--chrome-rail-top) - var(--tool-card-room-bottom) - var(--chrome-inset));
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -26,7 +28,7 @@
    (`--tool-card-bottom`, published by the card). */
 .card[data-phone] {
   /* At most 40 % of the map's height, so a row is drawn below it; the text and fields scroll above the row's foot. */
-  max-height: min(calc(100cqh - var(--chrome-rail-top) - var(--map-inset-bottom, 0px) - var(--chrome-inset)), 40cqh);
+  max-height: min(calc(100cqh - var(--chrome-rail-top) - var(--tool-card-room-bottom) - var(--chrome-inset)), 40cqh);
   left: calc(var(--canvas-tool-card-left) + env(safe-area-inset-left));
   right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + 2 * var(--control-size-touch) + var(--space-4) + var(--space-2));
   width: auto;
@@ -34,9 +36,11 @@
 }
 
 /* Plant a row: the text and the fields scroll above the foot (the row's count and length and the check button that
-   plants it), which stays in view whatever the card's height. The body scrolls, not the card, so a focused field scrolls into
-   view above the foot, never under it. */
+   plants it), which stays in view whatever the card's height. The body scrolls, not the card, so a focused field
+   scrolls into view above the foot, never under it. Holding a row the card registers with the visible-map-area seam
+   (ToolCard), so status chrome stands beside it, never below: the card stops above the framing chrome alone. */
 .card[data-row] {
+  --tool-card-room-bottom: var(--map-framing-inset-bottom, 0px);
   display: flex;
   flex-direction: column;
   overflow-y: hidden;
