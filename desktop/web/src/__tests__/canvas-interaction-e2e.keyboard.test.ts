@@ -410,6 +410,36 @@ describe('SceneInteractionSession', () => {
       expect(tools.at(-1)).toBe('select')
       session.dispose()
     })
+    it('steps a drawn Plant a row back point by point with Esc, then drops the source, then returns to Select (U58)', () => {
+      store.updatePersisted((draft) => {
+        draft.plants = [makePlant('source', 'Malus domestica', { x: 20, y: 30 })]
+      })
+      const drafts = createRecordingRenderer()
+      const { session, tools } = sessionWithToolLog(drafts)
+      session.setTool('plant-spacing')
+      for (const x of [20, 120, 220]) {
+        events.pointerDown({ x, y: 30 })
+        events.pointerUp({ x, y: 30 })
+      }
+      container.focus()
+      const points = () => document.querySelectorAll('[data-canvas-handle^="point:"]').length
+      expect(points(), 'the picked plant and two points').toBe(3)
+
+      // Below 3 points the picked plant has no handle: one point left shows one handle. (Ctrl+Z and Ctrl+Shift+Z go through
+      // Edit > Undo and Redo, the edition's commands: e2e/canvas/plant-path.spec.ts.)
+      escapeOnMap()
+      expect(points(), 'Esc removes the last point').toBe(1)
+      escapeOnMap()
+      expect(points(), 'Esc steps back to the picked plant').toBe(0)
+      expect(drafts.lastDraft()?.shapes.some((shape) => shape.kind === 'circle-px'), 'the picked plant stays').toBe(true)
+      escapeOnMap()
+      expect(drafts.lastDraft()).toBeNull()
+      expect(tools).not.toContain('select')
+      escapeOnMap()
+      expect(tools.at(-1)).toBe('select')
+      expect(store.persisted.plants).toHaveLength(1)
+      session.dispose()
+    })
   })
 
   describe('key admission (canopi-f47t.21)', () => {

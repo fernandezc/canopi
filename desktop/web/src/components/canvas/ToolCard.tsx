@@ -1,4 +1,4 @@
-import type { FunctionComponent } from 'preact'
+import type { FunctionComponent, RefObject } from 'preact'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
@@ -6,6 +6,7 @@ import { useEnglishFallbackNames } from '../../app/plant-finder/catalog-names'
 import { toolCardContent, type SavedStampSummary } from '../../app/tool-card/content'
 import { modKeyName } from '../../app/shell-commands/shortcut-text'
 import { siteLocateOpen } from '../../app/site-onboarding/state'
+import { phoneLayout } from '../../app/shell/phone-layout'
 import { readPlantStampSource, type PlantStampSource } from '../../canvas/plant-stamp-source'
 import { speciesPlacementAppearance } from '../../canvas/runtime/species-key'
 import type { PlantSymbolId } from '../../canvas/runtime/scene'
@@ -22,10 +23,13 @@ import {
 import type { CanvasPlantRowGuidance, CanvasToolGuidance } from '../../canvas/session-state'
 import { scrollWheel } from '../../app/settings/state'
 import { t } from '../../i18n'
+import { ButtonTooltip } from '../shared/ButtonTooltip'
+import { ControlIcon } from '../shared/ControlIcon'
 import { SpeciesCommonName } from '../shared/SpeciesIdentity'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import { SpeciesChooser } from './SpeciesChooser'
 import { ToolIcon } from './toolbar-icons'
+import { useMapOccluder } from '../shared/useMapChrome'
 import { displayedPlantColor } from '../../app/plant-display/state'
 import styles from './ToolCard.module.css'
 
@@ -43,7 +47,16 @@ export interface StampChooserProps {
  * stays mounted, so choosing a tool is announced. Place plants carries the
  * species chooser while no species is chosen, or after Change species; Place a
  * stamp opens its saved stamps with Change stamp; Plant a row carries its
- * spacing field and the row's count once a plant is picked.
+ * spacing field below the text and the row's count at the card's foot (both
+ * outside the live region) once a plant is picked, and from its first point
+ * (U58) an [Interval | Plants] switch with the count field in Plants mode
+ * and a loop's rounded gap beside the field, and in the foot the row's length
+ * and the check button that plants the row (a 44 px target after a finger).
+ * Points are edited where they are, never from the card: their menu (a long
+ * press or a right-click), Alt+click and Delete. The text and the fields
+ * scroll above the foot, which stays in view. Holding a row the card registers
+ * with the visible-map-area seam; where it still covers the picked plant or
+ * a point, the user pans.
  */
 export function ToolCard({ stampChooser: StampChooser }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
@@ -58,6 +71,7 @@ export function ToolCard({ stampChooser: StampChooser }: {
   const species = usePlantStampSpeciesName(source)
   const [choosingStamp, setChoosingStamp] = useState(false)
   const coarsePointer = useCoarsePointer()
+  const section = useRef<HTMLElement>(null)
   const content = siteLocateOpen.value || overview
     ? null
     : toolCardContent({
@@ -79,6 +93,14 @@ export function ToolCard({ stampChooser: StampChooser }: {
   lastPrompt.current = guidance.promptSpecies
 
   const stampChooser = StampChooser && content?.chooser?.kind === 'stamp' ? content.chooser : null
+  const row = content?.tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
+  // From its first point the row is a path the card can plant, switch and edit (U58).
+  const rowPath = row && (row.points ?? 0) >= 2 ? row : null
+  const rowMode = row?.mode ?? 'interval'
+  usePublishedBottom(section, content !== null)
+  // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
+  // covers the left edge; on a phone held upright, nearly as wide as the map, the top edge.
+  useMapOccluder(section, phoneLayout.value === 'portrait' ? 'top' : 'left', row !== null)
 
   useEffect(() => {
     if (tool !== 'plant-stamp') setChangingSpecies(false)
@@ -101,8 +123,12 @@ export function ToolCard({ stampChooser: StampChooser }: {
 
   return (
     <section
+      ref={section}
       className={content ? styles.card : styles.idle}
       data-tool-card={content?.tool}
+      data-phone={phoneLayout.value ?? undefined}
+      data-row={row ? '' : undefined}
+      data-touch={row && (coarsePointer || row.touch) ? '' : undefined}
       aria-label={content?.title}
     >
       {/* First in the DOM so the title and instruction wrap around it. */}
@@ -116,37 +142,67 @@ export function ToolCard({ stampChooser: StampChooser }: {
           {t(stampChooser.held ? 'canvas.toolCard.changeStamp' : 'canvas.toolCard.chooseSavedStamp')}
         </button>
       )}
-      <div role="status" aria-live="polite">
-        {content && (
-          <>
-            <span className={styles.title}>
-              {lead && <CardLead lead={lead} />}
-              {content.title}
-            </span>
-            {/* The subject takes its own line, so a long name never breaks the instruction. */}
-            {content.subject && (
-              <b className={styles.subject}>
-                {content.tool === 'plant-stamp' && species?.englishFallback
-                  ? <SpeciesCommonName name={content.subject} englishFallback />
-                  : content.subject}
-              </b>
-            )}
-            {content.instruction && (
-              <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
-                {content.instruction}
+      {/* The text, then Plant a row's fields: on a row the part that scrolls above the foot. */}
+      <div className={styles.body}>
+        <div className={styles.live} role="status" aria-live="polite">
+          {content && (
+            <>
+              <span className={styles.title}>
+                {lead && <CardLead lead={lead} />}
+                {content.title}
+              </span>
+              {/* The subject takes its own line, so a long name never breaks the instruction. */}
+              {content.subject && (
+                <b className={styles.subject}>
+                  {content.tool === 'plant-stamp' && species?.englishFallback
+                    ? <SpeciesCommonName name={content.subject} englishFallback />
+                    : content.subject}
+                </b>
+              )}
+              {content.instruction && (
+                <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
+                  {content.instruction}
+                </span>
+              )}
+              <span className={styles.hints}>{content.hints}</span>
+            </>
+          )}
+        </div>
+        {row && (
+          // Plant a row's fields, outside the live region; one container from the pick on, so the field stays mounted
+          // (and focused) as points come and go.
+          <div className={styles.fieldRow}>
+            {(rowPath || rowMode === 'count') && <RowModeSwitch mode={rowMode} />}
+            {rowMode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
+            {rowMode === 'count' && <SpacingField row={row} kind="count" switched />}
+            {/* A loop's rounded gap beside the spacing it rounds; it moves with the points, so it is not announced. */}
+            {rowPath?.loopSpacing && (
+              <span className={styles.fact} aria-live="off">
+                {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
               </span>
             )}
-            {guidance.plantRow?.phase === 'row' && <SpacingField row={guidance.plantRow} />}
-            {content.rowCount && (
-              // Moves with every pointer move, so it is not announced.
+          </div>
+        )}
+      </div>
+      {row && (content?.rowCount || rowPath) && (
+        // The row's count and length, and the check button that plants that row: the card's foot, in view
+        // whatever the card holds. They move with every pointer move, so they are not announced.
+        <div className={styles.rowFoot} data-path={rowPath ? '' : undefined}>
+          <span className={styles.facts}>
+            {content?.rowCount && (
               <span className={styles.count} aria-live="off" data-plant-spacing-generated-count data-density={content.rowCount.density}>
                 {content.rowCount.text}
               </span>
             )}
-            <span className={styles.hints}>{content.hints}</span>
-          </>
-        )}
-      </div>
+            {rowPath?.length && (
+              <span className={styles.fact} aria-live="off" data-plant-row-length>
+                {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
+              </span>
+            )}
+          </span>
+          {rowPath && <FinishButton />}
+        </div>
+      )}
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
@@ -213,37 +269,94 @@ function CardLead({ lead }: { readonly lead: Lead }) {
   )
 }
 
+/** Plant a row's [Interval | Plants] switch: every N m, or N plants with the picked one counted. */
+function RowModeSwitch({ mode }: { readonly mode: 'interval' | 'count' }) {
+  const path = currentCanvasToolCommandSurface.value?.plantRowPath
+  return (
+    <span className={styles.modes} role="group" aria-label={t('canvas.plantSpacing.mode')}>
+      {(['interval', 'count'] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={styles.mode}
+          aria-pressed={mode === option}
+          data-plant-row-mode={option}
+          onClick={() => path?.setMode(option)}
+        >
+          {t(option === 'interval' ? 'canvas.plantSpacing.modeInterval' : 'canvas.plantSpacing.modeCount')}
+        </button>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * The check button that plants the row; it gives the map its focus back, so Enter and Esc reach the row again. On phones
+ * its glyph alone, so the foot keeps one line: an icon-only button, named by its label and its tooltip.
+ */
+function FinishButton() {
+  const path = currentCanvasToolCommandSurface.value?.plantRowPath
+  const name = t('canvas.toolCard.pathFinish')
+  const phone = phoneLayout.value !== null
+  return (
+    <button
+      type="button"
+      className={styles.finish}
+      data-plant-row-finish
+      aria-label={phone ? name : undefined}
+      onClick={() => {
+        path?.finish()
+        focusOwner.focusMap()
+      }}
+    >
+      <ControlIcon name="check" />
+      {phone ? <ButtonTooltip label={name} side="top" /> : <span>{name}</span>}
+    </button>
+  )
+}
+
 /**
  * Plant a row's spacing: the runtime keeps the text and parses it; Enter keeps
- * a valid spacing and gives the map focus back, Esc drops the picked plant,
- * and leaving the field keeps a valid spacing without moving focus.
+ * a valid spacing and gives the map focus back, Esc steps the row back as on
+ * the map (the last point, else the picked plant),
+ * and leaving the field keeps a valid spacing without moving focus. In Plants
+ * mode the same field takes the count (the picked plant counted). Beside the
+ * mode switch (`switched`) its label is read, not shown: the switch names it.
  */
-function SpacingField({ row }: { readonly row: CanvasPlantRowGuidance }) {
+function SpacingField({ row, kind, switched = false }: {
+  readonly row: CanvasPlantRowGuidance
+  readonly kind: 'interval' | 'count'
+  readonly switched?: boolean
+}) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
   const focused = useRef(0)
   const field = currentCanvasToolCommandSurface.value?.plantRowSpacing
+  const count = kind === 'count'
 
   useLayoutEffect(() => {
     if (row.focusRequest === focused.current) return
     focused.current = row.focusRequest
+    // The card's text and fields scroll to the field: once the row grows, it may sit below their fold. Explicitly, since
+    // WebKit's focus leaves it partly clipped.
     input.current?.focus({ preventScroll: true })
+    input.current?.scrollIntoView?.({ block: 'nearest' })
   }, [row.focusRequest])
 
   return (
     <span className={styles.field}>
-      <label className={styles.fieldLabel} for={id}>{t('canvas.plantSpacing.interval')}</label>
+      <label className={switched ? styles.hiddenLabel : styles.fieldLabel} for={id}>{t(count ? 'canvas.plantSpacing.count' : 'canvas.plantSpacing.interval')}</label>
       <input
         ref={input}
         id={id}
         className={styles.fieldInput}
         type="text"
-        inputMode="decimal"
+        inputMode={count ? 'numeric' : 'decimal'}
         autoComplete="off"
         spellcheck={false}
-        value={row.interval}
-        aria-invalid={!row.intervalValid}
-        data-plant-spacing-interval-input
+        value={count ? row.countText ?? '' : row.interval}
+        aria-invalid={count ? row.countValid === false : !row.intervalValid}
+        {...(count ? { 'data-plant-row-count-input': '' } : { 'data-plant-spacing-interval-input': '' })}
         onInput={(event) => field?.input(event.currentTarget.value)}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== 'Escape') return
@@ -268,6 +381,26 @@ function readSavedStampSummary(): SavedStampSummary | null {
     plants: payload.plants.length,
     species: new Set(payload.plants.map((plant) => plant.canonicalName)).size,
   }
+}
+
+/**
+ * Publishes the shown card's bottom edge on the canvas area as `--tool-card-bottom` (px from the area's top), so the top
+ * chip slot can sit below the card on phones (SpeciesFocusChip.module.css); removed while no card shows.
+ */
+function usePublishedBottom(ref: RefObject<HTMLElement>, shown: boolean): void {
+  useLayoutEffect(() => {
+    const card = ref.current
+    const host = card?.parentElement
+    if (!shown || !card || !host || typeof ResizeObserver === 'undefined') return
+    const publish = () => host.style.setProperty('--tool-card-bottom', `${card.offsetTop + card.offsetHeight}px`)
+    publish()
+    const observer = new ResizeObserver(publish)
+    observer.observe(card)
+    return () => {
+      observer.disconnect()
+      host.style.removeProperty('--tool-card-bottom')
+    }
+  }, [ref, shown])
 }
 
 const COARSE_POINTER_QUERY = '(pointer: coarse)'

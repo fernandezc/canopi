@@ -156,7 +156,13 @@
       "interval": "間隔",
       "generatedCount": "{{count}} 生成",
       "commitLimitWarning": "間隔を広げるか線を短くしてください",
-      "dragAlong": "列に沿ってドラッグ"
+      "dragAlong": "列に沿ってドラッグ",
+      "mode": "間隔の決め方",
+      "modeInterval": "間隔",
+      "modeCount": "株数",
+      "count": "列の株数",
+      "loopSpacing": "等間隔",
+      "length": "長さ"
     },
     "contextMenu": {
       "ariaLabel": "キャンバス編集コマンド",
@@ -795,7 +801,13 @@
       "recent": "最近",
       "openCatalog": "カタログ全体を開く",
       "noSpecies": "まだ種がありません。",
-      "noMatch": "「{{query}}」に一致する種はありません。"
+      "noMatch": "「{{query}}」に一致する種はありません。",
+      "escRemovePoint": "Esc で最後の点を削除",
+      "pathInstruction": "クリックで点を追加、Enter で植える",
+      "pathTouchInstruction": "タップで点を追加、ダブルタップで植える",
+      "pathKeys": "Alt で鋭い点を置く · Shift で 45° に固定 · {{mod}} でスナップをオフ",
+      "pathTouchHint": "点をドラッグして移動 · 印をドラッグして点を追加 · 点を長押しでその他",
+      "pathFinish": "列を植える"
     },
     "placePreview": {
       "nearest": "{{name}} まで {{distance}}",
@@ -817,6 +829,10 @@
       "hint": "空欄にすると、ゾーンは種類と大きさで表示されます。",
       "cancel": "キャンセル",
       "rename": "名前を変更"
+    },
+    "plantRow": {
+      "point": "列の点 {{index}}",
+      "dot": "列の区間 {{index}} に点を追加"
     }
   },
   "worldMap": {

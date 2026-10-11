@@ -53,6 +53,22 @@ export interface CanvasPlantRowGuidance {
   readonly density: 'normal' | 'dense' | 'blocked'
   /** Moves each time the spacing field should take focus (a plant picked, an invalid spacing kept). */
   readonly focusRequest: number
+  // The path (U58): absent fields read as a row of the picked plant alone, whose card is the straight row's.
+  /** The row's points, the picked plant counted; from 2 the card offers the finish, the mode and the length. */
+  readonly points?: number
+  /** The points close into a loop. */
+  readonly closed?: boolean
+  /** "Every N m" (`interval`) or "N plants" (`count`, the picked plant counted). */
+  readonly mode?: 'interval' | 'count'
+  /** The count field's text, as typed, and whether it is a count of 2 to 5000. */
+  readonly countText?: string
+  readonly countValid?: boolean
+  /** The drawn row's length, formatted as the map's length chip. */
+  readonly length?: string | null
+  /** On a loop in "every N m": the equal gap the interval rounds to, formatted. */
+  readonly loopSpacing?: string | null
+  /** The pointer that last pressed or hovered the map was a finger: the card's targets grow to 44 px. */
+  readonly touch?: boolean
 }
 
 /** The active tool's state as the tool card explains it. UI mirror state only. */
@@ -97,4 +113,8 @@ function plantRowGuidanceEqual(a: CanvasPlantRowGuidance | null, b: CanvasPlantR
     && a.glyph?.symbol === b.glyph?.symbol && a.glyph?.color === b.glyph?.color
     && a.intervalValid === b.intervalValid && a.count === b.count && a.density === b.density
     && a.focusRequest === b.focusRequest
+    && a.points === b.points && a.closed === b.closed && a.mode === b.mode
+    && a.countText === b.countText && a.countValid === b.countValid
+    && a.length === b.length && a.loopSpacing === b.loopSpacing
+    && a.touch === b.touch
 }

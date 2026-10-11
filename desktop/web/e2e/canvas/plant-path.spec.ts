@@ -2,21 +2,24 @@
 // the pick, clicks add points and Enter, a double-click on the last point or the tool card's check button plants the row
 // along a smooth curve through them, in one Undo step; a click on the first point closes a loop; "N plants" counts the
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
-// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; the card's point buttons act on the last-touched
-// point. A drag from the plant still plants a straight row (guard). Both engines unless a test says otherwise; WebKit has
-// taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no baselines.
+// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point (the card
+// offers no point buttons: decision 16). A drag from the plant still plants a straight row (guard). Both engines unless a
+// test says otherwise; WebKit has taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no
+// baselines; the path engine's positions are compared bit for bit between Node and each browser, so these tests read
+// exact positions.
 //
 // The base fixture at 1024x768 with grid snapping off, so a click places a point where it lands: its opening camera puts
 // the rectangle zone's north-west corner at (312, 223) and draws 10.414 px per metre; the Apple inside that zone is the
-// row's picked plant. The DOM contract these tests read (stream P builds it): row points and midpoint dots are canvas
-// handles `point:<owner>:<index>` and `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the
-// check button `[data-plant-row-finish]`, the mode switch `[data-plant-row-mode="interval" | "count"]`, the count field
-// `[data-plant-row-count-input]`, a loop's rounded spacing `[data-plant-row-loop-spacing]` and the point buttons named
-// "Sharp corner", "Smooth corner" and "Delete point" (canvas.point.*).
+// row's picked plant. Each test first moves the map 192 px down with the arrow keys (OPENING_PAN_PX). The DOM contract
+// these tests read (stream P builds it): row points and midpoint dots are canvas handles `point:<owner>:<index>` and
+// `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the check button
+// `[data-plant-row-finish]`, the mode switch `[data-plant-row-mode="interval" | "count"]`, the count field
+// `[data-plant-row-count-input]` and a loop's rounded spacing `[data-plant-row-loop-spacing]`.
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
+import { buildSync } from 'esbuild'
 import { pressMod } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
 import { mapHost, openFixture } from '../support/layout'
@@ -27,27 +30,39 @@ const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.m
 interface StoredPlant { readonly id: string, readonly canonical_name: string, readonly position: { readonly lon: number, readonly lat: number } }
 
 const BASE_PLANT_IDS = new Set((JSON.parse(readFileSync(FIXTURE, 'utf8')) as { plants: StoredPlant[] }).plants.map((plant) => plant.id))
+/**
+ * The opening camera moved 3 arrow-key steps (3 x 64 px) so the map's content sits lower: the tool card, which grows once
+ * a row has points (1024x768 lays out the named rail and the card beside it, about 250 px tall), then leaves the picked
+ * Apple and the row's points clear, as a user pans to draw beside the card.
+ */
+const OPENING_PAN_PX = 3 * 64
+function onScreen(x: number, y: number): Point {
+  return { x, y: y + OPENING_PAN_PX }
+}
+
 /** The picked Apple, as stored and on screen. */
 const APPLE_ID = '46595420-3ba9-4184-a4b0-b65fb40eff31'
 const APPLE_GEO = { lon: 3.877071839, lat: 43.611230142 }
-const APPLE: Point = { x: 353.7, y: 264.7 }
+const APPLE: Point = onScreen(353.7, 264.7)
 const PX_PER_M = 10.414
 /** Empty ground for the row's points, about 9 to 11 m apart. */
-const P1: Point = { x: 430, y: 345 }
-const P2: Point = { x: 510, y: 300 }
-const P3: Point = { x: 575, y: 370 }
+const P1: Point = onScreen(430, 345)
+const P2: Point = onScreen(510, 300)
+const P3: Point = onScreen(575, 370)
 /** Empty ground for a loop with the Apple: about 11 m from it and from each other. */
-const Q1: Point = { x: 470, y: 265 }
-const Q2: Point = { x: 412, y: 365 }
+const Q1: Point = onScreen(470, 265)
+const Q2: Point = onScreen(412, 365)
 /** Empty ground for a point placed with Alt. */
-const P4: Point = { x: 640, y: 330 }
-/** Empty ground away from the row. */
+const P4: Point = onScreen(640, 330)
+/** Empty ground away from the row (above the row once the map moved down). */
 const GROUND: Point = { x: 560, y: 590 }
 
 test.use({ viewport: { width: 1024, height: 768 } })
 
 async function openBase(page: Page): Promise<void> {
   await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+  await mapHost(page).focus()
+  for (let step = 0; step < OPENING_PAN_PX / 64; step += 1) await page.keyboard.press('ArrowUp')
 }
 
 function undo(page: Page): Locator {
@@ -139,6 +154,15 @@ async function expectOneUndoStep(page: Page, what: string): Promise<void> {
   await expect(undo(page), `${what}: one Undo restores the Design`).toBeDisabled()
 }
 
+/**
+ * Nothing is planted yet: no row's plants are selected, as a finish selects them. Undo is no witness while a row is
+ * drawn: Edit > Undo then takes the draft's last point back (A17). The test's one-Undo-step check after the finish
+ * proves the draft made no Design edit before it.
+ */
+async function expectNothingPlanted(page: Page, what: string): Promise<void> {
+  await expect(selectionChip(page).filter({ hasText: /plants · Apple/ }), what).toHaveCount(0)
+}
+
 /** The Design as File > Download a copy saves it. */
 async function savedDesign(page: Page): Promise<{ plants: StoredPlant[] }> {
   await page.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'File' }).click()
@@ -183,11 +207,11 @@ async function selectedPlants(page: Page): Promise<number> {
   return match ? Number(match[1]) : 1
 }
 
-test.fail('(canopi-f47t.54, P) clicks bend a row through four points and Enter plants it in one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, P) clicks bend a row through four points and Enter plants it in one Undo step', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
-  await expect(undo(page), 'a click adds a point and plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'a click adds a point and plants nothing')
   await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
 
   await page.keyboard.press('Enter')
@@ -195,21 +219,23 @@ test.fail('(canopi-f47t.54, P) clicks bend a row through four points and Enter p
   const row = await savedRow(page)
   expect(row.length, 'the row is planted').toBeGreaterThan(10)
   expect(await selectedPlants(page), 'the selection is the row').toBe(row.length)
-  for (const [name, at] of [['the first point', P1], ['the second point', P2], ['the last point', P3]] as const) {
+  for (const [name, at] of [['the first point', P1], ['the second point', P2]] as const) {
     const point = screenToMetres(at)
     expect(Math.min(...row.map((plant) => distance(plant, point))), `the row passes through ${name}`).toBeLessThanOrEqual(1.2)
   }
+  // Every 2 m from the picked plant: the last plant stands within one interval of the last point.
+  expect(Math.min(...row.map((plant) => distance(plant, screenToMetres(P3)))), 'the row runs to the last point').toBeLessThanOrEqual(2.2)
   const end = screenToMetres(P3)
   expect(Math.max(...row.map((plant) => offLine(plant, { x: 0, y: 0 }, end))), 'the row bends away from the straight line').toBeGreaterThan(3)
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) a double-click on the last point plants the row', async ({ page }) => {
+test('(canopi-f47t.54, P) a double-click on the last point plants the row', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
   await click(page, P2)
-  await expect(undo(page), 'a click adds a point and plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'a click adds a point and plants nothing')
   const last = await pointAt(page, 2)
   await page.mouse.dblclick(last.x, last.y)
   await expect(selectionChip(page), 'the double-click plants the row').toHaveText(/^\d+ plants · Apple/)
@@ -219,21 +245,21 @@ test.fail('(canopi-f47t.54, P) a double-click on the last point plants the row',
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) the check button plants the row', async ({ page }) => {
+test('(canopi-f47t.54, P) the check button plants the row', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
   await click(page, P2)
   const finish = card(page).locator('[data-plant-row-finish]')
   await expect(finish, 'two points show the check button').toBeVisible()
-  await expect(undo(page), 'nothing is planted before the finish').toBeDisabled()
+  await expectNothingPlanted(page, 'nothing is planted before the finish')
   await finish.click()
   await expect(selectionChip(page), 'the check button plants the row').toHaveText(/^\d+ plants · Apple/)
   await expect(finish, 'the planted row leaves no check button').toHaveCount(0)
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and every N m rounds to equal gaps shown in the card', async ({ page }) => {
+test('(canopi-f47t.54, P) a click on the first point closes a loop and every N m rounds to equal gaps shown in the card', async ({ page }) => {
   await openBase(page)
   await pickApple(page, '3')
   await click(page, Q1)
@@ -241,7 +267,7 @@ test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and ever
   await click(page, APPLE)
   const shown = card(page).locator('[data-plant-row-loop-spacing]')
   await expect(shown, 'the closed loop shows its rounded spacing').toBeVisible()
-  await expect(undo(page), 'closing the loop plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'closing the loop plants nothing')
   const spacing = Number.parseFloat(((await shown.textContent()) ?? '').replace(',', '.'))
   expect(spacing, 'every 3 m rounds to a nearby equal gap').toBeGreaterThan(2.5)
   expect(spacing).toBeLessThan(3.5)
@@ -255,7 +281,7 @@ test.fail('(canopi-f47t.54, P) a click on the first point closes a loop and ever
   await expectOneUndoStep(page, 'the planted loop')
 })
 
-test.fail('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one included', async ({ page }) => {
+test('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one included', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   await click(page, P1)
@@ -272,7 +298,7 @@ test.fail('(canopi-f47t.54, P) N plants evenly plants N plants, the picked one i
   await expectOneUndoStep(page, 'the planted row')
 })
 
-test.fail('(canopi-f47t.54, P) before planting: drag a point, drag a dot to insert, double-click a dot to insert in place, Alt+click deletes a point, Alt while placing makes it sharp', async ({ page }) => {
+test('(canopi-f47t.54, P) before planting: drag a point, drag a dot to insert, double-click a dot to insert in place, Alt+click deletes a point, Alt while placing makes it sharp', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -302,10 +328,10 @@ test.fail('(canopi-f47t.54, P) before planting: drag a point, drag a dot to inse
   await expect.poll(() => pointCount(page), 'Alt while placing still adds a point').toBe(6)
   expect((await pointAt(page, 5)).glyph, 'a point placed with Alt is sharp').toBe('corner')
   expect((await pointAt(page, 4)).glyph, 'a point placed without Alt is smooth').toBe('vertex')
-  await expect(undo(page), 'editing the draft plants nothing').toBeDisabled()
+  await expectNothingPlanted(page, 'editing the draft plants nothing')
 })
 
-test.fail('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; Esc steps back to the picked plant, drops it, then returns to Select', async ({ page }) => {
+test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; Esc steps back to the picked plant, drops it, then returns to Select', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -332,7 +358,8 @@ test.fail('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point a
   await expect(undo(page), 'stepping back edits nothing').toBeDisabled()
 })
 
-test.fail('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on the last-touched point', async ({ page }) => {
+// Decision 16 (2026-10-11): points are edited where they are (their menu, Alt+click, Delete), never from the card.
+test('(canopi-f47t.54, P) a click on a point then Delete removes that point; the card offers no point buttons', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -340,16 +367,14 @@ test.fail('(canopi-f47t.54, P) the card\'s Sharp corner and Delete point act on 
 
   const second = await pointAt(page, 2)
   await page.mouse.click(second.x, second.y)
-  const sharp = card(page).getByRole('button', { name: 'Sharp corner' })
-  await expect(sharp, 'the card offers Sharp corner for the touched point').toBeVisible()
-  await sharp.click()
-  await expect.poll(async () => (await pointAt(page, 2)).glyph, 'the touched point is sharp').toBe('corner')
-  expect((await pointAt(page, 3)).glyph, 'the last point stays smooth').toBe('vertex')
-  await expect(card(page).getByRole('button', { name: 'Smooth corner' }), 'the card now offers Smooth corner').toBeVisible()
-
-  await card(page).getByRole('button', { name: 'Delete point' }).click()
-  await expect.poll(() => pointCount(page), 'Delete point removes the touched point').toBe(3)
-  await expect(undo(page), 'the card\'s point buttons plant nothing').toBeDisabled()
+  const foot = card(page).locator('[data-path]')
+  await expect(foot.getByRole('button'), 'the foot\'s one button plants the row').toHaveCount(1)
+  await expect(foot.locator('[data-plant-row-finish]')).toBeVisible()
+  await page.keyboard.press('Delete')
+  await expect.poll(() => pointCount(page), 'Delete removes the clicked point').toBe(3)
+  const kept = await pointAt(page, 2)
+  expect(Math.hypot(kept.x - P3.x, kept.y - P3.y), 'the last point is kept, the clicked one gone').toBeLessThan(2)
+  await expectNothingPlanted(page, 'Delete plants nothing')
 })
 
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {
@@ -367,10 +392,126 @@ test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in o
   await expectOneUndoStep(page, 'the planted row')
 })
 
+/** The path engine (src/canvas/plant-path/spacing.ts) bundled as one script: `window.__plantPath` in a page. */
+function engineScript(): string {
+  const entry = fileURLToPath(new URL('../../src/canvas/plant-path/spacing.ts', import.meta.url))
+  const [output] = buildSync({ entryPoints: [entry], bundle: true, format: 'iife', globalName: '__plantPath', write: false }).outputFiles
+  return output!.text
+}
+
+/** One curved open row, one loop with a sharp point and one loop counted out, as JSON of their counts, spacings and positions. */
+function plantCurvedRows(engine: { plantAlongPath: (path: unknown, spacing: unknown) => { count: number, effectiveSpacingM: number, lengthM: number, positions(limit?: number): unknown[] } }): string {
+  const at = (x: number, y: number, sharp = false) => ({ position: { x, y }, sharp })
+  const rows = [
+    engine.plantAlongPath({ points: [at(0, 0), at(7.3, 4.1), at(15.2, -2.7), at(23.9, 3.3)], closed: false }, { kind: 'interval', metres: 0.7 }),
+    engine.plantAlongPath({ points: [at(0, 0), at(11.1, 0.4), at(9.7, 10.2, true), at(-1.3, 8.8)], closed: true }, { kind: 'interval', metres: 1.3 }),
+    engine.plantAlongPath({ points: [at(3, 1), at(-4.4, 6.5), at(-9.2, -3.1)], closed: true }, { kind: 'count', count: 17 }),
+  ]
+  return JSON.stringify(rows.map((row) => ({ count: row.count, spacing: row.effectiveSpacingM, length: row.lengthM, positions: row.positions() })))
+}
+
+/** The fixture's Design as stored: every plant, zone corner and label anchor, in metres east and north of the Apple. */
+function designPoints(): Point[] {
+  type Geo = { readonly lon: number, readonly lat: number }
+  const design = JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
+    plants: { position: Geo }[], zones: { points: Geo[] }[], annotations: { position: Geo }[]
+  }
+  return [
+    ...design.plants.map((plant) => plant.position),
+    ...design.zones.flatMap((zone) => zone.points),
+    ...design.annotations.map((annotation) => annotation.position),
+  ].map(metresFromApple)
+}
+
+// Answer 15 (2026-10-11): where the grown card covers the picked plant or the points, the user pans, as with zone
+// corners; the card registers with the visible-map-area seam, so Fit to Design frames the Design clear of it. At the
+// opening framing (not moved) the grown card covers the picked Apple.
+test('(canopi-f47t.54, P) with the grown card shown, Fit to Design frames the Design clear of the card', async ({ page }) => {
+  await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+  const opening = (at: Point): Point => ({ x: at.x, y: at.y - OPENING_PAN_PX })
+  const apple = opening(APPLE)
+  // Two points on empty ground right of the card, at the opening framing.
+  const placed = [opening(P3), opening(P4)] as const
+  await armRow(page)
+  await page.mouse.click(apple.x, apple.y)
+  await expect(intervalField(page), 'the pick focuses the spacing field').toBeFocused()
+  await page.keyboard.press('Enter')
+  for (const at of placed) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and two points').toBe(3)
+  const covered = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-tool-card]') !== null, apple)
+  expect(covered, 'at the opening framing the grown card covers the picked Apple').toBe(true)
+
+  await page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to Design' }).click()
+  // The camera after the fit, from the two points' handles: screen = first + k (metres - first's metres), in complex
+  // numbers (east, south), so a turn or a new scale reads the same.
+  const metres = placed.map((at) => ({ x: (at.x - apple.x) / PX_PER_M, y: -(at.y - apple.y) / PX_PER_M }))
+  // The camera has come to rest: the points read the same twice in a row.
+  let last = ''
+  await expect.poll(async () => {
+    const now = JSON.stringify([await pointAt(page, 1), await pointAt(page, 2)])
+    const still = now === last
+    last = now
+    return still
+  }, { message: 'the fit comes to rest', intervals: [100] }).toBe(true)
+  const [first, second] = JSON.parse(last) as [Handle, Handle]
+  const dm = { re: metres[1]!.x - metres[0]!.x, im: -(metres[1]!.y - metres[0]!.y) }
+  const ds = { re: second.x - first.x, im: second.y - first.y }
+  const norm = dm.re * dm.re + dm.im * dm.im
+  const k = { re: (ds.re * dm.re + ds.im * dm.im) / norm, im: (ds.im * dm.re - ds.re * dm.im) / norm }
+  const toScreen = (m: Point): Point => {
+    const d = { re: m.x - metres[0]!.x, im: -(m.y - metres[0]!.y) }
+    return { x: first.x + k.re * d.re - k.im * d.im, y: first.y + k.re * d.im + k.im * d.re }
+  }
+  const box = await card(page).boundingBox()
+  if (!box) throw new Error('the card is not shown')
+  for (const point of designPoints().map(toScreen)) {
+    const inside = point.x > box.x && point.x < box.x + box.width && point.y > box.y && point.y < box.y + box.height
+    expect(inside, `the Design at (${point.x.toFixed(0)}, ${point.y.toFixed(0)}) is clear of the card ${JSON.stringify(box)}`).toBe(false)
+  }
+})
+
+test('(canopi-f47t.54, P) the path engine plants a curved row to the same bits in this browser as in Node', async ({ page }) => {
+  const script = engineScript()
+  const inNode = plantCurvedRows(new Function(`${script}; return __plantPath`)())
+  await page.goto('about:blank')
+  await page.addScriptTag({ content: script })
+  const inPage = await page.evaluate(`(${plantCurvedRows.toString()})(window.__plantPath)`)
+  expect(inPage, 'the same JSON, bit for bit').toBe(inNode)
+})
+
+/**
+ * The double-click on the ground (A1): its first press places a point, whose handle the second press then lands on, as
+ * a handle press with a click count of 2 on the last point, which plants the row through that point. Nothing hears the
+ * native dblclick: no text is selected, and the one Undo step is the row.
+ */
+test('(canopi-f47t.54, P) a double-click on the ground plants the row through the point its first press placed', async ({ page }) => {
+  // Records each pointerdown's handle before the canvas hears it; changes nothing.
+  await page.addInitScript(() => {
+    const downs: Array<string | null> = []
+    Object.assign(window, { __rowDowns: downs })
+    window.addEventListener('pointerdown', (event) => {
+      downs.push(event.target instanceof Element ? event.target.closest('[data-canvas-handle]')?.getAttribute('data-canvas-handle') ?? null : null)
+    }, { capture: true })
+  })
+  const downs = () => page.evaluate(() => (window as unknown as { __rowDowns: Array<string | null> }).__rowDowns.slice())
+  await openBase(page)
+  await pickApple(page)
+  await click(page, P1)
+  await page.waitForTimeout(600)
+  const before = (await downs()).length
+  await page.mouse.dblclick(P2.x, P2.y)
+  await expect(selectionChip(page), 'the double-click plants the row').toHaveText(/^\d+ plants · Apple/)
+  expect((await downs()).slice(before), 'the second press lands on the point the first one placed').toEqual([null, 'point:draft:2'])
+  expect(await page.evaluate(() => window.getSelection()?.toString() ?? ''), 'the dblclick selects no text').toBe('')
+  const row = await savedRow(page)
+  expect(Math.min(...row.map((plant) => distance(plant, screenToMetres(P2)))), 'the row runs to the double-clicked point').toBeLessThanOrEqual(2.2)
+  await expectOneUndoStep(page, 'the planted row')
+})
+
 test.describe('touch', () => {
   test.use({ hasTouch: true })
 
-  test.fail('(canopi-f47t.54, P) touch: tapped points get 44 px handles and the check button plants (WebKit touchscreen.tap, Chromium)', async ({ page }) => {
+  test('(canopi-f47t.54, P) touch: tapped points get 44 px handles and the check button plants (WebKit touchscreen.tap, Chromium)', async ({ page }) => {
     await openBase(page)
     await page.touchscreen.tap(GROUND.x, GROUND.y)
     await armRow(page)
@@ -400,7 +541,7 @@ test.describe('touch', () => {
   test.describe('fingers', () => {
     test.skip(({ browserName }) => browserName !== 'chromium', 'finger drags go through CDP touch input, Chromium-only')
 
-    test.fail('(canopi-f47t.54, P) touch: a finger drags a point before planting (Chromium)', async ({ page }) => {
+    test('(canopi-f47t.54, P) touch: a finger drags a point before planting (Chromium)', async ({ page }) => {
       await openBase(page)
       const fingers = await Fingers.of(page)
       await fingers.tap(GROUND)
@@ -420,7 +561,7 @@ test.describe('touch', () => {
         const moved = await pointAt(page, 1)
         return Math.round(distance(moved, { x: first.x + 40, y: first.y + 20 }))
       }, 'the point follows the finger').toBeLessThanOrEqual(2)
-      await expect(undo(page), 'moving a point plants nothing').toBeDisabled()
+      await expectNothingPlanted(page, 'moving a point plants nothing')
     })
   })
 })

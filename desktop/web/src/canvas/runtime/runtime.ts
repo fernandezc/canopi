@@ -72,13 +72,22 @@ export interface CanvasPlantRowSpacingField {
   commit(text: string): void
   /** The field lost focus: keeps a valid spacing without moving focus. */
   blur(text: string): void
-  /** Esc in the field: drops the picked plant and gives the map focus back. */
+  /** Esc in the field: as Esc on the map (the last point, else the picked plant), and gives the map focus back. */
   cancel(): void
+}
+
+/** Plant a row's path (U58): the tool card's check button and [Interval | Plants] switch. */
+export interface CanvasPlantRowPathCommands {
+  /** The check button: plants the drawn row (Enter's finish). */
+  finish(): void
+  /** Every N m (`interval`) or N plants (`count`, the picked plant counted). */
+  setMode(mode: 'interval' | 'count'): void
 }
 
 export interface CanvasToolCommandSurface {
   setTool(id: ToolId): void
   readonly plantRowSpacing: CanvasPlantRowSpacingField
+  readonly plantRowPath?: CanvasPlantRowPathCommands
 }
 
 /**

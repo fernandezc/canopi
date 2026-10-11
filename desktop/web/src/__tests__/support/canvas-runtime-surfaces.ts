@@ -50,6 +50,7 @@ export function createTestCanvasCommandSurface(
     tools: {
       setTool: () => {},
       plantRowSpacing: { input: () => {}, commit: () => {}, blur: () => {}, cancel: () => {} },
+      plantRowPath: { finish: () => {}, setMode: () => {} },
     },
     viewport: {
       zoomIn: () => {},
@@ -125,6 +126,7 @@ export function createTestCanvasCommandSurface(
       ...surface.tools,
       ...overrides.tools,
       plantRowSpacing: { ...surface.tools.plantRowSpacing, ...overrides.tools?.plantRowSpacing },
+      plantRowPath: { ...surface.tools.plantRowPath!, ...overrides.tools?.plantRowPath },
       setTool: (name) => {
         setTool(name)
         setCanvasTool(name)

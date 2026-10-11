@@ -65,19 +65,24 @@ const TITLE_KEYS: Readonly<Record<ToolId, string>> = {
 }
 
 const PLACING_TOOLS = new Set(['plant-stamp', 'object-stamp', 'saved-object-stamp'])
+/** The drawing tools whose Esc removes the draft's last point (U58); Plant a row's once it has a point. */
+const STEP_BACK_TOOLS = new Set(['polygon', 'profile'])
 const STAMP_TOOLS = new Set(['object-stamp', 'saved-object-stamp'])
 
 export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
   const { tool, guidance, translate } = input
   const titleKey = TITLE_KEYS[tool]
 
-  // What the next Esc does: drops a held row source or stamp pick first, cancels a draft, then leaves the tool.
+  // What the next Esc does: steps a drawing draft back one point (U58), drops a held row source or stamp pick, cancels a
+  // gesture, then leaves the tool.
+  const rowPath = tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' && (guidance.plantRow.points ?? 0) >= 2
   const esc = translate(
-    tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? 'canvas.toolCard.escClearRow'
-      : tool === 'object-stamp' && guidance.stamp ? 'canvas.toolCard.escClearStamp'
-        : guidance.gesture ? 'canvas.toolCard.escCancel'
-          : PLACING_TOOLS.has(tool) ? 'canvas.toolCard.escStopPlacing'
-            : 'canvas.toolCard.escSelect',
+    rowPath || (STEP_BACK_TOOLS.has(tool) && guidance.gesture) ? 'canvas.toolCard.escRemovePoint'
+      : tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? 'canvas.toolCard.escClearRow'
+        : tool === 'object-stamp' && guidance.stamp ? 'canvas.toolCard.escClearStamp'
+          : guidance.gesture ? 'canvas.toolCard.escCancel'
+            : PLACING_TOOLS.has(tool) ? 'canvas.toolCard.escStopPlacing'
+              : 'canvas.toolCard.escSelect',
   )
   const hints = (...keys: string[]): string => [...keys.map((key) => translate(key)), esc].join(' · ')
   const card = (subject: string | null, instruction: string, hintText = hints()): ToolCardContent => ({
@@ -119,9 +124,15 @@ export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
         return card(null, translate(row?.phase === 'missed' ? 'canvas.plantSpacing.sourceMissed' : 'canvas.plantSpacing.selectSource'))
       }
       const counted = translate('canvas.plantSpacing.generatedCount', { count: row.count ?? 0 })
+      // With only the picked plant the card is the straight row's; from a point on it tells how to draw and plant the path.
+      const touch = input.coarsePointer || row.touch === true
+      const [instruction, hintText] = !rowPath
+        ? [translate('canvas.plantSpacing.dragAlong'), [translate('canvas.toolCard.rowKeys', { mod: input.modKey }), esc].join(' · ')]
+        : touch
+          ? [translate('canvas.toolCard.pathTouchInstruction'), translate('canvas.toolCard.pathTouchHint')]
+          : [translate('canvas.toolCard.pathInstruction'), [translate('canvas.toolCard.pathKeys', { mod: input.modKey }), esc].join(' · ')]
       return {
-        ...card(row.plantName, translate('canvas.plantSpacing.dragAlong'),
-          [translate('canvas.toolCard.rowKeys', { mod: input.modKey }), esc].join(' · ')),
+        ...card(row.plantName, instruction, hintText),
         rowCount: row.count === null ? null : {
           text: row.density === 'blocked' ? `${counted} · ${translate('canvas.plantSpacing.commitLimitWarning')}` : counted,
           density: row.density,

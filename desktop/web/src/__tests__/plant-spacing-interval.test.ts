@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FALLBACK_PLANT_SPACING_INTERVAL_M,
   formatPlantSpacingIntervalInput,
+  parsePlantRowCountInput,
   parsePlantSpacingIntervalInput,
 } from '../canvas/plant-spacing-interval'
 import { createPlantRowTool } from '../canvas/runtime/tools/plant-row'
@@ -57,6 +58,20 @@ describe('Plant Spacing interval parsing', () => {
     expect(formatPlantSpacingIntervalInput(1.5)).toBe('1.5 m')
     expect(formatPlantSpacingIntervalInput(0.25)).toBe('25 cm')
     expect(formatPlantSpacingIntervalInput(0)).toBe('50 cm')
+  })
+})
+
+describe('Plant a row count parsing', () => {
+  it('accepts a whole number of plants from 2 to 5000, the picked plant counted', () => {
+    expect(parsePlantRowCountInput('2')).toEqual({ valid: true, count: 2 })
+    expect(parsePlantRowCountInput(' 12 ')).toEqual({ valid: true, count: 12 })
+    expect(parsePlantRowCountInput('5000')).toEqual({ valid: true, count: 5000 })
+  })
+
+  it('rejects blank, fewer than 2, more than 5000, fractional and non-numeric counts', () => {
+    for (const text of ['', ' ', '0', '1', '5001', '2.5', '3,0', '-4', '1e3', 'ten', '12 plants']) {
+      expect(parsePlantRowCountInput(text), text).toEqual({ valid: false })
+    }
   })
 })
 

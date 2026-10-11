@@ -3077,7 +3077,9 @@ describe('scene canvas runtime', () => {
 
     events.pointerDown({ x: 10, y: 10 })
     events.pointerMove({ x: 20, y: 10 })
+    // The press adds the row's second point; Enter (the canvas keyboard's confirm) plants it (U58).
     events.pointerDown({ x: 20, y: 10 })
+    expect(runtime.keyboardPort!.command({ kind: 'confirm' })).toBe(true)
 
     expect(runtime.querySurface.getSceneSnapshot().plants).toHaveLength(4)
     expect(runtime.querySurface.getSceneSnapshot().plants.slice(2).map((plant) => plant.pinnedName)).toEqual([false, false])

@@ -7,6 +7,9 @@
 :root {
   /* Stacking scale. Popups portal to <body>, so a menu opened inside a dialog
      must sit above every dialog and full-window surface. */
+  /* The tool card floats over the map chrome it shares a corner with (the inspection lens, the rails: 30) and under
+     the dock (32), the selection chip (34), the top chip slot (35) and the phone sheet (36). */
+  --z-canvas-tool-card: 31;
   --z-full-window: 900;
   --z-toast: 950;
   --z-dialog: 1000;

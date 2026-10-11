@@ -156,7 +156,13 @@
       "interval": "间距",
       "generatedCount": "已生成 {{count}}",
       "commitLimitWarning": "增大间距或缩短线段",
-      "dragAlong": "沿着这一行拖动"
+      "dragAlong": "沿着这一行拖动",
+      "mode": "间距方式",
+      "modeInterval": "间距",
+      "modeCount": "株数",
+      "count": "这一行的株数",
+      "loopSpacing": "等间距",
+      "length": "长度"
     },
     "contextMenu": {
       "ariaLabel": "画布编辑命令",
@@ -795,7 +801,13 @@
       "recent": "最近",
       "openCatalog": "打开完整目录",
       "noSpecies": "这里还没有物种。",
-      "noMatch": "没有与“{{query}}”匹配的物种。"
+      "noMatch": "没有与“{{query}}”匹配的物种。",
+      "escRemovePoint": "Esc 删除最后一个点",
+      "pathInstruction": "点击添加点，按 Enter 种植",
+      "pathTouchInstruction": "轻点添加点，双击种植",
+      "pathKeys": "Alt 放置尖角点 · Shift 保持 45° 角 · {{mod}} 关闭吸附",
+      "pathTouchHint": "拖动点以移动 · 拖动标记以添加点 · 长按点查看更多",
+      "pathFinish": "种下这一行"
     },
     "placePreview": {
       "nearest": "距 {{name}} {{distance}}",
@@ -817,6 +829,10 @@
       "hint": "留空则以类型和大小命名该区域。",
       "cancel": "取消",
       "rename": "重命名"
+    },
+    "plantRow": {
+      "point": "行上的点 {{index}}",
+      "dot": "在行段 {{index}} 上添加点"
     }
   },
   "worldMap": {

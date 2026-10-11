@@ -45,3 +45,18 @@ function formatMetricLength(meters: number): string {
 function formatDecimal(value: number): string {
   return Number(value.toFixed(3)).toString()
 }
+
+/** The most plants "N plants" may ask for, the picked one counted (the stored row's count, 2..=5000). */
+const PLANT_ROW_MAX_COUNT = 5_000
+
+type PlantRowCountParseResult =
+  | { valid: true; count: number }
+  | { valid: false }
+
+/** Plant a row's "N plants" field: a whole number of plants from 2 to 5000, the picked plant counted. */
+export function parsePlantRowCountInput(input: string): PlantRowCountParseResult {
+  const trimmed = input.trim()
+  if (!/^\d+$/.test(trimmed)) return { valid: false }
+  const count = Number(trimmed)
+  return count >= 2 && count <= PLANT_ROW_MAX_COUNT ? { valid: true, count } : { valid: false }
+}

@@ -70,6 +70,29 @@ describe('floating chrome layering', () => {
     }
   })
 
+  it('stacks the tool card above the inspection lens and the rails beside it, under the dock, chips and phone sheet (U58)', () => {
+    const toolCard = classZIndex('components/canvas/ToolCard.module.css', 'card')
+    // Through the stacking scale: the card's layer is a token, not a number of its own.
+    expect(ruleBody('components/canvas/ToolCard.module.css', '.card')).toMatch(/z-index:\s*var\(--z-canvas-tool-card\)/)
+    // The lens's launcher and panel share one rule.
+    const lens = /\.launcher,\s*\.panel\s*\{[^}]*z-index:\s*(\d+)/.exec(readCssSource('components/canvas/InspectionLens.module.css'))
+    expect(toolCard).toBeGreaterThan(Number(lens?.[1]))
+    for (const [file, name] of [
+      ['components/canvas/ToolRail.module.css', 'rail'],
+      ['components/canvas/ZoomControls.module.css', 'group'],
+    ] as const) {
+      expect(toolCard).toBeGreaterThan(classZIndex(file, name))
+    }
+    for (const [file, name] of [
+      ['components/shared/SidePanelDock.module.css', 'dock'],
+      ['components/canvas/SelectionChip.module.css', 'chip'],
+      ['components/canvas/SpeciesFocusChip.module.css', 'topSlot'],
+      ['components/shared/PhoneSheet.module.css', 'sheet'],
+    ] as const) {
+      expect(classZIndex(file, name)).toBeGreaterThan(toolCard)
+    }
+  })
+
   it('keeps plant styling popovers above the rail that opens them', () => {
     expect(classZIndex('components/canvas/appearance.module.css', 'menu'))
       .toBeGreaterThan(classZIndex('components/canvas/ToolRail.module.css', 'rail'))

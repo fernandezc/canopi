@@ -20,6 +20,14 @@ import {
 import { setCurrentCanvasSession } from '../canvas/session'
 import { SidePanelDock } from '../components/shared/SidePanelDock'
 import { InspectionLens } from '../components/canvas/InspectionLens'
+import { ToolCard } from '../components/canvas/ToolCard'
+import { phoneLayout } from '../app/shell/phone-layout'
+import {
+  IDLE_CANVAS_TOOL_GUIDANCE,
+  setCanvasTool,
+  setCanvasToolGuidance,
+  type CanvasPlantRowGuidance,
+} from '../canvas/session-state'
 import type { CanvasInspectionHandle } from '../canvas/inspection'
 import { framingRect } from '../canvas/runtime/view/fit'
 import type { ScenePersistedState } from '../canvas/runtime/scene'
@@ -375,6 +383,58 @@ describe('visible map area', () => {
       releaseRight()
       releaseRail()
       releaseArea()
+    }
+  })
+
+  it.each([
+    // Beside the tool rail, under the title bar: Plant a row's card, grown by its fields and foot, covers the left edge.
+    { name: 'beside the rail', phone: null, map: WINDOW, box: { left: 248, top: 72, width: 320, height: 260 }, edge: 'left', cover: 248 + 320 },
+    // A phone held upright: the card runs nearly the map's width under the top bar, so it covers the top edge.
+    { name: 'on a phone held upright', phone: 'portrait', map: { left: 0, top: 0, width: 390, height: 844 }, box: { left: 68, top: 60, width: 214, height: 300 }, edge: 'top', cover: 60 + 300 },
+  ] as const)('the tool card holding a row registers $name, so Fit, framing and the chips avoid it (answer 15)', async ({ phone, map, box, edge, cover }) => {
+    const surfaces = createTestCanvasRuntimeSurfaces()
+    const setFramingInsets = vi.spyOn(surfaces.commands.viewport, 'setFramingInsets')
+    setCurrentCanvasSession(surfaces)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute('data-tool-card')) return rect(box)
+      return rect(boxes.get(this) ?? { left: 0, top: 0, width: 0, height: 0 })
+    })
+    const area = element(map)
+    const releaseArea = registerMapArea(area)
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const row: CanvasPlantRowGuidance = {
+      phase: 'row', plantName: 'Apple', glyph: { symbol: 'berry', color: '#ab5268' }, interval: '2 m', intervalValid: true,
+      count: 5, density: 'normal', focusRequest: 0, points: 2, mode: 'interval', length: '10 m',
+    }
+    try {
+      phoneLayout.value = phone
+      await act(async () => render(<ToolCard />, container))
+      // The Select card, which every Design opens with, leaves the framing to the rails.
+      expect(container.querySelector('[data-tool-card="select"]')).not.toBeNull()
+      expect(visibleMapFrame.value[edge]).toBe(0)
+
+      await act(async () => {
+        setCanvasTool('plant-spacing')
+        setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, gesture: true, plantRow: row })
+      })
+      expect(visibleMapFrame.value[edge]).toBe(cover)
+      expect(area.style.getPropertyValue(`--map-inset-${edge}`)).toBe(`${cover}px`)
+      expect(setFramingInsets).toHaveBeenLastCalledWith(expect.objectContaining({ [edge]: cover }))
+
+      // Back to Select: the room comes back.
+      await act(async () => {
+        setCanvasTool('select')
+        setCanvasToolGuidance(IDLE_CANVAS_TOOL_GUIDANCE)
+      })
+      expect(visibleMapFrame.value[edge]).toBe(0)
+    } finally {
+      render(null, container)
+      container.remove()
+      releaseArea()
+      phoneLayout.value = null
+      setCanvasTool('select')
+      setCanvasToolGuidance(IDLE_CANVAS_TOOL_GUIDANCE)
     }
   })
 

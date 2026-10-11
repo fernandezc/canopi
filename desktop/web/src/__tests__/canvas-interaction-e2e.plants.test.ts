@@ -718,6 +718,36 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  it('plants a drawn row from the tool card: its mode switch counts the picked plant and its check button plants (U58)', () => {
+    plantSpacingIntervalM.value = 2
+    testView.setViewport({ x: 0, y: 0, scale: 10 })
+    store.updatePersisted((draft) => {
+      draft.plants = [makePlant('source', 'Malus domestica', { x: 2, y: 4 })]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('plant-spacing')
+    events.pointerDown({ x: 20, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 20, y: 40 }, { button: 0 })
+    events.pointerDown({ x: 100, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 100, y: 40 }, { button: 0 })
+    expect(store.persisted.plants).toHaveLength(1)
+
+    const card = toolCard()!
+    const plants = card.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!
+    plants.click()
+    const count = toolCard()!.querySelector<HTMLInputElement>('[data-plant-row-count-input]')!
+    count.value = '3'
+    count.dispatchEvent(new Event('input', { bubbles: true }))
+    count.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    expect(plantSpacingIntervalM.value, 'a count never becomes the device interval').toBe(2)
+
+    toolCard()!.querySelector<HTMLButtonElement>('[data-plant-row-finish]')!.click()
+    expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([{ x: 6, y: 4 }, { x: 10, y: 4 }])
+    expect(toolCard()!.querySelector('[data-plant-row-finish]')).toBeNull()
+    session.dispose()
+  })
+
   it('snaps Plant Spacing endpoint before computing preview and commit positions', () => {
     plantSpacingIntervalM.value = 2
     snapToGridEnabled.value = true
@@ -746,7 +776,9 @@ describe('SceneInteractionSession', () => {
 
     expect(draftShapes('ghost')).toHaveLength(2)
 
+    // The press adds the row's second point; Enter plants it (U58).
     events.pointerDown({ x: 51, y: 40 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([
       { x: 4, y: 4 },
       { x: 6, y: 4 },
@@ -787,6 +819,7 @@ describe('SceneInteractionSession', () => {
     expect(draftShapes('ghost')).toHaveLength(xs.length)
 
     events.pointerDown({ x: 71, y: 52 }, { button: 0, shiftKey: true })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position.y)).toEqual(xs.map(() => 4))
     expect(store.persisted.plants.slice(1).map((plant) => plant.position.x)).toEqual(xs)
     session.dispose()
@@ -819,6 +852,7 @@ describe('SceneInteractionSession', () => {
     expect(rowLength()).toBe('380 m')
 
     events.pointerDown({ x: 500, y: 30 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
     expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([
       { x: 120, y: 30 },
       { x: 220, y: 30 },

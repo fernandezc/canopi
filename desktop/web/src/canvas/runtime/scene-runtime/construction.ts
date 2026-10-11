@@ -11,6 +11,7 @@ import { SceneCanvasInspectionOwner } from '../inspection-lens'
 import type { ToolId } from '../interaction-types'
 import type {
   CanvasCommandSurface,
+  CanvasPlantRowPathCommands,
   CanvasPlantRowSpacingField,
   CanvasQueryRevision,
 } from '../runtime'
@@ -82,6 +83,7 @@ export interface SceneRuntimeConstructionCallbacks {
   readonly setInteractionTool: (id: ToolId) => void
   readonly readInteractionTool: () => ToolId | null
   readonly plantRowSpacing: CanvasPlantRowSpacingField
+  readonly plantRowPath: CanvasPlantRowPathCommands
   readonly disposeInteraction: () => void
   /** The interaction session's re-origin hold (ToolHost.holdsReorigin); false with no session mounted. */
   readonly holdsReorigin: () => boolean
@@ -328,6 +330,7 @@ export function createSceneRuntimeConstruction(
     setInteractionTool: callbacks.setInteractionTool,
     readInteractionTool: callbacks.readInteractionTool,
     plantRowSpacing: callbacks.plantRowSpacing,
+    plantRowPath: callbacks.plantRowPath,
     invalidate: callbacks.invalidate,
     isRuntimeActive: () => runtimeActive,
     isSpatialEditingEnabled: () => cameraHost.frames.viewFrame.peek().mode === 'site',

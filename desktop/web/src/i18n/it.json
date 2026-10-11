@@ -156,7 +156,13 @@
       "interval": "Intervallo",
       "generatedCount": "{{count}} generate",
       "commitLimitWarning": "Aumenta l’intervallo o accorcia la linea",
-      "dragAlong": "trascina lungo la fila"
+      "dragAlong": "trascina lungo la fila",
+      "mode": "Spaziatura",
+      "modeInterval": "Intervallo",
+      "modeCount": "Piante",
+      "count": "Piante nel filare",
+      "loopSpacing": "Spazi uguali di",
+      "length": "Lunghezza"
     },
     "contextMenu": {
       "ariaLabel": "Comandi di modifica della tela",
@@ -795,7 +801,13 @@
       "recent": "Recenti",
       "openCatalog": "Apri il catalogo completo",
       "noSpecies": "Ancora nessuna specie qui.",
-      "noMatch": "Nessuna specie corrisponde a «{{query}}»."
+      "noMatch": "Nessuna specie corrisponde a «{{query}}».",
+      "escRemovePoint": "Esc rimuove l’ultimo punto",
+      "pathInstruction": "fai clic per aggiungere punti, Invio pianta",
+      "pathTouchInstruction": "tocca per aggiungere punti, un doppio tocco pianta",
+      "pathKeys": "Alt mette un punto ad angolo vivo · Maiusc mantiene angoli di 45° · {{mod}} disattiva l’aggancio",
+      "pathTouchHint": "Trascina un punto per spostarlo · trascina un indicatore per aggiungerne uno · tieni premuto un punto per altro",
+      "pathFinish": "Pianta il filare"
     },
     "placePreview": {
       "nearest": "{{distance}} da {{name}}",
@@ -817,6 +829,10 @@
       "hint": "Lascia vuoto per indicare la zona con tipo e dimensioni.",
       "cancel": "Annulla",
       "rename": "Rinomina"
+    },
+    "plantRow": {
+      "point": "Punto del filare {{index}}",
+      "dot": "Aggiungi un punto sul tratto {{index}} del filare"
     }
   },
   "worldMap": {

@@ -156,7 +156,13 @@
       "interval": "Interval",
       "generatedCount": "{{count}} gegenereerd",
       "commitLimitWarning": "Vergroot het interval of verkort de lijn",
-      "dragAlong": "sleep langs de rij"
+      "dragAlong": "sleep langs de rij",
+      "mode": "Afstand",
+      "modeInterval": "Interval",
+      "modeCount": "Planten",
+      "count": "Planten in de rij",
+      "loopSpacing": "Gelijke afstanden van",
+      "length": "Lengte"
     },
     "contextMenu": {
       "ariaLabel": "Canvasbewerkingsopdrachten",
@@ -795,7 +801,13 @@
       "recent": "Recent",
       "openCatalog": "De volledige catalogus openen",
       "noSpecies": "Nog geen soorten hier.",
-      "noMatch": "Geen soorten komen overeen met ‘{{query}}’."
+      "noMatch": "Geen soorten komen overeen met ‘{{query}}’.",
+      "escRemovePoint": "Esc verwijdert het laatste punt",
+      "pathInstruction": "klik om punten toe te voegen, Enter plant",
+      "pathTouchInstruction": "tik om punten toe te voegen, dubbeltikken plant",
+      "pathKeys": "Alt plaatst een scherp punt · Shift houdt hoeken van 45° · {{mod}} zet uitlijnen uit",
+      "pathTouchHint": "Sleep een punt om het te verplaatsen · sleep een stip om er een toe te voegen · houd een punt ingedrukt voor meer",
+      "pathFinish": "Rij planten"
     },
     "placePreview": {
       "nearest": "{{distance}} tot {{name}}",
@@ -817,6 +829,10 @@
       "hint": "Laat leeg om de zone naar type en grootte te noemen.",
       "cancel": "Annuleren",
       "rename": "Hernoemen"
+    },
+    "plantRow": {
+      "point": "Rijpunt {{index}}",
+      "dot": "Punt toevoegen op rijsegment {{index}}"
     }
   },
   "worldMap": {

@@ -156,7 +156,13 @@
       "interval": "간격",
       "generatedCount": "{{count}}개 생성",
       "commitLimitWarning": "간격을 늘리거나 선을 줄이세요",
-      "dragAlong": "줄을 따라 드래그"
+      "dragAlong": "줄을 따라 드래그",
+      "mode": "간격 방식",
+      "modeInterval": "간격",
+      "modeCount": "그루 수",
+      "count": "줄의 그루 수",
+      "loopSpacing": "같은 간격",
+      "length": "길이"
     },
     "contextMenu": {
       "ariaLabel": "캔버스 편집 명령",
@@ -795,7 +801,13 @@
       "recent": "최근",
       "openCatalog": "전체 카탈로그 열기",
       "noSpecies": "아직 종이 없습니다.",
-      "noMatch": "“{{query}}”와 일치하는 종이 없습니다."
+      "noMatch": "“{{query}}”와 일치하는 종이 없습니다.",
+      "escRemovePoint": "Esc로 마지막 점 제거",
+      "pathInstruction": "클릭해 점을 추가하고 Enter로 심기",
+      "pathTouchInstruction": "탭해 점을 추가하고 두 번 탭해 심기",
+      "pathKeys": "Alt로 뾰족한 점 놓기 · Shift로 45° 유지 · {{mod}}로 맞춤 끄기",
+      "pathTouchHint": "점을 끌어 옮기기 · 표시를 끌어 점 추가 · 점을 길게 눌러 더 보기",
+      "pathFinish": "줄 심기"
     },
     "placePreview": {
       "nearest": "{{name}}까지 {{distance}}",
@@ -817,6 +829,10 @@
       "hint": "비워 두면 구역이 종류와 크기로 표시됩니다.",
       "cancel": "취소",
       "rename": "이름 바꾸기"
+    },
+    "plantRow": {
+      "point": "줄의 점 {{index}}",
+      "dot": "줄 구간 {{index}}에 점 추가"
     }
   },
   "worldMap": {
