@@ -204,7 +204,16 @@ async function expectCardClear(page: Page, layout: Layout, locale: string, stage
     }
   }
   // Holding a row the card registers with the visible-map-area seam, so the map notice stands beside it, or below it
-  // on a phone held upright (the overlap checks above); its bottom is above the framing chrome.
+  // on a phone held upright (the overlap checks above); its bottom is above the framing chrome. Beside the card the
+  // notice still clears the zoom group, which a phone places from the visible map instead of registering, and its Retry
+  // takes the tap at its centre.
+  const notice = page.locator('[data-map-notice]')
+  await expect(notice, `${where}: offline, the map notice shows`).toBeVisible()
+  const noticeBox = await boxOf(notice)
+  for (const box of await shownBoxes(page, '[data-zoom-group]')) {
+    expect(overlap(noticeBox, box), `${where}: the map notice clears the zoom group`).toBe(false)
+  }
+  await expectHitAtCentre(notice.locator('button'), `${where}: the map notice's Retry`)
   const frame = await framingBottom(page)
   expect(cardBox.y + cardBox.height, `${where}: the card's bottom is inside the visible map`).toBeLessThanOrEqual(frame + 0.5)
   const finish = card(page).locator('[data-plant-row-finish]')
