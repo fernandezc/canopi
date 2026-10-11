@@ -88,6 +88,7 @@ function build(
     readonly characterKeyShortcuts?: boolean
     readonly turnViewToEdge?: () => void
     readonly finishShape?: () => void
+    readonly pointActions?: CanvasContextMenuRequest['pointActions']
     readonly profileLine?: CanvasContextMenuEntryOptions['profileLine']
     /** The re-origin hold at the open (U39). */
     readonly held?: boolean
@@ -107,6 +108,7 @@ function build(
     placePlantsAt: vi.fn(),
     ...(options.turnViewToEdge ? { turnViewToEdge: options.turnViewToEdge } : {}),
     ...(options.finishShape ? { finishShape: options.finishShape } : {}),
+    ...(options.pointActions ? { pointActions: options.pointActions } : {}),
     ...(options.held ? { holdsSelectionDeletes: true as const } : {}),
     returnFocus: options.returnFocus ?? vi.fn(),
   }
@@ -277,6 +279,31 @@ describe('canvas context menu entries', () => {
 
     expect(ids(build(ONE_ZONE, { finishShape }).entries).slice(0, 2)).toEqual(['finish-shape', '—'])
     expect(ids(build(null).entries)).not.toContain('finish-shape')
+  })
+
+  it('a point menu is its point entries only, after Finish shape while drafting; a refused entry does nothing (A16)', () => {
+    const remove = vi.fn()
+    const sharpen = vi.fn()
+    const corner = build(null, { pointActions: [{ action: 'delete-point', disabled: false, run: remove }], turnViewToEdge: vi.fn() }).entries
+    expect(ids(corner)).toEqual(['delete-point'])
+    expect(item(corner, 'delete-point')).toMatchObject({ label: 'Delete point', disabled: false })
+    item(corner, 'delete-point').run()
+    expect(remove).toHaveBeenCalledOnce()
+
+    const finishShape = vi.fn()
+    const rowPoint = build(TWO_APPLES, {
+      finishShape,
+      pointActions: [{ action: 'delete-point', disabled: true, run: remove }, { action: 'sharp-corner', disabled: false, run: sharpen }],
+    }).entries
+    expect(ids(rowPoint)).toEqual(['finish-shape', '—', 'delete-point', 'sharp-corner'])
+    expect(item(rowPoint, 'sharp-corner')).toMatchObject({ label: 'Sharp corner', disabled: false })
+    item(rowPoint, 'delete-point').run()
+    expect(remove).toHaveBeenCalledOnce()
+    item(rowPoint, 'sharp-corner').run()
+    expect(sharpen).toHaveBeenCalledOnce()
+
+    const smooth = build(null, { pointActions: [{ action: 'smooth-corner', disabled: false, run: vi.fn() }] }).entries
+    expect(item(smooth, 'smooth-corner').label).toBe('Smooth corner')
   })
 
   it('keeps inapplicable commands visible but disabled, and running them does nothing', () => {

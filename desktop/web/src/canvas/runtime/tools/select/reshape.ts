@@ -140,6 +140,11 @@ export function isPolygonCorner(controlPoint: ZoneControlPoint): boolean {
   return controlPoint.kind === 'polygon-vertex'
 }
 
+/** True while the polygon has a corner to spare: a polygon keeps at least 3 (its area rule may still refuse one). */
+export function canRemovePolygonCorner(zone: SceneZoneEntity): boolean {
+  return zone.zoneType === 'polygon' && zone.points.length > MIN_POLYGON_CORNERS
+}
+
 /** Adds a corner to the polygon on edge `edgeIndex`, at the point of the edge nearest `at`, as one undo step. */
 export function addPolygonCorner(ctx: ToolContext, zoneId: string, edgeIndex: number, at: WorldPoint): void {
   editPolygon(ctx, zoneId, (points) => {

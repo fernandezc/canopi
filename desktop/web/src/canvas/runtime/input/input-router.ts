@@ -43,7 +43,7 @@ export function createInputRouter(deps: InputRouterDeps): InputRouter {
           rotation = null
           return NOTHING
         case 'menu-request':
-          return deps.toolHost.menuAt(g.at, g.source)
+          return deps.toolHost.menuAt(g.at, g.source, g.handle)
         case 'hover':
         case 'hover-end':
         case 'press':

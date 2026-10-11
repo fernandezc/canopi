@@ -1,5 +1,6 @@
 import type { ReadonlySignal } from '@preact/signals'
 import type { CanopiFile } from '../../types/design'
+import type { PointAction } from '../point-editor/rules'
 import { FALLBACK_PLANT_SPACING_INTERVAL_M } from '../plant-spacing-interval'
 import type {
   CanvasPlantLabelSource,
@@ -72,6 +73,14 @@ export interface CanvasContextMenuAnchor {
   readonly bottom: number
 }
 
+/** One entry of a point menu: what it does to the point, whether the point refuses it (Delete point below the minimum),
+ *  and its run, which sends the tool a `point-action` for that point while the tool is still armed. */
+export interface CanvasContextMenuPointAction {
+  readonly action: PointAction
+  readonly disabled: boolean
+  run(): void
+}
+
 export interface CanvasContextMenuRequest {
   /** The menu opens below and right of this rectangle, flipping to stay in view. */
   readonly anchor: CanvasContextMenuAnchor
@@ -106,6 +115,12 @@ export interface CanvasContextMenuRequest {
    * admission refuses Delete and Ctrl+X then.
    */
   readonly holdsSelectionDeletes?: true
+  /**
+   * The point menu (A16): present when the menu opened on a point the armed tool edits (a zone's corner under Select, a
+   * row's point). The menu is then these entries only, after Finish shape while the draft can finish; `selection` is
+   * null and the selection's commands are not offered.
+   */
+  readonly pointActions?: readonly CanvasContextMenuPointAction[]
   /** Gives keyboard focus back to the map. */
   returnFocus(): void
   /**

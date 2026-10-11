@@ -289,7 +289,7 @@ test.fail('(canopi-f47t.54, Z) Esc removes the last polygon point, steps back to
   await expect(undo(page), 'stepping back edits nothing').toBeDisabled()
 })
 
-test.fail('(canopi-f47t.54, Z) right-click on a zone corner opens a menu of Delete point only, which deletes it in one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, Z) right-click on a zone corner opens a menu of Delete point only, which deletes it in one Undo step', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
   await (await firstCorner(page)).click({ button: 'right' })
@@ -320,7 +320,7 @@ test.describe('long press', () => {
     expect((await nativeMenus(page)).every((menu) => menu.prevented), 'the native menu stays shut').toBe(true)
   })
 
-  test.fail('(canopi-f47t.54, Z) a long press on a zone corner opens the point menu (Chromium)', async ({ page }) => {
+  test('(canopi-f47t.54, Z) a long press on a zone corner opens the point menu (Chromium)', async ({ page }) => {
     await openBase(page)
     const fingers = await Fingers.of(page)
     await fingers.tap(POLYGON_EDGE)
@@ -333,7 +333,7 @@ test.describe('long press', () => {
   })
 })
 
-test.fail('(canopi-f47t.54, Z) Shift+F10 on a focused zone corner opens the point menu', async ({ page }) => {
+test('(canopi-f47t.54, Z) Shift+F10 on a focused zone corner opens the point menu', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
   await (await firstCorner(page)).focus()

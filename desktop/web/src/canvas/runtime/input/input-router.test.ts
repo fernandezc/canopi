@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { GestureOutcome, InputRouterDeps, ToolHost } from '../interaction-ports'
+import type { ToolHandleId } from '../interaction-types'
 import type { RotationSession } from '../view/read-surface'
 import type { Gesture } from './gestures'
 import { createInputRouter } from './input-router'
@@ -83,7 +84,18 @@ describe('createInputRouter', () => {
     const { router, menuAt } = harness(outcome)
     expect(router.route(EDITING_GESTURES[2]!)).toBe(outcome)
     expect(router.route({ kind: 'menu-request', at: 'selection', source: 'keyboard' })).toBe(outcome)
-    expect(menuAt).toHaveBeenCalledWith('selection', 'keyboard')
+    expect(menuAt).toHaveBeenCalledWith('selection', 'keyboard', undefined)
+  })
+
+  it('a menu request carries its pressed handle to the host (A16)', () => {
+    const { router, menuAt, gesture } = harness()
+    router.route({ kind: 'menu-request', at: { x: 4, y: 5 }, source: 'mouse', handle: 'vertex:z1:2' as ToolHandleId })
+    router.route({ kind: 'menu-request', at: { x: 6, y: 7 }, source: 'long-press' })
+    expect(menuAt.mock.calls).toEqual([
+      [{ x: 4, y: 5 }, 'mouse', 'vertex:z1:2'],
+      [{ x: 6, y: 7 }, 'long-press', undefined],
+    ])
+    expect(gesture).not.toHaveBeenCalled()
   })
 
   it('a rotate cancel restores through its session, and a new start cancels a stale one', () => {

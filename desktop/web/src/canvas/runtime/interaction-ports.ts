@@ -2,7 +2,7 @@
 
 import type { ReadonlySignal } from '@preact/signals'
 import type { CanvasToolGuidance } from '../session-state'
-import type { CanvasFocusPort } from './app-adapter'
+import type { CanvasContextMenuPointAction, CanvasFocusPort } from './app-adapter'
 import type { Gesture, MenuSource } from './input/gestures'
 import type { InputPlatform } from './input/platform'
 import type { AdapterEffect, RawInput, TargetClass } from './input/raw-input'
@@ -60,7 +60,8 @@ export interface DomInputSource {
  * app's CanvasContextMenuRequest (canvas/runtime/app-adapter.ts: anchor, world, retargeted selection, commands,
  * placePlantsAt, saveSelectionAsObjectStamp, returnFocus) and hands it to CanvasRuntimeAppAdapter.contextMenu.
  * The host fills the optional entries from its hit and tool state, and the controller carries them onto the request
- * (CanvasContextMenuRequest.finishShape, .turnViewToEdge, .holdsSelectionDeletes); there is no highlightEdge (U4).
+ * (CanvasContextMenuRequest.finishShape, .turnViewToEdge, .holdsSelectionDeletes, .pointActions); there is no
+ * highlightEdge (U4).
  */
 export interface ContextMenuPort {
   open(request: {
@@ -69,6 +70,7 @@ export interface ContextMenuPort {
     readonly finishShape?: () => void                           // the armed tool can finish its draft (CanvasTool.canFinish)
     readonly turnViewToEdge?: () => void                        // a zone-edge hit within the source's tolerance (§4.16)
     readonly holdsSelectionDeletes?: true                       // the host's re-origin hold at the open: Cut and Delete disabled (U39)
+    readonly pointActions?: readonly CanvasContextMenuPointAction[]   // the point menu (A16): these entries only, after Finish shape
   }): void
   close(): void
   readonly isOpen: () => boolean
@@ -174,8 +176,10 @@ export interface ToolHost {
   /** Editing gestures, hovers and drops (drops go to the host's shared drop handler, whatever tool is armed); converts to world at event time. */
   gesture(g: Gesture): GestureOutcome
   command(c: ToolCommand): ToolReply
-  /** Hits, retargets and opens the canvas menu through ToolHostDeps.menu; quarantines a menu the scene does not admit. */
-  menuAt(at: ScreenPoint | 'selection', source: MenuSource): GestureOutcome
+  /** Hits, retargets and opens the canvas menu through ToolHostDeps.menu; quarantines a menu the scene does not admit.
+   *  `handle`: the handle the menu's press landed on (the keyboard menu reads the focused one); when the armed tool answers
+   *  CanvasTool.pointMenu for it, the point menu opens there instead, retargeting nothing (A16). */
+  menuAt(at: ScreenPoint | 'selection', source: MenuSource, handle?: ToolHandleId): GestureOutcome
   setTool(id: ToolId, source: ToolSource | null): void
   /** A new source for the armed tool (the session's read-model bridge): forwards to CanvasTool.sourceChanged. */
   sourceChanged(source: ToolSource | null): void
