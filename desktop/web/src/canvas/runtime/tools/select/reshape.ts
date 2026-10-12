@@ -4,11 +4,13 @@
 // axis ends ('vertex'), as ToolHandle data the host shows through the handle layer, and the geometry of dragging one
 // (a 0.5 m minimum side, a 0.25 m² minimum polygon area), sized for the last pointer (handle-size.ts). The drag itself is
 // point-handle.ts's, edit type 'interaction-zone-control-point'. A polygon also shows a fainter midpoint dot on each edge
-// long enough on screen to keep free outline beside it ('edge-mid'), and its corners are added (in place, or by a dot's
+// long enough on screen to keep free outline beside it ('edge-mid'; point-editor/layout.ts's room rule and dot handle,
+// a row's too), and its corners are added (in place, or by a dot's
 // drag, zoneCornerInsertSubject) and removed here (edit type 'interaction-zone-corner'), keeping at least 3; rectangles, ellipses
 // and lines keep their own reshape. Each handle's label is translated ('canvas.zoneControlPoint.label',
 // 'canvas.zoneEdgeMidpoint.label').
 
+import { dotsWithRoom } from '../../../point-editor/layout'
 import type { ToolHandleId } from '../../interaction-types'
 import type { CanvasDesignObjectSelectionModel } from '../../runtime'
 import { singleEditableTarget } from '../../scene-runtime/selection'
@@ -103,37 +105,25 @@ export interface ZoneEdgeMidpoint {
   readonly id: ToolHandleId
   readonly zoneId: string
   readonly edgeIndex: number
-  readonly world: WorldPoint
+  /** The edge's ends and its middle, where the dot sits. */
+  readonly from: WorldPoint
+  readonly to: WorldPoint
+  readonly anchor: WorldPoint
 }
 
-/** A polygon's edge midpoints in `view`, edge i running from corner i to the next, each on an edge of at least
- *  `size.minMidpointEdgePx` on screen; none for other zones. */
+/** A polygon's edge midpoints in `view`, edge i running from corner i to the next, each on an edge with room for a dot
+ *  on screen (point-editor/layout.ts, the rule a row's dots follow); none for other zones. */
 export function zoneEdgeMidpoints(
   zone: SceneZoneEntity,
   view: Pick<ToolView, 'screenDistance'>,
   size: HandleSize,
 ): ZoneEdgeMidpoint[] {
   if (zone.zoneType !== 'polygon' || zone.points.length < MIN_POLYGON_CORNERS) return []
-  return zone.points.flatMap((start, edgeIndex) => {
-    const end = zone.points[(edgeIndex + 1) % zone.points.length]!
-    if (view.screenDistance(start, end) < size.minMidpointEdgePx) return []
-    return [{ id: `edge-mid:${zone.id}:${edgeIndex}` as ToolHandleId, zoneId: zone.id, edgeIndex, world: midpoint(start, end) }]
+  const edges = zone.points.map((from, edgeIndex) => {
+    const to = zone.points[(edgeIndex + 1) % zone.points.length]!
+    return { id: `edge-mid:${zone.id}:${edgeIndex}` as ToolHandleId, zoneId: zone.id, edgeIndex, from, to, anchor: midpoint(from, to) }
   })
-}
-
-/** The handles the host draws for `midpoints`. */
-export function zoneEdgeMidpointHandles(
-  midpoints: readonly ZoneEdgeMidpoint[],
-  size: HandleSize,
-  translate: ToolContext['translate'],
-): ToolHandle[] {
-  return midpoints.map((entry) => ({
-    id: entry.id,
-    anchor: entry.world,
-    hitRadiusPx: size.midpointRadiusPx,
-    glyph: 'midpoint',
-    label: translate('canvas.zoneEdgeMidpoint.label', { index: entry.edgeIndex + 1 }),
-  }))
+  return dotsWithRoom(edges, (a, b) => view.screenDistance(a, b), size)
 }
 
 /** True when `controlPoint` is a polygon's corner, which can be removed. */

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { PathPoints } from '../plant-path/curve'
 import { handleSizeFor } from '../runtime/tools/select/handle-size'
 import type { WorldPoint } from '../runtime/view/types'
-import { dotHandles, parsePointHandle, pointHandles } from './layout'
+import type { ToolHandleId } from '../runtime/interaction-types'
+import { dotHandle, dotHandles, dotsWithRoom, parsePointHandle, pointHandles } from './layout'
 
 const square: PathPoints = {
   points: [
@@ -54,6 +55,18 @@ describe('point and dot handles', () => {
     expect(dotHandles('row', square, scale(10), handleSizeFor('touch'), label)).toHaveLength(0)
     expect(dotHandles('row', square, scale(13.2), handleSizeFor('touch'), label)).toHaveLength(3)
     expect(dotHandles('row', { points: square.points.slice(0, 1), closed: false }, tenPxPerMetre, handleSizeFor('mouse'), label)).toEqual([])
+  })
+
+  it('lays out any owner\'s dots by the same room rule and handle, a zone\'s straight edges included', () => {
+    const edge = (index: number, from: WorldPoint, to: WorldPoint) => ({
+      id: `edge-mid:zone:${index}` as ToolHandleId, from, to, anchor: { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }, index,
+    })
+    const edges = [edge(0, { x: 0, y: 0 }, { x: 10, y: 0 }), edge(1, { x: 10, y: 0 }, { x: 10, y: 4 })]
+    const shown = dotsWithRoom(edges, tenPxPerMetre, handleSizeFor('mouse'))
+    expect(shown.map((dot) => dot.index), 'a 40 px edge has no room for a mouse\'s dot').toEqual([0])
+    expect(dotHandle(shown[0]!, handleSizeFor('touch'), 'Edge 1')).toEqual({
+      id: 'edge-mid:zone:0', anchor: { x: 5, y: 0 }, hitRadiusPx: handleSizeFor('touch').midpointRadiusPx, glyph: 'midpoint', label: 'Edge 1',
+    })
   })
 
   it('reads a point or dot handle id back', () => {

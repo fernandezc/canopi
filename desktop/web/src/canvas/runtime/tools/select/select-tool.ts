@@ -12,7 +12,7 @@
 
 import { segmentMidpoints, type PathPoints } from '../../../plant-path/curve'
 import { insertAfter, removePoint, setSharp } from '../../../point-editor/anchors'
-import { parsePointHandle, pointHandleId } from '../../../point-editor/layout'
+import { dotHandle, parsePointHandle, pointHandleId } from '../../../point-editor/layout'
 import { pointMenuItems, pointPressIntent, type PointAction, type PointMenuItem } from '../../../point-editor/rules'
 import type { PointerKind, ToolHandleId } from '../../interaction-types'
 import type { SceneDesignObjectTarget } from '../../scene/design-object-targets'
@@ -35,7 +35,6 @@ import {
   zoneControlPointHandles,
   zoneControlPoints,
   zoneCornerInsertSubject,
-  zoneEdgeMidpointHandles,
   zoneEdgeMidpoints,
   zoneReshapeSubject,
   type ZoneControlPoint,
@@ -143,7 +142,8 @@ export function createSelectTool(): CanvasTool {
     reshapePoints = new Map(points.map((entry) => [entry.id, entry]))
     handles.push(...zoneControlPointHandles(points, size, c.translate))
     edgeMidpoints = new Map(midpoints.map((entry) => [entry.id, entry]))
-    handles.push(...zoneEdgeMidpointHandles(midpoints, size, c.translate))
+    handles.push(...midpoints.map((dot) =>
+      dotHandle(dot, size, c.translate('canvas.zoneEdgeMidpoint.label', { index: dot.edgeIndex + 1 }))))
     const guide = draggableGuide(scene, selection)
     const ends = guide ? guideEnds(guide) : []
     guideEndPoints = new Map(ends.map((entry) => [entry.id, entry]))
@@ -336,7 +336,7 @@ export function createSelectTool(): CanvasTool {
     if (edgeMidpoint) {
       const intent = pointPressIntent({ role: 'dot', clickCount: g.clickCount, alt: start.modifiers.subtractive, isLastDraftPoint: false })
       const zone = reshapableZone(scene, selection)
-      if (intent === 'insert') addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.world)
+      if (intent === 'insert') addPolygonCorner(c, edgeMidpoint.zoneId, edgeMidpoint.edgeIndex, edgeMidpoint.anchor)
       else if (zone?.id === edgeMidpoint.zoneId) {
         gesture = { kind: 'reshape', drag: beginPointHandleDrag(c, zoneCornerInsertSubject(zone, edgeMidpoint.edgeIndex)) }
         return
