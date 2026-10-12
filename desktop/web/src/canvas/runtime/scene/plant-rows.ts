@@ -120,11 +120,10 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
  * nearer neighbouring position) and `row` has no plant of its own there: the spot it gave away. "No plant there" is
  * judged on the row's spacing before this re-space (no attached member within half its own old gap), not the new
  * one, since a gap more than twice the old would take in the old neighbours of the spot. That spot stays the other
- * row's however this row's points or spacing change, and fills again once that plant has moved off. Shared by the
- * writer and Select's point-drag preview, so the preview shows what the release plants. Linear in the positions and
- * members for each first plant near them.
+ * row's however this row's points or spacing change, and fills again once that plant has moved off. Linear in the
+ * positions and members for each first plant near them.
  */
-export function respacedPlantRowPositions<Point extends ScenePoint>(
+function respacedPlantRowPositions<Point extends ScenePoint>(
   scene: Pick<ScenePersistedState, 'plantRows'>,
   plants: ReadonlyMap<string, ScenePlantEntity>,
   row: ScenePlantRowEntity,
