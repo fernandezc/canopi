@@ -178,6 +178,22 @@ describe('applyPlantRowPositions, the row writer (A5, A7)', () => {
     }
   })
 
+  it('a new row plants every position it is given, even where another row\'s plant stands', () => {
+    // Drawn from a every metre over the first plant of row 3: the count the tool shows is the count planted.
+    const scene = sceneWithRow()
+    const positions = [0, 1, 2, 3, 4].map((step) => ({ x: step * 0.8, y: step * 0.6 }))
+    scene.plants = scene.plants.map((entry) => entry.id === 'loose' ? { ...entry, position: positions[2]! } : entry)
+    applyPlantRowPositions(scene, {
+      id: 'row-3', firstPlantId: 'loose', anchors: ANCHORS, closed: false, spacing: { kind: 'interval', metres: 5 },
+      positions: [positions[2]!, { x: 6.6, y: 1.2 }], createId: () => 'row-3-copy',
+    })
+    const members = applyPlantRowPositions(scene, {
+      id: 'row-2', firstPlantId: 'a', anchors: ANCHORS, closed: false, spacing: { kind: 'interval', metres: 1 }, positions,
+      createId: ids(),
+    })
+    expect(members).toEqual(['a', 'new-1', 'new-2', 'new-3', 'new-4'])
+  })
+
   it('writes nothing without positions or a first plant', () => {
     const scene = sceneWithRow()
     const before = structuredClone(scene)

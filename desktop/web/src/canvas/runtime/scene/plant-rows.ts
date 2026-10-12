@@ -57,9 +57,10 @@ interface PlantRowWrite {
  * The row writer, the only code that sets a member's `at` (A5, A7). It keeps the row's attached member ids in path
  * order and moves them onto `positions`, adds copies of the first member for extra positions, deletes the surplus
  * plants (and takes them out of their groups), rewrites the anchors, spacing and every `at`, and takes the members
- * out of any other row, which goes when it has no member left. A position where another row's attached member stands
- * is that row's and gets no plant: a row started from a member leaves its old row's slot to it, so the old row's next
- * re-space never plants on it, and fills it again once that plant has moved off. Returns the members' ids in path
+ * out of any other row, which goes when it has no member left. A new row plants every position. On a re-space, a
+ * position where another row's attached member stands is that row's and gets no plant: a row started from a member
+ * leaves its old row's slot to it, so the old row's next re-space never plants on it, and fills it again once that
+ * plant has moved off. Returns the members' ids in path
  * order for the caller to select, or null (nothing written) without a position or a first plant. The caller runs it
  * in one Scene Edit.
  */
@@ -69,7 +70,7 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   const kept = existing ? attachedPlantRowMembers(existing, plants).map((member) => member.plantId) : []
   const memberIds = kept.length > 0 ? kept : write.firstPlantId !== undefined ? [write.firstPlantId] : []
   const first = memberIds.length > 0 ? plants.get(memberIds[0]!) : undefined
-  const positions = positionsFreeOfOtherRows(draft, write.id, new Set(memberIds), write.positions)
+  const positions = existing ? positionsFreeOfOtherRows(draft, write.id, new Set(memberIds), write.positions) : write.positions
   if (!first || positions.length === 0) return null
 
   const reused = memberIds.slice(0, positions.length)
