@@ -506,6 +506,23 @@ describe('Selection chip on a planted row', () => {
     expect(setPlantRowSpacing, 'the dropped edit is not kept on leaving').not.toHaveBeenCalled()
   })
 
+  it('keeps what the user types while the row the switch made reaches the chip, so Enter applies it', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
+    // The switched row reaches the chip only as the user types: the typed count is still what Enter applies.
+    await act(() => {
+      countField()!.value = '5'
+      countField()!.dispatchEvent(new Event('input', { bubbles: true }))
+      rowSpacing = { kind: 'count', count: 3 }
+      queries.setSelection(ROW.map((id) => ({ kind: 'plant', id })))
+      currentCanvasSelection.value = new Set(ROW)
+    })
+    await act(() => { countField()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })) })
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
+  })
+
   it('a switch the row refuses keeps the mode pressed with its field marked invalid', async () => {
     await act(() => render(<SelectionChip />, container))
     await select(ROW)

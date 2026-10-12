@@ -148,13 +148,15 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
     if (taken) edited.current = false
     return taken
   }
-  // The switch applies the row's exact gap or spots, never the field's rounded text, so it moves no plant.
+  // The switch applies the row's exact gap or spots, never the field's rounded text, so it moves no plant and the
+  // row it makes is the one the field shows: its arrival keeps what the user has typed since.
   const switchTo = (next: 'interval' | 'count') => {
     if (next === mode) return
+    const spacing = rowSpacingAs(row, next)
     setMode(next)
     setText(rowSpacingText(row, next))
     edited.current = false
-    commit(rowSpacingAs(row, next))
+    if (commit(spacing)) shownKey.current = rowSpacingKey({ ...row, spacing })
     requestAnimationFrame(() => input.current?.select())
   }
 
