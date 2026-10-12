@@ -6,7 +6,6 @@ import {
   type ScenePersistedState,
   type ScenePoint,
 } from '../scene'
-import { plantRowsMovingWith, transformPlantRows, type PlantRowStarts } from '../scene/plant-rows'
 
 type MeasurementGuideDragStart = Pick<SceneMeasurementGuideEntity, 'start' | 'end'>
 
@@ -15,8 +14,6 @@ export interface SceneDragState {
   zoneStarts: Map<string, ScenePoint[]>
   annotationStarts: Map<string, ScenePoint>
   measurementGuideStarts: Map<string, MeasurementGuideDragStart>
-  /** The rows whose plants all move, which move with them (A11). */
-  plantRowStarts: PlantRowStarts
 }
 
 export function createSceneDragState(): SceneDragState {
@@ -25,7 +22,6 @@ export function createSceneDragState(): SceneDragState {
     zoneStarts: new Map(),
     annotationStarts: new Map(),
     measurementGuideStarts: new Map(),
-    plantRowStarts: new Map(),
   }
 }
 
@@ -34,7 +30,6 @@ function resetSceneDragState(state: SceneDragState): void {
   state.zoneStarts.clear()
   state.annotationStarts.clear()
   state.measurementGuideStarts.clear()
-  state.plantRowStarts = new Map()
 }
 
 export function captureSceneDragState(
@@ -85,8 +80,6 @@ export function captureSceneDragState(
       if (annotation) state.annotationStarts.set(annotation.id, { ...annotation.position })
     }
   }
-
-  state.plantRowStarts = plantRowsMovingWith(scene, state.plantStarts)
 }
 
 export function applySceneDragDeltaToDraft(
@@ -157,5 +150,4 @@ export function applySceneDragDeltaToDraft(
       },
     }
   })
-  transformPlantRows(draft, state.plantRowStarts, (point) => ({ x: point.x + delta.x, y: point.y + delta.y }))
 }
