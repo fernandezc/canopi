@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'preact/hooks'
 import { canvasCommandDefinitions } from '../../app/canvas-commands'
 import { focusOwner } from '../../app/keyboard/focus-owner'
+import { phoneLayout } from '../../app/shell/phone-layout'
 import { useMapSelectionSummary, type MapSelectionSummary } from '../../app/map-selection/summary'
 import { describeMapSelection } from '../../app/map-selection/summary-text'
 import { ariaKeyShortcuts } from '../../app/shell-commands/shortcut-text'
@@ -43,12 +44,14 @@ export function SelectionChip() {
   // The summary hook re-renders the chip on selection and scene changes (locks included).
   const renameZoneId = loneEditableZoneId(queries?.getDesignObjectSelection() ?? null)
   const row = queries?.getSelectedPlantRow?.() ?? null
+  // On a phone a selected row's spacing takes the place of Select all of this species (the canvas menu keeps it) and
+  // of the plants' distance apart (the spacing stands for it), so the chip stays short.
+  const shortRow = row?.whole === true && phoneLayout.value !== null
   return (
     <div className={styles.chip} role="group" aria-label={t('canvas.selectionChip.label')} data-selection-chip="bottom">
       <span className={styles.text} role="status" aria-live="polite">
         <b><SpeciesCommonName name={head} englishFallback={headEnglishFallback} /></b>
-        {/* A selected row's own spacing field stands for the plants' mean distance apart. */}
-        {details.filter((detail) => !(row?.whole && detail.measure)).map((detail, index) => (
+        {details.filter((detail) => !(shortRow && detail.measure)).map((detail, index) => (
           <span key={index} className={detail.measure ? `${styles.muted} ${styles.measure}` : styles.muted}>
             {' · '}<SpeciesCommonName name={detail.text} englishFallback={detail.englishFallback} />
           </span>
@@ -64,8 +67,7 @@ export function SelectionChip() {
           {t('canvas.selectionChip.selectRow')}
         </button>
       )}
-      {/* A selected row's spacing takes its place (the canvas menu keeps it), so a phone's chip stays short. */}
-      {wholeSpecies && !row?.whole && (
+      {wholeSpecies && !shortRow && (
         <button
           type="button"
           className={styles.button}

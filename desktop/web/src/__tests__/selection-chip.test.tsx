@@ -2,6 +2,7 @@ import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { locale, plantSpacingIntervalM } from '../app/settings/state'
+import { phoneLayout } from '../app/shell/phone-layout'
 import { SelectionChip } from '../components/canvas/SelectionChip'
 import { RenameZoneDialog } from '../components/canvas/RenameZoneDialog'
 import { renameZoneDialog } from '../app/rename-zone/state'
@@ -416,6 +417,23 @@ describe('Selection chip on a planted row', () => {
     expect(button('Select row'), 'nor a selection reaching outside the row').toBeUndefined()
   })
 
+  const status = () => chip()!.querySelector('[role="status"]')!.textContent?.replace(/\s+/g, ' ').trim()
+
+  it('on a phone, a selected row\'s spacing takes the place of Select all of this species and the distance apart', async () => {
+    phoneLayout.value = 'landscape'
+    try {
+      await act(() => render(<SelectionChip />, container))
+      await select(ROW)
+      // The canvas menu keeps Select all of this species; the row's own spacing stands for the distance apart.
+      expect(button('Select all of this species')).toBeUndefined()
+      expect(status()).toBe('3 plants · Hazel')
+      await select(['hazel-2'])
+      expect(button('Select all of this species'), 'some plants of a row keep it').toBeDefined()
+    } finally {
+      phoneLayout.value = null
+    }
+  })
+
   const spacingField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-spacing-input]') ?? null
   const countField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-count-input]') ?? null
   const mode = (kind: 'interval' | 'count') => chip()!.querySelector<HTMLButtonElement>(`[data-plant-row-mode="${kind}"]`)!
@@ -437,10 +455,8 @@ describe('Selection chip on a planted row', () => {
 
     await select(ROW)
     expect(spacingField()!.value).toBe('2 m')
-    // The row's spacing takes the place of Select all of this species (the menu keeps it) and of the plants' distance
-    // apart, so a phone's chip stays short.
-    expect(button('Select all of this species')).toBeUndefined()
-    expect(chip()!.querySelector('[role="status"]')!.textContent?.replace(/\s+/g, ' ').trim()).toBe('3 plants · Hazel')
+    expect(button('Select all of this species'), 'a desktop chip keeps Select all of this species').toBeDefined()
+    expect(status(), 'and the plants\' distance apart').toMatch(/^3 plants · Hazel · .+ apart$/)
     expect(mode('interval').getAttribute('aria-pressed')).toBe('true')
     expect(mode('count').getAttribute('aria-pressed')).toBe('false')
     // Leaving the field unedited changes nothing.
