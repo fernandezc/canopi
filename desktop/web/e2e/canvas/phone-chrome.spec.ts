@@ -1,10 +1,13 @@
 // The phone chrome's seams for every chrome mix (canopi-f47t.54, stream H; plan section 4 "2.0 plant along a path",
-// answer 17): where the registered chrome leaves the map less than 120 px on an axis, Fit to Design frames the Design in
-// a 120 px band grown around the free band's centre, not under the chrome on the whole screen. Both engines, touch,
-// offline (so the map notice shows). DOM assertions only, no baselines.
+// answer 17). Where the registered chrome leaves the map less than 120 px on an axis, Fit to Design frames the Design in
+// a 120 px band grown around the free band's centre, not under the chrome on the whole screen. When a drawing tool
+// starts a draft the panel sheet drops to its peek. Held on its side with the Plant a row card on the left, the map
+// notice's Retry stays clear of the zoom column, which is placed from the visible map rather than registered with it.
+// After a tap, a mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3). Both engines, touch, offline
+// (so the map notice shows). DOM assertions only, no baselines.
 //
 // The base fixture at 390x844: its opening camera puts the Apple inside the rectangle zone at (114, 349) (touch.spec.ts).
-// The Design is read where it is drawn from the row's handles (the picked Apple and one point), as
+// The fit is read where the Design is drawn from the row's handles (the picked Apple and one point), as
 // plant-path.spec.ts reads it at 1024x768; the opening scale comes from the row's length in the tool card.
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
