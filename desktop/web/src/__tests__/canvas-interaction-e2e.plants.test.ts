@@ -15,7 +15,7 @@ import {
 } from '../canvas/session-state'
 import { snapToGridEnabled } from '../app/canvas-settings/signals'
 import { plantSpacingIntervalM } from '../app/settings/state'
-import type { SceneStore } from '../canvas/runtime/scene'
+import { SceneStore } from '../canvas/runtime/scene'
 import type {
   SceneInteractionSession,
   SceneInteractionSessionDeps,
@@ -745,6 +745,49 @@ describe('SceneInteractionSession', () => {
     toolCard()!.querySelector<HTMLButtonElement>('[data-plant-row-finish]')!.click()
     expect(store.persisted.plants.slice(1).map((plant) => plant.position)).toEqual([{ x: 6, y: 4 }, { x: 10, y: 4 }])
     expect(toolCard()!.querySelector('[data-plant-row-finish]')).toBeNull()
+    session.dispose()
+  })
+
+  // Guard (answers 27, 28): the finish plants ordinary plants. One Scene Edit adds them after the Design's plants in path
+  // order with new ids, the picked plant stays where it is, and the picked plant and the new ones stay selected, not
+  // grouped (plant-row.test.ts checks its one Undo step). The saved Design holds them as plain plants and reopens to the same file.
+  it('Plant a row\'s finish plants ordinary plants in one Scene Edit, selected and not grouped, and the Design round trips them', () => {
+    plantSpacingIntervalM.value = 2
+    testView.setViewport({ x: 0, y: 0, scale: 10 })
+    store.updatePersisted((draft) => {
+      draft.plants = [makePlant('other', 'Corylus avellana', { x: 30, y: 30 }), makePlant('source', 'Malus domestica', { x: 2, y: 4 })]
+    })
+    const edits: string[] = []
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit: (type) => edits.push(type) })
+    const session = createTestSession(deps)
+    session.setTool('plant-spacing')
+    events.pointerDown({ x: 20, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 20, y: 40 }, { button: 0 })
+    events.pointerDown({ x: 80, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 80, y: 40 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
+
+    expect(edits).toEqual(['interaction-plant-spacing'])
+    const plants = store.persisted.plants
+    expect(plants.map((plant) => plant.id).slice(0, 2)).toEqual(['other', 'source'])
+    expect(plants.slice(1).map((plant) => plant.position)).toEqual([{ x: 2, y: 4 }, { x: 4, y: 4 }, { x: 6, y: 4 }, { x: 8, y: 4 }])
+    const added = plants.slice(2).map((plant) => plant.id)
+    expect(new Set(added).size).toBe(3)
+    expect(added.some((id) => id === 'other' || id === 'source')).toBe(false)
+    expect(store.session.selectedTargets).toEqual(['source', ...added].map((id) => ({ kind: 'plant', id })))
+    expect(store.persisted.groups).toEqual([])
+
+    const file = store.toCanopiFile({ now: new Date('2026-10-13T00:00:00Z') })
+    expect(file.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
+    const reopened = new SceneStore().hydrate(file)
+    expect(reopened.persisted.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
+    // The reopened plane has its own origin: the plants keep their places relative to each other.
+    const origin = reopened.persisted.plants[0]!.position
+    for (const [index, plant] of reopened.persisted.plants.entries()) {
+      expect(plant.position.x - origin.x).toBeCloseTo(plants[index]!.position.x - plants[0]!.position.x, 3)
+      expect(plant.position.y - origin.y).toBeCloseTo(plants[index]!.position.y - plants[0]!.position.y, 3)
+    }
+    expect(reopened.toCanopiFile({ now: new Date('2026-10-13T00:00:00Z') })).toEqual(file)
     session.dispose()
   })
 
