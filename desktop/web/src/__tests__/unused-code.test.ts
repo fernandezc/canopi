@@ -67,10 +67,6 @@ const OPTIONS: UnusedCodeOptions = {
 const KEPT: Readonly<Record<string, string>> = {
   'src/app/lidar/sampler.ts#createSiteSampler': 'Test seam: the app keeps one sampler (siteSampler); sampler.test.ts and '
     + 'profile.test.ts drive the real one over a faked command (canopi-f47t.42, d943a93e).',
-  'src/canvas/runtime/scene/plant-rows.ts#applyPlantRowPositions': 'The row writer the row tool and Select call as '
-    + 'stream S lands (canopi-f47t.54); delete this entry when they do.',
-  'src/canvas/runtime/scene/plant-rows.ts#rowOfSelection': 'The selected row the selection chip and Select read as '
-    + 'stream S lands (canopi-f47t.54); delete this entry when they do.',
 }
 const KEPT_REASON = /\bcanopi-[a-z0-9]+(?:\.\d+)*\b/
 
