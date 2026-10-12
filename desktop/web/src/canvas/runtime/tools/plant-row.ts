@@ -61,6 +61,8 @@ const PLANT_ROW_DENSE_WARNING_THRESHOLD = 100
 const PLANT_ROW_PREVIEW_POSITION_LIMIT = 250
 /** The most plants one row adds beside the picked one: above it the card reads "too many plants" and nothing plants. */
 const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
+/** The most "N plants" takes, the picked one counted: the row that adds the most. */
+const PLANT_ROW_MAX_COUNT = PLANT_ROW_MAX_ADDED_PLANTS + 1
 const PLANT_ROW_GHOST_OPACITY = 0.35
 const SOURCE_RING_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2 })
 /** Today's 2 px CSS dashed border, drawn as dashes and gaps of 3 × its width (convention). */
@@ -525,8 +527,8 @@ export function createPlantRowTool(): CanvasTool {
   function spacing(): PathSpacing | null {
     if (mode === 'count') {
       const parsed = parsePlantRowCountInput(countText)
-      countValid = parsed.valid
-      return parsed.valid ? { kind: 'count', count: parsed.count } : null
+      countValid = parsed.valid && parsed.count <= PLANT_ROW_MAX_COUNT
+      return parsed.valid && countValid ? { kind: 'count', count: parsed.count } : null
     }
     const parsed = parsePlantSpacingIntervalInput(intervalText)
     intervalValid = parsed.valid
@@ -624,10 +626,10 @@ export function createPlantRowTool(): CanvasTool {
   function setMode(next: 'interval' | 'count'): void {
     if (mode === next) return
     mode = next
-    // "N plants" starts from the row's plants now, the picked one counted.
+    // "N plants" starts from the row's plants now, the picked one counted, at most the most a row plants.
     if (next === 'count' && !parsePlantRowCountInput(countText).valid) {
       const plants = (shownCount?.count ?? 0) + 1
-      countText = String(Math.min(Math.max(plants, 2), PLANT_ROW_MAX_ADDED_PLANTS))
+      countText = String(Math.min(Math.max(plants, 2), PLANT_ROW_MAX_COUNT))
     }
     spacing()
   }

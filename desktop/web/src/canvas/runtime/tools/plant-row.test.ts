@@ -706,6 +706,27 @@ describe('Plant a row along a path', () => {
     expect(added(h)).toEqual([{ x: 4, y: 3 }, { x: 6, y: 3 }, { x: 8, y: 3 }, { x: 10, y: 3 }])
   })
 
+  // Answer 29: the 5000-plant guard is the tool's own: "N plants" counts the picked plant, so 5001 plants is the most a
+  // row plants, as every N m plants 5000 beside the picked one; the switch from a row above it starts at that most.
+  it('takes up to 5001 plants in "N plants", the picked one counted, and starts the switch from a longer row at 5001', () => {
+    const { h } = rowHarness({ intervalM: 0.001, plants: [sourcePlant({ x: 10, y: 10 })] })
+    h.click({ x: 10, y: 10 })
+    h.click({ x: 20, y: 10 })
+    expect(row(h)).toMatchObject({ count: 10000, density: 'blocked' })
+    h.host.command({ kind: 'spacing-mode', mode: 'count' })
+    expect(row(h)).toMatchObject({ countText: '5001', countValid: true, count: 5000, density: 'dense' })
+    h.host.command({ kind: 'spacing-input', text: '5002' })
+    expect(row(h)).toMatchObject({ countValid: false, count: 0 })
+    finish(h)
+    expect(added(h), 'an invalid count plants nothing').toEqual([])
+    h.host.command({ kind: 'spacing-input', text: '5001' })
+
+    finish(h)
+
+    expect(added(h)).toHaveLength(5000)
+    expect(added(h).at(-1)).toEqual({ x: 20, y: 10 })
+  })
+
   it('before planting, a point drags, a dot drag inserts, a dot double-click inserts in place and Alt deletes or sharpens', () => {
     const { h } = pathHarness()
     h.click({ x: 20, y: 30 })

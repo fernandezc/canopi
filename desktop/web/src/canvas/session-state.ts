@@ -60,7 +60,7 @@ export interface CanvasPlantRowGuidance {
   readonly closed?: boolean
   /** "Every N m" (`interval`) or "N plants" (`count`, the picked plant counted). */
   readonly mode?: 'interval' | 'count'
-  /** The count field's text, as typed, and whether it is a count of 2 to 5000. */
+  /** The count field's text, as typed, and whether it is a count of 2 to 5001 (Plant a row's own limit). */
   readonly countText?: string
   readonly countValid?: boolean
   /** The drawn row's length, formatted as the map's length chip. */
