@@ -463,9 +463,9 @@ describe('visible map area', () => {
     expect(centre.y).toBeCloseTo(60 + 684 / 2, 0)
   })
 
-  it('falls back to the whole screen when chrome leaves too little map', () => {
+  it('grows a short width to 120 px around its free band and keeps the top and bottom insets (answer 17)', () => {
     expect(framingRect({ width: 500, height: 800 }, { top: 0, right: 300, bottom: 0, left: 100 }))
-      .toEqual({ x: 0, y: 0, width: 500, height: 800 })
+      .toEqual({ x: 90, y: 0, width: 120, height: 800 })
   })
 
   it('folds the map credits when the bottom band between the view chip and zoom group is narrow', () => {

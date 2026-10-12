@@ -249,11 +249,11 @@ describe('Tool card', () => {
     expect(lines()).toEqual([
       'Polygon zone',
       'Click to add corners. Click the first corner, double-click or press Enter to finish.',
-      'Backspace removes the last corner · Shift keeps 45° angles · Esc to go back to Select',
+      'Shift keeps 45° angles · Esc to go back to Select',
     ])
 
     await choose('polygon', { gesture: true })
-    expect(lines()[2]).toBe('Backspace removes the last corner · Shift keeps 45° angles · Esc removes the last point')
+    expect(lines()[2]).toBe('Shift keeps 45° angles · Esc or Backspace removes the last corner')
   })
 
   it('tells how to draw a profile line and switches the Esc meaning to removing the last point while one is drawn (canopi-f47t.42, U58)', async () => {
@@ -261,11 +261,11 @@ describe('Tool card', () => {
     expect(lines()).toEqual([
       'Profile',
       'Click to add points. Double-click or press Enter to finish.',
-      'Backspace removes the last point · Shift keeps 45° angles · Esc to go back to Select',
+      'Shift keeps 45° angles · Esc to go back to Select',
     ])
 
     await choose('profile', { gesture: true })
-    expect(lines()[2]).toBe('Backspace removes the last point · Shift keeps 45° angles · Esc removes the last point')
+    expect(lines()[2]).toBe('Shift keeps 45° angles · Esc or Backspace removes the last point')
   })
 
   it.each([
@@ -563,7 +563,7 @@ describe('Tool card', () => {
       it('tells how to draw and plant the path, offers the mode switch, and plants from the check button outside the live region', async () => {
         await choose('plant-spacing', { gesture: true, plantRow: PATH })
         expect(lines().slice(1, 3)).toEqual(['Apple', 'click to add points, Enter plants'])
-        expect(live().textContent).toContain('Alt adds a sharp point · Shift keeps 45° angles · Ctrl turns off snapping · Esc removes the last point')
+        expect(live().textContent).toContain('Alt adds a sharp point · Shift keeps 45° angles · Ctrl turns off snapping · Esc or Backspace removes the last point')
         expect(modes().map((mode) => [mode.dataset.plantRowMode, mode.getAttribute('aria-pressed'), mode.textContent])).toEqual([
           ['interval', 'true', 'Interval'],
           ['count', 'false', 'Plants'],
