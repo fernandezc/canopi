@@ -67,7 +67,7 @@ async function drawThreeCorners(page: Page): Promise<void> {
     await page.mouse.click(corner.x, corner.y)
     await page.waitForTimeout(PAST_MULTI_CLICK_MS)
   }
-  await expect(toolCard(page), 'the draft is live').toContainText('Esc to cancel')
+  await expect(toolCard(page), 'the draft is live').toContainText('Esc or Backspace removes the last corner')
   await expect(designMap(page)).toBeFocused()
 }
 
@@ -79,7 +79,7 @@ async function openEditByClick(page: Page): Promise<void> {
 async function expectMenuClosedAndDraftLive(page: Page): Promise<void> {
   await expect(editMenu(page), 'Esc closed the menu').toBeHidden()
   await expect(tool(page, 'Polygon zone'), 'Esc closed the menu, not the tool').toHaveAttribute('aria-pressed', 'true')
-  await expect(toolCard(page), 'Esc closed the menu, not the draft').toContainText('Esc to cancel')
+  await expect(toolCard(page), 'Esc closed the menu, not the draft').toContainText('Esc or Backspace removes the last corner')
 }
 
 async function expectPolygonFinished(page: Page): Promise<void> {

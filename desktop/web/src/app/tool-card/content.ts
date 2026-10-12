@@ -65,7 +65,7 @@ const TITLE_KEYS: Readonly<Record<ToolId, string>> = {
 }
 
 const PLACING_TOOLS = new Set(['plant-stamp', 'object-stamp', 'saved-object-stamp'])
-/** The drawing tools whose Esc removes the draft's last point (U58); Plant a row's once it has a point. */
+/** The drawing tools whose Esc and Backspace remove the draft's last point (U58); Plant a row's once it has a point. */
 const STEP_BACK_TOOLS = new Set(['polygon', 'profile'])
 const STAMP_TOOLS = new Set(['object-stamp', 'saved-object-stamp'])
 
@@ -73,11 +73,12 @@ export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
   const { tool, guidance, translate } = input
   const titleKey = TITLE_KEYS[tool]
 
-  // What the next Esc does: steps a drawing draft back one point (U58), drops a held row source or stamp pick, cancels a
-  // gesture, then leaves the tool.
+  // What the next Esc does: steps a drawing draft back one point (U58), as Backspace does, so one hint names both keys;
+  // drops a held row source or stamp pick, cancels a gesture, then leaves the tool.
   const rowPath = tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' && (guidance.plantRow.points ?? 0) >= 2
+  const stepBack = rowPath || (STEP_BACK_TOOLS.has(tool) && guidance.gesture)
   const esc = translate(
-    rowPath || (STEP_BACK_TOOLS.has(tool) && guidance.gesture) ? 'canvas.toolCard.escRemovePoint'
+    stepBack ? (tool === 'polygon' ? 'canvas.toolCard.escRemoveCorner' : 'canvas.toolCard.escRemovePoint')
       : tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? 'canvas.toolCard.escClearRow'
         : tool === 'object-stamp' && guidance.stamp ? 'canvas.toolCard.escClearStamp'
           : guidance.gesture ? 'canvas.toolCard.escCancel'
@@ -140,7 +141,7 @@ export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
       }
     }
     case 'polygon':
-      return card(null, translate('canvas.toolCard.polygon'), hints('canvas.toolCard.polygonKeys'))
+      return card(null, translate('canvas.toolCard.polygon'), hints('canvas.toolCard.lineKeys'))
     case 'rectangle':
       return card(null, translate('canvas.toolCard.rectangle'), hints('canvas.toolCard.rectangleKeys'))
     case 'ellipse':
@@ -154,7 +155,7 @@ export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
     case 'measurement-guide':
       return card(null, translate('canvas.toolCard.measure'), hints('canvas.toolCard.lineKeys'))
     case 'profile':
-      return card(null, translate('canvas.toolCard.profile'), hints('canvas.toolCard.profileKeys'))
+      return card(null, translate('canvas.toolCard.profile'), hints('canvas.toolCard.lineKeys'))
   }
 }
 
