@@ -11,7 +11,7 @@ import type { PlanarCamera, SceneBounds, SceneExtent, ScreenInsets, TemporaryBou
 const FIT_PADDING = 0.1
 const FIT_MAX_ROUNDS = 20
 const FIT_CONVERGENCE_THRESHOLD = 0.0001
-/** Below this visible width or height, framing ignores the insets and uses the whole screen. */
+/** The least width and height framing keeps: a shorter free band grows to it around its centre. */
 const MIN_FRAMING_EXTENT_CSS_PX = 120
 const NO_INSETS: ScreenInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 })
 
@@ -43,18 +43,25 @@ interface OrientedExtent {
 }
 
 /**
- * The part of the screen not covered by floating chrome. When the insets leave too little room (or are invalid), the whole
- * screen is the frame.
+ * The part of the screen not covered by floating chrome. An axis the insets leave under 120 px grows to 120 px around the
+ * centre of its free band, clamped to the screen, and the other axis keeps its insets (answer 17: a phone's tool card and
+ * half sheet leave a thin band, and the Design is framed there, not under them). Invalid insets frame the whole screen.
  */
 export function framingRect(screen: { readonly width: number; readonly height: number }, insets: ScreenInsets = NO_INSETS): FramingRect {
-  const width = screen.width - insets.left - insets.right
-  const height = screen.height - insets.top - insets.bottom
-  if (
-    ![width, height].every(Number.isFinite)
-    || width < MIN_FRAMING_EXTENT_CSS_PX
-    || height < MIN_FRAMING_EXTENT_CSS_PX
-  ) return { x: 0, y: 0, width: screen.width, height: screen.height }
-  return { x: insets.left, y: insets.top, width, height }
+  const across = framingSpan(screen.width, insets.left, insets.right)
+  const down = framingSpan(screen.height, insets.top, insets.bottom)
+  if (!across || !down) return { x: 0, y: 0, width: screen.width, height: screen.height }
+  return { x: across.start, y: down.start, width: across.size, height: down.size }
+}
+
+/** One axis of the framing rectangle; null for invalid numbers. */
+function framingSpan(extent: number, before: number, after: number): { start: number; size: number } | null {
+  if (![extent, before, after].every(Number.isFinite)) return null
+  const size = extent - before - after
+  if (size >= MIN_FRAMING_EXTENT_CSS_PX) return { start: before, size }
+  const grown = Math.min(MIN_FRAMING_EXTENT_CSS_PX, extent)
+  const start = before + size / 2 - grown / 2
+  return { start: Math.min(Math.max(start, 0), extent - grown), size: grown }
 }
 
 /**

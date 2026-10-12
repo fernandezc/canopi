@@ -108,11 +108,11 @@ function screenOf(camera: PlanarCamera, point: WorldPoint): WorldPoint {
 describe('fit', () => {
   it('at bearing 0 the fit matches today\'s fitCameraViewport for plants, zones and notes', () => {
     // Today's fitCameraViewport (canvas/runtime/camera.ts:520-565 at 52cbff10) on a 1000 × 800 CameraController placed at
-    // { x: 3, y: -7, scale }, recorded for each design, each insets case and each starting scale (0.05, 1, 14, 1000).
+    // { x: 3, y: -7, scale }, recorded for each design, each insets case and each starting scale (0.05, 1, 14, 1000). Chrome
+    // that leaves too little room no longer frames the whole screen (the short axis grows around its free band, below).
     const insetCases: Array<ScreenInsets | undefined> = [
       undefined,
       { top: 40, right: 300, bottom: 20, left: 60 },
-      { top: 400, right: 0, bottom: 390, left: 0 }, // leaves under 120 px: the whole screen frames
     ]
     const today: Record<string, readonly (readonly Placement[])[]> = {
       'all': [
@@ -128,12 +128,6 @@ describe('fit', () => {
           [266.5616682223009, 255.71091786259205, 3.9943599066702724],
           [266.56165476343983, 255.71154394007777, 3.99436005218721],
         ],
-        [ // too little
-          [321.86648248855136, 199.13374905945437, 6.250768110439437],
-          [321.8664709782407, 199.1342536429958, 6.250768234888686],
-          [321.8664415146735, 199.13554525008448, 6.250768553448191],
-          [321.8664317945567, 199.13597135414284, 6.2507686585419],
-        ],
       ],
       'no plants': [
         [ // no insets
@@ -147,12 +141,6 @@ describe('fit', () => {
           [215.03031704518497, 244.20965236488703, 4.551515852259248],
           [215.03031704518497, 244.20965236488703, 4.551515852259248],
           [215.03031704518497, 244.20965236488703, 4.551515852259248],
-        ],
-        [ // too little
-          [271.47728966793363, 198.0146817718866, 6.304944763472309],
-          [271.476958405845, 198.01485284368036, 6.304953902997952],
-          [271.47188231986644, 198.017474257852, 6.305093952280857],
-          [271.47188231986644, 198.017474257852, 6.305093952280857],
         ],
       ],
       'notes only': [
@@ -168,12 +156,6 @@ describe('fit', () => {
           [237.3163285609853, 210.6814247088816, 5.665816428049265],
           [237.3150856468813, 210.68011477489944, 5.665754282344065],
         ],
-        [ // too little
-          [343.03594653398034, 179.26222820168357, 6.617481880112239],
-          [343.0360919207757, 179.26237245264457, 6.617491496842971],
-          [343.0384228560109, 179.26468517744837, 6.617645678496559],
-          [343.03976333604425, 179.2660151849813, 6.617734345665422],
-        ],
       ],
       'no notes': [
         [ // no insets
@@ -187,12 +169,6 @@ describe('fit', () => {
           [266.5617640329073, 322.1780742439317, 3.9943588707678983],
           [266.5616682223009, 322.1781178594585, 3.9943599066702724],
           [266.56165476343983, 322.1781239862887, 3.99436005218721],
-        ],
-        [ // too little
-          [321.86645173307244, 263.18171033061026, 6.250768442967064],
-          [321.8665106654679, 263.1816835030222, 6.250767805791174],
-          [321.8664415146735, 263.18171498229617, 6.250768553448191],
-          [321.8664317945567, 263.1817194071509, 6.2507686585419],
         ],
       ],
     }
@@ -304,14 +280,57 @@ describe('fit', () => {
     expect(centre.y).toBeCloseTo(150, 9)
   })
 
-  it('frames inside the chrome insets unless they leave under 120 px', () => {
+  it('frames inside the chrome insets; invalid insets frame the whole screen', () => {
     expect(framingRect({ width: 1000, height: 800 })).toEqual({ x: 0, y: 0, width: 1000, height: 800 })
     expect(framingRect({ width: 1000, height: 800 }, { top: 40, right: 300, bottom: 20, left: 60 }))
       .toEqual({ x: 60, y: 40, width: 640, height: 740 })
-    expect(framingRect({ width: 1000, height: 800 }, { top: 400, right: 0, bottom: 390, left: 0 }))
-      .toEqual({ x: 0, y: 0, width: 1000, height: 800 })
     expect(framingRect({ width: 1000, height: 800 }, { top: Number.NaN, right: 0, bottom: 0, left: 0 }))
       .toEqual({ x: 0, y: 0, width: 1000, height: 800 })
+  })
+
+  // Answer 17 (2026-10-11): chrome that leaves an axis under 120 px grows that axis to 120 px around the centre of its
+  // free band, clamped to the screen, and keeps the other axis's insets, instead of framing the whole screen.
+  it('a short height grows to 120 px around the free band and keeps the side insets', () => {
+    // A 390x844 phone with the Plant a row card down to 360 px and the half sheet up from 422 px: a 62 px band.
+    expect(framingRect({ width: 390, height: 844 }, { top: 360, right: 0, bottom: 422, left: 0 }))
+      .toEqual({ x: 0, y: 331, width: 390, height: 120 })
+    expect(framingRect({ width: 1000, height: 800 }, { top: 400, right: 20, bottom: 390, left: 60 }))
+      .toEqual({ x: 60, y: 345, width: 920, height: 120 })
+    // A band at an edge grows into the screen, never past it.
+    expect(framingRect({ width: 1000, height: 800 }, { top: 0, right: 0, bottom: 760, left: 0 }))
+      .toEqual({ x: 0, y: 0, width: 1000, height: 120 })
+    expect(framingRect({ width: 1000, height: 800 }, { top: 770, right: 0, bottom: 0, left: 0 }))
+      .toEqual({ x: 0, y: 680, width: 1000, height: 120 })
+    // Chrome that overlaps leaves no band: the frame grows around the middle of the overlap.
+    expect(framingRect({ width: 1000, height: 800 }, { top: 500, right: 0, bottom: 400, left: 0 }))
+      .toEqual({ x: 0, y: 390, width: 1000, height: 120 })
+  })
+
+  it('a short width grows to 120 px around the free band and keeps the top and bottom insets', () => {
+    expect(framingRect({ width: 500, height: 800 }, { top: 40, right: 300, bottom: 20, left: 100 }))
+      .toEqual({ x: 90, y: 40, width: 120, height: 740 })
+    expect(framingRect({ width: 500, height: 800 }, { top: 0, right: 0, bottom: 0, left: 450 }))
+      .toEqual({ x: 380, y: 0, width: 120, height: 800 })
+    // Both axes short: each grows on its own.
+    expect(framingRect({ width: 500, height: 800 }, { top: 360, right: 300, bottom: 422, left: 100 }))
+      .toEqual({ x: 90, y: 309, width: 120, height: 120 })
+    // A screen under 120 px on an axis frames all of it.
+    expect(framingRect({ width: 100, height: 800 }, { top: 0, right: 60, bottom: 0, left: 20 }))
+      .toEqual({ x: 0, y: 0, width: 100, height: 800 })
+  })
+
+  it('Fit to Design centres the Design on the grown band, inside 120 px', () => {
+    const frame = fitFrame(390, 844, [3, -7, 1], { top: 360, right: 0, bottom: 422, left: 0 })
+    const extent = sceneExtentPoints(scene(), PLANTS)
+    const fitted = fitScene(frame, { extentPoints: extent, emptySceneScale: 0 }, 0)
+    for (const point of extent(fitted.scale)) {
+      const onScreen = screenOf(fitted, point)
+      expect(onScreen.y).toBeGreaterThanOrEqual(331 - 1e-6)
+      expect(onScreen.y).toBeLessThanOrEqual(451 + 1e-6)
+    }
+    const span = orientedSpan(extent(fitted.scale), 0)
+    // The height limits the scale: the Design fills 80 % of the grown frame's 120 px.
+    expect(span.height * fitted.scale).toBeCloseTo(96, 3)
   })
 })
 
