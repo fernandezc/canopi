@@ -359,12 +359,16 @@ test.describe('360×560 half sheet', () => {
 })
 
 const CHIP_LAYOUTS: readonly Layout[] = [
-  ...PHONES.map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] })),
+  ...PHONES.filter((layout) => layout.width !== 740).map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] })),
   { width: 1024, height: 768, locales: ['en', 'de', 'ru'], touch: false },
 ]
+const SHORT_LANDSCAPE: readonly Layout[] = PHONES.filter((layout) => layout.width === 740)
+  .map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] }))
 
-test.fail('(canopi-f47t.54, S) the selection chip with a row\'s spacing field stays clear of its neighbours at 390×844, 360×560, 740×360 and 1024×768 (en de ru)', async ({ page }) => {
-  for (const layout of CHIP_LAYOUTS) {
+/** Plants a row with the row tool in each layout and locale; the selection chip, with the row's spacing, clears every
+ *  neighbour and the tool card, stays in the viewport, and its field and switch take the click at their centre. */
+async function expectRowChipClear(page: Page, layouts: readonly Layout[]): Promise<void> {
+  for (const layout of layouts) {
     for (const locale of layout.locales) {
       const where = `${layout.width}x${layout.height} ${locale}`
       await page.setViewportSize({ width: layout.width, height: layout.height })
@@ -387,4 +391,15 @@ test.fail('(canopi-f47t.54, S) the selection chip with a row\'s spacing field st
       for (const mode of await chip.locator('[data-plant-row-mode]').all()) await expectHitAtCentre(mode, `${where}: the row's mode switch`)
     }
   }
+}
+
+test('(canopi-f47t.54, S) the selection chip with a row\'s spacing field stays clear of its neighbours at 390×844, 360×560 and 1024×768 (en de ru)', async ({ page }) => {
+  await expectRowChipClear(page, CHIP_LAYOUTS)
+})
+
+// At 740×360 offline, the idle Plant a row card (registered with the visible map only while it holds a row, answer 15)
+// and the map notice leave the chip about 33 px of map between them: in German the chip's 40 px meets the card. A chip
+// cannot fit there; which chrome gives way is the main agent's (or the user's) call.
+test.fail('(canopi-f47t.54, S, main decides) the selection chip with a row\'s spacing field stays clear of the Plant a row card at 740×360 (en de ru)', async ({ page }) => {
+  await expectRowChipClear(page, SHORT_LANDSCAPE)
 })

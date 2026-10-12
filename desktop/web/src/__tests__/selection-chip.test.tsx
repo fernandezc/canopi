@@ -1,15 +1,17 @@
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { locale } from '../app/settings/state'
+import { locale, plantSpacingIntervalM } from '../app/settings/state'
+import { phoneLayout } from '../app/shell/phone-layout'
 import { SelectionChip } from '../components/canvas/SelectionChip'
 import { RenameZoneDialog } from '../components/canvas/RenameZoneDialog'
 import { renameZoneDialog } from '../app/rename-zone/state'
 import { SpeciesFocusChip } from '../components/canvas/SpeciesFocusChip'
 import { plantFinderMapMatches } from '../app/plant-finder/map-matches'
 import { SceneStore } from '../canvas/runtime/scene/store'
+import { rowOfSelection } from '../canvas/runtime/scene/plant-rows'
 import type { SceneDesignObjectSelection } from '../canvas/runtime/scene'
-import type { CanvasCommandSurface } from '../canvas/runtime/runtime'
+import type { CanvasCommandSurface, CanvasPlantRowSpacing } from '../canvas/runtime/runtime'
 import { setCurrentCanvasSession } from '../canvas/session'
 import { currentCanvasSelection } from '../canvas/session-state'
 import {
@@ -18,6 +20,10 @@ import {
   createTestCanvasKeyboardPort,
 } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface, type TestCanvasQuerySurface } from './support/canvas-query-surface'
+import { createLiveTestCanvasRuntimeHost } from './support/live-canvas-runtime'
+import { CURRENT_CANOPI_FILE_VERSION } from '../generated/canopi-design-format'
+import type { CanopiFile } from '../types/design'
+import { geoAt } from './support/geo-design'
 
 const RECT_ID = 'zone-ee08f9f9-634f-4723-bbde-1200610562dc'
 const ELLIPSE_ID = 'zone-0b1c2d3e-4f50-4617-8a9b-0c1d2e3f4a5b'
@@ -329,6 +335,341 @@ describe('Selection chip', () => {
       const text = chip()!.textContent ?? ''
       for (const id of ids) expect(text).not.toContain(id)
       expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i)
+    }
+  })
+})
+
+// A planted row (plan §4 "2.0 plant along a path", A7): Select row on some of its plants, and its spacing once selected.
+describe('Selection chip on a planted row', () => {
+  const ROW = ['hazel-1', 'hazel-2', 'hazel-3'] as const
+  let container: HTMLDivElement
+  let queries: TestCanvasQuerySurface
+  let selectPlantRow: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['selectPlantRow']>>>
+  let setPlantRowSpacing: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['setPlantRowSpacing']>>>
+  let rowLocked = false
+  // The row's spacing as the runtime would read it after an edit or an Undo; null keeps the scene's.
+  let rowSpacing: CanvasPlantRowSpacing | null = null
+
+  beforeEach(() => {
+    locale.value = 'en'
+    container = document.createElement('div')
+    document.body.append(container)
+    const store = new SceneStore()
+    store.updatePersisted((draft) => {
+      draft.plants = [...ROW, 'hazel-4'].map((id, index) => ({
+        id, canonicalName: 'Corylus avellana', commonName: 'Hazel', kind: 'plant', locked: false, color: null, symbol: 'shrub',
+        position: { x: index * 2, y: 0 }, canopySpreadM: null, rotationDeg: 0, notes: null, plantedDate: null, quantity: 1,
+      }))
+      draft.plantRows = [{
+        kind: 'plant-row', id: 'hedge', closed: false, spacing: { kind: 'interval', metres: 2 },
+        anchors: [{ position: { x: 0, y: 0 }, sharp: false }, { position: { x: 4, y: 0 }, sharp: false }],
+        members: ROW.map((plantId, index) => ({ plantId, at: { x: index * 2, y: 0 } })),
+      }]
+    })
+    const base = createTestCanvasQuerySurface({ scene: store.persisted, localizedNames: new Map([['Corylus avellana', 'Hazel']]) })
+    // The runtime's query reads the row through the row module; this one does the same over the fake's scene, whose
+    // 4 m hedge every 2 m makes three spots 2 m apart.
+    queries = Object.assign(base, {
+      getSelectedPlantRow: () => {
+        const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
+        return selected && {
+          id: selected.row.id, whole: selected.whole, spots: 3, spacing: rowSpacing ?? selected.row.spacing, gapM: 2,
+          locked: rowLocked,
+        }
+      },
+    })
+    selectPlantRow = vi.fn()
+    setPlantRowSpacing = vi.fn(() => true)
+    rowLocked = false
+    rowSpacing = null
+    setCurrentCanvasSession({
+      commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow, setPlantRowSpacing } }),
+      queries,
+      documents: createTestCanvasDocumentSurface(),
+      keyboard: createTestCanvasKeyboardPort(),
+    })
+  })
+
+  afterEach(() => {
+    render(null, container)
+    container.remove()
+    currentCanvasSelection.value = new Set()
+    setCurrentCanvasSession(null)
+  })
+
+  async function select(ids: readonly string[]): Promise<void> {
+    await act(() => {
+      queries.setSelection(ids.map((id) => ({ kind: 'plant', id })))
+      currentCanvasSelection.value = new Set(ids)
+    })
+  }
+
+  const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+  const button = (name: string) => [...(chip()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((entry) => entry.textContent === name)
+
+  it('offers Select row on some of a row\'s plants, which selects the row through the runtime, and not once it is selected', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(['hazel-2'])
+    expect(button('Select row'), 'a row plant offers Select row').toBeDefined()
+    await act(() => button('Select row')!.click())
+    expect(selectPlantRow).toHaveBeenCalledTimes(1)
+
+    await select(ROW)
+    expect(button('Select row'), 'a selected row offers no Select row').toBeUndefined()
+    await select(['hazel-4'])
+    expect(button('Select row'), 'a plant of no row offers none').toBeUndefined()
+    await select(['hazel-1', 'hazel-4'])
+    expect(button('Select row'), 'nor a selection reaching outside the row').toBeUndefined()
+  })
+
+  const status = () => chip()!.querySelector('[role="status"]')!.textContent?.replace(/\s+/g, ' ').trim()
+
+  it('on a phone, a selected row\'s spacing takes the place of Select all of this species and the distance apart', async () => {
+    phoneLayout.value = 'landscape'
+    try {
+      await act(() => render(<SelectionChip />, container))
+      await select(ROW)
+      // The canvas menu keeps Select all of this species; the row's own spacing stands for the distance apart.
+      expect(button('Select all of this species')).toBeUndefined()
+      expect(status()).toBe('3 plants · Hazel')
+      await select(['hazel-2'])
+      expect(button('Select all of this species'), 'some plants of a row keep it').toBeDefined()
+    } finally {
+      phoneLayout.value = null
+    }
+  })
+
+  const spacingField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-spacing-input]') ?? null
+  const countField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-count-input]') ?? null
+  const mode = (kind: 'interval' | 'count') => chip()!.querySelector<HTMLButtonElement>(`[data-plant-row-mode="${kind}"]`)!
+
+  async function type(field: HTMLInputElement, text: string, key?: 'Enter' | 'Escape'): Promise<void> {
+    await act(() => {
+      field.focus()
+      field.value = text
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    if (key) await act(() => { field.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })) })
+  }
+
+  it('shows a selected row\'s spacing, which re-spaces the row at Enter or on leaving an edited field, never as the device setting', async () => {
+    plantSpacingIntervalM.value = 0.8
+    await act(() => render(<SelectionChip />, container))
+    await select(['hazel-2'])
+    expect(spacingField(), 'some plants of a row show no spacing').toBeNull()
+
+    await select(ROW)
+    expect(spacingField()!.value).toBe('2 m')
+    expect(button('Select all of this species'), 'a desktop chip keeps Select all of this species').toBeDefined()
+    expect(status(), 'and the plants\' distance apart').toMatch(/^3 plants · Hazel · .+ apart$/)
+    expect(mode('interval').getAttribute('aria-pressed')).toBe('true')
+    expect(mode('count').getAttribute('aria-pressed')).toBe('false')
+    // Leaving the field unedited changes nothing.
+    await act(() => { spacingField()!.focus(); spacingField()!.blur() })
+    expect(setPlantRowSpacing).not.toHaveBeenCalled()
+
+    await type(spacingField()!, '1,5', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 1.5 })
+    await type(spacingField()!, 'twelve', 'Enter')
+    expect(spacingField()!.getAttribute('aria-invalid')).toBe('true')
+    expect(setPlantRowSpacing).toHaveBeenCalledTimes(1)
+    await type(spacingField()!, '2 m', 'Escape')
+    expect(spacingField()!.value, 'Esc puts the row\'s spacing back').toBe('2 m')
+
+    // The switch re-spaces the row from where the other mode starts (the spots its spacing makes), and leaves the field ready.
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing, 'the switch re-spaces the row').toHaveBeenCalledTimes(2)
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
+    expect(spacingField()).toBeNull()
+    expect(countField()!.value, 'Plants starts at the row\'s spots').toBe('3')
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+    expect(document.activeElement, 'the switch focuses the field').toBe(countField())
+    await type(countField()!, '5')
+    await act(() => { countField()!.blur() })
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
+    expect(setPlantRowSpacing).toHaveBeenCalledTimes(3)
+    expect(plantSpacingIntervalM.value, 'the device interval is untouched').toBe(0.8)
+  })
+
+  it('shows the row\'s own spacing again once the row changes (an Undo), keeping the field and its focus', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    const field = spacingField()!
+    await type(field, '7')
+    rowSpacing = { kind: 'count', count: 4 }
+    await select([...ROW])
+    expect(mode('count').getAttribute('aria-pressed')).toBe('true')
+    expect(countField(), 'the same field, now for plants').toBe(field)
+    expect(field.value).toBe('4')
+    expect(document.activeElement).toBe(field)
+    await act(() => { field.blur() })
+    expect(setPlantRowSpacing, 'the dropped edit is not kept on leaving').not.toHaveBeenCalled()
+  })
+
+  it('keeps what the user types while the row the switch made reaches the chip, so Enter applies it', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
+    // The switched row reaches the chip only as the user types: the typed count is still what Enter applies.
+    await act(() => {
+      countField()!.value = '5'
+      countField()!.dispatchEvent(new Event('input', { bubbles: true }))
+      rowSpacing = { kind: 'count', count: 3 }
+      queries.setSelection(ROW.map((id) => ({ kind: 'plant', id })))
+      currentCanvasSelection.value = new Set(ROW)
+    })
+    await act(() => { countField()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })) })
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
+  })
+
+  it('a switch the row refuses keeps the mode pressed with its field marked invalid', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    setPlantRowSpacing.mockReturnValueOnce(false)
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
+    expect(mode('count').getAttribute('aria-pressed')).toBe('true')
+    expect(countField()!.getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('marks a spacing the row refuses as invalid and keeps the field, so the chip never shows a spacing the row lacks', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    setPlantRowSpacing.mockReturnValueOnce(false)
+    await type(spacingField()!, '5', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 5 })
+    expect(spacingField()!.getAttribute('aria-invalid'), 'no plant fits every 5 m').toBe('true')
+    expect(document.activeElement, 'Enter keeps the field').toBe(spacingField())
+    await type(spacingField()!, '1', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 1 })
+    expect(spacingField()!.getAttribute('aria-invalid')).toBe('false')
+  })
+
+  it('shows a locked row\'s spacing and switch disabled', async () => {
+    rowLocked = true
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    expect(spacingField()!.disabled).toBe(true)
+    expect(mode('interval').disabled).toBe(true)
+    expect(mode('count').disabled).toBe(true)
+  })
+})
+
+// The chip over the real runtime: what the switch sends is what the row's query reads, and the writer applies it.
+describe('Selection chip on a planted row, over the runtime', () => {
+  const plant = (id: string, canonicalName: string, x: number, y = 0) => ({
+    id, canonical_name: canonicalName, common_name: null, color: null, position: geoAt(x, y), rotation: null,
+    scale: 3, notes: null, planted_date: null, quantity: 1, locked: false,
+  })
+
+  // An L-shaped hedge, three plants 2 m apart along 4 m, whose holly `from` started a side row the hedge gave it up to.
+  function lHedge(from: 'a' | 'c'): CanopiFile {
+    const plants = ['a', 'b', 'c'].map((id, index) => plant(id, id === from ? 'Ilex aquifolium' : 'Corylus avellana', index * 2))
+    const corner = from === 'a' ? 0 : 4
+    const interval = { kind: 'interval' as const, interval_m: 2 }
+    return {
+      version: CURRENT_CANOPI_FILE_VERSION, name: 'Hedge', description: null, plant_species_colors: {},
+      layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
+      plants: [...plants, plant('up', 'Ilex aquifolium', corner, 2)], zones: [], annotations: [], measurement_guides: [],
+      plant_rows: [
+        {
+          id: 'hedge', closed: false, spacing: interval,
+          anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(4, 0), sharp: false }],
+          members: plants.filter((entry) => entry.id !== from).map((entry) => ({ plant_id: entry.id, at: entry.position })),
+        },
+        {
+          id: 'side', closed: false, spacing: interval,
+          anchors: [{ position: geoAt(corner, 0), sharp: false }, { position: geoAt(corner, 2), sharp: false }],
+          members: [{ plant_id: from, at: geoAt(corner, 0) }, { plant_id: 'up', at: geoAt(corner, 2) }],
+        },
+      ],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z', extra: {},
+    }
+  }
+
+  it.each(['c', 'a'] as const)('the Plants switch on a hedge whose plant %s started another row keeps every plant', async (from) => {
+    locale.value = 'en'
+    const container = document.createElement('div')
+    document.body.append(container)
+    const host = createLiveTestCanvasRuntimeHost()
+    const { commands, queries, documents } = host.surfaces
+    const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+    try {
+      documents.loadDocument(lHedge(from))
+      setCurrentCanvasSession(host.surfaces)
+      await act(() => render(<SelectionChip />, container))
+      // The hazels are the hedge: selecting them selects the row.
+      await act(() => commands.sceneEdits.selectSpecies(['Corylus avellana']))
+      const hedge = ['a', 'b', 'c'].filter((id) => id !== from)
+      expect(queries.getSelectedPlantRow?.()).toMatchObject({ id: 'hedge', whole: true })
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!.click())
+      // Three spots along the hedge's 4 m, one of them the side row's: the switch keeps the layout.
+      expect(chip()!.querySelector<HTMLInputElement>('[data-plant-row-count-input]')!.value).toBe('3')
+      expect(queries.getSelectedPlantRow?.()?.spacing).toEqual({ kind: 'count', count: 3 })
+      expect(queries.getSceneSnapshot().plants.map((entry) => entry.id).sort(), 'no plant is lost').toEqual(['a', 'b', 'c', 'up'])
+      expect(queries.getSelection().map((target) => target.id), 'the hedge stays selected').toEqual(hedge)
+    } finally {
+      render(null, container)
+      container.remove()
+      currentCanvasSelection.value = new Set()
+      setCurrentCanvasSession(null)
+      await host.destroy()
+    }
+  })
+
+  // A 10 m hedge of seven plants: a gap of 1.666… m, which the field shows rounded up to 1.667 m.
+  function sevenPlantHedge(): CanopiFile {
+    const gap = 10 / 6
+    const plants = Array.from({ length: 7 }, (_, index) => plant(`h${index}`, 'Corylus avellana', index * gap))
+    return {
+      version: CURRENT_CANOPI_FILE_VERSION, name: 'Hedge', description: null, plant_species_colors: {},
+      layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
+      plants, zones: [], annotations: [], measurement_guides: [],
+      plant_rows: [{
+        id: 'hedge', closed: false, spacing: { kind: 'count', count: 7 },
+        anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(10, 0), sharp: false }],
+        members: plants.map((entry) => ({ plant_id: entry.id, at: entry.position })),
+      }],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z', extra: {},
+    }
+  }
+
+  it('the Interval switch, and Enter on its unedited field, keep a row whose gap the field rounds', async () => {
+    locale.value = 'en'
+    const container = document.createElement('div')
+    document.body.append(container)
+    const host = createLiveTestCanvasRuntimeHost()
+    const { commands, queries, documents } = host.surfaces
+    const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+    const ids = () => queries.getSceneSnapshot().plants.map((entry) => entry.id).sort()
+    try {
+      documents.loadDocument(sevenPlantHedge())
+      setCurrentCanvasSession(host.surfaces)
+      await act(() => render(<SelectionChip />, container))
+      await act(() => commands.sceneEdits.selectSpecies(['Corylus avellana']))
+      const before = ids()
+      expect(before).toHaveLength(7)
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="interval"]')!.click())
+      const field = chip()!.querySelector<HTMLInputElement>('[data-plant-row-spacing-input]')!
+      expect(field.value).toBe('1.667 m')
+      expect(ids(), 'the switch keeps the end plant').toEqual(before)
+      await act(() => { field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })) })
+      expect(ids(), 'Enter on the unedited field keeps it too').toEqual(before)
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!.click())
+      expect(queries.getSelectedPlantRow?.()?.spacing, 'Plants gives the seven plants back').toEqual({ kind: 'count', count: 7 })
+      expect(ids()).toEqual(before)
+    } finally {
+      render(null, container)
+      container.remove()
+      currentCanvasSelection.value = new Set()
+      setCurrentCanvasSession(null)
+      await host.destroy()
     }
   })
 })

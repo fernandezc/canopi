@@ -5,8 +5,9 @@
 // that press's release, unless it became a drag). After the pick a click on the ground adds a point (Alt held: a sharp
 // one), and the row follows a smooth curve through them (canvas/plant-path/); a click on the first point with 3 points
 // or more closes a loop (its handle, or the ground within CLOSE_DISTANCE_PX). Enter, a double-click on the ground or the last point, the tool card's check
-// button and the menu's "Finish shape" plant it (from 2 points), one Scene Edit that selects the source and the new
-// plants. A press-drag-release from the picked plant with no other point still plants a straight row at its release.
+// button and the menu's "Finish shape" plant it (from 2 points), one Scene Edit that stores the row (its points, spacing
+// and plants, the picked one first: scene/plant-rows.ts applyPlantRowPositions, so Select edits it later) and selects
+// the source and the new plants. A press-drag-release from the picked plant with no other point still plants a straight row at its release.
 // Before planting the points follow the shared point contract (point-editor/rules.ts): a point drags; a midpoint dot's
 // drag inserts a point, its double-click inserts one in place; Alt+click, Delete and the point menu delete a point
 // (never the picked plant, never below 2 points, 3 on a loop); the point menu turns a point sharp or smooth. A press, a
@@ -48,6 +49,7 @@ import { createUuid } from '../../../utils/ids'
 import type { ToolHandleId } from '../interaction-types'
 import { isSceneObjectGroupMemberTarget } from '../scene/group-members'
 import { isSceneDesignObjectLocked } from '../scene/locks'
+import { applyPlantRowPositions, PLANT_ROW_MAX_ADDED_PLANTS } from '../scene/plant-rows'
 import { resolvePlantSymbolForPlant } from '../scene/plant-symbols'
 import type { ScenePlantEntity } from '../scene/types'
 import type { ScreenPoint, WorldPoint } from '../view/types'
@@ -58,7 +60,6 @@ import type { CanvasTool, ToolCommand, ToolContext, ToolGesture, ToolPoint } fro
 
 const PLANT_ROW_DENSE_WARNING_THRESHOLD = 100
 const PLANT_ROW_PREVIEW_POSITION_LIMIT = 250
-const PLANT_ROW_COMMIT_POSITION_LIMIT = 5_000
 const PLANT_ROW_GHOST_OPACITY = 0.35
 const SOURCE_RING_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2 })
 /** Today's 2 px CSS dashed border, drawn as dashes and gaps of 3 × its width (convention). */
@@ -204,7 +205,7 @@ export function createPlantRowTool(): CanvasTool {
     preview = { path, planting, positions: planting.positions(PLANT_ROW_PREVIEW_POSITION_LIMIT) }
     setGeneratedCount(planting.count, {
       dense: planting.count > PLANT_ROW_DENSE_WARNING_THRESHOLD,
-      blocked: planting.count > PLANT_ROW_COMMIT_POSITION_LIMIT,
+      blocked: planting.count > PLANT_ROW_MAX_ADDED_PLANTS,
     })
   }
 
@@ -555,29 +556,33 @@ export function createPlantRowTool(): CanvasTool {
     }
     const planting = plantAlongPath(path, chosen)
     // The preview already reads blocked above the limit.
-    if (planting.count === 0 || planting.count > PLANT_ROW_COMMIT_POSITION_LIMIT) return
-    commitPositions(source, planting.positions())
+    if (planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return
+    commitRow(source, path, chosen, planting.positions())
   }
 
   function finish(): void {
     if (draft && draft.path.points.length >= 2) plant()
   }
 
-  function commitPositions(picked: PlantRowSource, positions: readonly WorldPoint[]): void {
+  /** Plants the row along `path` and stores it (A7): the picked plant stays as it is, the new plants repeat it as the
+   *  Scene holds it at the commit (canUseSource checked it is there: its colour now, not at the pick). */
+  function commitRow(picked: PlantRowSource, path: PathPoints, chosen: PathSpacing, positions: readonly WorldPoint[]): void {
     const tool = context()
-    // The source as the Scene holds it at the commit (canUseSource checked it is there): its colour now, not at the pick.
-    const repeated = livePlant(tool, picked)
-    const generatedIds: string[] = []
+    const first = livePlant(tool, picked).position
+    const written: { members: readonly string[] | null } = { members: null }
     tool.effects.edits.run('interaction-plant-spacing', (tx) => {
       tx.mutate((scene) => {
-        const generated = createPlantSpacingGeneratedPlants(repeated, positions, () => {
-          const id = createUuid()
-          generatedIds.push(id)
-          return id
+        written.members = applyPlantRowPositions(scene, {
+          id: createUuid(),
+          firstPlantId: picked.sourceId,
+          anchors: path.points.map((point) => ({ position: { ...point.position }, sharp: point.sharp })),
+          closed: path.closed,
+          spacing: chosen,
+          positions: [first, ...positions],
+          createId: createUuid,
         })
-        scene.plants = [...scene.plants, ...generated]
       })
-      tx.setSelection([picked.sourceId, ...generatedIds].map((id) => ({ kind: 'plant', id })))
+      if (written.members) tx.setSelection(written.members.map((id) => ({ kind: 'plant', id })))
     }, {
       onCommitted: () => {
         clear()
@@ -624,7 +629,7 @@ export function createPlantRowTool(): CanvasTool {
     // "N plants" starts from the row's plants now, the picked one counted.
     if (next === 'count' && !parsePlantRowCountInput(countText).valid) {
       const plants = (shownCount?.count ?? 0) + 1
-      countText = String(Math.min(Math.max(plants, 2), PLANT_ROW_COMMIT_POSITION_LIMIT))
+      countText = String(Math.min(Math.max(plants, 2), PLANT_ROW_MAX_ADDED_PLANTS))
     }
     spacing()
   }
@@ -769,7 +774,7 @@ export function createPlantRowTool(): CanvasTool {
           return 'handled'
         case 'point-action':
           // From the point menu, opened on a point (the card has no point buttons since decision 16).
-          if (c.handle === null || !pointAction(c.handle, c.action)) return 'pass'
+          if (!pointAction(c.handle, c.action)) return 'pass'
           publish()
           return 'handled'
         default:

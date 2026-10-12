@@ -5,11 +5,19 @@
  * re-attaches. This module never imports the path engine (callers pass positions), and the scene transactions never
  * import it (P55).
  */
+import { createUuid } from '../../../utils/ids'
 import { createPlantSpacingGeneratedPlants } from '../../plant-spacing-sequence'
 import type { SceneDesignObjectSelection } from './design-object-targets'
+import { isSceneLayerEditable } from './locks'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, ScenePoint } from './types'
 
 type PlantRowMember = ScenePlantRowEntity['members'][number]
+
+/** A row adds at most this many plants beside its first: Plant a row's commit limit, and the most one edit re-spaces. */
+export const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
+
+/** The Scene Edit of every change to a planted row's points or spacing (A7). */
+export const PLANT_ROW_EDIT = 'interaction-plant-row-edit'
 
 /** A member is attached while its plant lies within this distance of its `at`, in plane metres. */
 const ATTACHED_WITHIN_M = 0.001
@@ -27,7 +35,7 @@ export function attachedPlantRowMembers(
   return row.members.filter((member) => {
     const plant = plants.get(member.plantId)
     return plant !== undefined
-      && Math.hypot(plant.position.x - member.at.x, plant.position.y - member.at.y) <= ATTACHED_WITHIN_M
+      && distance(plant.position, member.at) <= ATTACHED_WITHIN_M
   })
 }
 
@@ -49,8 +57,10 @@ interface PlantRowWrite {
  * The row writer, the only code that sets a member's `at` (A5, A7). It keeps the row's attached member ids in path
  * order and moves them onto `positions`, adds copies of the first member for extra positions, deletes the surplus
  * plants (and takes them out of their groups), rewrites the anchors, spacing and every `at`, and takes the members
- * out of any other row, which goes when it has no member left. Returns the members' ids in path order for the caller
- * to select, or null (nothing written) without a position or a first plant. The caller runs it in one Scene Edit.
+ * out of any other row, which goes when it has no member left. A new row plants every position; a re-space plants
+ * those `respacedPlantRowPositions` keeps. Returns the members' ids in path
+ * order for the caller to select, or null (nothing written) without a position or a first plant. The caller runs it
+ * in one Scene Edit.
  */
 export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantRowWrite): string[] | null {
   const existing = draft.plantRows.find((row) => row.id === write.id)
@@ -58,13 +68,14 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   const kept = existing ? attachedPlantRowMembers(existing, plants).map((member) => member.plantId) : []
   const memberIds = kept.length > 0 ? kept : write.firstPlantId !== undefined ? [write.firstPlantId] : []
   const first = memberIds.length > 0 ? plants.get(memberIds[0]!) : undefined
-  if (!first || write.positions.length === 0) return null
+  const positions = existing ? respacedPlantRowPositions(draft, plants, existing, write.positions) : write.positions
+  if (!first || positions.length === 0) return null
 
-  const reused = memberIds.slice(0, write.positions.length)
-  const surplus = new Set(memberIds.slice(write.positions.length))
-  const copies = createPlantSpacingGeneratedPlants(first, write.positions.slice(reused.length), write.createId)
+  const reused = memberIds.slice(0, positions.length)
+  const surplus = new Set(memberIds.slice(positions.length))
+  const copies = createPlantSpacingGeneratedPlants(first, positions.slice(reused.length), write.createId)
   const ids = [...reused, ...copies.map((copy) => copy.id)]
-  const moved = new Map(reused.map((id, index) => [id, write.positions[index]!]))
+  const moved = new Map(reused.map((id, index) => [id, positions[index]!]))
 
   draft.plants = [
     ...draft.plants.flatMap((plant) => {
@@ -89,7 +100,7 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
     anchors: write.anchors.map((anchor) => ({ position: { ...anchor.position }, sharp: anchor.sharp })),
     closed: write.closed,
     spacing: { ...write.spacing },
-    members: ids.map((plantId, index) => ({ plantId, at: { ...write.positions[index]! } })),
+    members: ids.map((plantId, index) => ({ plantId, at: { ...positions[index]! } })),
   }
   const members = new Set(ids)
   const rows = draft.plantRows.flatMap((other) => {
@@ -100,6 +111,123 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   })
   draft.plantRows = existing ? rows : [...rows, row]
   return ids
+}
+
+/**
+ * The positions a re-space of `row` plants (A7): `positions` less each spot another row's first plant holds. Only a
+ * row's first plant can have come from another row (a row started from a member takes it), so each other row's
+ * attached first plant holds the position nearest it when it stands within half a gap of it (half the distance to the
+ * nearer neighbouring position) and `row` has no plant of its own there: the spot it gave away. "No plant there" is
+ * judged on the row's spacing before this re-space (no attached member within half its own old gap), not the new
+ * one, since a gap more than twice the old would take in the old neighbours of the spot. That spot stays the other
+ * row's however this row's points or spacing change, and fills again once that plant has moved off. Shared by the
+ * writer and Select's point-drag preview, so the preview shows what the release plants. Linear in the positions and
+ * members for each first plant near them.
+ */
+export function respacedPlantRowPositions<Point extends ScenePoint>(
+  scene: Pick<ScenePersistedState, 'plantRows'>,
+  plants: ReadonlyMap<string, ScenePlantEntity>,
+  row: ScenePlantRowEntity,
+  positions: readonly Point[],
+): readonly Point[] {
+  if (positions.length < 2) return positions
+  const own = oldPlantRowCells(row, plants)
+  const ownIds = new Set(own.map((cell) => cell.plantId))
+  const halfGaps = positions.map((position, index) => 0.5 * Math.min(
+    index > 0 ? distance(position, positions[index - 1]!) : Infinity,
+    index < positions.length - 1 ? distance(position, positions[index + 1]!) : Infinity,
+  ))
+  const reach = Math.max(...halfGaps)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const { x, y } of positions) {
+    minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
+  }
+  const left = new Set<number>()
+  for (const other of scene.plantRows) {
+    const first = other.members[0]
+    if (other.id === row.id || !first || ownIds.has(first.plantId)) continue
+    const plant = plants.get(first.plantId)
+    if (!plant || distance(plant.position, first.at) > ATTACHED_WITHIN_M) continue
+    const { x, y } = plant.position
+    if (x < minX - reach || x > maxX + reach || y < minY - reach || y > maxY + reach) continue
+    let nearest = 0
+    for (let index = 1; index < positions.length; index++) {
+      if (distance(positions[index]!, plant.position) < distance(positions[nearest]!, plant.position)) nearest = index
+    }
+    const halfGap = halfGaps[nearest]!
+    if (distance(positions[nearest]!, plant.position) >= halfGap) continue
+    if (own.some((cell) => distance(cell.at, plant.position) < (cell.halfGap ?? halfGap))) continue
+    left.add(nearest)
+  }
+  return left.size === 0 ? positions : positions.filter((_, index) => !left.has(index))
+}
+
+/**
+ * The row's attached members, each with half the gap to its nearer neighbour among the row's written spots (every
+ * member's `at`, in path order): the spacing the row had before a re-space. A row of one spot has no old gap (null),
+ * and the caller falls back to the new one.
+ */
+function oldPlantRowCells(
+  row: ScenePlantRowEntity,
+  plants: ReadonlyMap<string, ScenePlantEntity>,
+): Array<PlantRowMember & { readonly halfGap: number | null }> {
+  const attached = new Set(attachedPlantRowMembers(row, plants))
+  const spots = row.members
+  return spots.flatMap((member, index) => {
+    if (!attached.has(member)) return []
+    const gap = Math.min(
+      index > 0 ? distance(member.at, spots[index - 1]!.at) : Infinity,
+      index < spots.length - 1 ? distance(member.at, spots[index + 1]!.at) : Infinity,
+    )
+    return [{ ...member, halfGap: Number.isFinite(gap) ? 0.5 * gap : null }]
+  })
+}
+
+function distance(a: ScenePoint, b: ScenePoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
+/** The part of an open Scene Edit a row write uses. */
+interface PlantRowEditTransaction {
+  mutate(edit: (draft: ScenePersistedState) => void): void
+  setSelection(targets: Iterable<SceneDesignObjectSelection[number]>): void
+}
+
+/** The plants a path takes beside its first point, as the engine places them (plant-path/spacing.ts plantAlongPath). */
+interface PlantRowPlanting {
+  readonly count: number
+  positions(): readonly ScenePoint[]
+}
+
+/**
+ * Inside the open Scene Edit `tx`: rewrites `row` along `path` with `spacing`, its plants where `planting` (the engine's
+ * answer for that path and spacing) puts them, and selects its members (A7). False, with nothing written, when the row
+ * would add no plant or more than the limit.
+ */
+export function respacePlantRow(
+  tx: PlantRowEditTransaction,
+  row: ScenePlantRowEntity,
+  path: Pick<ScenePlantRowEntity, 'anchors' | 'closed'>,
+  spacing: ScenePlantRowEntity['spacing'],
+  planting: PlantRowPlanting,
+): boolean {
+  const first = path.anchors[0]
+  if (!first || planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return false
+  const positions = [first.position, ...planting.positions()]
+  const written: { members: readonly string[] | null } = { members: null }
+  tx.mutate((draft) => {
+    written.members = applyPlantRowPositions(draft, {
+      id: row.id,
+      anchors: path.anchors,
+      closed: path.closed,
+      spacing,
+      positions,
+      createId: createUuid,
+    })
+  })
+  if (!written.members) return false
+  tx.setSelection(written.members.map((id) => ({ kind: 'plant' as const, id })))
+  return true
 }
 
 /** The row a selection belongs to: its attached members in path order, and whether the selection is all of them. */
@@ -128,6 +256,16 @@ export function rowOfSelection(
     return { row, members, whole: members.length === selected.size }
   }
   return null
+}
+
+/**
+ * A row takes no edit while one of its attached members (`members`), or the Plants layer, is locked (A7's lock table):
+ * Select shows its curve without points, and the selection chip disables its spacing.
+ */
+export function isPlantRowLocked(scene: Readonly<ScenePersistedState>, members: readonly string[]): boolean {
+  if (!isSceneLayerEditable(scene, 'plants')) return true
+  const ids = new Set(members)
+  return scene.plants.some((plant) => plant.locked && ids.has(plant.id))
 }
 
 /** The rows a move carries, as they were when it started: each one with only its attached members (A11). */

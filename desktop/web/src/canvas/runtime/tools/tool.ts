@@ -135,10 +135,10 @@ export type ToolCommand =
   | { readonly kind: 'spacing-input'; readonly text: string }                 // typing: the preview follows a valid spacing
   | { readonly kind: 'spacing-commit'; readonly via: 'enter' | 'blur' }       // keeps a valid spacing; Enter returns focus to the map, blur moves none
   | { readonly kind: 'spacing-cancel' }                                       // Esc in the field: drops the source, focus to the map
-  // Plant a row's path (CanvasToolCommandSurface.plantRowPath, U58): the card's [Interval | Plants] switch, and a point
-  // action from the point menu (that handle) or the card (handle null: the last-touched point).
+  // Plant a row's path (CanvasToolCommandSurface.plantRowPath, U58): the card's [Interval | Plants] switch. A point
+  // action comes from the point menu (A16), on the point it was opened on (decision 16: the card has no point buttons).
   | { readonly kind: 'spacing-mode'; readonly mode: 'interval' | 'count' }
-  | { readonly kind: 'point-action'; readonly handle: ToolHandleId | null; readonly action: PointAction }
+  | { readonly kind: 'point-action'; readonly handle: ToolHandleId; readonly action: PointAction }
 
 /**
  * A 'handled' hover clears and skips the host's passive hover (restyle, tooltip); 'pass' lets it run.

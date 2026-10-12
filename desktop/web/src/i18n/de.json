@@ -731,7 +731,8 @@
       "measurements_many": "{{count, number}} Messungen",
       "measurements_other": "{{count, number}} Messungen",
       "clear": "Auswahl aufheben",
-      "rename": "Umbenennen…"
+      "rename": "Umbenennen…",
+      "selectRow": "Reihe auswählen"
     },
     "viewChip": "Ansicht",
     "map": {
