@@ -113,10 +113,10 @@ function rowSpacingKey(row: CanvasSelectedPlantRow): string {
 }
 
 /**
- * A selected row's spacing: every N m or N plants, the first counted. Enter re-spaces the row and gives the map its
- * focus back; leaving an edited field re-spaces it too; Esc puts the row's spacing back. The switch re-spaces the row
- * from where the other mode starts (its plants now, or its gap now) and focuses the field (A7: at Enter, blur or
- * switch). A spacing the row refuses is marked invalid. Never the device's Plant a row interval. A locked row (a
+ * A selected row's spacing: every N m or N plants, the first counted. Enter re-spaces the row with an edited spacing
+ * and gives the map its focus back; leaving an edited field re-spaces it too; Esc puts the row's spacing back. The
+ * switch re-spaces the row from where the other mode starts (its spots now, or its exact gap now, which the field may
+ * show rounded) and focuses the field (A7: at Enter, blur or switch). A spacing the row refuses is marked invalid. Never the device's Plant a row interval. A locked row (a
  * locked plant, or the Plants layer) shows both disabled.
  */
 function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
@@ -141,21 +141,20 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
     edited.current = false
   }, [key])
 
-  // A spacing that parses but that the row refuses (no plant fits, or too many) is as invalid as one that does not.
-  const commit = (as: 'interval' | 'count', value: string): boolean => {
-    const spacing = parseRowSpacing(as, value)
+  // A spacing that does not parse, or that the row refuses (no plant fits, or too many), is invalid.
+  const commit = (spacing: CanvasPlantRowSpacing | null): boolean => {
     const taken = spacing !== null && currentCanvasSceneEditCommandSurface.value?.setPlantRowSpacing?.(row.id, spacing) === true
     setInvalid(!taken)
     if (taken) edited.current = false
     return taken
   }
+  // The switch applies the row's exact gap or spots, never the field's rounded text, so it moves no plant.
   const switchTo = (next: 'interval' | 'count') => {
     if (next === mode) return
-    const value = rowSpacingText(row, next)
     setMode(next)
-    setText(value)
+    setText(rowSpacingText(row, next))
     edited.current = false
-    commit(next, value)
+    commit(rowSpacingAs(row, next))
     requestAnimationFrame(() => input.current?.select())
   }
 
@@ -204,12 +203,13 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
             edited.current = false
             setText(rowSpacingText(row, mode))
             setInvalid(false)
-          } else if (commit(mode, event.currentTarget.value)) {
+          } else if (edited.current ? commit(parseRowSpacing(mode, event.currentTarget.value)) : !invalid) {
+            // An unedited field keeps the row as it is: its text may round the row's gap.
             focusOwner.focusMap()
           }
         }}
         onBlur={(event) => {
-          if (edited.current) commit(mode, event.currentTarget.value)
+          if (edited.current) commit(parseRowSpacing(mode, event.currentTarget.value))
         }}
       />
     </>
@@ -220,6 +220,12 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
 function rowSpacingText(row: CanvasSelectedPlantRow, mode: 'interval' | 'count'): string {
   if (mode === 'count') return String(row.spacing.kind === 'count' ? row.spacing.count : row.spots)
   return formatPlantSpacingIntervalInput(row.spacing.kind === 'interval' ? row.spacing.metres : row.gapM)
+}
+
+/** The spacing `mode` gives the row as it stands: its own, else its spots now or its gap now. */
+function rowSpacingAs(row: CanvasSelectedPlantRow, mode: 'interval' | 'count'): CanvasPlantRowSpacing {
+  if (row.spacing.kind === mode) return row.spacing
+  return mode === 'count' ? { kind: 'count', count: row.spots } : { kind: 'interval', metres: row.gapM }
 }
 
 function parseRowSpacing(mode: 'interval' | 'count', text: string): CanvasPlantRowSpacing | null {

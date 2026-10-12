@@ -602,4 +602,57 @@ describe('Selection chip on a planted row, over the runtime', () => {
       await host.destroy()
     }
   })
+
+  // A 10 m hedge of seven plants: a gap of 1.666… m, which the field shows rounded up to 1.667 m.
+  function sevenPlantHedge(): CanopiFile {
+    const gap = 10 / 6
+    const plants = Array.from({ length: 7 }, (_, index) => plant(`h${index}`, 'Corylus avellana', index * gap))
+    return {
+      version: CURRENT_CANOPI_FILE_VERSION, name: 'Hedge', description: null, plant_species_colors: {},
+      layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
+      plants, zones: [], annotations: [], measurement_guides: [],
+      plant_rows: [{
+        id: 'hedge', closed: false, spacing: { kind: 'count', count: 7 },
+        anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(10, 0), sharp: false }],
+        members: plants.map((entry) => ({ plant_id: entry.id, at: entry.position })),
+      }],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z', extra: {},
+    }
+  }
+
+  it('the Interval switch, and Enter on its unedited field, keep a row whose gap the field rounds', async () => {
+    locale.value = 'en'
+    const container = document.createElement('div')
+    document.body.append(container)
+    const host = createLiveTestCanvasRuntimeHost()
+    const { commands, queries, documents } = host.surfaces
+    const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+    const ids = () => queries.getSceneSnapshot().plants.map((entry) => entry.id).sort()
+    try {
+      documents.loadDocument(sevenPlantHedge())
+      setCurrentCanvasSession(host.surfaces)
+      await act(() => render(<SelectionChip />, container))
+      await act(() => commands.sceneEdits.selectSpecies(['Corylus avellana']))
+      const before = ids()
+      expect(before).toHaveLength(7)
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="interval"]')!.click())
+      const field = chip()!.querySelector<HTMLInputElement>('[data-plant-row-spacing-input]')!
+      expect(field.value).toBe('1.667 m')
+      expect(ids(), 'the switch keeps the end plant').toEqual(before)
+      await act(() => { field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })) })
+      expect(ids(), 'Enter on the unedited field keeps it too').toEqual(before)
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!.click())
+      expect(queries.getSelectedPlantRow?.()?.spacing, 'Plants gives the seven plants back').toEqual({ kind: 'count', count: 7 })
+      expect(ids()).toEqual(before)
+    } finally {
+      render(null, container)
+      container.remove()
+      currentCanvasSelection.value = new Set()
+      setCurrentCanvasSession(null)
+      await host.destroy()
+    }
+  })
 })
