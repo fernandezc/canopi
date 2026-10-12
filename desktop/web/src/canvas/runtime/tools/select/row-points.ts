@@ -7,10 +7,11 @@
 // Its presses follow the one point contract (point-editor/rules.ts, anchors.ts): a point drags, a dot's drag inserts a
 // point where it is released, its double-click inserts one in place, Alt+click deletes one; the point menu deletes a
 // point or turns it sharp or smooth (select-tool.ts). A drag changes nothing in the Scene before its release: the moved
-// curve and the re-spaced plants follow it as the draft. Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine
-// (canvas/plant-path/) places every plant along the new path and the row writer (scene/plant-rows.ts respacePlantRow)
-// keeps the member ids in path order, adds copies of the first member, deletes the surplus, rewrites the row and
-// selects its members. Every point of a row may move or go, the first included (the first member follows it).
+// curve and the re-spaced plants follow it as the draft, less the spots other rows hold (respacedPlantRowPositions,
+// as the writer leaves them). Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine (canvas/plant-path/) places
+// every plant along the new path and the row writer (scene/plant-rows.ts respacePlantRow) keeps the member ids in path
+// order, adds copies of the first member, deletes the surplus, rewrites the row and selects its members. Every point
+// of a row may move or go, the first included (the first member follows it).
 
 import { flattenPath, type PathPoints } from '../../../plant-path/curve'
 import { plantAlongPath } from '../../../plant-path/spacing'
@@ -22,6 +23,8 @@ import {
   isPlantRowLocked,
   PLANT_ROW_EDIT,
   PLANT_ROW_MAX_ADDED_PLANTS,
+  plantsById,
+  respacedPlantRowPositions,
   respacePlantRow,
   rowOfSelection,
 } from '../../scene/plant-rows'
@@ -92,14 +95,21 @@ export function rowHandles(
 }
 
 /** The row's curve; while a point drags, also a disc where each plant of the re-spaced row would stand. */
-export function rowDraft(selected: SelectedPlantRow, path: PathPoints, dragging: boolean): DraftPresentation {
+export function rowDraft(
+  scene: Readonly<ScenePersistedState>,
+  selected: SelectedPlantRow,
+  path: PathPoints,
+  dragging: boolean,
+): DraftPresentation {
   const shapes: DraftShape[] = [{ kind: 'polyline', points: flattenPath(path).vertices, style: ROW_CURVE_STROKE }]
   const planting = dragging ? plantAlongPath(path, selected.row.spacing) : null
   const first = path.points[0]
   // A ghost where each plant of the re-spaced row would stand, the first on the first point, as many as Plant a row's
-  // preview draws; none when the edit would be refused.
+  // preview draws, less the spots other rows hold as the writer leaves them; none when the edit would be refused.
   const ghosts = planting && first && planting.count > 0 && planting.count <= PLANT_ROW_MAX_ADDED_PLANTS
-    ? createPlantSpacingGeneratedPlants(selected.first, [first.position, ...planting.positions(ROW_GHOST_LIMIT)],
+    ? createPlantSpacingGeneratedPlants(selected.first,
+      respacedPlantRowPositions(scene, plantsById(scene), selected.row,
+        [first.position, ...planting.positions(ROW_GHOST_LIMIT)]),
       (index) => `plant-row-ghost-${index}`)
     : []
   for (const plant of ghosts) {

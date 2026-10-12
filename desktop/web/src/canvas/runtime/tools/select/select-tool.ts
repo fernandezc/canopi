@@ -161,7 +161,7 @@ export function createSelectTool(): CanvasTool {
     // rotation handle turns the plants (the row's points turn with them at its release, A11). A refresh with no curve to
     // draw or take away leaves the draft alone, so a camera frame repaints nothing more.
     if (gesture?.kind !== 'band' && gesture?.kind !== 'move' && gesture?.kind !== 'guide-end') {
-      const curve = row && rowPath && gesture?.kind !== 'rotate' ? rowDraft(row, rowPath, rowDrag?.at != null) : null
+      const curve = row && rowPath && gesture?.kind !== 'rotate' ? rowDraft(scene, row, rowPath, rowDrag?.at != null) : null
       if (curve || rowCurveShown) c.effects.setDraft(curve)
       rowCurveShown = curve !== null
     }

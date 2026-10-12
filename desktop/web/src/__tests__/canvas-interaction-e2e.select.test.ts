@@ -3094,6 +3094,36 @@ describe('SceneInteractionSession', () => {
       session.dispose()
     })
 
+    it('previews a point drag with no plant on a spot another row took, as its release plants it', () => {
+      const { deps, session } = selectRow()
+      // r3 started a side row northward, so the hedge left its 50 m spot to it.
+      store.updatePersisted((draft) => {
+        draft.plants = [...draft.plants, makePlant('up', 'Corylus avellana', { x: 50, y: 120 })]
+        draft.plantRows = [
+          { ...draft.plantRows[0]!, members: draft.plantRows[0]!.members.filter((member) => member.plantId !== 'r3') },
+          {
+            kind: 'plant-row', id: 'side', closed: false, spacing: { kind: 'interval', metres: 20 },
+            anchors: [{ position: { x: 50, y: 100 }, sharp: false }, { position: { x: 50, y: 120 }, sharp: false }],
+            members: [{ plantId: 'r3', at: { x: 50, y: 100 } }, { plantId: 'up', at: { x: 50, y: 120 } }],
+          },
+        ]
+      })
+      const hedge = ROW_IDS.filter((id) => id !== 'r3')
+      deps.setSelection(hedge.map(plantTarget))
+      session.refreshMeasurements()
+      const ghostXs = () => draftShapes(deps).flatMap((shape) =>
+        shape.kind === 'ghost' && shape.entity.kind === 'plant' ? [shape.entity.plant.position.x] : [])
+
+      events.pointerDown({ x: 80, y: 100 }, { button: 0, buttons: 1, target: handle('point:row-1:1')!, timeStamp: 0 })
+      events.pointerMove({ x: 90, y: 100 }, { button: -1, buttons: 1, timeStamp: 10 })
+      events.pointerMove({ x: 100, y: 100 }, { button: -1, buttons: 1, timeStamp: 20 })
+      expect(ghostXs(), 'no ghost on r3').toEqual([20, 30, 40, 60, 70, 80, 90, 100])
+      events.pointerUp({ x: 100, y: 100 }, { button: 0, timeStamp: 30 })
+      const row = store.persisted.plantRows.find((entry) => entry.id === 'row-1')!
+      expect(row.members.map((member) => member.at.x), 'the release plants what the preview showed').toEqual([20, 30, 40, 60, 70, 80, 90, 100])
+      session.dispose()
+    })
+
     it('inserts a point from a dot drag or a dot\'s double-click, and deletes one by Alt+click or by Delete on the touched point', () => {
       const onSceneEditCommit = vi.fn()
       const { session } = selectRow({ onSceneEditCommit })
