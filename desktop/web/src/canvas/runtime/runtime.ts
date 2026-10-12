@@ -106,8 +106,11 @@ export interface CanvasSelectedPlantRow {
   readonly id: string
   /** The selection is all of the row's plants: the row is selected and Select edits it; otherwise Select row applies. */
   readonly whole: boolean
-  /** The plants the row holds now. */
-  readonly plants: number
+  /**
+   * The spots the row's spacing makes along its path, the first counted: where "N plants" starts from. A spot the row
+   * left to another row's plant counts, so the switch to N plants never takes it from the row's own plants.
+   */
+  readonly spots: number
   readonly spacing: CanvasPlantRowSpacing
   /** The gap between neighbouring plants now (a loop's rounded gap, an even count's): where "every N m" starts from. */
   readonly gapM: number

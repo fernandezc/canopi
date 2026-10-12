@@ -20,6 +20,11 @@ import {
   createTestCanvasKeyboardPort,
 } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface, type TestCanvasQuerySurface } from './support/canvas-query-surface'
+import { SceneCanvasRuntime } from '../canvas/runtime/scene-runtime'
+import { createDetachedCanvasRuntimeAppAdapter } from '../canvas/runtime/app-adapter'
+import { CURRENT_CANOPI_FILE_VERSION } from '../generated/canopi-design-format'
+import type { CanopiFile } from '../types/design'
+import { geoAt } from './support/geo-design'
 
 const RECT_ID = 'zone-ee08f9f9-634f-4723-bbde-1200610562dc'
 const ELLIPSE_ID = 'zone-0b1c2d3e-4f50-4617-8a9b-0c1d2e3f4a5b'
@@ -363,12 +368,13 @@ describe('Selection chip on a planted row', () => {
       }]
     })
     const base = createTestCanvasQuerySurface({ scene: store.persisted, localizedNames: new Map([['Corylus avellana', 'Hazel']]) })
-    // The runtime's query reads the row through the row module; this one does the same over the fake's scene.
+    // The runtime's query reads the row through the row module; this one does the same over the fake's scene, whose
+    // 4 m hedge every 2 m makes three spots 2 m apart.
     queries = Object.assign(base, {
       getSelectedPlantRow: () => {
         const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
         return selected && {
-          id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: rowSpacing ?? selected.row.spacing, gapM: 2,
+          id: selected.row.id, whole: selected.whole, spots: 3, spacing: rowSpacing ?? selected.row.spacing, gapM: 2,
           locked: rowLocked,
         }
       },
@@ -471,12 +477,12 @@ describe('Selection chip on a planted row', () => {
     await type(spacingField()!, '2 m', 'Escape')
     expect(spacingField()!.value, 'Esc puts the row\'s spacing back').toBe('2 m')
 
-    // The switch re-spaces the row from where the other mode starts (its plants now), and leaves the field ready.
+    // The switch re-spaces the row from where the other mode starts (the spots its spacing makes), and leaves the field ready.
     await act(() => mode('count').click())
     expect(setPlantRowSpacing, 'the switch re-spaces the row').toHaveBeenCalledTimes(2)
     expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
     expect(spacingField()).toBeNull()
-    expect(countField()!.value, 'Plants starts at the row\'s plants').toBe('3')
+    expect(countField()!.value, 'Plants starts at the row\'s spots').toBe('3')
     await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
     expect(document.activeElement, 'the switch focuses the field').toBe(countField())
     await type(countField()!, '5')
@@ -531,5 +537,78 @@ describe('Selection chip on a planted row', () => {
     expect(spacingField()!.disabled).toBe(true)
     expect(mode('interval').disabled).toBe(true)
     expect(mode('count').disabled).toBe(true)
+  })
+})
+
+// The chip over the real runtime: what the switch sends is what the row's query reads, and the writer applies it.
+describe('Selection chip on a planted row, over the runtime', () => {
+  const hazel = (id: string, x: number, y = 0) => ({
+    id, canonical_name: 'Corylus avellana', common_name: null, color: null, position: geoAt(x, y), rotation: null,
+    scale: 3, notes: null, planted_date: null, quantity: 1, locked: false,
+  })
+
+  // An L-shaped hedge: a, b and c 2 m apart along 4 m, and a side row started from `from`, which the hedge gave up.
+  function lHedge(from: 'a' | 'c'): CanopiFile {
+    const plants = [hazel('a', 0), hazel('b', 2), hazel('c', 4)]
+    const corner = from === 'a' ? 0 : 4
+    const interval = { kind: 'interval' as const, interval_m: 2 }
+    return {
+      version: CURRENT_CANOPI_FILE_VERSION, name: 'Hedge', description: null, plant_species_colors: {},
+      layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
+      plants: [...plants, hazel('up', corner, 2)], zones: [], annotations: [], measurement_guides: [],
+      plant_rows: [
+        {
+          id: 'hedge', closed: false, spacing: interval,
+          anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(4, 0), sharp: false }],
+          members: plants.filter((plant) => plant.id !== from).map((plant) => ({ plant_id: plant.id, at: plant.position })),
+        },
+        {
+          id: 'side', closed: false, spacing: interval,
+          anchors: [{ position: geoAt(corner, 0), sharp: false }, { position: geoAt(corner, 2), sharp: false }],
+          members: [{ plant_id: from, at: geoAt(corner, 0) }, { plant_id: 'up', at: geoAt(corner, 2) }],
+        },
+      ],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z', extra: {},
+    }
+  }
+
+  it.each(['c', 'a'] as const)('the Plants switch on a hedge whose plant %s started another row keeps every plant', async (from) => {
+    locale.value = 'en'
+    const container = document.createElement('div')
+    document.body.append(container)
+    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
+    const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+    const button = (name: string) => [...(chip()?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
+      .find((entry) => entry.textContent === name)
+    try {
+      runtime.documentSurface.loadDocument(lHedge(from))
+      setCurrentCanvasSession({
+        commands: runtime.commandSurface,
+        queries: runtime.querySurface,
+        documents: runtime.documentSurface,
+        keyboard: createTestCanvasKeyboardPort(),
+      })
+      await act(() => render(<SelectionChip />, container))
+      // A click on the hedge's b (session state, as a click is), then Select row.
+      await act(() => (runtime as unknown as { _setSelection(targets: unknown): void })._setSelection([{ kind: 'plant', id: 'b' }]))
+      await act(() => button('Select row')!.click())
+      const hedge = ['a', 'b', 'c'].filter((id) => id !== from)
+      expect(runtime.querySurface.getSelection().map((target) => target.id)).toEqual(hedge)
+
+      await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!.click())
+      // Three spots along the hedge's 4 m, one of them the side row's: the switch keeps the layout.
+      expect(chip()!.querySelector<HTMLInputElement>('[data-plant-row-count-input]')!.value).toBe('3')
+      expect(runtime.querySurface.getSelectedPlantRow?.()?.spacing).toEqual({ kind: 'count', count: 3 })
+      expect(runtime.querySurface.getSceneSnapshot().plants.map((plant) => plant.id).sort(), 'no plant is lost')
+        .toEqual(['a', 'b', 'c', 'up'])
+      expect(runtime.querySurface.getSelection().map((target) => target.id), 'the hedge stays selected').toEqual(hedge)
+    } finally {
+      render(null, container)
+      container.remove()
+      currentCanvasSelection.value = new Set()
+      setCurrentCanvasSession(null)
+      runtime.destroy()
+    }
   })
 })

@@ -109,7 +109,7 @@ function isOnlyPlants(summary: MapSelectionSummary): boolean {
 /** What a re-spaced row (an edit, an Undo) changes: the field then shows the row's own spacing again. */
 function rowSpacingKey(row: CanvasSelectedPlantRow): string {
   const { spacing } = row
-  return `${row.id}:${row.plants}:${spacing.kind === 'interval' ? `${spacing.metres}m` : spacing.count}:${row.locked}`
+  return `${row.id}:${row.spots}:${spacing.kind === 'interval' ? `${spacing.metres}m` : spacing.count}:${row.locked}`
 }
 
 /**
@@ -216,9 +216,9 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   )
 }
 
-/** The field's text for `mode`: the row's own spacing, else where the other mode starts (today's gap or plants). */
+/** The field's text for `mode`: the row's own spacing, else where the other mode starts (today's gap or spots). */
 function rowSpacingText(row: CanvasSelectedPlantRow, mode: 'interval' | 'count'): string {
-  if (mode === 'count') return String(row.spacing.kind === 'count' ? row.spacing.count : row.plants)
+  if (mode === 'count') return String(row.spacing.kind === 'count' ? row.spacing.count : row.spots)
   return formatPlantSpacingIntervalInput(row.spacing.kind === 'interval' ? row.spacing.metres : row.gapM)
 }
 

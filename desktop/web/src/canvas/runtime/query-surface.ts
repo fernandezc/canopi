@@ -168,12 +168,13 @@ class SceneCanvasQueryRole implements SceneCanvasQuerySurface {
     const selected = rowOfSelection(persisted, session.selectedTargets)
     if (!selected) return null
     const { row } = selected
+    const planting = plantAlongPath({ points: row.anchors, closed: row.closed }, row.spacing)
     return {
       id: row.id,
       whole: selected.whole,
-      plants: selected.members.length,
+      spots: planting.count + 1,
       spacing: { ...row.spacing },
-      gapM: plantAlongPath({ points: row.anchors, closed: row.closed }, row.spacing).effectiveSpacingM,
+      gapM: planting.effectiveSpacingM,
       locked: isPlantRowLocked(persisted, selected.members),
     }
   }

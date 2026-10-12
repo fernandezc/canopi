@@ -138,7 +138,7 @@ describe('the selected planted row', () => {
 
       select(['h2'])
       expect(queries.getSelectedPlantRow?.()).toEqual({
-        id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 }, gapM: 2, locked: false,
+        id: 'hedge', whole: false, spots: 3, spacing: { kind: 'interval', metres: 2 }, gapM: 2, locked: false,
       })
       edits.selectPlantRow?.()
       expect(queries.getSelection().map((target) => target.id)).toEqual(['h1', 'h2', 'h3'])
@@ -153,7 +153,7 @@ describe('the selected planted row', () => {
       expect(edits.setPlantRowSpacing?.('hedge', { kind: 'interval', metres: 5 }), 'a spacing the row refuses').toBe(false)
       expect(runtime.commandSurface.history.canUndo.value, 'neither edits the Design').toBe(false)
       expect(edits.setPlantRowSpacing?.('hedge', { kind: 'count', count: 5 })).toBe(true)
-      expect(queries.getSelectedPlantRow?.()).toMatchObject({ whole: true, plants: 5, spacing: { kind: 'count', count: 5 } })
+      expect(queries.getSelectedPlantRow?.()).toMatchObject({ whole: true, spots: 5, spacing: { kind: 'count', count: 5 } })
       expect(queries.getSelectedPlantRow?.()?.gapM).toBeCloseTo(1, 6)
       expect(queries.getSelection().slice(0, 3).map((target) => target.id), 'the members keep their ids').toEqual(['h1', 'h2', 'h3'])
       runtime.commandSurface.history.undo()
