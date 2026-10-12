@@ -171,4 +171,35 @@ describe('the selected planted row', () => {
       runtime.destroy()
     }
   })
+
+  it('a row whose last plant started another row (an L-shaped hedge) re-spaces without planting on that plant', () => {
+    const file = rowFile()
+    const [hedge] = file.plant_rows!
+    const corner = { ...file.plants[3]!, id: 'up', position: geoAt(4, 2) }
+    file.plants = [...file.plants, corner]
+    file.plant_rows = [
+      { ...hedge!, members: hedge!.members.slice(0, 2) },
+      {
+        id: 'side', closed: false, spacing: { kind: 'interval', interval_m: 2 },
+        anchors: [{ position: geoAt(4, 0), sharp: false }, { position: geoAt(4, 2), sharp: false }],
+        members: [{ plant_id: 'h3', at: geoAt(4, 0) }, { plant_id: 'up', at: geoAt(4, 2) }],
+      },
+    ]
+    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
+    try {
+      runtime.documentSurface.loadDocument(file)
+      const edits = runtime.commandSurface.sceneEdits
+      // Three plants end to end along the hedge's 4 m: the third spot is h3's, now the side row's first plant.
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'count', count: 3 })).toBe(true)
+      const plants = runtime.querySurface.getSceneSnapshot().plants
+      // The session plane's origin is the Design's: read the spots from the untouched plant 10 m along.
+      const lone = plants.find((entry) => entry.id === 'lone')!.position
+      const near = (x: number, y: number) => plants.filter((entry) =>
+        Math.hypot(entry.position.x - (lone.x - 10 + x), entry.position.y - (lone.y + y)) < 0.01)
+      expect(near(4, 0).map((entry) => entry.id), 'one plant stands at the corner, the side row\'s').toEqual(['h3'])
+      expect(plants, 'the hedge planted no copy').toHaveLength(5)
+    } finally {
+      runtime.destroy()
+    }
+  })
 })

@@ -57,8 +57,11 @@ interface PlantRowWrite {
  * The row writer, the only code that sets a member's `at` (A5, A7). It keeps the row's attached member ids in path
  * order and moves them onto `positions`, adds copies of the first member for extra positions, deletes the surplus
  * plants (and takes them out of their groups), rewrites the anchors, spacing and every `at`, and takes the members
- * out of any other row, which goes when it has no member left. Returns the members' ids in path order for the caller
- * to select, or null (nothing written) without a position or a first plant. The caller runs it in one Scene Edit.
+ * out of any other row, which goes when it has no member left. A position where another row's attached member stands
+ * is that row's and gets no plant: a row started from a member leaves its old row's slot to it, so the old row's next
+ * re-space never plants on it, and fills it again once that plant has moved off. Returns the members' ids in path
+ * order for the caller to select, or null (nothing written) without a position or a first plant. The caller runs it
+ * in one Scene Edit.
  */
 export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantRowWrite): string[] | null {
   const existing = draft.plantRows.find((row) => row.id === write.id)
@@ -66,13 +69,14 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   const kept = existing ? attachedPlantRowMembers(existing, plants).map((member) => member.plantId) : []
   const memberIds = kept.length > 0 ? kept : write.firstPlantId !== undefined ? [write.firstPlantId] : []
   const first = memberIds.length > 0 ? plants.get(memberIds[0]!) : undefined
-  if (!first || write.positions.length === 0) return null
+  const positions = positionsFreeOfOtherRows(draft, write.id, new Set(memberIds), write.positions)
+  if (!first || positions.length === 0) return null
 
-  const reused = memberIds.slice(0, write.positions.length)
-  const surplus = new Set(memberIds.slice(write.positions.length))
-  const copies = createPlantSpacingGeneratedPlants(first, write.positions.slice(reused.length), write.createId)
+  const reused = memberIds.slice(0, positions.length)
+  const surplus = new Set(memberIds.slice(positions.length))
+  const copies = createPlantSpacingGeneratedPlants(first, positions.slice(reused.length), write.createId)
   const ids = [...reused, ...copies.map((copy) => copy.id)]
-  const moved = new Map(reused.map((id, index) => [id, write.positions[index]!]))
+  const moved = new Map(reused.map((id, index) => [id, positions[index]!]))
 
   draft.plants = [
     ...draft.plants.flatMap((plant) => {
@@ -97,7 +101,7 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
     anchors: write.anchors.map((anchor) => ({ position: { ...anchor.position }, sharp: anchor.sharp })),
     closed: write.closed,
     spacing: { ...write.spacing },
-    members: ids.map((plantId, index) => ({ plantId, at: { ...write.positions[index]! } })),
+    members: ids.map((plantId, index) => ({ plantId, at: { ...positions[index]! } })),
   }
   const members = new Set(ids)
   const rows = draft.plantRows.flatMap((other) => {
@@ -108,6 +112,22 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   })
   draft.plantRows = existing ? rows : [...rows, row]
   return ids
+}
+
+/** `positions` without those where an attached member of another row stands, other than the plants the write takes. */
+function positionsFreeOfOtherRows(
+  scene: Pick<ScenePersistedState, 'plants' | 'plantRows'>,
+  rowId: string,
+  taken: ReadonlySet<string>,
+  positions: readonly ScenePoint[],
+): readonly ScenePoint[] {
+  const plants = plantsById(scene)
+  const held = scene.plantRows.flatMap((row) => row.id === rowId ? [] : attachedPlantRowMembers(row, plants))
+    .filter((member) => !taken.has(member.plantId))
+    .map((member) => member.at)
+  if (held.length === 0) return positions
+  return positions.filter((position) =>
+    !held.some((at) => Math.hypot(at.x - position.x, at.y - position.y) <= ATTACHED_WITHIN_M))
 }
 
 /** The part of an open Scene Edit a row write uses. */

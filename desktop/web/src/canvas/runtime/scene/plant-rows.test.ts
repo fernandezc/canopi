@@ -145,6 +145,39 @@ describe('applyPlantRowPositions, the row writer (A5, A7)', () => {
     expect(scene.plants.map((entry) => entry.id)).toContain('c')
   })
 
+  it('a re-space leaves the spot of a member another row took to that row: no plant is planted on it', () => {
+    // Row 1 runs a, b, c at x = 0, 2, 4; each case starts a second row from one of them and re-spaces row 1 in place.
+    const straight = (): ScenePersistedState => {
+      const scene = sceneWithRow()
+      scene.plants = scene.plants.map((entry, index) => index < 3 ? { ...entry, position: { x: index * 2, y: 0 } } : entry)
+      scene.plantRows[0] = {
+        ...scene.plantRows[0]!,
+        members: scene.plantRows[0]!.members.map((member, index) => ({ ...member, at: { x: index * 2, y: 0 } })),
+      }
+      return scene
+    }
+    const slots = [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 4, y: 0 }]
+    for (const [picked, left] of [['c', ['a', 'b']], ['b', ['a', 'c']], ['a', ['b', 'c']]] as const) {
+      const scene = straight()
+      const corner = plantsById(scene).get(picked)!.position
+      applyPlantRowPositions(scene, {
+        id: 'row-2', firstPlantId: picked, anchors: ANCHORS, closed: false, spacing: { kind: 'interval', metres: 2 },
+        positions: [corner, { x: corner.x, y: 2 }], createId: ids(),
+      })
+      const members = applyPlantRowPositions(scene, {
+        id: 'row-1', anchors: ANCHORS, closed: false, spacing: { kind: 'interval', metres: 2 }, positions: slots,
+        createId: ids(),
+      })
+      expect(members, `row 1 keeps its other plants when ${picked} leaves`).toEqual(left)
+      for (const slot of slots) {
+        const standing = scene.plants.filter((entry) => entry.position.x === slot.x && entry.position.y === slot.y)
+        expect(standing, `one plant at x = ${slot.x} after ${picked} left`).toHaveLength(1)
+      }
+      expect(plantsById(scene).get(picked)!.position, `${picked} stays row 2's first plant`).toEqual(corner)
+      expect(attached(scene, 'row-2')[0]).toBe(picked)
+    }
+  })
+
   it('writes nothing without positions or a first plant', () => {
     const scene = sceneWithRow()
     const before = structuredClone(scene)
