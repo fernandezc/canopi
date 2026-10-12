@@ -319,6 +319,31 @@ describe('fit', () => {
       .toEqual({ x: 0, y: 0, width: 100, height: 800 })
   })
 
+  // The plant finder's and Species detail's 72 px padding left no room in a grown 120 px band, so their zoom did nothing.
+  it('temporary focus on a thin band keeps half of each short axis for the box, centred on the free band', () => {
+    // The 62 px phone mix: the frame grows to y 331..451, and the padding takes a quarter (30 px) from each side.
+    const frame = fitFrame(390, 844, [3, -7, 1], { top: 360, right: 0, bottom: 422, left: 0 })
+    const box = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
+    for (const paddingCssPx of [72, 48]) {
+      const focused = fitTemporaryBounds(frame, box, { paddingCssPx }, 0)
+      expect(focused, `padding ${paddingCssPx}`).not.toBeNull()
+      expect(focused!.scale * 10).toBeCloseTo(60, 9)
+      for (const corner of [{ x: 0, y: 0 }, { x: 10, y: 10 }]) {
+        const onScreen = screenOf(focused!, corner)
+        expect(onScreen.y).toBeGreaterThanOrEqual(361 - 1e-6)
+        expect(onScreen.y).toBeLessThanOrEqual(421 + 1e-6)
+      }
+    }
+    // A band of 120 to 144 px, never grown, frames too: its 130 px keep 65 for the box.
+    const band = fitTemporaryBounds(fitFrame(390, 844, [0, 0, 1], { top: 357, right: 0, bottom: 357, left: 0 }), box, { paddingCssPx: 72 }, 0)
+    expect(band!.scale * 10).toBeCloseTo(65, 9)
+    // The full padding stays where the axis holds it: 246 of the 390 px width.
+    const wide = fitTemporaryBounds(frame, { minX: 0, minY: 0, maxX: 100, maxY: 1 }, { paddingCssPx: 72 }, 0)
+    expect(wide!.scale * 100).toBeCloseTo(246, 9)
+    // Padding the screen itself cannot hold is still refused.
+    expect(fitTemporaryBounds(frame, box, { paddingCssPx: 195 }, 0)).toBeNull()
+  })
+
   it('Fit to Design centres the Design on the grown band, inside 120 px', () => {
     const frame = fitFrame(390, 844, [3, -7, 1], { top: 360, right: 0, bottom: 422, left: 0 })
     const extent = sceneExtentPoints(scene(), PLANTS)

@@ -104,7 +104,9 @@ export function fitScene(frame: FitFrame, extent: SceneExtent, bearingDeg: numbe
 
 /**
  * Temporary focus (plant finder, LiDAR) at a bearing: the box's four corners are fitted, with symmetric CSS-pixel padding and
- * an optional scale ceiling. Null when the box, padding, ceiling or screen cannot frame it.
+ * an optional scale ceiling. On the framing rectangle the padding takes at most a quarter of an axis from each side, so a
+ * thin chrome band still frames the box in half of it. Null when the box, ceiling or screen cannot frame it, or the screen
+ * itself cannot hold the padding.
  */
 export function fitTemporaryBounds(
   frame: FitFrame,
@@ -126,12 +128,12 @@ export function fitTemporaryBounds(
     || minX >= maxX
     || minY >= maxY
     || padding < 0
+    || padding * 2 >= Math.min(screenWidth, screenHeight)
     || maximumScale < frame.scaleBounds.min
   ) return null
 
-  const availableWidth = width - padding * 2
-  const availableHeight = height - padding * 2
-  if (availableWidth <= 0 || availableHeight <= 0) return null
+  const availableWidth = width - Math.min(padding, width / 4) * 2
+  const availableHeight = height - Math.min(padding, height / 4) * 2
 
   const bearing = normaliseBearing(bearingDeg)
   const box = orientedExtent([
