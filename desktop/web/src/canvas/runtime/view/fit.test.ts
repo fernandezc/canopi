@@ -344,6 +344,32 @@ describe('fit', () => {
     expect(fitTemporaryBounds(frame, box, { paddingCssPx: 195 }, 0)).toBeNull()
   })
 
+  // A band too thin for the box's room would frame it under the chrome and still report success, so the view is left alone.
+  it('temporary focus refuses a band the framed box would not land inside', () => {
+    const box = { minX: 0, minY: 0, maxX: 10, maxY: 10 }
+    const insetCases: readonly [string, ScreenInsets][] = [
+      // 390x844, the full sheet 8 px below the title bar: an 8 px band.
+      ['8 px band under the title bar', { top: 60, right: 0, bottom: 776, left: 0 }],
+      // The same with a Plant a row card down to 94 px: the chrome overlaps.
+      ['overlapping chrome', { top: 94, right: 0, bottom: 776, left: 0 }],
+      // A 30 px band at the bottom edge: the grown frame is clamped to the screen, off the band's centre.
+      ['30 px band at the edge', { top: 814, right: 0, bottom: 0, left: 0 }],
+    ]
+    for (const [label, insets] of insetCases) {
+      expect(fitTemporaryBounds(fitFrame(390, 844, [3, -7, 1], insets), box, { paddingCssPx: 72 }, 0), label).toBeNull()
+    }
+    // A scale ceiling that keeps the box inside the band still frames it there.
+    const capped = fitTemporaryBounds(
+      fitFrame(390, 844, [3, -7, 1], { top: 60, right: 0, bottom: 776, left: 0 }), box, { paddingCssPx: 72, maximumScale: 0.5 }, 0,
+    )
+    expect(capped).not.toBeNull()
+    for (const corner of [{ x: 0, y: 0 }, { x: 10, y: 10 }]) {
+      const onScreen = screenOf(capped!, corner)
+      expect(onScreen.y).toBeGreaterThanOrEqual(60 - 1e-6)
+      expect(onScreen.y).toBeLessThanOrEqual(68 + 1e-6)
+    }
+  })
+
   it('Fit to Design centres the Design on the grown band, inside 120 px', () => {
     const frame = fitFrame(390, 844, [3, -7, 1], { top: 360, right: 0, bottom: 422, left: 0 })
     const extent = sceneExtentPoints(scene(), PLANTS)

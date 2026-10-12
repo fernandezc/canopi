@@ -13,6 +13,8 @@ const FIT_MAX_ROUNDS = 20
 const FIT_CONVERGENCE_THRESHOLD = 0.0001
 /** The least width and height framing keeps: a shorter free band grows to it around its centre. */
 const MIN_FRAMING_EXTENT_CSS_PX = 120
+/** Rounding room when checking that a framed box lands inside the free band. */
+const FREE_BAND_TOLERANCE_CSS_PX = 1e-6
 const NO_INSETS: ScreenInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 })
 
 /** The screen rectangle fitting frames into, in CSS pixels. */
@@ -105,8 +107,9 @@ export function fitScene(frame: FitFrame, extent: SceneExtent, bearingDeg: numbe
 /**
  * Temporary focus (plant finder, LiDAR) at a bearing: the box's four corners are fitted, with symmetric CSS-pixel padding and
  * an optional scale ceiling. On the framing rectangle the padding takes at most a quarter of an axis from each side, so a
- * thin chrome band still frames the box in half of it. Null when the box, ceiling or screen cannot frame it, or the screen
- * itself cannot hold the padding.
+ * thin chrome band still frames the box in half of it. Null when the box, ceiling or screen cannot frame it, the screen
+ * itself cannot hold the padding, or the framed box would not land inside the band the chrome leaves free (it would be
+ * hidden, so the view is left alone).
  */
 export function fitTemporaryBounds(
   frame: FitFrame,
@@ -149,12 +152,31 @@ export function fitTemporaryBounds(
   ), frame.scaleBounds)
   if (!Number.isFinite(scale) || scale > maximumScale) return null
 
+  const centreX = rect.x + width / 2
+  const centreY = rect.y + height / 2
+  const halfWidth = ((box.maxAcross - box.minAcross) * scale) / 2
+  const halfHeight = ((box.maxDown - box.minDown) * scale) / 2
+  const free = freeBand(frame.screen, frame.insets)
+  if (
+    centreX - halfWidth < free.left - FREE_BAND_TOLERANCE_CSS_PX
+    || centreX + halfWidth > free.right + FREE_BAND_TOLERANCE_CSS_PX
+    || centreY - halfHeight < free.top - FREE_BAND_TOLERANCE_CSS_PX
+    || centreY + halfHeight > free.bottom + FREE_BAND_TOLERANCE_CSS_PX
+  ) return null
+
   return {
-    x: rect.x + width / 2 - ((box.minAcross + box.maxAcross) / 2) * scale,
-    y: rect.y + height / 2 - ((box.minDown + box.maxDown) / 2) * scale,
+    x: centreX - ((box.minAcross + box.maxAcross) / 2) * scale,
+    y: centreY - ((box.minDown + box.maxDown) / 2) * scale,
     scale,
     bearingDeg: bearing,
   }
+}
+
+/** The screen edges of the band floating chrome leaves free, before framingRect grows it; the whole screen for invalid insets. */
+function freeBand(screen: { readonly width: number; readonly height: number }, insets: ScreenInsets = NO_INSETS) {
+  const { top, right, bottom, left } = insets
+  if (![top, right, bottom, left].every(Number.isFinite)) return { left: 0, top: 0, right: screen.width, bottom: screen.height }
+  return { left, top, right: screen.width - right, bottom: screen.height - bottom }
 }
 
 /** Whether a scene has nothing to frame at a scale: the empty-scene branch of fitScene. */
