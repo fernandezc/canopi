@@ -774,7 +774,7 @@ export function createPlantRowTool(): CanvasTool {
           return 'handled'
         case 'point-action':
           // From the point menu, opened on a point (the card has no point buttons since decision 16).
-          if (c.handle === null || !pointAction(c.handle, c.action)) return 'pass'
+          if (!pointAction(c.handle, c.action)) return 'pass'
           publish()
           return 'handled'
         default:
