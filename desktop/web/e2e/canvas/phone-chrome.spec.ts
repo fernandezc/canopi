@@ -292,3 +292,49 @@ for (const layout of LANDSCAPES) {
     })
   })
 }
+
+/** The shown row handles' sizes, rounded: points and dots, or points only. */
+async function rowHandleSizes(page: Page, selector = '[data-canvas-handle^="point:"], [data-canvas-handle^="dot:"]'): Promise<number[]> {
+  return await page.locator(selector).evaluateAll((elements) => elements.map((element) => {
+    const box = element.getBoundingClientRect()
+    return Math.round(Math.min(box.width, box.height))
+  }))
+}
+
+// canopi-94o3: after a tap, a browser sends mouse-typed boundary events as the handles re-render under the finger
+// (Chromium did at 1024x768); the map's input source turned a mouse pointerleave into a move, which made the pointer a
+// mouse and shrank the touch handles to 20 px. A boundary event never changes the pointer kind; a real mouse move still
+// does. The leave is dispatched on the map host as the browser sends it, through the real input source.
+test.describe('390×844 boundary events', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test('(canopi-94o3, H) a mouse-typed pointerleave after a tap keeps the row\'s handles 44 px targets; a mouse move makes the points 20 px', async ({ page }) => {
+    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await mapHost(page).focus()
+    await page.keyboard.press('w')
+    await tap(page, APPLE)
+    await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
+    await page.keyboard.press('Enter')
+    await tap(page, BELOW)
+    await tap(page, BESIDE)
+    await tap(page, BESIDE)
+    await expect(page.locator('[data-canvas-handle="point:draft:2"][data-canvas-handle-active]'), 'the tapped point is touched').toHaveCount(1)
+    await nextFrames(page)
+    const touched = await rowHandleSizes(page)
+    expect(touched.length, 'the row shows its points and dots').toBeGreaterThanOrEqual(3)
+    expect(touched.every((size) => size >= 44), `after a tap the handles are 44 px targets: ${touched}`).toBe(true)
+
+    await mapHost(page).evaluate((host, at) => {
+      host.dispatchEvent(new PointerEvent('pointerleave', {
+        pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: at.x, clientY: at.y, relatedTarget: document.body,
+      }))
+    }, { x: 300, y: 600 })
+    await nextFrames(page)
+    const afterLeave = await rowHandleSizes(page)
+    expect(afterLeave.every((size) => size >= 44), `a mouse-typed leave keeps 44 px handles: ${afterLeave}`).toBe(true)
+
+    await page.mouse.move(300, 600)
+    await page.mouse.move(305, 600)
+    await expect.poll(async () => (await rowHandleSizes(page, '[data-canvas-handle^="point:"]')).every((size) => size === 20), 'a mouse move makes the points 20 px').toBe(true)
+  })
+})

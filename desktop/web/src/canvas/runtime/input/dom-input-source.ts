@@ -115,6 +115,8 @@ export function createDomInputSource(deps: DomInputSourceDeps): DomInputSource {
   let lastT = 0
   /** Pointers pressed on the map, until their release or cancel: the window listeners follow only these. */
   const owned = new Set<number>()
+  /** The pointer type of the last press or move the source heard; boundary events never change it (onPointerLeave). */
+  let heardPointerType: string | undefined
   /** The owned pointers whose press was a canvas press (not the note editor's, a field's or a menu's): their native menus
    *  are prevented anywhere until NATIVE_MENU_TRAIL_MS after a secondary release (a secondary press's, or one that reports
    *  the right or barrel button after a real chord, U36, U37). */
@@ -208,6 +210,7 @@ export function createDomInputSource(deps: DomInputSourceDeps): DomInputSource {
   }
 
   const onPointerDown = (event: PointerEvent): void => {
+    heardPointerType = event.pointerType
     const rect = host.getBoundingClientRect()
     const input = pointerInput(event, 'pointerdown', rect)
     // Owned first: a sink that fails on the press may still have opened its session, whose release must reach it.
@@ -225,11 +228,13 @@ export function createDomInputSource(deps: DomInputSourceDeps): DomInputSource {
   /** A move of a pointer the source does not own, over the map: a hover (an owned pointer's moves come from window). */
   const onHostPointerMove = (event: PointerEvent): void => {
     if (owned.has(event.pointerId)) return
+    heardPointerType = event.pointerType
     const rect = host.getBoundingClientRect()
     deliver(event, rect, pointerInput(event, 'pointermove', rect))
   }
   const onPointerMove = (event: PointerEvent): void => {
     if (!owned.has(event.pointerId)) return
+    heardPointerType = event.pointerType
     const press = canvasPresses.get(event.pointerId)
     if (press && (event.buttons & BUTTONS_SECONDARY_BIT) !== 0 && isCanvasPressTarget(event.target, host)) press.chorded = true
     const rect = sessionRect(event.pointerId)
@@ -266,11 +271,14 @@ export function createDomInputSource(deps: DomInputSourceDeps): DomInputSource {
    * The move that takes a hover off the map lands beside it, where the host no longer hears it; the leave carries its
    * point (classified by where it landed), so a tool's preview follows the pointer there before the hover ends, rather
    * than staying at the last move the map heard (a coalesced move can lie well inside it). An owned pointer's moves come
-   * from window, and a touch has no hover.
+   * from window, and a touch has no hover. A leave is a boundary event, which never changes the pointer kind: after a
+   * tap a browser sends mouse-typed boundary events as the handles re-render under the finger (canopi-94o3), so a leave
+   * carries a move only for the pointer kind the map last heard press or move (or any, before it has heard one).
    */
   const onPointerLeave = (event: PointerEvent): void => {
     try {
-      if (!owned.has(event.pointerId) && event.pointerType !== 'touch') {
+      if (!owned.has(event.pointerId) && event.pointerType !== 'touch'
+        && (heardPointerType === undefined || event.pointerType === heardPointerType)) {
         const rect = host.getBoundingClientRect()
         deliver(event, rect, normalise(domEventLike(event, 'pointermove', rect, classifyTarget(event.relatedTarget, host)), deps.platform, rect))
       }
