@@ -434,6 +434,10 @@ describe('Selection chip on a planted row', () => {
 
     await select(ROW)
     expect(spacingField()!.value).toBe('2 m')
+    // The row's spacing takes the place of Select all of this species (the menu keeps it) and of the plants' distance
+    // apart, so a phone's chip stays short.
+    expect(button('Select all of this species')).toBeUndefined()
+    expect(chip()!.querySelector('[role="status"]')!.textContent?.replace(/\s+/g, ' ').trim()).toBe('3 plants · Hazel')
     expect(mode('interval').getAttribute('aria-pressed')).toBe('true')
     expect(mode('count').getAttribute('aria-pressed')).toBe('false')
     // Leaving the field unedited changes nothing.

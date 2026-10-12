@@ -47,7 +47,8 @@ export function SelectionChip() {
     <div className={styles.chip} role="group" aria-label={t('canvas.selectionChip.label')} data-selection-chip="bottom">
       <span className={styles.text} role="status" aria-live="polite">
         <b><SpeciesCommonName name={head} englishFallback={headEnglishFallback} /></b>
-        {details.map((detail, index) => (
+        {/* A selected row's own spacing field stands for the plants' mean distance apart. */}
+        {details.filter((detail) => !(row?.whole && detail.measure)).map((detail, index) => (
           <span key={index} className={detail.measure ? `${styles.muted} ${styles.measure}` : styles.muted}>
             {' · '}<SpeciesCommonName name={detail.text} englishFallback={detail.englishFallback} />
           </span>
@@ -63,7 +64,8 @@ export function SelectionChip() {
           {t('canvas.selectionChip.selectRow')}
         </button>
       )}
-      {wholeSpecies && (
+      {/* A selected row's spacing takes its place (the canvas menu keeps it), so a phone's chip stays short. */}
+      {wholeSpecies && !row?.whole && (
         <button
           type="button"
           className={styles.button}
@@ -141,8 +143,9 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
     requestAnimationFrame(() => input.current?.select())
   }
 
+  // The switch and the field are the chip's own items, so on a narrow phone the field shares Clear's line.
   return (
-    <span className={styles.rowSpacing}>
+    <>
       <span className={styles.modes} role="group" aria-label={t('canvas.plantSpacing.mode')}>
         {(['interval', 'count'] as const).map((option) => (
           <button
@@ -193,7 +196,7 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
           if (edited.current) commit(event.currentTarget.value)
         }}
       />
-    </span>
+    </>
   )
 }
 

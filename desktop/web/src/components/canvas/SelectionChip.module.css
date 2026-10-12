@@ -26,6 +26,13 @@
   font-size: var(--text-base);
 }
 
+/* Phones: the zoom column stands on the right of the visible map, placed from it rather than registered with the seam
+   (ZoomControls.module.css `.phone`, whose right edge this repeats), so the chip's room ends left of the column, as
+   the map notice's does: a chip that wraps tall (a row's spacing, a long language) never runs under it. */
+:global([data-phone-layout]) .chip {
+  right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + var(--zoom-group-width, 0px) + var(--space-2));
+}
+
 .text {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -77,16 +84,10 @@
   white-space: nowrap;
 }
 
-/* A selected row's spacing: the [Interval | Plants] switch and its field, kept together when the chip wraps. */
-.rowSpacing {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-1);
-}
-
+/* A selected row's spacing: the [Interval | Plants] switch and its field, which wrap as the chip's other items do. */
 .modes {
   display: inline-flex;
+  flex-shrink: 0;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
   overflow: hidden;
@@ -135,10 +136,10 @@
 }
 
 .field {
-  width: 72px;
+  width: 60px;
   min-height: var(--control-size-md);
   box-sizing: border-box;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
   background: var(--color-surface);
