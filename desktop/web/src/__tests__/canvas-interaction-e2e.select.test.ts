@@ -7,6 +7,7 @@ import { writePlantStampDragData } from '../canvas/plant-stamp-source'
 import { writeSavedObjectStampDragData } from '../canvas/saved-object-stamp-source'
 import { currentCanvasSelection } from '../canvas/session-state'
 import { snapToGridEnabled } from '../app/canvas-settings/signals'
+import { plantSpacingIntervalM } from '../app/settings/state'
 import { createMapLibreCameraDriver } from '../maplibre/camera-driver'
 import { createSessionPlane } from '../canvas/session-plane'
 import { SceneStore, type ScenePoint } from '../canvas/runtime/scene'
@@ -3128,6 +3129,41 @@ describe('SceneInteractionSession', () => {
       expect(store.persisted.plants.map((plant) => plant.id)).toEqual(ROW_IDS)
       expect(onSceneEditCommit.mock.calls.flat()).toEqual(Array(4).fill('interaction-plant-row-edit'))
       session.dispose()
+    })
+
+    it('stores the row Plant a row plants, its plants and selection as before, and Select then edits it', () => {
+      snapToGridEnabled.value = false
+      const deviceInterval = plantSpacingIntervalM.value
+      plantSpacingIntervalM.value = 10
+      const source = makePlant('source', 'Corylus avellana', { x: 20, y: 100 })
+      store.updatePersisted((draft) => { draft.plants = [source] })
+      const deps = createInteractionDeps(container, store, testView)
+      const session = createTestSession(deps)
+      session.setTool('plant-spacing')
+      // A drag from the picked plant plants a straight row at its release.
+      events.pointerDown({ x: 20, y: 100 }, { button: 0, buttons: 1, timeStamp: 0 })
+      events.pointerMove({ x: 50, y: 100 }, { button: -1, buttons: 1, timeStamp: 10 })
+      events.pointerMove({ x: 80, y: 100 }, { button: -1, buttons: 1, timeStamp: 20 })
+      events.pointerUp({ x: 80, y: 100 }, { button: 0, timeStamp: 30 })
+
+      const { plants, plantRows } = store.persisted
+      expect(plants[0], 'the picked plant is as it was').toEqual(source)
+      expect(plants.map((plant) => plant.position.x)).toEqual([20, 30, 40, 50, 60, 70, 80])
+      expect(selectedIds(), 'the picked plant and the new ones are selected').toEqual(plants.map((plant) => plant.id))
+      expect(plantRows).toHaveLength(1)
+      expect(plantRows[0]).toMatchObject({
+        closed: false,
+        spacing: { kind: 'interval', metres: 10 },
+        anchors: [{ position: { x: 20, y: 100 }, sharp: false }, { position: { x: 80, y: 100 }, sharp: false }],
+      })
+      expect(plantRows[0]!.members).toEqual(plants.map((plant) => ({ plantId: plant.id, at: plant.position })))
+
+      session.setTool('select')
+      session.refreshMeasurements()
+      expect(shownHandles(), 'the planted row is selected, its points shown').toEqual(
+        expect.arrayContaining([`point:${plantRows[0]!.id}:0`, `point:${plantRows[0]!.id}:1`]))
+      session.dispose()
+      plantSpacingIntervalM.value = deviceInterval
     })
 
     it('shows a row with a locked plant, or on a locked Plants layer, by its curve alone: no point, dot or point menu', () => {
