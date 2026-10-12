@@ -20,8 +20,7 @@ import {
   createTestCanvasKeyboardPort,
 } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface, type TestCanvasQuerySurface } from './support/canvas-query-surface'
-import { SceneCanvasRuntime } from '../canvas/runtime/scene-runtime'
-import { createDetachedCanvasRuntimeAppAdapter } from '../canvas/runtime/app-adapter'
+import { createLiveTestCanvasRuntimeHost } from './support/live-canvas-runtime'
 import { CURRENT_CANOPI_FILE_VERSION } from '../generated/canopi-design-format'
 import type { CanopiFile } from '../types/design'
 import { geoAt } from './support/geo-design'
@@ -542,25 +541,25 @@ describe('Selection chip on a planted row', () => {
 
 // The chip over the real runtime: what the switch sends is what the row's query reads, and the writer applies it.
 describe('Selection chip on a planted row, over the runtime', () => {
-  const hazel = (id: string, x: number, y = 0) => ({
-    id, canonical_name: 'Corylus avellana', common_name: null, color: null, position: geoAt(x, y), rotation: null,
+  const plant = (id: string, canonicalName: string, x: number, y = 0) => ({
+    id, canonical_name: canonicalName, common_name: null, color: null, position: geoAt(x, y), rotation: null,
     scale: 3, notes: null, planted_date: null, quantity: 1, locked: false,
   })
 
-  // An L-shaped hedge: a, b and c 2 m apart along 4 m, and a side row started from `from`, which the hedge gave up.
+  // An L-shaped hedge, three plants 2 m apart along 4 m, whose holly `from` started a side row the hedge gave it up to.
   function lHedge(from: 'a' | 'c'): CanopiFile {
-    const plants = [hazel('a', 0), hazel('b', 2), hazel('c', 4)]
+    const plants = ['a', 'b', 'c'].map((id, index) => plant(id, id === from ? 'Ilex aquifolium' : 'Corylus avellana', index * 2))
     const corner = from === 'a' ? 0 : 4
     const interval = { kind: 'interval' as const, interval_m: 2 }
     return {
       version: CURRENT_CANOPI_FILE_VERSION, name: 'Hedge', description: null, plant_species_colors: {},
       layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
-      plants: [...plants, hazel('up', corner, 2)], zones: [], annotations: [], measurement_guides: [],
+      plants: [...plants, plant('up', 'Ilex aquifolium', corner, 2)], zones: [], annotations: [], measurement_guides: [],
       plant_rows: [
         {
           id: 'hedge', closed: false, spacing: interval,
           anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(4, 0), sharp: false }],
-          members: plants.filter((plant) => plant.id !== from).map((plant) => ({ plant_id: plant.id, at: plant.position })),
+          members: plants.filter((entry) => entry.id !== from).map((entry) => ({ plant_id: entry.id, at: entry.position })),
         },
         {
           id: 'side', closed: false, spacing: interval,
@@ -577,38 +576,30 @@ describe('Selection chip on a planted row, over the runtime', () => {
     locale.value = 'en'
     const container = document.createElement('div')
     document.body.append(container)
-    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
+    const host = createLiveTestCanvasRuntimeHost()
+    const { commands, queries, documents } = host.surfaces
     const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
-    const button = (name: string) => [...(chip()?.querySelectorAll<HTMLButtonElement>('button') ?? [])]
-      .find((entry) => entry.textContent === name)
     try {
-      runtime.documentSurface.loadDocument(lHedge(from))
-      setCurrentCanvasSession({
-        commands: runtime.commandSurface,
-        queries: runtime.querySurface,
-        documents: runtime.documentSurface,
-        keyboard: createTestCanvasKeyboardPort(),
-      })
+      documents.loadDocument(lHedge(from))
+      setCurrentCanvasSession(host.surfaces)
       await act(() => render(<SelectionChip />, container))
-      // A click on the hedge's b (session state, as a click is), then Select row.
-      await act(() => (runtime as unknown as { _setSelection(targets: unknown): void })._setSelection([{ kind: 'plant', id: 'b' }]))
-      await act(() => button('Select row')!.click())
+      // The hazels are the hedge: selecting them selects the row.
+      await act(() => commands.sceneEdits.selectSpecies(['Corylus avellana']))
       const hedge = ['a', 'b', 'c'].filter((id) => id !== from)
-      expect(runtime.querySurface.getSelection().map((target) => target.id)).toEqual(hedge)
+      expect(queries.getSelectedPlantRow?.()).toMatchObject({ id: 'hedge', whole: true })
 
       await act(() => chip()!.querySelector<HTMLButtonElement>('[data-plant-row-mode="count"]')!.click())
       // Three spots along the hedge's 4 m, one of them the side row's: the switch keeps the layout.
       expect(chip()!.querySelector<HTMLInputElement>('[data-plant-row-count-input]')!.value).toBe('3')
-      expect(runtime.querySurface.getSelectedPlantRow?.()?.spacing).toEqual({ kind: 'count', count: 3 })
-      expect(runtime.querySurface.getSceneSnapshot().plants.map((plant) => plant.id).sort(), 'no plant is lost')
-        .toEqual(['a', 'b', 'c', 'up'])
-      expect(runtime.querySurface.getSelection().map((target) => target.id), 'the hedge stays selected').toEqual(hedge)
+      expect(queries.getSelectedPlantRow?.()?.spacing).toEqual({ kind: 'count', count: 3 })
+      expect(queries.getSceneSnapshot().plants.map((entry) => entry.id).sort(), 'no plant is lost').toEqual(['a', 'b', 'c', 'up'])
+      expect(queries.getSelection().map((target) => target.id), 'the hedge stays selected').toEqual(hedge)
     } finally {
       render(null, container)
       container.remove()
       currentCanvasSelection.value = new Set()
       setCurrentCanvasSession(null)
-      runtime.destroy()
+      await host.destroy()
     }
   })
 })
