@@ -360,7 +360,7 @@ test.describe('360×560 half sheet', () => {
 // Once Plant a row plants, its plants stay selected (answer 28) beside the idle card, and the plain selection chip
 // (count, Select all of this species, Clear) shows: on phones, at the sheet's peek and half, it clears every neighbour
 // and the idle tool card, stays in the viewport, and its buttons take the click at their centre. The phone context bar
-// (plant-path-redesign.md A2, chunk 5) replaces this check with its own guard and deletes it in the same commit.
+// (canopi-f47t.54) replaces this check with its own guard and deletes it in the same commit.
 const CHIP_PHONES: readonly Layout[] = [[390, 844], [360, 560], [740, 360], [844, 390]]
   .map(([width, height]) => ({ width: width!, height: height!, locales: ['en', 'de', 'ru'], touch: false }))
 
@@ -391,7 +391,7 @@ async function expectPlantedChipClear(page: Page, layout: Layout, sheet: 'peek' 
   }
 }
 
-// Red in both engines until the bar (finish-items F7 and S's former 740x360 marker): at half the chip, centred on the
+// Red in both engines until the phone context bar (canopi-f47t.54): at half the chip, centred on the
 // map above the sheet, meets the zoom column everywhere (and the inspection launcher at 360x560); at peek it meets
 // the zoom column at 360x560 and the idle Plant a row card at 740x360 (de, ru). 390x844 and 844x390 at peek pass.
 const CHIP_CLEAR_AT_PEEK = new Set(['390x844', '844x390'])
