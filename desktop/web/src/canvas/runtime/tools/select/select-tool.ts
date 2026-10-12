@@ -371,9 +371,10 @@ export function createSelectTool(): CanvasTool {
     }
   }
 
-  /** A press on a selected row's point or dot (point-editor/rules.ts, A2). */
+  /** A press on a selected row's point or dot (point-editor/rules.ts, A2); a locked row takes none. */
   function startRowPress(row: SelectedPlantRow, role: 'point' | 'dot', index: number, clickCount: number, alt: boolean): void {
     gesture = { kind: 'done' }
+    if (row.locked) return
     switch (pointPressIntent({ role, clickCount, alt, isLastDraftPoint: false })) {
       case 'delete':
         editRowPath(row, removePoint(row.path, index))
@@ -420,17 +421,19 @@ export function createSelectTool(): CanvasTool {
    *  turn it sharp or smooth, which makes it the touched point. */
   function rowPointAction(index: number, action: PointAction): ToolReply {
     const row = selectedRow
-    if (!row?.path.points[index]) return 'pass'
+    if (!row?.path.points[index] || row.locked) return 'pass'
     if (action === 'delete-point') editRowPath(row, removePoint(row.path, index))
     else editRowPath(row, setSharp(row.path, index, action === 'sharp-corner'), index)
     return 'handled'
   }
 
   /** The point menu of a selected polygon's corner (Delete point, refused at 3 corners) or of a selected row's point
-   *  (Delete point, refused at the row's minimum, then Sharp or Smooth corner) (A16); nothing for any other handle. */
+   *  (Delete point, refused at the row's minimum, then Sharp or Smooth corner; none on a locked row) (A16); nothing for
+   *  any other handle. */
   function pointMenu(handle: ToolHandleId): readonly PointMenuItem[] {
     const rowPoint = rowPointOf(handle)
     const point = rowPoint === null ? undefined : selectedRow?.path.points[rowPoint]
+    if (selectedRow?.locked) return []
     if (selectedRow && rowPoint !== null && point) {
       return pointMenuItems({ sharpable: true, sharp: point.sharp, canDelete: removePoint(selectedRow.path, rowPoint) !== null })
     }

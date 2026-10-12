@@ -105,13 +105,14 @@ function isOnlyPlants(summary: MapSelectionSummary): boolean {
 /** A re-spaced row (an edit, an Undo) shows its own spacing again: the field starts over. */
 function rowSpacingKey(row: CanvasSelectedPlantRow): string {
   const { spacing } = row
-  return `${row.id}:${row.plants}:${spacing.kind === 'interval' ? `${spacing.metres}m` : spacing.count}`
+  return `${row.id}:${row.plants}:${spacing.kind === 'interval' ? `${spacing.metres}m` : spacing.count}:${row.locked}`
 }
 
 /**
  * A selected row's spacing: every N m or N plants, the first counted. Enter re-spaces the row and gives the map its
  * focus back; leaving an edited field re-spaces it too; Esc puts the row's spacing back. The switch only changes the
- * field, which it focuses: the row changes at Enter or on leaving. Never the device's Plant a row interval.
+ * field, which it focuses: the row changes at Enter or on leaving. Never the device's Plant a row interval. A locked
+ * row (a locked plant, or the Plants layer) shows both disabled.
  */
 function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   const id = useId()
@@ -150,6 +151,7 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
             className={styles.mode}
             aria-pressed={mode === option}
             data-plant-row-mode={option}
+            disabled={row.locked}
             onClick={() => switchTo(option)}
           >
             {t(option === 'interval' ? 'canvas.plantSpacing.modeInterval' : 'canvas.plantSpacing.modeCount')}
@@ -166,6 +168,7 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
         autoComplete="off"
         spellcheck={false}
         value={text}
+        disabled={row.locked}
         aria-invalid={invalid}
         {...(count ? { 'data-plant-row-count-input': '' } : { 'data-plant-row-spacing-input': '' })}
         onInput={(event) => {

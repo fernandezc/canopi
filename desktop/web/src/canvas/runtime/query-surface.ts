@@ -21,7 +21,7 @@ import type {
   SceneStateReader,
 } from './scene'
 import type { PointerWorld } from './interaction-ports'
-import { rowOfSelection } from './scene/plant-rows'
+import { isPlantRowLocked, rowOfSelection } from './scene/plant-rows'
 import { plantAlongPath } from '../plant-path/spacing'
 import type { SceneRuntimeMutationController } from './scene-runtime/mutations'
 import type { SceneRuntimePresentationController } from './scene-runtime/presentation'
@@ -174,6 +174,7 @@ class SceneCanvasQueryRole implements SceneCanvasQuerySurface {
       plants: selected.members.length,
       spacing: { ...row.spacing },
       gapM: plantAlongPath({ points: row.anchors, closed: row.closed }, row.spacing).effectiveSpacingM,
+      locked: isPlantRowLocked(persisted, selected.members),
     }
   }
   getSelectedPlantColorContext(): SelectedPlantColorContext {

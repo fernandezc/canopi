@@ -37,7 +37,8 @@ const APPLE: Point = { x: 353.7, y: 264.7 }
 /** Empty ground for a new row's points, and away from everything. */
 const ROW_P1: Point = { x: 430, y: 345 }
 const ROW_P2: Point = { x: 450, y: 280 }
-const GROUND: Point = { x: 560, y: 590 }
+// Right of the row, clear of the selection chip, which wraps onto a second line once it shows a row's spacing.
+const GROUND: Point = { x: 930, y: 450 }
 /** A drag of the last segment's dot, away from the row, that lengthens it by one more plant. */
 const DOT_DRAG_ADDING_ONE: Point = { x: 0, y: 30 }
 
@@ -341,7 +342,7 @@ test('(canopi-f47t.54, S) moving all of a row\'s plants keeps it a row; moving o
   await expect(selectRow(page), 'the moved plant left the row').toHaveCount(0)
 })
 
-test.fail('(canopi-f47t.54, S) a row with a locked plant shows its curve but no points and a disabled spacing field', async ({ page }) => {
+test('(canopi-f47t.54, S) a row with a locked plant shows its curve but no points and a disabled spacing field', async ({ page }) => {
   await openRowFromDraft(page)
   await page.mouse.click(MEMBERS[5]!.x, MEMBERS[5]!.y)
   await expect(chipText(page)).toHaveText(new RegExp(`^${HAZEL}`))

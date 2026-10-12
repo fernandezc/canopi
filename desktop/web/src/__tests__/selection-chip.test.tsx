@@ -341,6 +341,7 @@ describe('Selection chip on a planted row', () => {
   let queries: TestCanvasQuerySurface
   let selectPlantRow: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['selectPlantRow']>>>
   let setPlantRowSpacing: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['setPlantRowSpacing']>>>
+  let rowLocked = false
 
   beforeEach(() => {
     locale.value = 'en'
@@ -365,11 +366,13 @@ describe('Selection chip on a planted row', () => {
         const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
         return selected && {
           id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: selected.row.spacing, gapM: 2,
+          locked: rowLocked,
         }
       },
     })
     selectPlantRow = vi.fn()
     setPlantRowSpacing = vi.fn(() => true)
+    rowLocked = false
     setCurrentCanvasSession({
       commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow, setPlantRowSpacing } }),
       queries,
@@ -453,5 +456,14 @@ describe('Selection chip on a planted row', () => {
     await act(() => { countField()!.blur() })
     expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
     expect(plantSpacingIntervalM.value, 'the device interval is untouched').toBe(0.8)
+  })
+
+  it('shows a locked row\'s spacing and switch disabled', async () => {
+    rowLocked = true
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    expect(spacingField()!.disabled).toBe(true)
+    expect(mode('interval').disabled).toBe(true)
+    expect(mode('count').disabled).toBe(true)
   })
 })

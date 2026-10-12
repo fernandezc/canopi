@@ -3130,6 +3130,26 @@ describe('SceneInteractionSession', () => {
       session.dispose()
     })
 
+    it('shows a row with a locked plant, or on a locked Plants layer, by its curve alone: no point, dot or point menu', () => {
+      const { deps, session } = selectRow()
+      store.updatePersisted((draft) => {
+        draft.plants = draft.plants.map((plant) => plant.id === 'r3' ? { ...plant, locked: true } : plant)
+      })
+      session.refreshMeasurements()
+      const handleIds = () => shownHandles().filter((id) => id?.startsWith('point:') || id?.startsWith('dot:'))
+      expect(handleIds()).toEqual([])
+      const curve = draftShapes(deps).filter((shape) => shape.kind === 'polyline')
+      expect(curve, 'the row\'s curve still shows').toHaveLength(1)
+
+      store.updatePersisted((draft) => {
+        draft.plants = draft.plants.map((plant) => ({ ...plant, locked: false }))
+        draft.layers = draft.layers.map((layer) => layer.name === 'plants' ? { ...layer, locked: true } : layer)
+      })
+      session.refreshMeasurements()
+      expect(handleIds()).toEqual([])
+      session.dispose()
+    })
+
     it('opens the point menu on a row point: Delete point, refused at two points, and Sharp or Smooth corner, each one edit (A16)', () => {
       const onSceneEditCommit = vi.fn()
       const { session } = selectRow({ onSceneEditCommit })

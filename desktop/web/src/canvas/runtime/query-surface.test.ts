@@ -138,7 +138,7 @@ describe('the selected planted row', () => {
 
       select(['h2'])
       expect(queries.getSelectedPlantRow?.()).toEqual({
-        id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 }, gapM: 2,
+        id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 }, gapM: 2, locked: false,
       })
       edits.selectPlantRow?.()
       expect(queries.getSelection().map((target) => target.id)).toEqual(['h1', 'h2', 'h3'])
@@ -154,6 +154,13 @@ describe('the selected planted row', () => {
       expect(queries.getSelection().slice(0, 3).map((target) => target.id), 'the members keep their ids').toEqual(['h1', 'h2', 'h3'])
       runtime.commandSurface.history.undo()
       expect(queries.getSelection().map((target) => target.id), 'Undo selects the restored row').toEqual(['h1', 'h2', 'h3'])
+      expect(queries.getSceneSnapshot().plants).toHaveLength(4)
+
+      // A locked member locks the row: the chip shows it disabled, and its spacing changes nothing.
+      edits.lockSelected()
+      select(['h1', 'h2', 'h3'])
+      expect(queries.getSelectedPlantRow?.()?.locked).toBe(true)
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'count', count: 4 })).toBe(false)
       expect(queries.getSceneSnapshot().plants).toHaveLength(4)
 
       select(['h1', 'lone'])

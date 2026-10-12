@@ -123,6 +123,17 @@
   outline-offset: 2px;
 }
 
+/* A locked row: its spacing shows, and takes no edit. */
+.mode:disabled,
+.field:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.mode:disabled:hover {
+  background: var(--color-surface);
+}
+
 .field {
   width: 72px;
   min-height: var(--control-size-md);

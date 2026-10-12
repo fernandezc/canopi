@@ -3,7 +3,8 @@
 // Owns editing a planted row under Select (plan §4 "2.0 plant along a path", A7; spec §1.11, §3.2). A row is selected
 // when the selection is exactly its attached members (scene/plant-rows.ts rowOfSelection). Select then draws the row's
 // curve as its draft and shows its points and midpoint dots through the shared point editor (point-editor/layout.ts,
-// ids `point:<row id>:<i>` and `dot:<row id>:<i>`). Its presses follow the one point contract (point-editor/rules.ts,
+// ids `point:<row id>:<i>` and `dot:<row id>:<i>`), unless a member or the Plants layer is locked: then the curve alone.
+// Its presses follow the one point contract (point-editor/rules.ts,
 // anchors.ts): a point drags, a dot's drag inserts a point where it is released, its double-click inserts one in place,
 // Alt+click deletes one. A drag changes nothing in the Scene before its release: the moved curve and the re-spaced
 // plants follow it as the draft. Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine (canvas/plant-path/) places
@@ -16,7 +17,13 @@ import { createPlantSpacingGeneratedPlants } from '../../../plant-spacing-sequen
 import { insertAfter, movePoint } from '../../../point-editor/anchors'
 import { dotHandles, pointHandles } from '../../../point-editor/layout'
 import type { SceneDesignObjectSelection } from '../../scene/design-object-targets'
-import { PLANT_ROW_EDIT, PLANT_ROW_MAX_ADDED_PLANTS, respacePlantRow, rowOfSelection } from '../../scene/plant-rows'
+import {
+  isPlantRowLocked,
+  PLANT_ROW_EDIT,
+  PLANT_ROW_MAX_ADDED_PLANTS,
+  respacePlantRow,
+  rowOfSelection,
+} from '../../scene/plant-rows'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity } from '../../scene/types'
 import type { WorldPoint } from '../../view/types'
 import type { DraftPresentation, DraftShape, DraftStroke, ToolHandle } from '../draft'
@@ -29,11 +36,13 @@ const ROW_GHOST_OPACITY = 0.35
 /** Plant a row's preview limit: the most ghosts a drag draws. */
 const ROW_GHOST_LIMIT = 250
 
-/** The row the selection is: all of its attached members, and the first one's plant. */
+/** The row the selection is: all of its attached members, the first one's plant, and whether it takes edits. */
 export interface SelectedPlantRow {
   readonly row: ScenePlantRowEntity
   readonly path: PathPoints
   readonly first: ScenePlantEntity
+  /** A member or the Plants layer is locked: the curve shows, no point or dot, and no point menu. */
+  readonly locked: boolean
 }
 
 /** A live press on a row point or dot, and where the pointer has taken it (null until it drags). */
@@ -50,7 +59,12 @@ export function selectedPlantRow(
   if (!selected?.whole) return null
   const first = scene.plants.find((plant) => plant.id === selected.members[0])
   if (!first) return null
-  return { row: selected.row, path: { points: selected.row.anchors, closed: selected.row.closed }, first }
+  return {
+    row: selected.row,
+    path: { points: selected.row.anchors, closed: selected.row.closed },
+    first,
+    locked: isPlantRowLocked(scene, selected.members),
+  }
 }
 
 /** The path with the live drag applied. */
@@ -59,7 +73,7 @@ export function draggedRowPath(path: PathPoints, drag: RowPointDrag | null): Pat
   return drag.kind === 'move' ? movePoint(path, drag.index, drag.at) : insertAfter(path, drag.after, drag.at)
 }
 
-/** The row's point handles and, outside a drag, its dots. */
+/** The row's point handles and, outside a drag, its dots; none for a locked row. */
 export function rowHandles(
   ctx: ToolContext,
   selected: SelectedPlantRow,
@@ -67,6 +81,7 @@ export function rowHandles(
   size: HandleSize,
   dragging: boolean,
 ): ToolHandle[] {
+  if (selected.locked) return []
   const { id } = selected.row
   const points = pointHandles(id, path, size, (index) => ctx.translate('canvas.plantRow.point', { index: index + 1 }))
   if (dragging) return points
@@ -98,6 +113,7 @@ export function rowDraft(selected: SelectedPlantRow, path: PathPoints, dragging:
 
 /** Re-spaces the selected row along `path` in one Scene Edit that selects its members; false when refused. */
 export function editPlantRow(ctx: ToolContext, selected: SelectedPlantRow, path: PathPoints): boolean {
+  if (selected.locked) return false
   const { spacing } = selected.row
   return ctx.effects.edits.run(PLANT_ROW_EDIT, (tx) => {
     respacePlantRow(tx, selected.row, { anchors: [...path.points], closed: path.closed }, spacing, plantAlongPath(path, spacing))

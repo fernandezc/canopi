@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createDefaultScenePersistedState } from './defaults'
-import { applyPlantRowPositions, attachedPlantRowMembers, plantsById, rowOfSelection } from './plant-rows'
+import { applyPlantRowPositions, attachedPlantRowMembers, isPlantRowLocked, plantsById, rowOfSelection } from './plant-rows'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, ScenePoint } from './types'
 
 function plant(id: string, position: ScenePoint, overrides: Partial<ScenePlantEntity> = {}): ScenePlantEntity {
@@ -174,5 +174,19 @@ describe('rowOfSelection (A7)', () => {
     expect(rowOfSelection(scene, [...plants('a'), { kind: 'zone', id: 'bed' }])).toBeNull()
     scene.plants[0] = { ...scene.plants[0]!, position: { x: 30, y: 30 } }
     expect(rowOfSelection(scene, plants('a'))).toBeNull()
+  })
+})
+
+describe('isPlantRowLocked (A7: the one lock table)', () => {
+  it('locks a row while one of its members or the Plants layer is locked, and never for a plant outside it', () => {
+    const scene = sceneWithRow()
+    expect(isPlantRowLocked(scene, ['a', 'b', 'c'])).toBe(false)
+    scene.plants[3] = { ...scene.plants[3]!, locked: true }
+    expect(isPlantRowLocked(scene, ['a', 'b', 'c']), 'a locked plant of no row').toBe(false)
+    scene.plants[1] = { ...scene.plants[1]!, locked: true }
+    expect(isPlantRowLocked(scene, ['a', 'b', 'c']), 'a locked member').toBe(true)
+    scene.plants[1] = { ...scene.plants[1]!, locked: false }
+    scene.layers = [{ kind: 'layer', name: 'plants', visible: true, locked: true, opacity: 1 }]
+    expect(isPlantRowLocked(scene, ['a', 'b', 'c']), 'the Plants layer locked').toBe(true)
   })
 })

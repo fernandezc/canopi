@@ -8,6 +8,7 @@
 import { createUuid } from '../../../utils/ids'
 import { createPlantSpacingGeneratedPlants } from '../../plant-spacing-sequence'
 import type { SceneDesignObjectSelection } from './design-object-targets'
+import { isSceneLayerEditable } from './locks'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, ScenePoint } from './types'
 
 type PlantRowMember = ScenePlantRowEntity['members'][number]
@@ -178,6 +179,16 @@ export function rowOfSelection(
     return { row, members, whole: members.length === selected.size }
   }
   return null
+}
+
+/**
+ * A row takes no edit while one of its attached members (`members`), or the Plants layer, is locked (A7's lock table):
+ * Select shows its curve without points, and the selection chip disables its spacing.
+ */
+export function isPlantRowLocked(scene: Readonly<ScenePersistedState>, members: readonly string[]): boolean {
+  if (!isSceneLayerEditable(scene, 'plants')) return true
+  const ids = new Set(members)
+  return scene.plants.some((plant) => plant.locked && ids.has(plant.id))
 }
 
 /** The rows a move carries, as they were when it started: each one with only its attached members (A11). */

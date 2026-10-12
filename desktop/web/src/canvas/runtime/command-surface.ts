@@ -31,7 +31,14 @@ import {
   type SceneSessionWriter,
   type SceneStateReader,
 } from './scene'
-import { PLANT_ROW_EDIT, respacePlantRow, rowOfSelection } from './scene/plant-rows'
+import {
+  attachedPlantRowMembers,
+  isPlantRowLocked,
+  PLANT_ROW_EDIT,
+  plantsById,
+  respacePlantRow,
+  rowOfSelection,
+} from './scene/plant-rows'
 import { plantAlongPath } from '../plant-path/spacing'
 import {
   applySceneDragDeltaToDraft,
@@ -265,8 +272,11 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
   private setPlantRowSpacing(rowId: string, spacing: CanvasPlantRowSpacing): boolean {
     if (!this.options.isSpatialEditingEnabled()) return false
     return this.options.commandAdmission.runWhenSettled(() => {
-      const row = this.options.sceneStore.persisted.plantRows.find((entry) => entry.id === rowId)
+      const scene = this.options.sceneStore.persisted
+      const row = scene.plantRows.find((entry) => entry.id === rowId)
       if (!row || sameSpacing(row.spacing, spacing)) return false
+      const members = attachedPlantRowMembers(row, plantsById(scene)).map((member) => member.plantId)
+      if (isPlantRowLocked(scene, members)) return false
       const planting = plantAlongPath({ points: row.anchors, closed: row.closed }, spacing)
       return this.options.sceneEdits.run(PLANT_ROW_EDIT, (tx) => {
         respacePlantRow(tx, row, row, spacing, planting)
