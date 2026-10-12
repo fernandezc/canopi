@@ -4,12 +4,13 @@
 // when the selection is exactly its attached members (scene/plant-rows.ts rowOfSelection). Select then draws the row's
 // curve as its draft and shows its points and midpoint dots through the shared point editor (point-editor/layout.ts,
 // ids `point:<row id>:<i>` and `dot:<row id>:<i>`), unless a member or the Plants layer is locked: then the curve alone.
-// Its presses follow the one point contract (point-editor/rules.ts,
-// anchors.ts): a point drags, a dot's drag inserts a point where it is released, its double-click inserts one in place,
-// Alt+click deletes one. A drag changes nothing in the Scene before its release: the moved curve and the re-spaced
-// plants follow it as the draft. Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine (canvas/plant-path/) places
-// every plant along the new path and the row writer (scene/plant-rows.ts respacePlantRow) keeps the member ids in path
-// order, adds copies of the first member, deletes the surplus, rewrites the row and selects its members. Every point of a row may move or go, the first included (the first member follows it).
+// Its presses follow the one point contract (point-editor/rules.ts, anchors.ts): a point drags, a dot's drag inserts a
+// point where it is released, its double-click inserts one in place, Alt+click deletes one; the point menu deletes a
+// point or turns it sharp or smooth (select-tool.ts). A drag changes nothing in the Scene before its release: the moved
+// curve and the re-spaced plants follow it as the draft. Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine
+// (canvas/plant-path/) places every plant along the new path and the row writer (scene/plant-rows.ts respacePlantRow)
+// keeps the member ids in path order, adds copies of the first member, deletes the surplus, rewrites the row and
+// selects its members. Every point of a row may move or go, the first included (the first member follows it).
 
 import { flattenPath, type PathPoints } from '../../../plant-path/curve'
 import { plantAlongPath } from '../../../plant-path/spacing'
