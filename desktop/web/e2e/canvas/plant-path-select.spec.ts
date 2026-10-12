@@ -305,11 +305,21 @@ test('(canopi-f47t.54, S) the selection chip\'s spacing field and mode re-space 
   await expect.poll(() => selectedPlants(page), 'a closer spacing re-spaces the row with more plants').toBeGreaterThan(6)
   await expectOneUndoStep(page, 'the new spacing')
 
-  await chip(page).locator('[data-plant-row-mode="count"]').click()
+  // The switch re-spaces at once: the row's six plants, now end to end evenly (A7).
+  const plantsMode = chip(page).locator('[data-plant-row-mode="count"]')
+  await plantsMode.click()
+  await expect(plantsMode, 'the row is in Plants mode').toHaveAttribute('aria-pressed', 'true')
+  await expectOneUndoStep(page, 'the switch')
+  await expect(chip(page).locator('[data-plant-row-mode="interval"]'), 'Undo puts the row\'s own mode back')
+    .toHaveAttribute('aria-pressed', 'true')
+
+  await plantsMode.click()
   const count = chip(page).locator('[data-plant-row-count-input]')
   await count.fill('4')
   await count.press('Enter')
   await expect(chipText(page), 'four plants evenly').toHaveText(new RegExp(`^4 plants · ${HAZEL}`))
+  await undo(page).click()
+  await expect(plantsMode, 'one Undo takes back the count, not the switch').toHaveAttribute('aria-pressed', 'true')
   await expectOneUndoStep(page, 'the count')
 
   await page.mouse.click(GROUND.x, GROUND.y)
