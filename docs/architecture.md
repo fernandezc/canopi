@@ -20,7 +20,7 @@ Canopi is a desktop (Tauri) and Web app for designing agroecological sites on a 
 
 | Owner | Owns | Mutation path |
 |---|---|---|
-| Scene runtime (`SceneStore` via `SceneCanvasRuntime`) | Design objects: plants, plant rows, zones, annotations, measurement guides, groups, locks, species colours, symbols and codes, scene layers | Runtime transactions |
+| Scene runtime (`SceneStore` via `SceneCanvasRuntime`) | Design objects: plants, zones, annotations, measurement guides, groups, locks, species colours, symbols and codes, scene layers | Runtime transactions |
 | Design Edit (`app/design-edit/`) | Budget, currency, timeline, consortiums, description, saved views, stories, site data references (order, eyes, display), extra | Design Edit commands |
 | Map layer store (`app/map-layers/`) | Basemap, satellite, contours, hillshade: order, visibility, opacity, provider | Layer-store actions |
 | Settings | Last view (centre and zoom), basemap style, Google key (device-local credential), locale, theme, pointing device, single-key shortcuts, New Design defaults | Settings actions |
