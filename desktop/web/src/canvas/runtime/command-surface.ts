@@ -17,6 +17,7 @@ import type {
   CanvasLayerCommandSurface,
   CanvasPlantPresentationCommandSurface,
   CanvasPlantRowPathCommands,
+  CanvasPlantRowSpacing,
   CanvasPlantRowSpacingField,
   CanvasSceneEditCommandSurface,
   CanvasToolCommandSurface,
@@ -30,7 +31,8 @@ import {
   type SceneSessionWriter,
   type SceneStateReader,
 } from './scene'
-import { rowOfSelection } from './scene/plant-rows'
+import { PLANT_ROW_EDIT, respacePlantRow, rowOfSelection } from './scene/plant-rows'
+import { plantAlongPath } from '../plant-path/spacing'
 import {
   applySceneDragDeltaToDraft,
   captureSceneDragState,
@@ -196,6 +198,7 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
       selectSpecies: (canonicalNames) => this.options.mutations.selectSpecies(canonicalNames),
       clearSelection: () => this.options.mutations.clearSelection(),
       selectPlantRow: () => this.selectPlantRow(),
+      setPlantRowSpacing: (rowId, spacing) => this.setPlantRowSpacing(rowId, spacing),
       bringToFront: () => this.runSpatialEdit(() => this.options.mutations.bringToFront()),
       sendToBack: () => this.runSpatialEdit(() => this.options.mutations.sendToBack()),
       lockSelected: () => this.runSpatialEdit(() => this.options.mutations.lockSelected()),
@@ -256,6 +259,19 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
       setCanvasSelection(selected.members)
       this.options.invalidate()
     }, undefined)
+  }
+
+  /** The selection chip's spacing: the row re-spaced along its points in one Scene Edit; the device interval stays. */
+  private setPlantRowSpacing(rowId: string, spacing: CanvasPlantRowSpacing): boolean {
+    if (!this.options.isSpatialEditingEnabled()) return false
+    return this.options.commandAdmission.runWhenSettled(() => {
+      const row = this.options.sceneStore.persisted.plantRows.find((entry) => entry.id === rowId)
+      if (!row || sameSpacing(row.spacing, spacing)) return false
+      const planting = plantAlongPath({ points: row.anchors, closed: row.closed }, spacing)
+      return this.options.sceneEdits.run(PLANT_ROW_EDIT, (tx) => {
+        respacePlantRow(tx, row, row, spacing, planting)
+      })
+    }, false)
   }
 
   private nudgeSelected(delta: ScenePoint): boolean {
@@ -434,4 +450,8 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
 
 function roundToMicrometre(metres: number): number {
   return Math.round(metres * 1e6) / 1e6 || 0
+}
+
+function sameSpacing(a: CanvasPlantRowSpacing, b: CanvasPlantRowSpacing): boolean {
+  return a.kind === 'interval' ? b.kind === 'interval' && a.metres === b.metres : b.kind === 'count' && a.count === b.count
 }

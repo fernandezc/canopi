@@ -22,6 +22,7 @@ import type {
 } from './scene'
 import type { PointerWorld } from './interaction-ports'
 import { rowOfSelection } from './scene/plant-rows'
+import { plantAlongPath } from '../plant-path/spacing'
 import type { SceneRuntimeMutationController } from './scene-runtime/mutations'
 import type { SceneRuntimePresentationController } from './scene-runtime/presentation'
 import { EMPTY_SELECTION_MODEL, getDesignObjectSelectionModel } from './scene-runtime/selection'
@@ -166,11 +167,13 @@ class SceneCanvasQueryRole implements SceneCanvasQuerySurface {
     const { persisted, session } = this.options.sceneStore
     const selected = rowOfSelection(persisted, session.selectedTargets)
     if (!selected) return null
+    const { row } = selected
     return {
-      id: selected.row.id,
+      id: row.id,
       whole: selected.whole,
       plants: selected.members.length,
-      spacing: { ...selected.row.spacing },
+      spacing: { ...row.spacing },
+      gapM: plantAlongPath({ points: row.anchors, closed: row.closed }, row.spacing).effectiveSpacingM,
     }
   }
   getSelectedPlantColorContext(): SelectedPlantColorContext {

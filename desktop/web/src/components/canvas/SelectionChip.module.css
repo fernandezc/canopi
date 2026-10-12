@@ -76,3 +76,78 @@
 .measure {
   white-space: nowrap;
 }
+
+/* A selected row's spacing: the [Interval | Plants] switch and its field, kept together when the chip wraps. */
+.rowSpacing {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.modes {
+  display: inline-flex;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.mode {
+  min-height: var(--control-size-md);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.mode + .mode {
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.mode:hover {
+  background: var(--color-control-hover);
+}
+
+.mode[aria-pressed="true"] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-ink);
+  font-weight: 600;
+}
+
+.mode:focus-visible,
+.field:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.field {
+  width: 72px;
+  min-height: var(--control-size-md);
+  box-sizing: border-box;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.field[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+/* The switch names the field: its label is read, not seen. */
+.hiddenLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

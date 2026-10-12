@@ -6,31 +6,28 @@
 // ids `point:<row id>:<i>` and `dot:<row id>:<i>`). Its presses follow the one point contract (point-editor/rules.ts,
 // anchors.ts): a point drags, a dot's drag inserts a point where it is released, its double-click inserts one in place,
 // Alt+click deletes one. A drag changes nothing in the Scene before its release: the moved curve and the re-spaced
-// plants follow it as the draft. Each edit is one Scene Edit ('interaction-plant-row-edit', respacePlantRow): the
-// engine (canvas/plant-path/) places every plant along the new path and the row writer (applyPlantRowPositions) keeps
-// the member ids in path order, adds copies of the first member, deletes the surplus, rewrites the row and selects its
-// members. Every point of a row may move or go, the first included (the first member follows it).
+// plants follow it as the draft. Each edit is one Scene Edit (PLANT_ROW_EDIT): the engine (canvas/plant-path/) places
+// every plant along the new path and the row writer (scene/plant-rows.ts respacePlantRow) keeps the member ids in path
+// order, adds copies of the first member, deletes the surplus, rewrites the row and selects its members. Every point of a row may move or go, the first included (the first member follows it).
 
-import { createUuid } from '../../../../utils/ids'
 import { flattenPath, type PathPoints } from '../../../plant-path/curve'
-import { plantAlongPath, type PathSpacing } from '../../../plant-path/spacing'
+import { plantAlongPath } from '../../../plant-path/spacing'
 import { createPlantSpacingGeneratedPlants } from '../../../plant-spacing-sequence'
 import { insertAfter, movePoint } from '../../../point-editor/anchors'
 import { dotHandles, pointHandles } from '../../../point-editor/layout'
-import type { SceneEditTransaction } from '../../scene-runtime/transactions'
 import type { SceneDesignObjectSelection } from '../../scene/design-object-targets'
-import { applyPlantRowPositions, PLANT_ROW_MAX_ADDED_PLANTS, rowOfSelection } from '../../scene/plant-rows'
+import { PLANT_ROW_EDIT, PLANT_ROW_MAX_ADDED_PLANTS, respacePlantRow, rowOfSelection } from '../../scene/plant-rows'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity } from '../../scene/types'
 import type { WorldPoint } from '../../view/types'
 import type { DraftPresentation, DraftShape, DraftStroke, ToolHandle } from '../draft'
 import type { ToolContext } from '../tool'
 import type { HandleSize } from './handle-size'
 
-/** The Scene Edit of every change to a planted row's path or spacing. */
-export const PLANT_ROW_EDIT = 'interaction-plant-row-edit'
 /** The row tool's dashed guide and its plant discs (plant-row.ts), so a row looks the same drawn and edited. */
 const ROW_CURVE_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2, dash: Object.freeze([6, 6]) })
 const ROW_GHOST_OPACITY = 0.35
+/** Plant a row's preview limit: the most ghosts a drag draws. */
+const ROW_GHOST_LIMIT = 250
 
 /** The row the selection is: all of its attached members, and the first one's plant. */
 export interface SelectedPlantRow {
@@ -81,9 +78,13 @@ export function rowHandles(
 /** The row's curve; while a point drags, also a disc where each plant of the re-spaced row would stand. */
 export function rowDraft(selected: SelectedPlantRow, path: PathPoints, dragging: boolean): DraftPresentation {
   const shapes: DraftShape[] = [{ kind: 'polyline', points: flattenPath(path).vertices, style: ROW_CURVE_STROKE }]
-  const positions = dragging ? rowPlantPositions(path, selected.row.spacing) : null
-  const ghosts = positions
-    ? createPlantSpacingGeneratedPlants(selected.first, positions, (index) => `plant-row-ghost-${index}`)
+  const planting = dragging ? plantAlongPath(path, selected.row.spacing) : null
+  const first = path.points[0]
+  // A ghost where each plant of the re-spaced row would stand, the first on the first point, as many as Plant a row's
+  // preview draws; none when the edit would be refused.
+  const ghosts = planting && first && planting.count > 0 && planting.count <= PLANT_ROW_MAX_ADDED_PLANTS
+    ? createPlantSpacingGeneratedPlants(selected.first, [first.position, ...planting.positions(ROW_GHOST_LIMIT)],
+      (index) => `plant-row-ghost-${index}`)
     : []
   for (const plant of ghosts) {
     shapes.push({
@@ -95,49 +96,10 @@ export function rowDraft(selected: SelectedPlantRow, path: PathPoints, dragging:
   return { shapes }
 }
 
-/**
- * Every plant of a row along `path`, in path order, the first on the first point; null when the row would add none or
- * more than the limit (the edit is refused, and the row keeps its plants).
- */
-function rowPlantPositions(path: PathPoints, spacing: PathSpacing): WorldPoint[] | null {
-  const first = path.points[0]
-  if (!first) return null
-  const planting = plantAlongPath(path, spacing)
-  if (planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return null
-  return [first.position, ...planting.positions()]
-}
-
-/**
- * Inside the open Scene Edit `tx`: re-spaces `row` along `path` with `spacing` and selects its members. False, with
- * nothing written, when the row would add no plant or more than the limit.
- */
-export function respacePlantRow(
-  tx: Pick<SceneEditTransaction, 'mutate' | 'setSelection'>,
-  row: ScenePlantRowEntity,
-  path: PathPoints,
-  spacing: PathSpacing,
-): boolean {
-  const positions = rowPlantPositions(path, spacing)
-  if (!positions) return false
-  const written: { members: readonly string[] | null } = { members: null }
-  tx.mutate((draft) => {
-    written.members = applyPlantRowPositions(draft, {
-      id: row.id,
-      anchors: path.points.map((point) => ({ position: { ...point.position }, sharp: point.sharp })),
-      closed: path.closed,
-      spacing,
-      positions,
-      createId: createUuid,
-    })
-  })
-  if (!written.members) return false
-  tx.setSelection(written.members.map((id) => ({ kind: 'plant' as const, id })))
-  return true
-}
-
 /** Re-spaces the selected row along `path` in one Scene Edit that selects its members; false when refused. */
 export function editPlantRow(ctx: ToolContext, selected: SelectedPlantRow, path: PathPoints): boolean {
+  const { spacing } = selected.row
   return ctx.effects.edits.run(PLANT_ROW_EDIT, (tx) => {
-    respacePlantRow(tx, selected.row, path, selected.row.spacing)
+    respacePlantRow(tx, selected.row, { anchors: [...path.points], closed: path.closed }, spacing, plantAlongPath(path, spacing))
   })
 }

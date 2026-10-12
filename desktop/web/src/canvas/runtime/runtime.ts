@@ -109,6 +109,8 @@ export interface CanvasSelectedPlantRow {
   /** The plants the row holds now. */
   readonly plants: number
   readonly spacing: CanvasPlantRowSpacing
+  /** The gap between neighbouring plants now (a loop's rounded gap, an even count's): where "every N m" starts from. */
+  readonly gapM: number
 }
 
 export interface CanvasHistoryCommandSurface {
@@ -156,6 +158,12 @@ export interface CanvasSceneEditCommandSurface {
   /** Selects every plant of the planted row the selection is part of (session state, as clearSelection). Optional, as
    *  `tools.plantRowPath`: the surface's older test doubles carry no row command. */
   selectPlantRow?(): void
+  /**
+   * Re-spaces a planted row as one undoable edit that keeps it selected (the selection chip's spacing field and mode);
+   * never the device's Plant a row interval. False when nothing changed (an unknown row, the same spacing, no plant to
+   * add or more than the limit). Optional, as selectPlantRow.
+   */
+  setPlantRowSpacing?(rowId: string, spacing: CanvasPlantRowSpacing): boolean
   bringToFront(): void
   sendToBack(): void
   lockSelected(): void

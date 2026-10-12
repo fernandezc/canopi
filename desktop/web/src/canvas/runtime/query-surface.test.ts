@@ -126,7 +126,7 @@ function rowFile(): CanopiFile {
 }
 
 describe('the selected planted row', () => {
-  it('names the row some plants belong to, and Select row selects all of them with no Design edit', () => {
+  it('names the row some plants belong to; Select row selects all of them with no Design edit, and its spacing re-spaces it in one', () => {
     const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
     try {
       runtime.documentSurface.loadDocument(rowFile())
@@ -137,12 +137,24 @@ describe('the selected planted row', () => {
         ._setSelection(ids.map((id) => ({ kind: 'plant', id })))
 
       select(['h2'])
-      expect(queries.getSelectedPlantRow?.()).toEqual({ id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 } })
+      expect(queries.getSelectedPlantRow?.()).toEqual({
+        id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 }, gapM: 2,
+      })
       edits.selectPlantRow?.()
       expect(queries.getSelection().map((target) => target.id)).toEqual(['h1', 'h2', 'h3'])
       expect([...currentCanvasSelection.value]).toEqual(['h1', 'h2', 'h3'])
       expect(queries.getSelectedPlantRow?.()?.whole, 'the row is selected').toBe(true)
       expect(runtime.commandSurface.history.canUndo.value, 'Select row edits nothing').toBe(false)
+
+      // The chip's spacing: one Scene Edit that keeps the row selected, never the device interval.
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'interval', metres: 2 }), 'the same spacing edits nothing').toBe(false)
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'count', count: 5 })).toBe(true)
+      expect(queries.getSelectedPlantRow?.()).toMatchObject({ whole: true, plants: 5, spacing: { kind: 'count', count: 5 } })
+      expect(queries.getSelectedPlantRow?.()?.gapM).toBeCloseTo(1, 6)
+      expect(queries.getSelection().slice(0, 3).map((target) => target.id), 'the members keep their ids').toEqual(['h1', 'h2', 'h3'])
+      runtime.commandSurface.history.undo()
+      expect(queries.getSelection().map((target) => target.id), 'Undo selects the restored row').toEqual(['h1', 'h2', 'h3'])
+      expect(queries.getSceneSnapshot().plants).toHaveLength(4)
 
       select(['h1', 'lone'])
       expect(queries.getSelectedPlantRow?.(), 'a selection reaching outside the row').toBeNull()

@@ -1,7 +1,7 @@
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { locale } from '../app/settings/state'
+import { locale, plantSpacingIntervalM } from '../app/settings/state'
 import { SelectionChip } from '../components/canvas/SelectionChip'
 import { RenameZoneDialog } from '../components/canvas/RenameZoneDialog'
 import { renameZoneDialog } from '../app/rename-zone/state'
@@ -340,6 +340,7 @@ describe('Selection chip on a planted row', () => {
   let container: HTMLDivElement
   let queries: TestCanvasQuerySurface
   let selectPlantRow: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['selectPlantRow']>>>
+  let setPlantRowSpacing: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['setPlantRowSpacing']>>>
 
   beforeEach(() => {
     locale.value = 'en'
@@ -362,12 +363,15 @@ describe('Selection chip on a planted row', () => {
     queries = Object.assign(base, {
       getSelectedPlantRow: () => {
         const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
-        return selected && { id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: selected.row.spacing }
+        return selected && {
+          id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: selected.row.spacing, gapM: 2,
+        }
       },
     })
     selectPlantRow = vi.fn()
+    setPlantRowSpacing = vi.fn(() => true)
     setCurrentCanvasSession({
-      commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow } }),
+      commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow, setPlantRowSpacing } }),
       queries,
       documents: createTestCanvasDocumentSurface(),
       keyboard: createTestCanvasKeyboardPort(),
@@ -404,5 +408,50 @@ describe('Selection chip on a planted row', () => {
     expect(button('Select row'), 'a plant of no row offers none').toBeUndefined()
     await select(['hazel-1', 'hazel-4'])
     expect(button('Select row'), 'nor a selection reaching outside the row').toBeUndefined()
+  })
+
+  const spacingField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-spacing-input]') ?? null
+  const countField = () => chip()?.querySelector<HTMLInputElement>('[data-plant-row-count-input]') ?? null
+  const mode = (kind: 'interval' | 'count') => chip()!.querySelector<HTMLButtonElement>(`[data-plant-row-mode="${kind}"]`)!
+
+  async function type(field: HTMLInputElement, text: string, key?: 'Enter' | 'Escape'): Promise<void> {
+    await act(() => {
+      field.focus()
+      field.value = text
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    if (key) await act(() => { field.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })) })
+  }
+
+  it('shows a selected row\'s spacing, which re-spaces the row at Enter or on leaving an edited field, never as the device setting', async () => {
+    plantSpacingIntervalM.value = 0.8
+    await act(() => render(<SelectionChip />, container))
+    await select(['hazel-2'])
+    expect(spacingField(), 'some plants of a row show no spacing').toBeNull()
+
+    await select(ROW)
+    expect(spacingField()!.value).toBe('2 m')
+    expect(mode('interval').getAttribute('aria-pressed')).toBe('true')
+    expect(mode('count').getAttribute('aria-pressed')).toBe('false')
+    // Leaving the field unedited changes nothing.
+    await act(() => { spacingField()!.focus(); spacingField()!.blur() })
+    expect(setPlantRowSpacing).not.toHaveBeenCalled()
+
+    await type(spacingField()!, '1,5', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 1.5 })
+    await type(spacingField()!, 'twelve', 'Enter')
+    expect(spacingField()!.getAttribute('aria-invalid')).toBe('true')
+    expect(setPlantRowSpacing).toHaveBeenCalledTimes(1)
+    await type(spacingField()!, '2 m', 'Escape')
+    expect(spacingField()!.value, 'Esc puts the row\'s spacing back').toBe('2 m')
+
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing, 'the switch alone re-spaces nothing').toHaveBeenCalledTimes(1)
+    expect(spacingField()).toBeNull()
+    expect(countField()!.value, 'Plants starts at the row\'s plants').toBe('3')
+    await type(countField()!, '5')
+    await act(() => { countField()!.blur() })
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
+    expect(plantSpacingIntervalM.value, 'the device interval is untouched').toBe(0.8)
   })
 })

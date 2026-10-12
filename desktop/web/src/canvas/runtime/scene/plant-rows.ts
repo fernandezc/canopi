@@ -5,6 +5,7 @@
  * re-attaches. This module never imports the path engine (callers pass positions), and the scene transactions never
  * import it (P55).
  */
+import { createUuid } from '../../../utils/ids'
 import { createPlantSpacingGeneratedPlants } from '../../plant-spacing-sequence'
 import type { SceneDesignObjectSelection } from './design-object-targets'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, ScenePoint } from './types'
@@ -13,6 +14,9 @@ type PlantRowMember = ScenePlantRowEntity['members'][number]
 
 /** A row adds at most this many plants beside its first: Plant a row's commit limit, and the most one edit re-spaces. */
 export const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
+
+/** The Scene Edit of every change to a planted row's points or spacing (A7). */
+export const PLANT_ROW_EDIT = 'interaction-plant-row-edit'
 
 /** A member is attached while its plant lies within this distance of its `at`, in plane metres. */
 const ATTACHED_WITHIN_M = 0.001
@@ -103,6 +107,49 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
   })
   draft.plantRows = existing ? rows : [...rows, row]
   return ids
+}
+
+/** The part of an open Scene Edit a row write uses. */
+interface PlantRowEditTransaction {
+  mutate(edit: (draft: ScenePersistedState) => void): void
+  setSelection(targets: Iterable<SceneDesignObjectSelection[number]>): void
+}
+
+/** The plants a path takes beside its first point, as the engine places them (plant-path/spacing.ts plantAlongPath). */
+interface PlantRowPlanting {
+  readonly count: number
+  positions(): readonly ScenePoint[]
+}
+
+/**
+ * Inside the open Scene Edit `tx`: rewrites `row` along `path` with `spacing`, its plants where `planting` (the engine's
+ * answer for that path and spacing) puts them, and selects its members (A7). False, with nothing written, when the row
+ * would add no plant or more than the limit.
+ */
+export function respacePlantRow(
+  tx: PlantRowEditTransaction,
+  row: ScenePlantRowEntity,
+  path: Pick<ScenePlantRowEntity, 'anchors' | 'closed'>,
+  spacing: ScenePlantRowEntity['spacing'],
+  planting: PlantRowPlanting,
+): boolean {
+  const first = path.anchors[0]
+  if (!first || planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return false
+  const positions = [first.position, ...planting.positions()]
+  const written: { members: readonly string[] | null } = { members: null }
+  tx.mutate((draft) => {
+    written.members = applyPlantRowPositions(draft, {
+      id: row.id,
+      anchors: path.anchors,
+      closed: path.closed,
+      spacing,
+      positions,
+      createId: createUuid,
+    })
+  })
+  if (!written.members) return false
+  tx.setSelection(written.members.map((id) => ({ kind: 'plant' as const, id })))
+  return true
 }
 
 /** The row a selection belongs to: its attached members in path order, and whether the selection is all of them. */

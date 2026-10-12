@@ -290,7 +290,7 @@ test('(canopi-f47t.54, S) right-click and long press on a row point open Delete 
   await expect(chip(page), 'drawing plants nothing').toBeHidden()
 })
 
-test.fail('(canopi-f47t.54, S) the selection chip\'s spacing field and mode re-space the row in one Undo step and leave the device interval unchanged', async ({ page }) => {
+test('(canopi-f47t.54, S) the selection chip\'s spacing field and mode re-space the row in one Undo step and leave the device interval unchanged', async ({ page }) => {
   await openRowFromDraft(page)
   const before = await deviceInterval(page)
 
