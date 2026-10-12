@@ -1906,8 +1906,8 @@ const SETTINGS_PROJECTION_SIGNALS = [
 ] as const
 
 /**
- * Writing a canvas policy. A rule's name starts with its P-id and a space (canvasV2Policies and plantPathPolicies
- * filter on it); a P-id with several rules gives each its own name. A new rule takes the id after the highest in use
+ * Writing a canvas policy. A rule's name starts with its P-id and a space (canvasV2Policies filters on it); a P-id
+ * with several rules gives each its own name. A new rule takes the id after the highest in use
  * here, in canvas-boundaries.test.ts and in the Rust policies desktop/src/module_layering.rs (P50) and
  * ci_lane_policy.rs (P51). Its comment names the failure the rule prevents, and no doc restates it. Each rule gets a
  * planted negative test in this file; each regex rule gets one planted file in canvas-boundaries.test.ts.
@@ -2014,11 +2014,11 @@ const CANVAS_V2_POLICIES = [
     allowTypeOnlyTargets: ['src/canvas/runtime/view/types.ts'],
   },
   {
-    // Only the host converts screen to world: a tool, and the point editor the tools share (U58), name no DOM event,
-    // element or camera. Globals need no import, so the import rules cannot see them. The path engine's half is pending.
+    // Only the host converts screen to world: a tool, and the point editor and path engine the tools share (U58), name
+    // no DOM event, element or camera. Globals need no import, so the import rules cannot see them.
     kind: 'confine-symbols',
     name: 'P5 tools name no DOM event, element or camera',
-    from: [TOOLS_SOURCES, 'src/canvas/point-editor/**'],
+    from: [TOOLS_SOURCES, 'src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
     names: [...P5_DOM_AND_CAMERA_NAMES],
     allowedFrom: ['src/canvas/runtime/tools/tool-host.ts', ...TEST_SOURCE_PATTERNS],
   },
@@ -2327,6 +2327,31 @@ const CANVAS_V2_POLICIES = [
     properties: ['watchPosition', 'getCurrentPosition', 'clearWatch'],
   },
   {
+    // The engine and the shared point editor are pure: no tool host, session, settings or Preact, and of the runtime
+    // only types (view types, ToolHandle, HandleSize, interaction types, the scene).
+    kind: 'forbid-imports',
+    name: 'P54 the point editor and the path engine import only each other and types',
+    from: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
+    exceptFrom: [...TEST_SOURCE_PATTERNS],
+    targets: ['src/**', 'preact', 'preact/**', '@preact/**'],
+    // plant-spacing-sequence.ts: the straight-row maths, a pure leaf an open 2-point path calls unchanged (A3).
+    exceptTargets: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**', 'src/canvas/plant-spacing-sequence.ts'],
+    allowTypeOnlyTargets: [
+      'src/canvas/runtime/view/types.ts',
+      'src/canvas/runtime/tools/draft.ts',
+      'src/canvas/runtime/tools/select/handle-size.ts',
+      'src/canvas/runtime/interaction-types.ts',
+      'src/canvas/runtime/scene/**',
+    ],
+  },
+  {
+    // A5: membership is derived on read, so no transaction knows rows.
+    kind: 'forbid-imports',
+    name: 'P55 the scene transactions never import the plant row module',
+    from: ['src/canvas/runtime/scene-runtime/transactions.ts'],
+    targets: ['src/canvas/runtime/scene/plant-rows.ts'],
+  },
+  {
     // Plant along a path (canopi-f47t.54, A8): a stored row's spacing never writes the device setting; only the row
     // tool's draft does, through the tool contract and today's wiring (the adapters name it ...Meters).
     kind: 'confine-symbols',
@@ -2364,48 +2389,6 @@ const CANVAS_V2_POLICIES = [
       'src/app/map-selection/**',
     ],
     names: ['plantRows'],
-  },
-] satisfies readonly ArchitecturePolicy[]
-
-/**
- * Plant along a path (canopi-f47t.54; A3, A5, A15), checked against the real graph by their own test: they name
- * src/canvas/plant-path/ and scene/plant-rows.ts, which streams P and R create, so they stay out of the path-drift list
- * until both have merged; the merge that lands the second moves them into CANVAS_V2_POLICIES (the P5 rule here folds
- * its glob into P5's `from`).
- */
-const PLANT_PATH_PENDING_POLICIES = [
-  {
-    // P5 for the curve engine the tools share (U58): only the tool host converts screen to world.
-    kind: 'confine-symbols',
-    name: 'P5 the path engine names no DOM event, element or camera',
-    from: ['src/canvas/plant-path/**'],
-    names: [...P5_DOM_AND_CAMERA_NAMES],
-    allowedFrom: [...TEST_SOURCE_PATTERNS],
-  },
-  {
-    // The engine and the shared point editor are pure: no tool host, session, settings or Preact, and of the runtime
-    // only types (view types, ToolHandle, HandleSize, interaction types, the scene).
-    kind: 'forbid-imports',
-    name: 'P54 the point editor and the path engine import only each other and types',
-    from: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**'],
-    exceptFrom: [...TEST_SOURCE_PATTERNS],
-    targets: ['src/**', 'preact', 'preact/**', '@preact/**'],
-    // plant-spacing-sequence.ts: the straight-row maths, a pure leaf an open 2-point path calls unchanged (A3).
-    exceptTargets: ['src/canvas/point-editor/**', 'src/canvas/plant-path/**', 'src/canvas/plant-spacing-sequence.ts'],
-    allowTypeOnlyTargets: [
-      'src/canvas/runtime/view/types.ts',
-      'src/canvas/runtime/tools/draft.ts',
-      'src/canvas/runtime/tools/select/handle-size.ts',
-      'src/canvas/runtime/interaction-types.ts',
-      'src/canvas/runtime/scene/**',
-    ],
-  },
-  {
-    // A5: membership is derived on read, so no transaction knows rows.
-    kind: 'forbid-imports',
-    name: 'P55 the scene transactions never import the plant row module',
-    from: ['src/canvas/runtime/scene-runtime/transactions.ts'],
-    targets: ['src/canvas/runtime/scene/plant-rows.ts'],
   },
 ] satisfies readonly ArchitecturePolicy[]
 
@@ -3028,10 +3011,6 @@ describe('declarative frontend architecture policies', () => {
 
 function canvasV2Policies(id: string): readonly ArchitecturePolicy[] {
   return CANVAS_V2_POLICIES.filter(({ name }) => name.startsWith(`${id} `))
-}
-
-function plantPathPolicies(id: string): readonly ArchitecturePolicy[] {
-  return PLANT_PATH_PENDING_POLICIES.filter(({ name }) => name.startsWith(`${id} `))
 }
 
 function plantedSource(path: string, lines: readonly string[]) {
@@ -4075,7 +4054,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
   })
 })
 
-const P5_PATH_ENGINE = '[P5 the path engine names no DOM event, element or camera]'
 const P54 = '[P54 the point editor and the path engine import only each other and types]'
 const P55 = '[P55 the scene transactions never import the plant row module]'
 const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
@@ -4089,8 +4067,8 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       plantedSource('src/canvas/plant-path/curve.test.ts', ['document.body.dispatchEvent(new PointerEvent("pointerdown"))']),
     ])
 
-    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P5'))).toEqual([
-      `${P5_PATH_ENGINE} src/canvas/plant-path/curve.ts contains confined symbol requestAnimationFrame; allowed sources: ${TEST_SOURCES}`,
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P5'))).toEqual([
+      `${P5_SYMBOLS} src/canvas/plant-path/curve.ts contains confined symbol requestAnimationFrame; allowed sources: src/canvas/runtime/tools/tool-host.ts, ${TEST_SOURCES}`,
     ])
   })
 
@@ -4125,7 +4103,7 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       plantedSource('src/canvas/point-editor/layout.test.ts', ["import { host } from '../runtime/tools/tool-host'"]),
     ])
 
-    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P54'))).toEqual([
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P54'))).toEqual([
       `${P54} src/canvas/plant-path/curve.ts:4:1 imports src/canvas/session-state.ts via "../session-state" (static)`,
       `${P54} src/canvas/point-editor/layout.ts:3:1 imports src/canvas/runtime/tools/draft.ts via "../runtime/tools/draft" (static)`,
       `${P54} src/canvas/point-editor/layout.ts:4:1 imports src/canvas/runtime/tools/tool-host.ts via "../runtime/tools/tool-host" (static)`,
@@ -4144,7 +4122,7 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       plantedSource('src/canvas/runtime/scene-runtime/drag-state.ts', ["import { rows } from '../scene/plant-rows'"]),
     ])
 
-    expect(collectArchitecturePolicyViolations(graph, plantPathPolicies('P55'))).toEqual([
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P55'))).toEqual([
       `${P55} src/canvas/runtime/scene-runtime/transactions.ts:1:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
       `${P55} src/canvas/runtime/scene-runtime/transactions.ts:2:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
     ])
@@ -4201,10 +4179,6 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       `${P57} src/app/geojson/codec.ts contains forbidden symbol plantRows`,
     ])
   })
-
-  it('keeps the real sources within the pending P5, P54 and P55 before the modules they name exist', () => {
-    expect(collectArchitecturePolicyViolations(discoveredSourceGraph(), PLANT_PATH_PENDING_POLICIES)).toEqual([])
-  }, 20_000)
 })
 
 describe('map error logging', () => {

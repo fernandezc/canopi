@@ -62,14 +62,16 @@ test('Edit greys Cut and Delete while a polygon is drawn, after a reselection to
     await page.waitForTimeout(PAST_MULTI_CLICK_MS)
     await page.mouse.click(second.x, second.y)
     await page.waitForTimeout(PAST_MULTI_CLICK_MS)
-    await expect(toolCard(page), 'the draft is live: Esc cancels it').toContainText('Esc to cancel')
+    await expect(toolCard(page), 'the draft is live: Esc steps it back').toContainText('Esc or Backspace removes the last corner')
+    // One hint says what steps the draft back, once (it used to name Backspace and then Esc for the same step).
+    expect((await toolCard(page).textContent())?.match(/removes the last/g), 'the step-back hint shows once').toHaveLength(1)
   })
 
   await test.step('Edit › Select all reselects during the draft', async () => {
     await openEdit(page)
     await editMenu(page).getByRole('menuitem', { name: 'Select all', exact: true }).click()
     await expect(editMenu(page)).toBeHidden()
-    await expect(toolCard(page), 'the reselection keeps the draft').toContainText('Esc to cancel')
+    await expect(toolCard(page), 'the reselection keeps the draft').toContainText('Esc or Backspace removes the last corner')
   })
 
   await test.step('Edit shows Cut and Delete disabled while the draft holds them', async () => {
@@ -82,7 +84,7 @@ test('Edit greys Cut and Delete while a polygon is drawn, after a reselection to
     await page.keyboard.press('Escape')
     await expect(editMenu(page)).toBeHidden()
     await expect(tool(page, 'Polygon zone'), 'Esc closed the menu, not the tool').toHaveAttribute('aria-pressed', 'true')
-    await expect(toolCard(page), 'Esc closed the menu, not the draft').toContainText('Esc to cancel')
+    await expect(toolCard(page), 'Esc closed the menu, not the draft').toContainText('Esc or Backspace removes the last corner')
     await page.mouse.dblclick(third.x, third.y)
     await expect(selectionChip(page), 'the double-click finished the shape').toHaveText(/^Polygon zone/)
     await page.keyboard.press('Escape')

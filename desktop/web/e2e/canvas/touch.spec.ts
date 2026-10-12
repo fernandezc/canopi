@@ -34,7 +34,9 @@ const TABLET: Layout = {
 
 const PHONE: Layout = {
   viewport: { width: 390, height: 844 },
-  ground: { x: 195, y: 600 },
+  // Above the selection chip, which on a phone stands over the map notice (y 586 to 658 with an Apple selected): at
+  // y 600 the tap that should clear the selection pressed the chip's "Select all of this species".
+  ground: { x: 195, y: 530 },
   apple: { x: 114, y: 349 },
 }
 
@@ -149,6 +151,8 @@ test.describe('Chromium touch', () => {
       await expect(page.getByRole('menu')).toHaveCount(0)
 
       await fingers.tap(layout.ground)
+      // Empty ground, not chrome: the tap clears the selection the hold made, so the next tap's selection is its own.
+      await expect(page.locator('[data-selection-chip]'), 'the ground tap clears the selection').toHaveCount(0)
       await fingers.tap(layout.apple, { holdMs: 100 })
       await page.waitForTimeout(700)
       await expect(page.getByRole('menu'), 'a 100 ms tap opens no menu').toHaveCount(0)
