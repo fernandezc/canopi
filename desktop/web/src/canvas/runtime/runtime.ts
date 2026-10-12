@@ -162,8 +162,9 @@ export interface CanvasSceneEditCommandSurface {
   selectPlantRow?(): void
   /**
    * Re-spaces a planted row as one undoable edit that keeps it selected (the selection chip's spacing field and mode);
-   * never the device's Plant a row interval. False when nothing changed (an unknown or locked row, the same spacing, no
-   * plant to add or more than the limit). Optional, as selectPlantRow.
+   * never the device's Plant a row interval. True when the row holds `spacing` afterwards (the same spacing holds with
+   * no edit); false when the row refuses it (an unknown or locked row, no plant to add or more than the limit, or a
+   * Scene busy with another edit). Optional, as selectPlantRow.
    */
   setPlantRowSpacing?(rowId: string, spacing: CanvasPlantRowSpacing): boolean
   bringToFront(): void

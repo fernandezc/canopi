@@ -274,7 +274,8 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
     return this.options.commandAdmission.runWhenSettled(() => {
       const scene = this.options.sceneStore.persisted
       const row = scene.plantRows.find((entry) => entry.id === rowId)
-      if (!row || sameSpacing(row.spacing, spacing)) return false
+      if (!row) return false
+      if (sameSpacing(row.spacing, spacing)) return true
       const members = attachedPlantRowMembers(row, plantsById(scene)).map((member) => member.plantId)
       if (isPlantRowLocked(scene, members)) return false
       const planting = plantAlongPath({ points: row.anchors, closed: row.closed }, spacing)

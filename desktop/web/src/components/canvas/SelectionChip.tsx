@@ -126,13 +126,13 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   const edited = useRef(false)
   const count = mode === 'count'
 
+  // A spacing that parses but that the row refuses (no plant fits, or too many) is as invalid as one that does not.
   const commit = (value: string): boolean => {
     const spacing = parseRowSpacing(mode, value)
-    setInvalid(spacing === null)
-    if (!spacing) return false
-    edited.current = false
-    currentCanvasSceneEditCommandSurface.value?.setPlantRowSpacing?.(row.id, spacing)
-    return true
+    const taken = spacing !== null && currentCanvasSceneEditCommandSurface.value?.setPlantRowSpacing?.(row.id, spacing) === true
+    setInvalid(!taken)
+    if (taken) edited.current = false
+    return taken
   }
   const switchTo = (next: 'interval' | 'count') => {
     if (next === mode) return

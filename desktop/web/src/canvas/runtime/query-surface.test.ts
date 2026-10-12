@@ -147,7 +147,11 @@ describe('the selected planted row', () => {
       expect(runtime.commandSurface.history.canUndo.value, 'Select row edits nothing').toBe(false)
 
       // The chip's spacing: one Scene Edit that keeps the row selected, never the device interval.
-      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'interval', metres: 2 }), 'the same spacing edits nothing').toBe(false)
+      // True while the row holds the spacing after the call: the same spacing holds with no edit, one too long for the
+      // 4 m row (no plant beside the first) is refused.
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'interval', metres: 2 }), 'the same spacing holds').toBe(true)
+      expect(edits.setPlantRowSpacing?.('hedge', { kind: 'interval', metres: 5 }), 'a spacing the row refuses').toBe(false)
+      expect(runtime.commandSurface.history.canUndo.value, 'neither edits the Design').toBe(false)
       expect(edits.setPlantRowSpacing?.('hedge', { kind: 'count', count: 5 })).toBe(true)
       expect(queries.getSelectedPlantRow?.()).toMatchObject({ whole: true, plants: 5, spacing: { kind: 'count', count: 5 } })
       expect(queries.getSelectedPlantRow?.()?.gapM).toBeCloseTo(1, 6)

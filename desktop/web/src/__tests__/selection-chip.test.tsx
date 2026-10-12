@@ -462,6 +462,19 @@ describe('Selection chip on a planted row', () => {
     expect(plantSpacingIntervalM.value, 'the device interval is untouched').toBe(0.8)
   })
 
+  it('marks a spacing the row refuses as invalid and keeps the field, so the chip never shows a spacing the row lacks', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    setPlantRowSpacing.mockReturnValueOnce(false)
+    await type(spacingField()!, '5', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 5 })
+    expect(spacingField()!.getAttribute('aria-invalid'), 'no plant fits every 5 m').toBe('true')
+    expect(document.activeElement, 'Enter keeps the field').toBe(spacingField())
+    await type(spacingField()!, '1', 'Enter')
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'interval', metres: 1 })
+    expect(spacingField()!.getAttribute('aria-invalid')).toBe('false')
+  })
+
   it('shows a locked row\'s spacing and switch disabled', async () => {
     rowLocked = true
     await act(() => render(<SelectionChip />, container))
