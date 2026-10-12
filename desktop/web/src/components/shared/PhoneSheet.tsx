@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useId, useRef } from 'preact/hooks'
+import { useEffect, useId, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
@@ -9,6 +9,8 @@ import {
   type PhoneSheetHeight,
 } from '../../app/shell/phone-layout'
 import { isSidePanel } from '../../app/shell/state'
+import { currentCanvasTool, currentCanvasToolGuidance } from '../../canvas/session-state'
+import type { ToolId } from '../../canvas/runtime/tool-id'
 import { visibleMapFrame } from '../../app/shell/visible-map-area'
 import { DOCK_KEY_REGION } from '../../app/keyboard/target-class'
 import { t } from '../../i18n'
@@ -25,6 +27,8 @@ export const PHONE_SHEET_TABS = 3
 const DRAG_SLOP_PX = 6
 /** The gap between the top bar and a full sheet, as `--chrome-rail-top` leaves it. */
 const FULL_GAP_PX = 8
+/** The tools that draw a draft point by point: while one holds a draft, the sheet drops to its peek (answer 17). */
+const DRAWING_TOOLS: ReadonlySet<ToolId> = new Set(['plant-spacing', 'polygon', 'profile'])
 
 interface SheetDrag {
   readonly sheet: HTMLElement
@@ -46,7 +50,10 @@ interface SheetDrag {
  * map), and in portrait a drag lets go at the nearest one. Resting at peek
  * closes the open panel; raising the sheet with none open opens the first
  * tab. The sheet covers the map's bottom (or right) edge in the visible map
- * area, so fitting, chips and cards keep above it.
+ * area, so fitting, chips and cards keep above it. When a drawing tool starts
+ * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
+ * drops to its peek, so the draft is drawn on the map; raised again during the
+ * draft, it stays.
  */
 export function PhoneSheet({ layout, tabs, children }: {
   readonly layout: PhoneLayout
@@ -74,6 +81,11 @@ export function PhoneSheet({ layout, tabs, children }: {
   // The tool strip ends above the sheet rather than behind it.
   useUnderRail(sheet, 'tool', portrait)
   useFocusRegion(sheet, 'dock')
+  // The tool's gesture flag is its held draft (a picked plant, a placed point); it is read from the tool's guidance.
+  const drafting = DRAWING_TOOLS.has(currentCanvasTool.value) && currentCanvasToolGuidance.value.gesture
+  useEffect(() => {
+    if (drafting) moveTo('peek')
+  }, [drafting])
 
   function moveTo(next: PhoneSheetHeight): void {
     if (next === 'peek') {

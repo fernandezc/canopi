@@ -161,3 +161,52 @@ test.describe('390×844 card and half sheet', () => {
     }
   })
 })
+
+/** Raises the panel sheet a step from its handle (ArrowUp: a tap on it moved nothing in WebKit's touch emulation). */
+async function raiseSheet(page: Page): Promise<void> {
+  await page.locator('[data-sheet-handle]').focus()
+  await page.keyboard.press('ArrowUp')
+  await expect(sheet(page), 'the panel sheet rests at half height').toHaveAttribute('data-phone-sheet', 'half')
+}
+
+function sheet(page: Page): Locator {
+  return page.locator('[data-phone-sheet]')
+}
+
+function tool(page: Page, name: string): Locator {
+  return page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: new RegExp(`^${name}( \\(.\\))?$`) })
+}
+
+// Answer 17: on a phone, while a drawing tool holds a draft (Plant a row, Polygon, Profile line), the panel sheet drops to
+// its peek, so the draft is drawn on the map rather than under the sheet; arming a tool alone keeps the sheet, and a
+// sheet raised again during the draft stays where the user puts it.
+test.describe('390×844 drafts and the sheet', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test('(canopi-f47t.54, H) the half sheet drops to its peek when Plant a row picks its plant, and stays raised when raised again', async ({ page }) => {
+    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await raiseSheet(page)
+    await mapHost(page).focus()
+    await page.keyboard.press('w')
+    await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
+    await expect(sheet(page), 'arming the tool keeps the sheet').toHaveAttribute('data-phone-sheet', 'half')
+    await tap(page, APPLE)
+    await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
+    await expect(sheet(page), 'the pick drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
+    await page.keyboard.press('Enter')
+    await tap(page, BELOW)
+    await raiseSheet(page)
+    await nextFrames(page)
+    await expect(sheet(page), 'raised again during the draft, the sheet stays').toHaveAttribute('data-phone-sheet', 'half')
+  })
+
+  test('(canopi-f47t.54, H) the half sheet drops to its peek at a polygon\'s first corner', async ({ page }) => {
+    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await raiseSheet(page)
+    await tool(page, 'Polygon zone').tap()
+    await expect(tool(page, 'Polygon zone')).toHaveAttribute('aria-pressed', 'true')
+    await expect(sheet(page), 'arming the tool keeps the sheet').toHaveAttribute('data-phone-sheet', 'half')
+    await tap(page, { x: 150, y: 280 })
+    await expect(sheet(page), 'the first corner drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
+  })
+})
