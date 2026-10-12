@@ -238,6 +238,23 @@ describe('applyPlantRowPositions, the row writer (A5, A7)', () => {
       expect(besideH5(scene), 'no plant 25 cm from h5').toEqual(['h5'])
     })
 
+    it('stays the other row\'s when the hedge\'s gap grows past twice its old gap', () => {
+      // Its old neighbours h4 and h6 lie 1 m from h5, inside half a 2.5 m or 5 m gap: they are not a plant there.
+      for (const [gap, count] of [[2.5, 4], [5, 2]] as const) {
+        const scene = hedgeWithSideRow()
+        const members = respace(scene, 10, Array.from({ length: 10 / gap + 1 }, (_, index) => at(index * gap)))
+        expect(members, `a ${gap} m gap keeps every spot but h5's`).toHaveLength(count)
+        expect(besideH5(scene), `no plant on h5 at a ${gap} m gap`).toEqual(['h5'])
+      }
+    })
+
+    it('stays the other row\'s when the hedge goes back to its old gap after a wider one', () => {
+      const scene = hedgeWithSideRow()
+      respace(scene, 10, Array.from({ length: 5 }, (_, index) => at(index * 2.5)))
+      expect(respace(scene, 10, Array.from({ length: 11 }, (_, index) => at(index))), 'all but h5\'s spot').toHaveLength(10)
+      expect(besideH5(scene), 'no plant on h5').toEqual(['h5'])
+    })
+
     it('stays the other row\'s when that row moves its plant a little', () => {
       const scene = hedgeWithSideRow()
       applyPlantRowPositions(scene, {

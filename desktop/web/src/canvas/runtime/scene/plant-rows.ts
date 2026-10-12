@@ -117,10 +117,12 @@ export function applyPlantRowPositions(draft: ScenePersistedState, write: PlantR
  * The positions a re-space of `row` plants (A7): `positions` less each spot another row's first plant holds. Only a
  * row's first plant can have come from another row (a row started from a member takes it), so each other row's
  * attached first plant holds the position nearest it when it stands within half a gap of it (half the distance to the
- * nearer neighbouring position) and `row` has no plant of its own there: the spot it gave away. That spot stays the
- * other row's however this row's points or spacing change, and fills again once that plant has moved off. Shared by
- * the writer and Select's point-drag preview, so the preview shows what the release plants. Linear in the positions
- * for each first plant near them.
+ * nearer neighbouring position) and `row` has no plant of its own there: the spot it gave away. "No plant there" is
+ * judged on the row's spacing before this re-space (no attached member within half its own old gap), not the new
+ * one, since a gap more than twice the old would take in the old neighbours of the spot. That spot stays the other
+ * row's however this row's points or spacing change, and fills again once that plant has moved off. Shared by the
+ * writer and Select's point-drag preview, so the preview shows what the release plants. Linear in the positions and
+ * members for each first plant near them.
  */
 export function respacedPlantRowPositions<Point extends ScenePoint>(
   scene: Pick<ScenePersistedState, 'plantRows'>,
@@ -129,8 +131,8 @@ export function respacedPlantRowPositions<Point extends ScenePoint>(
   positions: readonly Point[],
 ): readonly Point[] {
   if (positions.length < 2) return positions
-  const own = attachedPlantRowMembers(row, plants)
-  const ownIds = new Set(own.map((member) => member.plantId))
+  const own = oldPlantRowCells(row, plants)
+  const ownIds = new Set(own.map((cell) => cell.plantId))
   const halfGaps = positions.map((position, index) => 0.5 * Math.min(
     index > 0 ? distance(position, positions[index - 1]!) : Infinity,
     index < positions.length - 1 ? distance(position, positions[index + 1]!) : Infinity,
@@ -154,10 +156,31 @@ export function respacedPlantRowPositions<Point extends ScenePoint>(
     }
     const halfGap = halfGaps[nearest]!
     if (distance(positions[nearest]!, plant.position) >= halfGap) continue
-    if (own.some((member) => distance(member.at, plant.position) < halfGap)) continue
+    if (own.some((cell) => distance(cell.at, plant.position) < (cell.halfGap ?? halfGap))) continue
     left.add(nearest)
   }
   return left.size === 0 ? positions : positions.filter((_, index) => !left.has(index))
+}
+
+/**
+ * The row's attached members, each with half the gap to its nearer neighbour among the row's written spots (every
+ * member's `at`, in path order): the spacing the row had before a re-space. A row of one spot has no old gap (null),
+ * and the caller falls back to the new one.
+ */
+function oldPlantRowCells(
+  row: ScenePlantRowEntity,
+  plants: ReadonlyMap<string, ScenePlantEntity>,
+): Array<PlantRowMember & { readonly halfGap: number | null }> {
+  const attached = new Set(attachedPlantRowMembers(row, plants))
+  const spots = row.members
+  return spots.flatMap((member, index) => {
+    if (!attached.has(member)) return []
+    const gap = Math.min(
+      index > 0 ? distance(member.at, spots[index - 1]!.at) : Infinity,
+      index < spots.length - 1 ? distance(member.at, spots[index + 1]!.at) : Infinity,
+    )
+    return [{ ...member, halfGap: Number.isFinite(gap) ? 0.5 * gap : null }]
+  })
 }
 
 function distance(a: ScenePoint, b: ScenePoint): number {
