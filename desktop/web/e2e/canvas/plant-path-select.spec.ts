@@ -255,7 +255,7 @@ test('(canopi-f47t.54, S) under Select, a dot drag inserts a point, Alt+click de
   await expectOneUndoStep(page, 'the inserted point')
 })
 
-test.fail('(canopi-f47t.54, S) right-click and long press on a row point open Delete point and Sharp corner, while drawing and under Select (long press Chromium)', async ({ page, browserName }) => {
+test('(canopi-f47t.54, S) right-click and long press on a row point open Delete point and Sharp corner, while drawing and under Select (long press Chromium)', async ({ page, browserName }) => {
   await openRowFromDraft(page)
   await selectAllMembers(page)
   await expect.poll(() => points(page), 'selecting all of a row\'s plants shows its points').toBe(4)
@@ -281,9 +281,13 @@ test.fail('(canopi-f47t.54, S) right-click and long press on a row point open De
   await page.mouse.click(ROW_P1.x, ROW_P1.y)
   await page.mouse.click(ROW_P2.x, ROW_P2.y)
   const drawn = await pointAt(page, 1)
+  const drawnPoints = await points(page)
   await page.mouse.click(drawn.x, drawn.y, { button: 'right' })
   await expectMenu(page, [/^Finish shape/, /^Delete point/, /^Sharp corner/], 'a right-click on a point while drawing')
-  await expect(undo(page), 'drawing plants nothing').toBeDisabled()
+  // Undo is on while drawing (it removes the last point, A17): the menu planted nothing when the row is still drawn with
+  // its points and nothing is selected.
+  await expect.poll(() => points(page), 'the row is still drawn').toBe(drawnPoints)
+  await expect(chip(page), 'drawing plants nothing').toBeHidden()
 })
 
 test.fail('(canopi-f47t.54, S) the selection chip\'s spacing field and mode re-space the row in one Undo step and leave the device interval unchanged', async ({ page }) => {

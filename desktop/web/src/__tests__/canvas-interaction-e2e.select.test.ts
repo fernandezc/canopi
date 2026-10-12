@@ -3129,6 +3129,37 @@ describe('SceneInteractionSession', () => {
       expect(onSceneEditCommit.mock.calls.flat()).toEqual(Array(4).fill('interaction-plant-row-edit'))
       session.dispose()
     })
+
+    it('opens the point menu on a row point: Delete point, refused at two points, and Sharp or Smooth corner, each one edit (A16)', () => {
+      const onSceneEditCommit = vi.fn()
+      const { session } = selectRow({ onSceneEditCommit })
+      events.pointerDown({ x: 50, y: 100 }, { button: 0, detail: 2, target: handle('dot:row-1:0')!, timeStamp: 0 })
+      events.pointerUp({ x: 50, y: 100 }, { button: 0, detail: 2, timeStamp: 10 })
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(3)
+
+      events.pointerDown({ x: 50, y: 100 }, { button: 2, target: handle('point:row-1:1')!, timeStamp: 1000 })
+      events.pointerUp({ x: 50, y: 100 }, { button: 2, timeStamp: 1010 })
+      expect(contextMenuItemIds()).toEqual(['delete-point', 'sharp-corner'])
+      expect(contextMenuHost.current?.selection, 'a point menu retargets no selection').toBeNull()
+      contextMenuCommand('sharp-corner').run()
+      expect(store.persisted.plantRows[0]!.anchors.map((anchor) => anchor.sharp)).toEqual([false, true, false])
+      expect(handle('point:row-1:1')!.dataset.canvasHandleGlyph).toBe('corner')
+      expect(selectedIds(), 'the row stays selected').toHaveLength(7)
+
+      events.pointerDown({ x: 50, y: 100 }, { button: 2, target: handle('point:row-1:1')!, timeStamp: 2000 })
+      events.pointerUp({ x: 50, y: 100 }, { button: 2, timeStamp: 2010 })
+      expect(contextMenuItemIds()).toEqual(['delete-point', 'smooth-corner'])
+      contextMenuCommand('delete-point').run()
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(2)
+
+      events.pointerDown({ x: 20, y: 100 }, { button: 2, target: handle('point:row-1:0')!, timeStamp: 3000 })
+      events.pointerUp({ x: 20, y: 100 }, { button: 2, timeStamp: 3010 })
+      expect(contextMenuCommand('delete-point').disabled, 'an open row keeps two points').toBe(true)
+      contextMenuCommand('delete-point').run()
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(2)
+      expect(onSceneEditCommit.mock.calls.flat()).toEqual(Array(3).fill('interaction-plant-row-edit'))
+      session.dispose()
+    })
   })
 
   it('arrow keys do nothing while a polygon corner or midpoint dot holds focus (U36)', () => {

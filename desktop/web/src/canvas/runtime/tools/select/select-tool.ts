@@ -11,9 +11,9 @@
 // card's gesture flag stays off.
 
 import { segmentMidpoints, type PathPoints } from '../../../plant-path/curve'
-import { insertAfter, removePoint } from '../../../point-editor/anchors'
+import { insertAfter, removePoint, setSharp } from '../../../point-editor/anchors'
 import { parsePointHandle, pointHandleId } from '../../../point-editor/layout'
-import { pointMenuItems, pointPressIntent, type PointMenuItem } from '../../../point-editor/rules'
+import { pointMenuItems, pointPressIntent, type PointAction, type PointMenuItem } from '../../../point-editor/rules'
 import type { PointerKind, ToolHandleId } from '../../interaction-types'
 import type { SceneDesignObjectTarget } from '../../scene/design-object-targets'
 import type { SceneMeasurementGuideEntity, SceneZoneEntity } from '../../scene/types'
@@ -416,8 +416,24 @@ export function createSelectTool(): CanvasTool {
     return parsed?.role === 'point' && parsed.ownerId === selectedRow?.row.id ? parsed.index : null
   }
 
-  /** The point menu of a selected polygon's corner: Delete point, refused at 3 corners (A16); nothing for any other handle. */
+  /** The point menu's action, or Delete's, on a selected row's point: delete it (refused below the row's minimum), or
+   *  turn it sharp or smooth, which makes it the touched point. */
+  function rowPointAction(index: number, action: PointAction): ToolReply {
+    const row = selectedRow
+    if (!row?.path.points[index]) return 'pass'
+    if (action === 'delete-point') editRowPath(row, removePoint(row.path, index))
+    else editRowPath(row, setSharp(row.path, index, action === 'sharp-corner'), index)
+    return 'handled'
+  }
+
+  /** The point menu of a selected polygon's corner (Delete point, refused at 3 corners) or of a selected row's point
+   *  (Delete point, refused at the row's minimum, then Sharp or Smooth corner) (A16); nothing for any other handle. */
   function pointMenu(handle: ToolHandleId): readonly PointMenuItem[] {
+    const rowPoint = rowPointOf(handle)
+    const point = rowPoint === null ? undefined : selectedRow?.path.points[rowPoint]
+    if (selectedRow && rowPoint !== null && point) {
+      return pointMenuItems({ sharpable: true, sharp: point.sharp, canDelete: removePoint(selectedRow.path, rowPoint) !== null })
+    }
     const corner = reshapePoints.get(handle)
     const zone = corner && isPolygonCorner(corner) ? reshapableZone(ctx().scene.persisted, ctx().scene.selectionModel()) : null
     if (!zone || zone.id !== corner!.zoneId) return []
@@ -459,10 +475,7 @@ export function createSelectTool(): CanvasTool {
    *  (a refused removal is handled, so the row stays); with neither, the key passes. */
   function deleteRowPoint(): ToolReply {
     const index = rowPointOf(ctx().focusedHandle()) ?? selectedRowPoint
-    const row = selectedRow
-    if (index === null || !row) return 'pass'
-    editRowPath(row, removePoint(row.path, index))
-    return 'handled'
+    return index === null ? 'pass' : rowPointAction(index, 'delete-point')
   }
 
   function editNote(annotationId: string): boolean {
@@ -525,8 +538,12 @@ export function createSelectTool(): CanvasTool {
       if (c.kind === 'delete-handle' || c.kind === 'remove-last') {
         return deleteCorner() === 'handled' ? 'handled' : deleteRowPoint()
       }
-      // The point menu's Delete point (a corner offers no other entry).
-      if (c.kind === 'point-action') return c.action === 'delete-point' ? deleteCorner(c.handle) : 'pass'
+      if (c.kind === 'point-action') {
+        const rowPoint = rowPointOf(c.handle)
+        if (rowPoint !== null) return rowPointAction(rowPoint, c.action)
+        // A corner's menu offers Delete point alone.
+        return c.action === 'delete-point' ? deleteCorner(c.handle) : 'pass'
+      }
       if (c.kind !== 'edit-text') return 'pass'
       const noteId = selectedEditableNoteId(ctx())
       return noteId && editNote(noteId) ? 'handled' : 'pass'
