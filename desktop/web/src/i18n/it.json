@@ -731,8 +731,7 @@
       "measurements_many": "{{count, number}} di misure",
       "measurements_other": "{{count, number}} misure",
       "clear": "Annulla la selezione",
-      "rename": "Rinomina…",
-      "selectRow": "Seleziona il filare"
+      "rename": "Rinomina…"
     },
     "viewChip": "Vista",
     "map": {

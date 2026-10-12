@@ -731,8 +731,7 @@
       "measurements_many": "計測 {{count, number}} 件",
       "measurements_other": "計測 {{count, number}} 件",
       "clear": "選択を解除",
-      "rename": "名前を変更…",
-      "selectRow": "列を選択"
+      "rename": "名前を変更…"
     },
     "viewChip": "表示",
     "map": {

@@ -96,28 +96,6 @@ export interface CanvasToolCommandSurface {
  */
 export type CanvasViewportCommandSurface = ViewCommandSurface
 
-/** How a planted row spaces its plants: every `metres`, or `count` plants with the first counted (A3). */
-export type CanvasPlantRowSpacing =
-  | { readonly kind: 'interval'; readonly metres: number }
-  | { readonly kind: 'count'; readonly count: number }
-
-/** The planted row the selection is part of (plan §4 "2.0 plant along a path", A7): the selection chip reads it. */
-export interface CanvasSelectedPlantRow {
-  readonly id: string
-  /** The selection is all of the row's plants: the row is selected and Select edits it; otherwise Select row applies. */
-  readonly whole: boolean
-  /**
-   * The spots the row's spacing makes along its path, the first counted: where "N plants" starts from. A spot the row
-   * left to another row's plant counts, so the switch to N plants never takes it from the row's own plants.
-   */
-  readonly spots: number
-  readonly spacing: CanvasPlantRowSpacing
-  /** The gap between neighbouring plants now (a loop's rounded gap, an even count's): where "every N m" starts from. */
-  readonly gapM: number
-  /** A plant of the row, or the Plants layer, is locked: the row takes no edit. */
-  readonly locked: boolean
-}
-
 export interface CanvasHistoryCommandSurface {
   readonly canUndo: ReadonlySignal<boolean>
   readonly canRedo: ReadonlySignal<boolean>
@@ -160,16 +138,6 @@ export interface CanvasSceneEditCommandSurface {
   selectSpecies(canonicalNames: readonly string[]): void
   /** Empties the selection (session state: no edit, history or dirty state). */
   clearSelection(): void
-  /** Selects every plant of the planted row the selection is part of (session state, as clearSelection). Optional, as
-   *  `tools.plantRowPath`: the surface's older test doubles carry no row command. */
-  selectPlantRow?(): void
-  /**
-   * Re-spaces a planted row as one undoable edit that keeps it selected (the selection chip's spacing field and mode);
-   * never the device's Plant a row interval. True when the row holds `spacing` afterwards (the same spacing holds with
-   * no edit); false when the row refuses it (an unknown or locked row, no plant to add or more than the limit, or a
-   * Scene busy with another edit). Optional, as selectPlantRow.
-   */
-  setPlantRowSpacing?(rowId: string, spacing: CanvasPlantRowSpacing): boolean
   bringToFront(): void
   sendToBack(): void
   lockSelected(): void
@@ -276,9 +244,6 @@ export interface CanvasQuerySurface {
   getSceneSnapshot(): ScenePersistedState
   getSelection(): SceneDesignObjectTarget[]
   getDesignObjectSelection(): CanvasDesignObjectSelectionModel
-  /** The planted row the selection is part of; null when the selection is not only plants of one row. Optional: the
-   *  surface's older test doubles carry no row query. */
-  getSelectedPlantRow?(): CanvasSelectedPlantRow | null
   getSelectedPlantColorContext(): SelectedPlantColorContext
   getSelectedPlantSymbolContext(): SelectedPlantSymbolContext
   getPlacedPlants(): PlacedPlant[]

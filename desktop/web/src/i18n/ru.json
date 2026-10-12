@@ -731,8 +731,7 @@
       "measurements_many": "{{count, number}} измерений",
       "measurements_other": "{{count, number}} измерения",
       "clear": "Снять выделение",
-      "rename": "Переименовать…",
-      "selectRow": "Выбрать ряд"
+      "rename": "Переименовать…"
     },
     "viewChip": "Вид",
     "map": {

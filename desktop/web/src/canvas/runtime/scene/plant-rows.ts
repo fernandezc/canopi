@@ -5,19 +5,13 @@
  * re-attaches. This module never imports the path engine (callers pass positions), and the scene transactions never
  * import it (P55).
  */
-import { createUuid } from '../../../utils/ids'
 import { createPlantSpacingGeneratedPlants } from '../../plant-spacing-sequence'
-import type { SceneDesignObjectSelection } from './design-object-targets'
-import { isSceneLayerEditable } from './locks'
 import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, ScenePoint } from './types'
 
 type PlantRowMember = ScenePlantRowEntity['members'][number]
 
 /** A row adds at most this many plants beside its first: Plant a row's commit limit, and the most one edit re-spaces. */
 export const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
-
-/** The Scene Edit of every change to a planted row's points or spacing (A7). */
-export const PLANT_ROW_EDIT = 'interaction-plant-row-edit'
 
 /** A member is attached while its plant lies within this distance of its `at`, in plane metres. */
 const ATTACHED_WITHIN_M = 0.001
@@ -184,87 +178,6 @@ function oldPlantRowCells(
 
 function distance(a: ScenePoint, b: ScenePoint): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
-}
-
-/** The part of an open Scene Edit a row write uses. */
-interface PlantRowEditTransaction {
-  mutate(edit: (draft: ScenePersistedState) => void): void
-  setSelection(targets: Iterable<SceneDesignObjectSelection[number]>): void
-}
-
-/** The plants a path takes beside its first point, as the engine places them (plant-path/spacing.ts plantAlongPath). */
-interface PlantRowPlanting {
-  readonly count: number
-  positions(): readonly ScenePoint[]
-}
-
-/**
- * Inside the open Scene Edit `tx`: rewrites `row` along `path` with `spacing`, its plants where `planting` (the engine's
- * answer for that path and spacing) puts them, and selects its members (A7). False, with nothing written, when the row
- * would add no plant or more than the limit.
- */
-export function respacePlantRow(
-  tx: PlantRowEditTransaction,
-  row: ScenePlantRowEntity,
-  path: Pick<ScenePlantRowEntity, 'anchors' | 'closed'>,
-  spacing: ScenePlantRowEntity['spacing'],
-  planting: PlantRowPlanting,
-): boolean {
-  const first = path.anchors[0]
-  if (!first || planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return false
-  const positions = [first.position, ...planting.positions()]
-  const written: { members: readonly string[] | null } = { members: null }
-  tx.mutate((draft) => {
-    written.members = applyPlantRowPositions(draft, {
-      id: row.id,
-      anchors: path.anchors,
-      closed: path.closed,
-      spacing,
-      positions,
-      createId: createUuid,
-    })
-  })
-  if (!written.members) return false
-  tx.setSelection(written.members.map((id) => ({ kind: 'plant' as const, id })))
-  return true
-}
-
-/** The row a selection belongs to: its attached members in path order, and whether the selection is all of them. */
-interface SelectedPlantRow {
-  readonly row: ScenePlantRowEntity
-  readonly members: readonly string[]
-  readonly whole: boolean
-}
-
-/**
- * The row whose attached plants hold every selected target, or null when the selection is empty, holds anything but
- * plants, or a plant of no row or of two. A row is selected, and Select edits it, when `whole` (A7).
- */
-export function rowOfSelection(
-  scene: Pick<ScenePersistedState, 'plants' | 'plantRows'>,
-  selection: SceneDesignObjectSelection,
-): SelectedPlantRow | null {
-  if (selection.length === 0 || selection.some((target) => target.kind !== 'plant')) return null
-  const selected = new Set(selection.map((target) => target.id))
-  const plants = plantsById(scene)
-  for (const row of scene.plantRows) {
-    const members = attachedPlantRowMembers(row, plants).map((member) => member.plantId)
-    if (!members.some((id) => selected.has(id))) continue
-    const inRow = new Set(members)
-    if (![...selected].every((id) => inRow.has(id))) return null
-    return { row, members, whole: members.length === selected.size }
-  }
-  return null
-}
-
-/**
- * A row takes no edit while one of its attached members (`members`), or the Plants layer, is locked (A7's lock table):
- * Select shows its curve without points, and the selection chip disables its spacing.
- */
-export function isPlantRowLocked(scene: Readonly<ScenePersistedState>, members: readonly string[]): boolean {
-  if (!isSceneLayerEditable(scene, 'plants')) return true
-  const ids = new Set(members)
-  return scene.plants.some((plant) => plant.locked && ids.has(plant.id))
 }
 
 /** The rows a move carries, as they were when it started: each one with only its attached members (A11). */

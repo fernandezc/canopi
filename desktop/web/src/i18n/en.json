@@ -731,8 +731,7 @@
       "measurements_many": "{{count, number}} measurements",
       "measurements_other": "{{count, number}} measurements",
       "clear": "Clear selection",
-      "rename": "Rename…",
-      "selectRow": "Select row"
+      "rename": "Rename…"
     },
     "viewChip": "View",
     "map": {

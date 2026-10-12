@@ -731,8 +731,7 @@
       "measurements_many": "{{count, number}} de mesures",
       "measurements_other": "{{count, number}} mesures",
       "clear": "Effacer la sélection",
-      "rename": "Renommer…",
-      "selectRow": "Sélectionner la rangée"
+      "rename": "Renommer…"
     },
     "viewChip": "Affichage",
     "map": {

@@ -731,8 +731,7 @@
       "measurements_many": "측정 {{count, number}}개",
       "measurements_other": "측정 {{count, number}}개",
       "clear": "선택 해제",
-      "rename": "이름 바꾸기…",
-      "selectRow": "줄 선택"
+      "rename": "이름 바꾸기…"
     },
     "viewChip": "보기",
     "map": {

@@ -731,8 +731,7 @@
       "measurements_many": "{{count, number}} de medições",
       "measurements_other": "{{count, number}} medições",
       "clear": "Limpar a seleção",
-      "rename": "Renomear…",
-      "selectRow": "Selecionar fileira"
+      "rename": "Renomear…"
     },
     "viewChip": "Visualização",
     "map": {

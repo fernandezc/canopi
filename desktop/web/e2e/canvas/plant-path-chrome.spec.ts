@@ -1,5 +1,5 @@
-// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P
-// and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
+// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, stream P;
+// plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
 // points beside it (at 1440x900 with the inspection lens open, in the card's slot), then close a loop; each time the
@@ -10,11 +10,9 @@
 // card's text and fields scroll above its foot); with an invalid spacing the check button focuses the field, which
 // shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two
 // points; after a tap on a point, in its own tests per touch layout). On phones the top chip slot sits below the card,
-// inside the viewport. Once a row is planted, the selection chip with its spacing field keeps clear of its neighbours
-// (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no baselines. Selectors are
+// inside the viewport. Both engines; offline, so the map notice shows. DOM assertions only, no baselines. Selectors are
 // locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`, `[data-plant-row-mode]`,
-// `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles;
-// `[data-plant-row-spacing-input]` in the selection chip).
+// `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import type { Point } from '../support/fingers'
@@ -356,50 +354,4 @@ test.describe('360×560 half sheet', () => {
     await nextFrames(page)
     await expectCardClear(page, layout, 'en', 'a half sheet')
   })
-})
-
-const CHIP_LAYOUTS: readonly Layout[] = [
-  ...PHONES.filter((layout) => layout.width !== 740).map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] })),
-  { width: 1024, height: 768, locales: ['en', 'de', 'ru'], touch: false },
-]
-const SHORT_LANDSCAPE: readonly Layout[] = PHONES.filter((layout) => layout.width === 740)
-  .map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] }))
-
-/** Plants a row with the row tool in each layout and locale; the selection chip, with the row's spacing, clears every
- *  neighbour and the tool card, stays in the viewport, and its field and switch take the click at their centre. */
-async function expectRowChipClear(page: Page, layouts: readonly Layout[]): Promise<void> {
-  for (const layout of layouts) {
-    for (const locale of layout.locales) {
-      const where = `${layout.width}x${layout.height} ${locale}`
-      await page.setViewportSize({ width: layout.width, height: layout.height })
-      await openBase(page, { ...layout, touch: false }, locale)
-      await drawTwoPoints(page, { ...layout, touch: false })
-      await page.keyboard.press('Enter')
-      const chip = page.locator('[data-selection-chip]')
-      const spacing = chip.locator('[data-plant-row-spacing-input]')
-      await expect(spacing, `${where}: the planted row is selected with its spacing field`).toBeVisible()
-      await nextFrames(page)
-      const chipBox = await boxOf(chip)
-      for (const [name, selector] of [...NEIGHBOURS.filter(([, selector]) => selector !== '[data-selection-chip]'), ['the tool card', '[data-tool-card]'] as const]) {
-        for (const box of await shownBoxes(page, selector)) {
-          expect(overlap(chipBox, box), `${where}: the selection chip clears ${name}`).toBe(false)
-        }
-      }
-      expect(chipBox.x, `${where}: the chip starts inside the viewport`).toBeGreaterThanOrEqual(0)
-      expect(chipBox.x + chipBox.width, `${where}: the chip ends inside the viewport`).toBeLessThanOrEqual(layout.width)
-      await expectHitAtCentre(spacing, `${where}: the row's spacing field`)
-      for (const mode of await chip.locator('[data-plant-row-mode]').all()) await expectHitAtCentre(mode, `${where}: the row's mode switch`)
-    }
-  }
-}
-
-test('(canopi-f47t.54, S) the selection chip with a row\'s spacing field stays clear of its neighbours at 390×844, 360×560 and 1024×768 (en de ru)', async ({ page }) => {
-  await expectRowChipClear(page, CHIP_LAYOUTS)
-})
-
-// At 740×360 offline, the idle Plant a row card (registered with the visible map only while it holds a row, answer 15)
-// and the map notice leave the chip about 33 px of map between them: in German the chip's 40 px meets the card. A chip
-// cannot fit there; which chrome gives way is the main agent's (or the user's) call.
-test.fail('(canopi-f47t.54, S, main decides) the selection chip with a row\'s spacing field stays clear of the Plant a row card at 740×360 (en de ru)', async ({ page }) => {
-  await expectRowChipClear(page, SHORT_LANDSCAPE)
 })
