@@ -779,6 +779,7 @@ describe('SceneInteractionSession', () => {
 
     const file = store.toCanopiFile({ now: new Date('2026-10-13T00:00:00Z') })
     expect(file.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
+    expect('plant_rows' in file, 'the finish stores no row').toBe(false)
     const reopened = new SceneStore().hydrate(file)
     expect(reopened.persisted.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
     // The reopened plane has its own origin: the plants keep their places relative to each other.

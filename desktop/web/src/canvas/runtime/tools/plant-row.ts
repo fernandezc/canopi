@@ -5,9 +5,9 @@
 // that press's release, unless it became a drag). After the pick a click on the ground adds a point (Alt held: a sharp
 // one), and the row follows a smooth curve through them (canvas/plant-path/); a click on the first point with 3 points
 // or more closes a loop (its handle, or the ground within CLOSE_DISTANCE_PX). Enter, a double-click on the ground or the last point, the tool card's check
-// button and the menu's "Finish shape" plant it (from 2 points), one Scene Edit that stores the row (its points, spacing
-// and plants, the picked one first: scene/plant-rows.ts applyPlantRowPositions, so Select edits it later) and selects
-// the source and the new plants. A press-drag-release from the picked plant with no other point still plants a straight row at its release.
+// button and the menu's "Finish shape" plant it (from 2 points), one Scene Edit that adds ordinary plants and selects
+// the source and the new plants, ungrouped (answers 27, 28: the path is edited only while drawn; nothing stores it). A
+// press-drag-release from the picked plant with no other point still plants a straight row at its release.
 // Before planting the points follow the shared point contract (point-editor/rules.ts): a point drags; a midpoint dot's
 // drag inserts a point, its double-click inserts one in place; Alt+click, Delete and the point menu delete a point
 // (never the picked plant, never below 2 points, 3 on a loop); the point menu turns a point sharp or smooth. A press, a
@@ -49,7 +49,6 @@ import { createUuid } from '../../../utils/ids'
 import type { ToolHandleId } from '../interaction-types'
 import { isSceneObjectGroupMemberTarget } from '../scene/group-members'
 import { isSceneDesignObjectLocked } from '../scene/locks'
-import { applyPlantRowPositions, PLANT_ROW_MAX_ADDED_PLANTS } from '../scene/plant-rows'
 import { resolvePlantSymbolForPlant } from '../scene/plant-symbols'
 import type { ScenePlantEntity } from '../scene/types'
 import type { ScreenPoint, WorldPoint } from '../view/types'
@@ -60,6 +59,8 @@ import type { CanvasTool, ToolCommand, ToolContext, ToolGesture, ToolPoint } fro
 
 const PLANT_ROW_DENSE_WARNING_THRESHOLD = 100
 const PLANT_ROW_PREVIEW_POSITION_LIMIT = 250
+/** The most plants one row adds beside the picked one: above it the card reads "too many plants" and nothing plants. */
+const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
 const PLANT_ROW_GHOST_OPACITY = 0.35
 const SOURCE_RING_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2 })
 /** Today's 2 px CSS dashed border, drawn as dashes and gaps of 3 × its width (convention). */
@@ -557,32 +558,29 @@ export function createPlantRowTool(): CanvasTool {
     const planting = plantAlongPath(path, chosen)
     // The preview already reads blocked above the limit.
     if (planting.count === 0 || planting.count > PLANT_ROW_MAX_ADDED_PLANTS) return
-    commitRow(source, path, chosen, planting.positions())
+    commitPositions(source, planting.positions())
   }
 
   function finish(): void {
     if (draft && draft.path.points.length >= 2) plant()
   }
 
-  /** Plants the row along `path` and stores it (A7): the picked plant stays as it is, the new plants repeat it as the
-   *  Scene holds it at the commit (canUseSource checked it is there: its colour now, not at the pick). */
-  function commitRow(picked: PlantRowSource, path: PathPoints, chosen: PathSpacing, positions: readonly WorldPoint[]): void {
+  /** Plants the new plants at `positions`: the picked plant stays as it is, and they repeat it as the Scene holds it at
+   *  the commit (canUseSource checked it is there: its colour now, not at the pick). */
+  function commitPositions(picked: PlantRowSource, positions: readonly WorldPoint[]): void {
     const tool = context()
-    const first = livePlant(tool, picked).position
-    const written: { members: readonly string[] | null } = { members: null }
+    const repeated = livePlant(tool, picked)
+    const generatedIds: string[] = []
     tool.effects.edits.run('interaction-plant-spacing', (tx) => {
       tx.mutate((scene) => {
-        written.members = applyPlantRowPositions(scene, {
-          id: createUuid(),
-          firstPlantId: picked.sourceId,
-          anchors: path.points.map((point) => ({ position: { ...point.position }, sharp: point.sharp })),
-          closed: path.closed,
-          spacing: chosen,
-          positions: [first, ...positions],
-          createId: createUuid,
+        const generated = createPlantSpacingGeneratedPlants(repeated, positions, () => {
+          const id = createUuid()
+          generatedIds.push(id)
+          return id
         })
+        scene.plants = [...scene.plants, ...generated]
       })
-      if (written.members) tx.setSelection(written.members.map((id) => ({ kind: 'plant', id })))
+      tx.setSelection([picked.sourceId, ...generatedIds].map((id) => ({ kind: 'plant', id })))
     }, {
       onCommitted: () => {
         clear()

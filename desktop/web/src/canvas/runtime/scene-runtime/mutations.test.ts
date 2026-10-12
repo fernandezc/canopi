@@ -21,7 +21,7 @@ import { SceneRuntimeMutationController } from './mutations'
 import { SceneRuntimeEditCoordinator, type SceneEditCoordinator } from './transactions'
 import { createDetachedCanvasRuntimeAppAdapter } from '../app-adapter'
 import { SceneCanvasRuntime } from '../scene-runtime'
-import { applyPlantRowPositions, attachedPlantRowMembers, plantsById } from '../scene/plant-rows'
+import { attachedPlantRowMembers, plantsById } from '../scene/plant-rows'
 import { createSceneInteractionEventHarness } from '../../../__tests__/support/canvas-interaction-events'
 import { placeOnHost } from '../../../__tests__/support/test-view'
 
@@ -1077,35 +1077,6 @@ function withRuntime(test: (runtime: SceneCanvasRuntime) => void): void {
     runtime.destroy()
   }
 }
-
-describe('the row writer through the scene runtime (A7)', () => {
-  it('re-spaces a row in one Scene Edit, and one Undo restores the plants, their ids and the row', () => {
-    withRuntime((runtime) => {
-      const before = scene(runtime)
-      const at = (index: number) => ({ x: before.plants[0]!.position.x + index * 1.5, y: before.plants[0]!.position.y })
-      let created = 0
-      let members: string[] | null = null
-      expect(sceneEdits(runtime).run('interaction-plant-row-edit', (tx) => {
-        tx.mutate((draft) => {
-          members = applyPlantRowPositions(draft, {
-            id: 'hedge', anchors: before.plantRows[0]!.anchors, closed: false, spacing: { kind: 'interval', metres: 1.5 },
-            positions: [0, 1, 2, 3, 4, 5].map(at), createId: () => `copy-${++created}`,
-          })
-        })
-        tx.setSelection((members ?? []).map((id) => ({ kind: 'plant', id })))
-      })).toBe(true)
-      expect(members).toEqual([...ROW_PLANTS, 'copy-1', 'copy-2'])
-      expect(rows(runtime)).toEqual({ hedge: members })
-      expect(runtime.querySurface.getSelection().map((target) => target.id)).toEqual(members)
-
-      runtime.commandSurface.history.undo()
-      expect(scene(runtime).plants).toEqual(before.plants)
-      expect(scene(runtime).plantRows).toEqual(before.plantRows)
-      runtime.commandSurface.history.redo()
-      expect(rows(runtime)).toEqual({ hedge: members })
-    })
-  })
-})
 
 function select(runtime: SceneCanvasRuntime, ids: readonly string[]): void {
   expect(sceneEdits(runtime).run('select', (tx) => tx.setSelection(ids.map((id) => ({ kind: 'plant', id }))))).toBe(true)

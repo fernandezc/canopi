@@ -73,6 +73,7 @@ test('(canopi-f47t.54, D) a planted row saves as plain plants after the Design\'
   expect(added.length, 'the row\'s new plants, the picked Apple selected with them').toBe(selected - 1)
   expect(added.every((plant) => plant.canonical_name === 'Malus domestica'), 'each new plant repeats the Apple').toBe(true)
   expect(design.groups ?? [], 'the new plants are not grouped').toEqual([])
+  expect(planted.includes('plant_rows'), 'the finish stores no row').toBe(false)
 
   await reopenFromDraft(page)
   expect(savedAt(await download(page)), 'the reopened Design saves the same plants, its save time apart').toBe(savedAt(planted))
