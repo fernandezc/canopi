@@ -350,25 +350,6 @@ describe('document format contract', () => {
     })
   })
 
-  it('takes plant_rows from the canvas and writes the key only when the canvas has a row', () => {
-    const at = geoAt(10, 20)
-    const row = {
-      id: 'row-1',
-      anchors: [{ position: at, sharp: false }, { position: geoAt(14, 20), sharp: false }],
-      closed: false,
-      spacing: { kind: 'interval' as const, interval_m: 2 },
-      members: [{ plant_id: 'plant-1', at }],
-    }
-    const stale = { ...BASE_DOCUMENT, plant_rows: [{ ...row, id: 'document-row' }] }
-    const metadata = { name: 'Rows' }
-
-    expect(composeDocumentForSave({ metadata, document: stale, canvas: { ...BASE_DOCUMENT, plant_rows: [row] } }).plant_rows)
-      .toEqual([row])
-    expect('plant_rows' in composeDocumentForSave({ metadata, document: stale, canvas: { ...BASE_DOCUMENT, plant_rows: [] } }))
-      .toBe(false)
-    expect('plant_rows' in composeDocumentForSave({ metadata, document: stale, canvas: BASE_DOCUMENT })).toBe(false)
-  })
-
   it('composes saves from document-owned sections and scene-owned canvas output', () => {
     const document = {
       ...BASE_DOCUMENT,

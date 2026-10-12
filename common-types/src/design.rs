@@ -199,10 +199,6 @@ pub const DESIGN_FILE_FIELDS: &[DesignFileField] = &[
         owner: DesignFileFieldOwner::Scene,
     },
     DesignFileField {
-        key: "plant_rows",
-        owner: DesignFileFieldOwner::Scene,
-    },
-    DesignFileField {
         key: "consortiums",
         owner: DesignFileFieldOwner::Document,
     },
@@ -272,10 +268,6 @@ pub struct CanopiFile {
     pub annotations: Vec<Annotation>,
     #[serde(default)]
     pub measurement_guides: Vec<MeasurementGuide>,
-    // Planted rows (plan §4, plant along a path), written only when a Design
-    // has one, so a Design without rows saves as before (ADR 0021 additive).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub plant_rows: Vec<PlantRow>,
     #[serde(default)]
     pub consortiums: Vec<Consortium>,
     #[serde(default)]
@@ -466,20 +458,6 @@ pub fn validate_design_geometry(file: &CanopiFile) -> Result<(), String> {
         check(&guide.start, format!("$.measurement_guides[{index}].start"))?;
         check(&guide.end, format!("$.measurement_guides[{index}].end"))?;
     }
-    for (index, row) in file.plant_rows.iter().enumerate() {
-        for (anchor_index, anchor) in row.anchors.iter().enumerate() {
-            check(
-                &anchor.position,
-                format!("$.plant_rows[{index}].anchors[{anchor_index}].position"),
-            )?;
-        }
-        for (member_index, member) in row.members.iter().enumerate() {
-            check(
-                &member.at,
-                format!("$.plant_rows[{index}].members[{member_index}].at"),
-            )?;
-        }
-    }
     Ok(())
 }
 
@@ -488,10 +466,7 @@ pub fn validate_design_geometry(file: &CanopiFile) -> Result<(), String> {
 /// targets, groups and saved views refer to them. A plant or measurement
 /// guide without an id (an id is optional in the file) is repaired with a generated
 /// one that no other entry uses, wherever it appears; a duplicate explicit id
-/// is refused. A plant row has a unique id, at least 2 points (3 on a loop)
-/// and a spacing in range, and a plant is a member of at most one row; a
-/// member whose plant is missing is admitted (the scene drops it on read).
-/// Opacities, scales and font sizes must be
+/// is refused. Opacities, scales and font sizes must be
 /// finite and in range, and the LiDAR section must be the schema this build
 /// writes, with named entries and any custom colour range a finite rising pair.
 pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), String> {
@@ -533,7 +508,6 @@ pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), S
             .map(|annotation| annotation.id.as_str()),
     )?;
     check_unique_ids("groups", file.groups.iter().map(|group| group.id.as_str()))?;
-    check_plant_rows(&file.plant_rows)?;
     for (index, annotation) in file.annotations.iter().enumerate() {
         if !(annotation.font_size.is_finite() && annotation.font_size > 0.0) {
             return Err(format!(
@@ -579,45 +553,6 @@ pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), S
             {
                 return Err(format!(
                     "$.lidar.entries[{index}].range: expected finite min and max with min below max"
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Rows have unique ids, enough points for their shape and a spacing in range,
-/// and a plant is a member of at most one row.
-fn check_plant_rows(rows: &[PlantRow]) -> Result<(), String> {
-    check_unique_ids("plant_rows", rows.iter().map(|row| row.id.as_str()))?;
-    let mut members = std::collections::HashSet::new();
-    for (index, row) in rows.iter().enumerate() {
-        let minimum = if row.closed { 3 } else { 2 };
-        if row.anchors.len() < minimum {
-            return Err(format!(
-                "$.plant_rows[{index}].anchors: expected at least {minimum} points"
-            ));
-        }
-        match row.spacing {
-            PlantRowSpacing::Interval { interval_m }
-                if !(interval_m.is_finite() && interval_m > 0.0) =>
-            {
-                return Err(format!(
-                    "$.plant_rows[{index}].spacing.interval_m: expected a finite number above 0"
-                ));
-            }
-            PlantRowSpacing::Count { count } if !(2..=PLANT_ROW_MAX_COUNT).contains(&count) => {
-                return Err(format!(
-                    "$.plant_rows[{index}].spacing.count: expected 2 to {PLANT_ROW_MAX_COUNT} plants"
-                ));
-            }
-            _ => {}
-        }
-        for (member_index, member) in row.members.iter().enumerate() {
-            if !members.insert(member.plant_id.as_str()) {
-                return Err(format!(
-                    "$.plant_rows[{index}].members[{member_index}].plant_id: plant {:?} is already in a row",
-                    member.plant_id
                 ));
             }
         }
@@ -751,56 +686,6 @@ pub struct MeasurementGuide {
     pub locked: bool,
     pub start: GeoPoint,
     pub end: GeoPoint,
-}
-
-// A planted row: its path of points, how it spaces its plants and the plants
-// the row writer placed along it. A member belongs to the row while its plant
-// lies within 1 mm of `at`, which only the row writer sets; that is decided
-// when the scene reads the row, never stored.
-#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
-pub struct PlantRow {
-    pub id: String,
-    // At least 2 points, 3 on a closed row (a loop).
-    pub anchors: Vec<PlantRowAnchor>,
-    pub closed: bool,
-    pub spacing: PlantRowSpacing,
-    // In path order, the first plant first.
-    pub members: Vec<PlantRowMember>,
-}
-
-#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
-pub struct PlantRowAnchor {
-    pub position: GeoPoint,
-    // A sharp point splits the curve into separate smooth runs.
-    pub sharp: bool,
-}
-
-// Every `interval_m` metres as typed (above 0), or `count` plants with the
-// first one counted (2 to 5000).
-#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum PlantRowSpacing {
-    Interval {
-        interval_m: f64,
-    },
-    Count {
-        #[serde(deserialize_with = "deserialize_json_u32")]
-        count: u32,
-    },
-}
-
-/// Most plants a row may count, the row tool's commit limit.
-pub const PLANT_ROW_MAX_COUNT: u32 = 5000;
-
-#[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
-pub struct PlantRowMember {
-    pub plant_id: String,
-    // Where the row writer last put the plant.
-    pub at: GeoPoint,
 }
 
 #[derive(Deserialize)]

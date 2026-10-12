@@ -2345,13 +2345,6 @@ const CANVAS_V2_POLICIES = [
     ],
   },
   {
-    // A5: membership is derived on read, so no transaction knows rows.
-    kind: 'forbid-imports',
-    name: 'P55 the scene transactions never import the plant row module',
-    from: ['src/canvas/runtime/scene-runtime/transactions.ts'],
-    targets: ['src/canvas/runtime/scene/plant-rows.ts'],
-  },
-  {
     // Plant along a path (canopi-f47t.54, A8): a stored row's spacing never writes the device setting; only the row
     // tool's draft does, through the tool contract and today's wiring (the adapters name it ...Meters).
     kind: 'confine-symbols',
@@ -4055,7 +4048,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
 })
 
 const P54 = '[P54 the point editor and the path engine import only each other and types]'
-const P55 = '[P55 the scene transactions never import the plant row module]'
 const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
 const P56_DRAFT = '[P56 only the canvas app adapter writes the device spacing draft]'
 const P57 = '[P57 rows are not drawn, printed, exported or summarised at rest]'
@@ -4109,22 +4101,6 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       `${P54} src/canvas/point-editor/layout.ts:4:1 imports src/canvas/runtime/tools/tool-host.ts via "../runtime/tools/tool-host" (static)`,
       `${P54} src/canvas/point-editor/layout.ts:5:1 imports preact via "preact" (static)`,
       `${P54} src/canvas/point-editor/layout.ts:6:1 imports @preact/signals via "@preact/signals" (static)`,
-    ])
-  })
-
-  it('P55 rejects a scene transactions import of the plant row module, type-only included', () => {
-    const graph = createTypeScriptSourceGraph([
-      plantedSource('src/canvas/runtime/scene/plant-rows.ts', ['export const rows = 1', 'export type Row = number']),
-      plantedSource('src/canvas/runtime/scene-runtime/transactions.ts', [
-        "import type { Row } from '../scene/plant-rows'",
-        "import { rows } from '../scene/plant-rows'",
-      ]),
-      plantedSource('src/canvas/runtime/scene-runtime/drag-state.ts', ["import { rows } from '../scene/plant-rows'"]),
-    ])
-
-    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P55'))).toEqual([
-      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:1:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
-      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:2:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
     ])
   })
 

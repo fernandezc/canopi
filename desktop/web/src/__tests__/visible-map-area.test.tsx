@@ -46,7 +46,7 @@ const boxes = new Map<Element, Box>()
 function emptyScene(from: { x: number; y: number }, to: { x: number; y: number }): ScenePersistedState {
   return {
     plantSpeciesColors: {}, plantSpeciesSymbols: {}, plantSpeciesCodes: {},
-    layers: [], plants: [], annotations: [], measurementGuides: [], groups: [], plantRows: [],
+    layers: [], plants: [], annotations: [], measurementGuides: [], groups: [],
     zones: [{
       kind: 'zone', locked: false, id: 'bed', name: 'bed', zoneType: 'rect', rotationDeg: 0, fillColor: null, notes: null,
       points: [from, { x: to.x, y: from.y }, to, { x: from.x, y: to.y }],

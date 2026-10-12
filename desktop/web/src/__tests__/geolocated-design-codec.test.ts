@@ -76,23 +76,6 @@ function plant(id: string, position: { lon: number; lat: number }): CanopiFile['
   }
 }
 
-/** The current Design with one open row through its three plants, every member at its plant (the second point sharp). */
-function rowDesign(): CanopiFile {
-  const file = currentDesign()
-  file.plant_rows = [{
-    id: 'row-1',
-    anchors: [
-      { position: file.plants[0]!.position, sharp: false },
-      { position: { lon: 2.29456, lat: 48.85836 }, sharp: true },
-      { position: file.plants[2]!.position, sharp: false },
-    ],
-    closed: false,
-    spacing: { kind: 'count', count: 3 },
-    members: file.plants.map((entry) => ({ plant_id: entry.id, at: entry.position })),
-  }]
-  return file
-}
-
 const SCENE_FIELDS = ['plants', 'zones', 'annotations', 'measurement_guides'] as const
 
 function sceneFields(file: CanopiFile): string {
@@ -264,45 +247,6 @@ describe('geolocated design codec', () => {
       .toEqual(labels(createRectangularZoneMeasurements(rect)))
     expect(labels(createEllipticalZoneMeasurements(zones[1]!.points[0]!, zones[1]!.points[1]!, zones[1]!.rotationDeg)))
       .toEqual(labels(createEllipticalZoneMeasurements({ x: 23, y: 2 }, { x: 3, y: 2 }, 0)))
-  })
-
-  it('writes a planted row unchanged after open, chained re-origins and save, each member exactly at its plant', () => {
-    const file = rowDesign()
-    const store = new SceneStore().hydrate(file)
-    expect(store.persisted.plantRows[0]!.members.map((member) => member.at))
-      .toEqual(store.persisted.plants.map((entry) => entry.position))
-    store.commitReorigin(store.beginReorigin(store.sessionPlane.toGeo({ x: 12_000, y: -3_000 })))
-    store.commitReorigin(store.beginReorigin(file.plants[2]!.position))
-    const saved = store.toCanopiFile()
-    expect(saved.plant_rows).toEqual(file.plant_rows)
-    expect(saved.plants).toEqual(file.plants)
-  })
-
-  it('drops on read a member whose plant is missing, and a row left with none', () => {
-    const file = rowDesign()
-    file.plants = file.plants.filter((entry) => entry.id !== 'p2')
-    file.plant_rows!.push({ ...file.plant_rows![0]!, id: 'gone', members: [{ plant_id: 'nowhere', at: file.plants[0]!.position }] })
-    const rows = hydrateSceneFromDesign(file).persisted.plantRows
-    expect(rows.map((row) => row.id)).toEqual(['row-1'])
-    expect(rows[0]!.members.map((member) => member.plantId)).toEqual(['p1', 'p3'])
-  })
-
-  it('writes only the members still at their plants, and no row once every plant has left it', () => {
-    const store = new SceneStore().hydrate(rowDesign())
-    const nudge = (id: string) => store.updatePersisted((draft) => {
-      const index = draft.plants.findIndex((entry) => entry.id === id)
-      const position = draft.plants[index]!.position
-      draft.plants[index] = { ...draft.plants[index]!, position: { x: position.x + 0.0011, y: position.y } }
-    })
-    nudge('p2')
-    expect(store.toCanopiFile().plant_rows![0]!.members.map((member) => member.plant_id)).toEqual(['p1', 'p3'])
-    nudge('p1')
-    nudge('p3')
-    expect('plant_rows' in store.toCanopiFile()).toBe(false)
-  })
-
-  it('writes no plant_rows for a Design without rows', () => {
-    expect('plant_rows' in new SceneStore().hydrate(currentDesign()).toCanopiFile()).toBe(false)
   })
 
   it('serializes with an explicit frame so saved content never depends on hidden state', () => {

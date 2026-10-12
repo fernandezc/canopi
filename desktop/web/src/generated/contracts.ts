@@ -115,7 +115,6 @@ export type CanopiFile = {
 	zones: Zone[],
 	annotations?: Annotation[],
 	measurement_guides?: MeasurementGuide[],
-	plant_rows?: PlantRow[],
 	consortiums?: Consortium[],
 	groups?: ObjectGroup[],
 	timeline?: TimelineAction[],
@@ -705,26 +704,6 @@ export type PlantDbStatus = "available" | "missing" | "corrupt";
 
 // Plant labels on the map: none, species codes or names.
 export type PlantLabels = "none" | "codes" | "names";
-
-export type PlantRow = {
-	id: string,
-	anchors: PlantRowAnchor[],
-	closed: boolean,
-	spacing: PlantRowSpacing,
-	members: PlantRowMember[],
-};
-
-export type PlantRowAnchor = {
-	position: GeoPoint,
-	sharp: boolean,
-};
-
-export type PlantRowMember = {
-	plant_id: string,
-	at: GeoPoint,
-};
-
-export type PlantRowSpacing = { kind: "interval"; interval_m: number } | { kind: "count"; count: number };
 
 export type ProblemReportRequest = {
 	description: string,

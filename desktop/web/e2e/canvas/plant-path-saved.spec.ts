@@ -1,6 +1,7 @@
 // A planted row is ordinary plants (canopi-f47t.54, answers 27 and 28; guard): Plant a row's finish adds plants that
-// the saved Design holds as plain plants, after the Design's own, and a Web Draft reload reopens them unchanged. Both
-// engines. Reads the saved Design (File > Download a copy); no baselines.
+// the saved Design holds as plain plants, after the Design's own, and a Web Draft reload reopens them unchanged; no
+// Design writes plant_rows, and one reopened from its Web Draft saves the bytes it opened with. Both engines. Reads the
+// saved Design (File > Download a copy); no baselines.
 //
 // The base fixture at 1024x768 with grid snapping off, its opening camera moved 192 px down with the arrow keys so the
 // grown tool card leaves the picked Apple and the row's points clear (plant-path.spec.ts's opening).
@@ -77,4 +78,15 @@ test('(canopi-f47t.54, D) a planted row saves as plain plants after the Design\'
 
   await reopenFromDraft(page)
   expect(savedAt(await download(page)), 'the reopened Design saves the same plants, its save time apart').toBe(savedAt(planted))
+})
+
+// Moved from plant-path-stored.spec.ts when stored rows went (answer 27): a Design reopened from its Web Draft saves the
+// bytes it opened with, and no Design writes plant_rows.
+test('(canopi-f47t.54, D) a Design reopened from its Web Draft saves byte-identical, with no plant_rows (guard)', async ({ page }) => {
+  await openFixture(page, FIXTURE, { keepOnReload: true })
+  const first = await download(page)
+  await reopenFromDraft(page)
+  const second = await download(page)
+  expect(savedAt(second), 'the reopened Design saves the same bytes, its save time apart').toBe(savedAt(first))
+  expect(first.includes('plant_rows'), 'a Design writes no plant_rows').toBe(false)
 })

@@ -592,108 +592,6 @@ export const CANOPI_FILE_SCHEMA = {
       ],
       "type": "object"
     },
-    "PlantRow": {
-      "properties": {
-        "anchors": {
-          "items": {
-            "$ref": "#/$defs/PlantRowAnchor"
-          },
-          "type": "array"
-        },
-        "closed": {
-          "type": "boolean"
-        },
-        "id": {
-          "type": "string"
-        },
-        "members": {
-          "items": {
-            "$ref": "#/$defs/PlantRowMember"
-          },
-          "type": "array"
-        },
-        "spacing": {
-          "$ref": "#/$defs/PlantRowSpacing"
-        }
-      },
-      "required": [
-        "id",
-        "anchors",
-        "closed",
-        "spacing",
-        "members"
-      ],
-      "type": "object"
-    },
-    "PlantRowAnchor": {
-      "properties": {
-        "position": {
-          "$ref": "#/$defs/GeoPoint"
-        },
-        "sharp": {
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "position",
-        "sharp"
-      ],
-      "type": "object"
-    },
-    "PlantRowMember": {
-      "properties": {
-        "at": {
-          "$ref": "#/$defs/GeoPoint"
-        },
-        "plant_id": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "plant_id",
-        "at"
-      ],
-      "type": "object"
-    },
-    "PlantRowSpacing": {
-      "oneOf": [
-        {
-          "properties": {
-            "interval_m": {
-              "format": "double",
-              "type": "number"
-            },
-            "kind": {
-              "const": "interval",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "interval_m"
-          ],
-          "type": "object"
-        },
-        {
-          "properties": {
-            "count": {
-              "format": "uint32",
-              "minimum": 0,
-              "type": "integer"
-            },
-            "kind": {
-              "const": "count",
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind",
-            "count"
-          ],
-          "type": "object"
-        }
-      ]
-    },
     "RichTextBlock": {
       "oneOf": [
         {
@@ -1371,12 +1269,6 @@ export const CANOPI_FILE_SCHEMA = {
     },
     "name": {
       "type": "string"
-    },
-    "plant_rows": {
-      "items": {
-        "$ref": "#/$defs/PlantRow"
-      },
-      "type": "array"
     },
     "plant_species_codes": {
       "additionalProperties": {

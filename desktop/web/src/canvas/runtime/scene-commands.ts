@@ -34,7 +34,6 @@ const PATCH_KEY_SET = {
   annotations: true,
   measurementGuides: true,
   groups: true,
-  plantRows: true,
 } as const satisfies Record<PersistedPatchKey, true>
 const PATCH_KEYS = Object.keys(PATCH_KEY_SET) as PersistedPatchKey[]
 

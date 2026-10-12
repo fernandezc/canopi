@@ -57,7 +57,6 @@ function createScene(): ScenePersistedState {
     annotations: [],
     measurementGuides: [],
     groups: [],
-    plantRows: [],
   }
 }
 
