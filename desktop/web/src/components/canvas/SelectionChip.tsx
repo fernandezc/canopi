@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'preact/hooks'
+import { useEffect, useId, useRef, useState } from 'preact/hooks'
 import { canvasCommandDefinitions } from '../../app/canvas-commands'
 import { focusOwner } from '../../app/keyboard/focus-owner'
 import { useMapSelectionSummary, type MapSelectionSummary } from '../../app/map-selection/summary'
@@ -54,7 +54,7 @@ export function SelectionChip() {
           </span>
         ))}
       </span>
-      {row?.whole && <RowSpacing key={rowSpacingKey(row)} row={row} />}
+      {row?.whole && <RowSpacing key={row.id} row={row} />}
       {row && !row.whole && (
         <button
           type="button"
@@ -104,7 +104,7 @@ function isOnlyPlants(summary: MapSelectionSummary): boolean {
   return summary.zones.length === 0 && summary.noteCount === 0 && summary.measurementCount === 0
 }
 
-/** A re-spaced row (an edit, an Undo) shows its own spacing again: the field starts over. */
+/** What a re-spaced row (an edit, an Undo) changes: the field then shows the row's own spacing again. */
 function rowSpacingKey(row: CanvasSelectedPlantRow): string {
   const { spacing } = row
   return `${row.id}:${row.plants}:${spacing.kind === 'interval' ? `${spacing.metres}m` : spacing.count}:${row.locked}`
@@ -112,9 +112,10 @@ function rowSpacingKey(row: CanvasSelectedPlantRow): string {
 
 /**
  * A selected row's spacing: every N m or N plants, the first counted. Enter re-spaces the row and gives the map its
- * focus back; leaving an edited field re-spaces it too; Esc puts the row's spacing back. The switch only changes the
- * field, which it focuses: the row changes at Enter or on leaving. Never the device's Plant a row interval. A locked
- * row (a locked plant, or the Plants layer) shows both disabled.
+ * focus back; leaving an edited field re-spaces it too; Esc puts the row's spacing back. The switch re-spaces the row
+ * from where the other mode starts (its plants now, or its gap now) and focuses the field (A7: at Enter, blur or
+ * switch). A spacing the row refuses is marked invalid. Never the device's Plant a row interval. A locked row (a
+ * locked plant, or the Plants layer) shows both disabled.
  */
 function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   const id = useId()
@@ -126,9 +127,21 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   const edited = useRef(false)
   const count = mode === 'count'
 
+  // The row changed: the field starts over at its spacing, staying mounted so the switch or field keeps its focus.
+  const key = rowSpacingKey(row)
+  const shownKey = useRef(key)
+  useEffect(() => {
+    if (shownKey.current === key) return
+    shownKey.current = key
+    setMode(row.spacing.kind)
+    setText(rowSpacingText(row, row.spacing.kind))
+    setInvalid(false)
+    edited.current = false
+  }, [key])
+
   // A spacing that parses but that the row refuses (no plant fits, or too many) is as invalid as one that does not.
-  const commit = (value: string): boolean => {
-    const spacing = parseRowSpacing(mode, value)
+  const commit = (as: 'interval' | 'count', value: string): boolean => {
+    const spacing = parseRowSpacing(as, value)
     const taken = spacing !== null && currentCanvasSceneEditCommandSurface.value?.setPlantRowSpacing?.(row.id, spacing) === true
     setInvalid(!taken)
     if (taken) edited.current = false
@@ -136,10 +149,11 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
   }
   const switchTo = (next: 'interval' | 'count') => {
     if (next === mode) return
+    const value = rowSpacingText(row, next)
     setMode(next)
-    setText(rowSpacingText(row, next))
-    setInvalid(false)
+    setText(value)
     edited.current = false
+    commit(next, value)
     requestAnimationFrame(() => input.current?.select())
   }
 
@@ -188,12 +202,12 @@ function RowSpacing({ row }: { readonly row: CanvasSelectedPlantRow }) {
             edited.current = false
             setText(rowSpacingText(row, mode))
             setInvalid(false)
-          } else if (commit(event.currentTarget.value)) {
+          } else if (commit(mode, event.currentTarget.value)) {
             focusOwner.focusMap()
           }
         }}
         onBlur={(event) => {
-          if (edited.current) commit(event.currentTarget.value)
+          if (edited.current) commit(mode, event.currentTarget.value)
         }}
       />
     </>

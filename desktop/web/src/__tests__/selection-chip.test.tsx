@@ -10,7 +10,7 @@ import { plantFinderMapMatches } from '../app/plant-finder/map-matches'
 import { SceneStore } from '../canvas/runtime/scene/store'
 import { rowOfSelection } from '../canvas/runtime/scene/plant-rows'
 import type { SceneDesignObjectSelection } from '../canvas/runtime/scene'
-import type { CanvasCommandSurface } from '../canvas/runtime/runtime'
+import type { CanvasCommandSurface, CanvasPlantRowSpacing } from '../canvas/runtime/runtime'
 import { setCurrentCanvasSession } from '../canvas/session'
 import { currentCanvasSelection } from '../canvas/session-state'
 import {
@@ -342,6 +342,8 @@ describe('Selection chip on a planted row', () => {
   let selectPlantRow: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['selectPlantRow']>>>
   let setPlantRowSpacing: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['setPlantRowSpacing']>>>
   let rowLocked = false
+  // The row's spacing as the runtime would read it after an edit or an Undo; null keeps the scene's.
+  let rowSpacing: CanvasPlantRowSpacing | null = null
 
   beforeEach(() => {
     locale.value = 'en'
@@ -365,7 +367,7 @@ describe('Selection chip on a planted row', () => {
       getSelectedPlantRow: () => {
         const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
         return selected && {
-          id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: selected.row.spacing, gapM: 2,
+          id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: rowSpacing ?? selected.row.spacing, gapM: 2,
           locked: rowLocked,
         }
       },
@@ -373,6 +375,7 @@ describe('Selection chip on a planted row', () => {
     selectPlantRow = vi.fn()
     setPlantRowSpacing = vi.fn(() => true)
     rowLocked = false
+    rowSpacing = null
     setCurrentCanvasSession({
       commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow, setPlantRowSpacing } }),
       queries,
@@ -452,14 +455,44 @@ describe('Selection chip on a planted row', () => {
     await type(spacingField()!, '2 m', 'Escape')
     expect(spacingField()!.value, 'Esc puts the row\'s spacing back').toBe('2 m')
 
+    // The switch re-spaces the row from where the other mode starts (its plants now), and leaves the field ready.
     await act(() => mode('count').click())
-    expect(setPlantRowSpacing, 'the switch alone re-spaces nothing').toHaveBeenCalledTimes(1)
+    expect(setPlantRowSpacing, 'the switch re-spaces the row').toHaveBeenCalledTimes(2)
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
     expect(spacingField()).toBeNull()
     expect(countField()!.value, 'Plants starts at the row\'s plants').toBe('3')
+    await act(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+    expect(document.activeElement, 'the switch focuses the field').toBe(countField())
     await type(countField()!, '5')
     await act(() => { countField()!.blur() })
     expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 5 })
+    expect(setPlantRowSpacing).toHaveBeenCalledTimes(3)
     expect(plantSpacingIntervalM.value, 'the device interval is untouched').toBe(0.8)
+  })
+
+  it('shows the row\'s own spacing again once the row changes (an Undo), keeping the field and its focus', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    const field = spacingField()!
+    await type(field, '7')
+    rowSpacing = { kind: 'count', count: 4 }
+    await select([...ROW])
+    expect(mode('count').getAttribute('aria-pressed')).toBe('true')
+    expect(countField(), 'the same field, now for plants').toBe(field)
+    expect(field.value).toBe('4')
+    expect(document.activeElement).toBe(field)
+    await act(() => { field.blur() })
+    expect(setPlantRowSpacing, 'the dropped edit is not kept on leaving').not.toHaveBeenCalled()
+  })
+
+  it('a switch the row refuses keeps the mode pressed with its field marked invalid', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(ROW)
+    setPlantRowSpacing.mockReturnValueOnce(false)
+    await act(() => mode('count').click())
+    expect(setPlantRowSpacing).toHaveBeenLastCalledWith('hedge', { kind: 'count', count: 3 })
+    expect(mode('count').getAttribute('aria-pressed')).toBe('true')
+    expect(countField()!.getAttribute('aria-invalid')).toBe('true')
   })
 
   it('marks a spacing the row refuses as invalid and keeps the field, so the chip never shows a spacing the row lacks', async () => {
