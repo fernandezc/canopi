@@ -96,6 +96,21 @@ export interface CanvasToolCommandSurface {
  */
 export type CanvasViewportCommandSurface = ViewCommandSurface
 
+/** How a planted row spaces its plants: every `metres`, or `count` plants with the first counted (A3). */
+export type CanvasPlantRowSpacing =
+  | { readonly kind: 'interval'; readonly metres: number }
+  | { readonly kind: 'count'; readonly count: number }
+
+/** The planted row the selection is part of (plan §4 "2.0 plant along a path", A7): the selection chip reads it. */
+export interface CanvasSelectedPlantRow {
+  readonly id: string
+  /** The selection is all of the row's plants: the row is selected and Select edits it; otherwise Select row applies. */
+  readonly whole: boolean
+  /** The plants the row holds now. */
+  readonly plants: number
+  readonly spacing: CanvasPlantRowSpacing
+}
+
 export interface CanvasHistoryCommandSurface {
   readonly canUndo: ReadonlySignal<boolean>
   readonly canRedo: ReadonlySignal<boolean>
@@ -138,6 +153,9 @@ export interface CanvasSceneEditCommandSurface {
   selectSpecies(canonicalNames: readonly string[]): void
   /** Empties the selection (session state: no edit, history or dirty state). */
   clearSelection(): void
+  /** Selects every plant of the planted row the selection is part of (session state, as clearSelection). Optional, as
+   *  `tools.plantRowPath`: the surface's older test doubles carry no row command. */
+  selectPlantRow?(): void
   bringToFront(): void
   sendToBack(): void
   lockSelected(): void
@@ -244,6 +262,9 @@ export interface CanvasQuerySurface {
   getSceneSnapshot(): ScenePersistedState
   getSelection(): SceneDesignObjectTarget[]
   getDesignObjectSelection(): CanvasDesignObjectSelectionModel
+  /** The planted row the selection is part of; null when the selection is not only plants of one row. Optional: the
+   *  surface's older test doubles carry no row query. */
+  getSelectedPlantRow?(): CanvasSelectedPlantRow | null
   getSelectedPlantColorContext(): SelectedPlantColorContext
   getSelectedPlantSymbolContext(): SelectedPlantSymbolContext
   getPlacedPlants(): PlacedPlant[]

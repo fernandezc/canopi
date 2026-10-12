@@ -4,11 +4,15 @@
 // press selects at once (click.ts) and goes on as a band from empty ground (band.ts), a move-drag of the selection
 // (move-drag.ts) or nothing more; a double-click opens a note for editing in the host's text entry (note-edit.ts), as do
 // Enter and F2 on one selected note ('edit-text'). Its handles are the rotation handle (rotate-handle.ts), the selected
-// zone's reshape points (reshape.ts) and the selected guide's ends (guide-ends.ts), sized for the pointer kind that last
-// hovered or pressed the map (ToolContext.pointer; handle-size.ts: 44 px targets after a touch, Q1); the host shows them while Select is
+// zone's reshape points (reshape.ts), the selected guide's ends (guide-ends.ts) and the selected planted row's points
+// and dots, whose curve is its draft (row-points.ts, A7), sized for the pointer kind that last hovered or pressed the map
+// (ToolContext.pointer; handle-size.ts: 44 px targets after a touch, Q1); the host shows them while Select is
 // armed, the text entry is closed and no Scene Edit is open. Hovers pass, so the host's passive hover runs, and the tool
 // card's gesture flag stays off.
 
+import { segmentMidpoints, type PathPoints } from '../../../plant-path/curve'
+import { insertAfter, removePoint } from '../../../point-editor/anchors'
+import { parsePointHandle, pointHandleId } from '../../../point-editor/layout'
 import { pointMenuItems, pointPressIntent, type PointMenuItem } from '../../../point-editor/rules'
 import type { PointerKind, ToolHandleId } from '../../interaction-types'
 import type { SceneDesignObjectTarget } from '../../scene/design-object-targets'
@@ -38,6 +42,15 @@ import {
   type ZoneEdgeMidpoint,
 } from './reshape'
 import {
+  draggedRowPath,
+  editPlantRow,
+  rowDraft,
+  rowHandles,
+  selectedPlantRow,
+  type RowPointDrag,
+  type SelectedPlantRow,
+} from './row-points'
+import {
   abortRotation,
   applyRotation,
   beginRotation,
@@ -59,6 +72,8 @@ type SelectGesture =
   | { readonly kind: 'rotate'; readonly drag: RotationDrag }
   | { readonly kind: 'reshape'; readonly drag: PointHandleDrag<SceneZoneEntity> }
   | { readonly kind: 'guide-end'; readonly drag: PointHandleDrag<SceneMeasurementGuideEntity> }
+  /** A selected row's point or dot: nothing reaches the Scene before the release, which re-spaces the row. */
+  | { readonly kind: 'row'; readonly row: SelectedPlantRow; readonly drag: RowPointDrag }
   /** A press that selected and ends with its release (a locked hit, an additive toggle, a species, a note opened). */
   | { readonly kind: 'done' }
 
@@ -81,6 +96,13 @@ export function createSelectTool(): CanvasTool {
   /** The selected corner: the polygon corner last pressed without moving, or the one after a removed corner, shown as the
    *  active handle; Delete removes it. */
   let selectedCorner: ToolHandleId | null = null
+  /** The selected row (the selection is all of its attached plants), as the handles were last built. */
+  let selectedRow: SelectedPlantRow | null = null
+  /** The selected row's last-touched point: pressed without moving, moved, inserted or turned; shown as the active
+   *  handle, Delete removes it. */
+  let selectedRowPoint: number | null = null
+  /** Select's draft is the selected row's curve. */
+  let rowCurveShown = false
   /** The object the last press hit, or null (empty ground, a handle): a double-click selects a plant's species or edits a
    *  note only when it hits the same object (U42). */
   let lastPressHit: SceneDesignObjectTarget | null = null
@@ -99,16 +121,21 @@ export function createSelectTool(): CanvasTool {
     const selection = c.scene.selectionModel()
     const handles: ToolHandle[] = []
     // A point handle's drag hides the rotation handle from its press to its release.
-    const pointDrag = gesture?.kind === 'reshape' || gesture?.kind === 'guide-end'
+    const pointDrag = gesture?.kind === 'reshape' || gesture?.kind === 'guide-end' || gesture?.kind === 'row'
     const pointer = c.pointer()
     const size = handleSizeFor(pointer)
     const zone = reshapableZone(scene, selection)
     const points = zone ? zoneControlPoints(zone) : []
     const midpoints = zone ? zoneEdgeMidpoints(zone, c.view, size) : []
+    const row = selectedPlantRow(scene, c.scene.selection())
+    const rowDrag = gesture?.kind === 'row' ? gesture.drag : null
+    const rowPath = row ? draggedRowPath(row.path, rowDrag) : null
+    const rowPoints = row && rowPath ? rowHandles(c, row, rowPath, size, rowDrag !== null) : []
     // The rotation handle rises over the chips that the dots put beside their edges.
     const rotate = pointDrag
       ? null
-      : rotateHandle(c.scene, selection, c.view, c.translate, rotationDeltaDeg, size, midpoints.length > 0)
+      : rotateHandle(c.scene, selection, c.view, c.translate, rotationDeltaDeg, size,
+        midpoints.length > 0 || rowPoints.some((handle) => handle.glyph === 'midpoint'))
     handlesBearingDeg = c.view.bearingDeg
     handlesPixelsPerMetre = pixelsPerMetre(c.view)
     handlesPointer = pointer
@@ -121,8 +148,23 @@ export function createSelectTool(): CanvasTool {
     const ends = guide ? guideEnds(guide) : []
     guideEndPoints = new Map(ends.map((entry) => [entry.id, entry]))
     handles.push(...guideEndHandles(ends, size, c.translate))
+    handles.push(...rowPoints)
     if (selectedCorner && !reshapePoints.has(selectedCorner)) selectedCorner = null
-    c.effects.setHandles(handles, selectedCorner)
+    if (row?.row.id !== selectedRow?.row.id || !rowPath || selectedRowPoint === null || selectedRowPoint >= rowPath.points.length
+      || rowPoints.length === 0) {
+      selectedRowPoint = null
+    }
+    selectedRow = row
+    const activeRowPoint = row && selectedRowPoint !== null ? pointHandleId(row.row.id, selectedRowPoint) : null
+    c.effects.setHandles(handles, selectedCorner ?? activeRowPoint)
+    // The selected row's curve is Select's draft, but for a band's, a move's or a guide end's own draft, and while the
+    // rotation handle turns the plants (the row's points turn with them at its release, A11). A refresh with no curve to
+    // draw or take away leaves the draft alone, so a camera frame repaints nothing more.
+    if (gesture?.kind !== 'band' && gesture?.kind !== 'move' && gesture?.kind !== 'guide-end') {
+      const curve = row && rowPath && gesture?.kind !== 'rotate' ? rowDraft(row, rowPath, rowDrag?.at != null) : null
+      if (curve || rowCurveShown) c.effects.setDraft(curve)
+      rowCurveShown = curve !== null
+    }
   }
 
   /** A camera frame that turned or zoomed the view redraws the handles (U40), as does a hover by another pointer kind (Q1);
@@ -140,6 +182,7 @@ export function createSelectTool(): CanvasTool {
   function press(point: ToolPoint, hit: HitTarget | null, clickCount: number): void {
     const c = ctx()
     selectedCorner = null
+    selectedRowPoint = null
     const previousEdge = lastPressEdge
     const edge = zoneEdgeAt(point)
     lastPressEdge = edge && `${edge.zoneId}:${edge.edgeIndex}`
@@ -242,6 +285,12 @@ export function createSelectTool(): CanvasTool {
     const current = gesture
     if (!current) return
     if (g.phase === 'move') {
+      if (current.kind === 'row') {
+        // The live point follows the snapped pointer (never constrained, U36); the curve, plants and points follow it.
+        current.drag.at = g.point.snapped
+        refreshHandles()
+        return
+      }
       if (current.kind === 'rotate') rotationDeltaDeg = applyRotation(current.drag, g.point)
       else if (current.kind === 'reshape') current.drag.move(g.point)
       else if (current.kind === 'guide-end') {
@@ -256,7 +305,8 @@ export function createSelectTool(): CanvasTool {
       return
     }
     try {
-      if (current.kind === 'rotate') finishRotation(current.drag, g.point)
+      if (current.kind === 'row') finishRowDrag(current.row, current.drag)
+      else if (current.kind === 'rotate') finishRotation(current.drag, g.point)
       else if (current.kind === 'reshape' || current.kind === 'guide-end') current.drag.finish(g.point)
       // A polygon corner pressed and released without moving becomes the selected corner (U40).
       const corner = current.kind === 'reshape' && !current.drag.moved ? reshapePoints.get(g.handle) : undefined
@@ -274,6 +324,11 @@ export function createSelectTool(): CanvasTool {
     const c = ctx()
     const scene = c.scene.persisted
     const selection = c.scene.selectionModel()
+    const rowHandle = parsePointHandle(handle)
+    if (rowHandle && selectedRow && rowHandle.ownerId === selectedRow.row.id) {
+      startRowPress(selectedRow, rowHandle.role, rowHandle.index, g.clickCount, start.modifiers.subtractive)
+      return
+    }
     // Polygon corners and their midpoint dots follow the one point contract (point-editor/rules.ts, A2): a dot's
     // double-click inserts a corner in place and its drag inserts one that follows the pointer (a still press inserts
     // nothing); Alt+click on a corner removes it, keeping at least 3, and any other press on it moves it.
@@ -316,6 +371,51 @@ export function createSelectTool(): CanvasTool {
     }
   }
 
+  /** A press on a selected row's point or dot (point-editor/rules.ts, A2). */
+  function startRowPress(row: SelectedPlantRow, role: 'point' | 'dot', index: number, clickCount: number, alt: boolean): void {
+    gesture = { kind: 'done' }
+    switch (pointPressIntent({ role, clickCount, alt, isLastDraftPoint: false })) {
+      case 'delete':
+        editRowPath(row, removePoint(row.path, index))
+        return
+      case 'insert': {
+        const at = segmentMidpoints(row.path)[index]
+        if (at) editRowPath(row, insertAfter(row.path, index, at), index + 1)
+        return
+      }
+      case 'insert-drag':
+        gesture = { kind: 'row', row, drag: { kind: 'insert', after: index, at: null } }
+        return
+      case 'move':
+        gesture = { kind: 'row', row, drag: { kind: 'move', index, at: null } }
+        return
+      case 'finish':
+        return
+    }
+  }
+
+  /** A row point's or dot's release: a drag re-spaces the row along the moved path; a still press on a point touches it. */
+  function finishRowDrag(row: SelectedPlantRow, drag: RowPointDrag): void {
+    // The re-spaced row's handles are built with the drag over, its dots back.
+    gesture = null
+    if (drag.at) editRowPath(row, draggedRowPath(row.path, drag), drag.kind === 'move' ? drag.index : drag.after + 1)
+    else if (drag.kind === 'move') selectedRowPoint = drag.index
+  }
+
+  /** One Scene Edit re-spacing the row along `path` (null: refused below the minimum); `touched` becomes the selected
+   *  point. */
+  function editRowPath(row: SelectedPlantRow, path: PathPoints | null, touched: number | null = null): void {
+    if (!path || !editPlantRow(ctx(), row, path)) return
+    selectedRowPoint = touched
+    refreshHandles()
+  }
+
+  /** The selected row's point under `handle`, or null. */
+  function rowPointOf(handle: ToolHandleId | null): number | null {
+    const parsed = handle ? parsePointHandle(handle) : null
+    return parsed?.role === 'point' && parsed.ownerId === selectedRow?.row.id ? parsed.index : null
+  }
+
   /** The point menu of a selected polygon's corner: Delete point, refused at 3 corners (A16); nothing for any other handle. */
   function pointMenu(handle: ToolHandleId): readonly PointMenuItem[] {
     const corner = reshapePoints.get(handle)
@@ -352,6 +452,16 @@ export function createSelectTool(): CanvasTool {
       selectedCorner = left.find((point) => point.index === corner.index % left.length)?.id ?? null
       refreshHandles()
     }
+    return 'handled'
+  }
+
+  /** Delete or Backspace on the selected row's focused point, else its selected one: removed, keeping the row's minimum
+   *  (a refused removal is handled, so the row stays); with neither, the key passes. */
+  function deleteRowPoint(): ToolReply {
+    const index = rowPointOf(ctx().focusedHandle()) ?? selectedRowPoint
+    const row = selectedRow
+    if (index === null || !row) return 'pass'
+    editRowPath(row, removePoint(row.path, index))
     return 'handled'
   }
 
@@ -411,8 +521,10 @@ export function createSelectTool(): CanvasTool {
     },
     pointMenu,
     command(c): ToolReply {
-      // Backspace is the Mac's delete key, so it removes a corner as Delete does.
-      if (c.kind === 'delete-handle' || c.kind === 'remove-last') return deleteCorner()
+      // Backspace is the Mac's delete key, so it removes a corner or a row point as Delete does.
+      if (c.kind === 'delete-handle' || c.kind === 'remove-last') {
+        return deleteCorner() === 'handled' ? 'handled' : deleteRowPoint()
+      }
       // The point menu's Delete point (a corner offers no other entry).
       if (c.kind === 'point-action') return c.action === 'delete-point' ? deleteCorner(c.handle) : 'pass'
       if (c.kind !== 'edit-text') return 'pass'
@@ -440,6 +552,9 @@ export function createSelectTool(): CanvasTool {
       edgeMidpoints = new Map()
       guideEndPoints = new Map()
       selectedCorner = null
+      selectedRow = null
+      selectedRowPoint = null
+      rowCurveShown = false
       lastPressHit = null
       lastPressEdge = null
     },

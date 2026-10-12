@@ -731,7 +731,8 @@
       "measurements_many": "{{count, number}} de medidas",
       "measurements_other": "{{count, number}} medidas",
       "clear": "Borrar la selección",
-      "rename": "Renombrar…"
+      "rename": "Renombrar…",
+      "selectRow": "Seleccionar fila"
     },
     "viewChip": "Vista",
     "map": {

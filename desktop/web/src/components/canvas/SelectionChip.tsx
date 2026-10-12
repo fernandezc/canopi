@@ -16,7 +16,9 @@ import styles from './SelectionChip.module.css'
  * the zoom group, so it never meets the top finder chip. It reads the
  * selection through read-only runtime queries and offers Select all of this
  * species, Rename… for a lone zone and Clear selection; the rest lives in the
- * right-click menu.
+ * right-click menu. On some plants of a planted row it offers Select row, which
+ * selects all of them, so Select shows the row's points (plan §4 "2.0 plant
+ * along a path", A7).
  */
 const SELECT_SAME_SPECIES = canvasCommandDefinitions.find((definition) =>
   definition.kind === 'edit' && definition.id === 'select-same-species')!
@@ -31,6 +33,7 @@ export function SelectionChip() {
   const wholeSpecies = summary.species.length === 1 && isOnlyPlants(summary) && only!.selectedCount < only!.designCount
   // The summary hook re-renders the chip on selection and scene changes (locks included).
   const renameZoneId = loneEditableZoneId(queries?.getDesignObjectSelection() ?? null)
+  const row = queries?.getSelectedPlantRow?.() ?? null
   return (
     <div className={styles.chip} role="group" aria-label={t('canvas.selectionChip.label')} data-selection-chip="bottom">
       <span className={styles.text} role="status" aria-live="polite">
@@ -41,6 +44,15 @@ export function SelectionChip() {
           </span>
         ))}
       </span>
+      {row && !row.whole && (
+        <button
+          type="button"
+          className={styles.button}
+          onClick={() => currentCanvasSceneEditCommandSurface.value?.selectPlantRow?.()}
+        >
+          {t('canvas.selectionChip.selectRow')}
+        </button>
+      )}
       {wholeSpecies && (
         <button
           type="button"

@@ -1,6 +1,6 @@
 import type { SpeciesFocusCommands } from './species-key'
 import { computed, type ReadonlySignal } from '@preact/signals'
-import { setCanvasTool } from '../session-state'
+import { setCanvasSelection, setCanvasTool } from '../session-state'
 import type { ToolId } from './interaction-types'
 import type {
   CanvasRuntimeSavedObjectStampAdapter,
@@ -24,10 +24,13 @@ import type {
 } from './runtime'
 import {
   hydrateScenePersistedStateInFrame,
+  type SceneDesignObjectTarget,
   type SceneLayerEntity,
   type ScenePoint,
+  type SceneSessionWriter,
   type SceneStateReader,
 } from './scene'
+import { rowOfSelection } from './scene/plant-rows'
 import {
   applySceneDragDeltaToDraft,
   captureSceneDragState,
@@ -55,7 +58,8 @@ type SceneLayerEdit = Partial<Pick<SceneLayerEntity, 'visible' | 'locked' | 'opa
 
 interface SceneCanvasCommandSurfaceOptions {
   readonly speciesFocus: SpeciesFocusCommands
-  readonly sceneStore: SceneStateReader
+  /** Selection commands that are no Scene Edit (Select row) set the session's selection, as clearSelection does. */
+  readonly sceneStore: SceneStateReader & Pick<SceneSessionWriter, 'setSelection'>
   /** The view's navigation over the runtime's driver host: the viewport commands, as they are. */
   readonly viewNavigation: CanvasViewportCommandSurface
   /** The live frame's px/m, which sizes screen-sized notes and plants. */
@@ -191,6 +195,7 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
       selectSameSpecies: () => this.options.mutations.selectSameSpecies(),
       selectSpecies: (canonicalNames) => this.options.mutations.selectSpecies(canonicalNames),
       clearSelection: () => this.options.mutations.clearSelection(),
+      selectPlantRow: () => this.selectPlantRow(),
       bringToFront: () => this.runSpatialEdit(() => this.options.mutations.bringToFront()),
       sendToBack: () => this.runSpatialEdit(() => this.options.mutations.sendToBack()),
       lockSelected: () => this.runSpatialEdit(() => this.options.mutations.lockSelected()),
@@ -238,6 +243,19 @@ class SceneCanvasCommandRole implements CanvasCommandSurface {
       throw error
     }
     setCanvasTool(id)
+  }
+
+  /** Select row: every plant of the row the selection is part of, as session state (no edit, history or dirty state). */
+  private selectPlantRow(): void {
+    this.options.commandAdmission.runWhenSettled(() => {
+      const { persisted, session } = this.options.sceneStore
+      const selected = rowOfSelection(persisted, session.selectedTargets)
+      if (!selected || selected.whole) return
+      const targets = selected.members.map((id): SceneDesignObjectTarget => ({ kind: 'plant', id }))
+      this.options.sceneStore.setSelection(targets)
+      setCanvasSelection(selected.members)
+      this.options.invalidate()
+    }, undefined)
   }
 
   private nudgeSelected(delta: ScenePoint): boolean {

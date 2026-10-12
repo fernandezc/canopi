@@ -12,11 +12,12 @@
 // tests read (stream S builds it): the row's points and dots are canvas handles `point:<owner>:<index>` and
 // `dot:<owner>:<index>`; the selection chip carries "Select row", the spacing field `[data-plant-row-spacing-input]`
 // and the mode switch `[data-plant-row-mode="interval" | "count"]`.
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { expectCanvasDrawn, pressMod } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
-import { mapHost, openFixture } from '../support/layout'
+import { expectHitAtCentre, mapHost, openFixture } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/plant-path.canopi', import.meta.url))
@@ -37,6 +38,8 @@ const APPLE: Point = { x: 353.7, y: 264.7 }
 const ROW_P1: Point = { x: 430, y: 345 }
 const ROW_P2: Point = { x: 450, y: 280 }
 const GROUND: Point = { x: 560, y: 590 }
+/** A drag of the last segment's dot, away from the row, that lengthens it by one more plant. */
+const DOT_DRAG_ADDING_ONE: Point = { x: 0, y: 30 }
 
 test.use({ viewport: { width: 1024, height: 768 } })
 
@@ -148,7 +151,60 @@ async function deviceInterval(page: Page): Promise<string> {
   return value
 }
 
-test.fail('(canopi-f47t.54, S) Select row on a row plant shows the row\'s curve, points and dots', async ({ page }) => {
+interface SavedRowDesign {
+  readonly plants: ReadonlyArray<{ readonly id: string }>
+  readonly plant_rows?: ReadonlyArray<{ readonly members: ReadonlyArray<{ readonly plant_id: string }> }>
+}
+
+/** The Design as File > Download a copy saves it. */
+async function savedDesign(page: Page): Promise<SavedRowDesign> {
+  await page.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'File' }).click()
+  const [file] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('menuitem', { name: /^Download a copy/ }).click(),
+  ])
+  return JSON.parse(await readFile(await file.path(), 'utf8')) as SavedRowDesign
+}
+
+/** The row's member ids and every plant id, in order. */
+function rowIds(design: SavedRowDesign): { readonly members: readonly string[], readonly plants: readonly string[] } {
+  return { members: design.plant_rows?.[0]?.members.map((member) => member.plant_id) ?? [], plants: design.plants.map((plant) => plant.id) }
+}
+
+// Stream S's probe (amendment section (d)): a Scene Edit that replaces some of the row's plants keeps the row selected and
+// rebuilds its handles, and after a tap on Select row the 44 px handles are hit at their centre.
+test.describe('touch', () => {
+  test.use({ hasTouch: true })
+
+  test('(canopi-f47t.54, S) probe: a tap on Select row selects the row with 44 px points hit at their centre; a dot drag that adds a plant keeps the row selected, and one Undo restores its six plants with their ids', async ({ page }) => {
+    await openRowFromDraft(page)
+    const fixture = rowIds(JSON.parse(await readFile(FIXTURE, 'utf8')) as SavedRowDesign)
+    await page.touchscreen.tap(MEMBERS[2]!.x, MEMBERS[2]!.y)
+    await expect(chipText(page)).toHaveText(new RegExp(`^${HAZEL}`))
+    const button = await selectRow(page).boundingBox()
+    await page.touchscreen.tap(button!.x + button!.width / 2, button!.y + button!.height / 2)
+    await expect(chipText(page), 'Select row selects the six plants').toHaveText(new RegExp(`^6 plants · ${HAZEL}`))
+    await expect.poll(() => points(page), 'the row\'s four points are shown').toBe(4)
+    for (const point of await page.locator('[data-canvas-handle^="point:"]').all()) {
+      const box = await point.boundingBox()
+      expect(box!.width, 'a point is a 44 px target after a tap').toBeGreaterThanOrEqual(44)
+      expect(box!.height).toBeGreaterThanOrEqual(44)
+      await expectHitAtCentre(point, `row point ${await point.getAttribute('data-canvas-handle')}`)
+    }
+
+    // A finger's 44 px points leave no room for the dots; the mouse's smaller ones do.
+    await page.mouse.move(GROUND.x, GROUND.y)
+    await expect.poll(async () => (await handles(page, 'dot')).length, 'the mouse shows a dot on each segment').toBe(3)
+    const dot = (await handles(page, 'dot')).at(-1)!
+    await drag(page, dot, { x: dot.x + DOT_DRAG_ADDING_ONE.x, y: dot.y + DOT_DRAG_ADDING_ONE.y })
+    await expect(chipText(page), 'the row is still selected, with one plant more').toHaveText(new RegExp(`^7 plants · ${HAZEL}`))
+    await expect.poll(() => points(page), 'with its new point').toBe(5)
+    await expectOneUndoStep(page, 'the dot drag')
+    expect(rowIds(await savedDesign(page)), 'one Undo restores the six plants with their ids').toEqual(fixture)
+  })
+})
+
+test('(canopi-f47t.54, S) Select row on a row plant shows the row\'s curve, points and dots', async ({ page }) => {
   await openRowFromDraft(page)
   await page.mouse.click(MEMBERS[2]!.x, MEMBERS[2]!.y)
   await expect(chipText(page)).toHaveText(new RegExp(`^${HAZEL}`))
@@ -161,7 +217,7 @@ test.fail('(canopi-f47t.54, S) Select row on a row plant shows the row\'s curve,
   await expect(selectRow(page), 'a selected row offers no Select row').toHaveCount(0)
 })
 
-test.fail('(canopi-f47t.54, S) under Select, dragging a point re-spaces the row at release in one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, S) under Select, dragging a point re-spaces the row at release in one Undo step', async ({ page }) => {
   await openRowFromDraft(page)
   await selectAllMembers(page)
   await expect.poll(() => points(page), 'selecting all of a row\'s plants shows its points').toBe(4)
@@ -174,7 +230,7 @@ test.fail('(canopi-f47t.54, S) under Select, dragging a point re-spaces the row 
   await expectOneUndoStep(page, 'the moved point')
 })
 
-test.fail('(canopi-f47t.54, S) under Select, a dot drag inserts a point, Alt+click deletes one and a double-click on a dot inserts in place, each one Undo step', async ({ page }) => {
+test('(canopi-f47t.54, S) under Select, a dot drag inserts a point, Alt+click deletes one and a double-click on a dot inserts in place, each one Undo step', async ({ page }) => {
   await openRowFromDraft(page)
   await selectAllMembers(page)
   await expect.poll(() => points(page), 'selecting all of a row\'s plants shows its points').toBe(4)
@@ -255,7 +311,7 @@ test.fail('(canopi-f47t.54, S) the selection chip\'s spacing field and mode re-s
   expect(await deviceInterval(page), 'the row\'s spacing never writes the device interval').toBe(before)
 })
 
-test.fail('(canopi-f47t.54, S) moving all of a row\'s plants keeps it a row; moving one plant leaves the rest a row without it', async ({ page }) => {
+test('(canopi-f47t.54, S) moving all of a row\'s plants keeps it a row; moving one plant leaves the rest a row without it', async ({ page }) => {
   await openRowFromDraft(page)
   await selectAllMembers(page)
   await expect.poll(() => points(page), 'selecting all of a row\'s plants shows its points').toBe(4)

@@ -11,6 +11,9 @@ import type { ScenePersistedState, ScenePlantEntity, ScenePlantRowEntity, SceneP
 
 type PlantRowMember = ScenePlantRowEntity['members'][number]
 
+/** A row adds at most this many plants beside its first: Plant a row's commit limit, and the most one edit re-spaces. */
+export const PLANT_ROW_MAX_ADDED_PLANTS = 5_000
+
 /** A member is attached while its plant lies within this distance of its `at`, in plane metres. */
 const ATTACHED_WITHIN_M = 0.001
 

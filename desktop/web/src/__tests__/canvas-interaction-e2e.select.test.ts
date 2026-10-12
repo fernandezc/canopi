@@ -19,6 +19,7 @@ import type { CanvasDesignObjectSelectionModel } from '../canvas/runtime/runtime
 import type { ViewFrameSource } from '../canvas/runtime/view/types'
 import type {
   SceneCommandAdmission,
+  SceneRuntimeEditCoordinator,
   SettledSceneReader,
 } from '../canvas/runtime/scene-runtime/transactions'
 import {
@@ -3021,6 +3022,113 @@ describe('SceneInteractionSession', () => {
     expect(store.persisted.zones[0]!.points).toEqual([square[0], { x: 80, y: 0 }, square[1], square[2], square[3]])
     expect(onSceneEditCommit.mock.calls).toEqual([['interaction-zone-corner']])
     session.dispose()
+  })
+
+  // A planted row under Select (plan §4 "2.0 plant along a path", A2, A7): selecting all of its plants shows its points
+  // and dots; each point edit re-spaces the row at its release in one Scene Edit that keeps the member ids in path order,
+  // and one Undo restores the plants with their ids.
+  describe('a selected planted row', () => {
+    const ROW_IDS = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6']
+
+    /** Seven hazels every 10 m from (20, 100) to (80, 100), a straight row of two points, all selected. */
+    function selectRow(overrides: Parameters<typeof createInteractionDeps>[3] = {}) {
+      snapToGridEnabled.value = false
+      store.updatePersisted((draft) => {
+        draft.plants = ROW_IDS.map((id, index) => makePlant(id, 'Corylus avellana', { x: 20 + index * 10, y: 100 }))
+        draft.plantRows = [{
+          kind: 'plant-row', id: 'row-1', closed: false, spacing: { kind: 'interval', metres: 10 },
+          anchors: [{ position: { x: 20, y: 100 }, sharp: false }, { position: { x: 80, y: 100 }, sharp: false }],
+          members: ROW_IDS.map((plantId, index) => ({ plantId, at: { x: 20 + index * 10, y: 100 } })),
+        }]
+      })
+      const deps = createInteractionDeps(container, store, testView, overrides)
+      const session = createTestSession(deps)
+      session.setTool('select')
+      deps.setSelection(ROW_IDS.map(plantTarget))
+      session.refreshMeasurements()
+      return { deps, session }
+    }
+
+    const handle = (id: string) => container.querySelector<HTMLElement>(`[data-canvas-handle="${id}"]`)
+    const shownHandles = () => [...container.querySelectorAll<HTMLElement>('[data-canvas-handle]')]
+      .filter((element) => element.style.display !== 'none')
+      .map((element) => element.dataset.canvasHandle)
+    const plantXs = () => store.persisted.plants.map((plant) => plant.position.x)
+    const selectedIds = () => store.session.selectedTargets.map((target) => target.id)
+
+    it('shows its points and dots once all of its plants are selected, and none for some of them', () => {
+      const { deps, session } = selectRow()
+      expect(shownHandles()).toEqual(expect.arrayContaining(['point:row-1:0', 'point:row-1:1', 'dot:row-1:0']))
+      expect(handle('point:row-1:0')!.dataset.canvasHandleGlyph).toBe('vertex')
+      expect(handle('dot:row-1:0')!.dataset.canvasHandleGlyph).toBe('midpoint')
+
+      deps.setSelection(ROW_IDS.slice(1).map(plantTarget))
+      session.refreshMeasurements()
+      expect(shownHandles().filter((id) => id?.startsWith('point:') || id?.startsWith('dot:'))).toEqual([])
+      session.dispose()
+    })
+
+    it('re-spaces the row along a dragged point at its release, in one edit that one Undo takes back with the ids', () => {
+      const onSceneEditCommit = vi.fn()
+      const { deps, session } = selectRow({ onSceneEditCommit })
+      const before = store.persisted.plants
+      events.pointerDown({ x: 80, y: 100 }, { button: 0, buttons: 1, target: handle('point:row-1:1')!, timeStamp: 0 })
+      events.pointerMove({ x: 90, y: 100 }, { button: -1, buttons: 1, timeStamp: 10 })
+      events.pointerMove({ x: 100, y: 100 }, { button: -1, buttons: 1, timeStamp: 20 })
+      // Nothing reaches the Scene before the release; the moved curve and its plants are the draft.
+      expect(store.persisted.plants).toBe(before)
+      expect(onSceneEditCommit).not.toHaveBeenCalled()
+      events.pointerUp({ x: 100, y: 100 }, { button: 0, timeStamp: 30 })
+
+      expect(onSceneEditCommit.mock.calls).toEqual([['interaction-plant-row-edit']])
+      expect(plantXs()).toEqual([20, 30, 40, 50, 60, 70, 80, 90, 100])
+      expect(selectedIds().slice(0, 7), 'the members keep their ids in path order').toEqual(ROW_IDS)
+      expect(selectedIds()).toHaveLength(9)
+      expect(shownHandles(), 'the longer row is still selected').toEqual(expect.arrayContaining(['point:row-1:1', 'dot:row-1:0']))
+      expect(handle('point:row-1:1')!.dataset.canvasHandleActive, 'the moved point is the touched one').toBe('true')
+
+      ;(deps.sceneEdits as SceneRuntimeEditCoordinator).undo()
+      expect(store.persisted.plants).toEqual(before)
+      expect(selectedIds()).toEqual(ROW_IDS)
+      session.dispose()
+    })
+
+    it('inserts a point from a dot drag or a dot\'s double-click, and deletes one by Alt+click or by Delete on the touched point', () => {
+      const onSceneEditCommit = vi.fn()
+      const { session } = selectRow({ onSceneEditCommit })
+      // A still press on the dot inserts nothing.
+      events.pointerDown({ x: 50, y: 100 }, { button: 0, buttons: 1, target: handle('dot:row-1:0')!, timeStamp: 0 })
+      events.pointerUp({ x: 50, y: 100 }, { button: 0, timeStamp: 10 })
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(2)
+
+      events.pointerDown({ x: 50, y: 100 }, { button: 0, buttons: 1, target: handle('dot:row-1:0')!, timeStamp: 1000 })
+      events.pointerMove({ x: 50, y: 90 }, { button: -1, buttons: 1, timeStamp: 1010 })
+      events.pointerMove({ x: 50, y: 40 }, { button: -1, buttons: 1, timeStamp: 1020 })
+      events.pointerUp({ x: 50, y: 40 }, { button: 0, timeStamp: 1030 })
+      expect(store.persisted.plantRows[0]!.anchors.map((anchor) => anchor.position)).toEqual([{ x: 20, y: 100 }, { x: 50, y: 40 }, { x: 80, y: 100 }])
+      expect(shownHandles()).toEqual(expect.arrayContaining(['point:row-1:2', 'dot:row-1:1']))
+
+      events.pointerDown({ x: 50, y: 40 }, { button: 0, buttons: 1, altKey: true, target: handle('point:row-1:1')!, timeStamp: 3000 })
+      events.pointerUp({ x: 50, y: 40 }, { button: 0, altKey: true, timeStamp: 3010 })
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(2)
+      expect(plantXs(), 'the straight row again').toEqual([20, 30, 40, 50, 60, 70, 80])
+
+      const dot = handle('dot:row-1:0')!
+      events.pointerDown({ x: 50, y: 100 }, { button: 0, detail: 2, target: dot, timeStamp: 5000 })
+      events.pointerUp({ x: 50, y: 100 }, { button: 0, detail: 2, timeStamp: 5010 })
+      expect(store.persisted.plantRows[0]!.anchors.map((anchor) => anchor.position)).toEqual([{ x: 20, y: 100 }, { x: 50, y: 100 }, { x: 80, y: 100 }])
+      expect(handle('point:row-1:1')!.dataset.canvasHandleActive, 'the inserted point is the touched one').toBe('true')
+
+      expect(session.keyboard.command({ kind: 'delete-handle' })).toBe(true)
+      expect(store.persisted.plantRows[0]!.anchors).toHaveLength(2)
+      // An open row keeps 2 points: Delete on one of the last two removes nothing, and the plants stay.
+      events.pointerDown({ x: 80, y: 100 }, { button: 0, buttons: 1, target: handle('point:row-1:1')!, timeStamp: 7000 })
+      events.pointerUp({ x: 80, y: 100 }, { button: 0, timeStamp: 7010 })
+      expect(session.keyboard.command({ kind: 'delete-handle' })).toBe(true)
+      expect(store.persisted.plants.map((plant) => plant.id)).toEqual(ROW_IDS)
+      expect(onSceneEditCommit.mock.calls.flat()).toEqual(Array(4).fill('interaction-plant-row-edit'))
+      session.dispose()
+    })
   })
 
   it('arrow keys do nothing while a polygon corner or midpoint dot holds focus (U36)', () => {

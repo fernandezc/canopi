@@ -13,6 +13,11 @@ import {
 } from '../../__tests__/support/canvas-interaction-events'
 import { SceneCanvasRuntime } from './scene-runtime'
 import type { PointerWorld } from './interaction-ports'
+import { createDetachedCanvasRuntimeAppAdapter } from './app-adapter'
+import { CURRENT_CANOPI_FILE_VERSION } from '../../generated/canopi-design-format'
+import { geoAt } from '../../__tests__/support/geo-design'
+import type { CanopiFile } from '../../types/design'
+import { currentCanvasSelection } from '../session-state'
 
 const harnesses: SceneInteractionEventHarness[] = []
 
@@ -93,5 +98,58 @@ describe('the runtime query surface', () => {
     expect(points[0]!.world.y).toBeCloseTo(expected.y, 9)
     stop()
     runtime.destroy()
+  })
+})
+
+// A planted row (plan §4 "2.0 plant along a path", A7): the selection chip reads the row the selection is part of, and
+// Select row selects all of its plants as session state.
+function rowFile(): CanopiFile {
+  const plant = (id: string, x: number) => ({
+    id, canonical_name: 'Corylus avellana', common_name: null, color: null, position: geoAt(x, 0), rotation: null,
+    scale: 3, notes: null, planted_date: null, quantity: 1, locked: false,
+  })
+  const plants = [plant('h1', 0), plant('h2', 2), plant('h3', 4), plant('lone', 10)]
+  return {
+    version: CURRENT_CANOPI_FILE_VERSION, name: 'Row', description: null, plant_species_colors: {},
+    layers: [{ name: 'plants', visible: true, locked: false, opacity: 1 }],
+    plants, zones: [], annotations: [], measurement_guides: [],
+    plant_rows: [{
+      id: 'hedge',
+      anchors: [{ position: geoAt(0, 0), sharp: false }, { position: geoAt(4, 0), sharp: false }],
+      closed: false,
+      spacing: { kind: 'interval', interval_m: 2 },
+      members: plants.slice(0, 3).map((entry) => ({ plant_id: entry.id, at: entry.position })),
+    }],
+    consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+    created_at: '2026-10-12T00:00:00.000Z', updated_at: '2026-10-12T00:00:00.000Z', extra: {},
+  }
+}
+
+describe('the selected planted row', () => {
+  it('names the row some plants belong to, and Select row selects all of them with no Design edit', () => {
+    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
+    try {
+      runtime.documentSurface.loadDocument(rowFile())
+      const queries = runtime.querySurface
+      const edits = runtime.commandSurface.sceneEdits
+      // A click's selection, which is session state too.
+      const select = (ids: readonly string[]) => (runtime as unknown as { _setSelection(targets: unknown): void })
+        ._setSelection(ids.map((id) => ({ kind: 'plant', id })))
+
+      select(['h2'])
+      expect(queries.getSelectedPlantRow?.()).toEqual({ id: 'hedge', whole: false, plants: 3, spacing: { kind: 'interval', metres: 2 } })
+      edits.selectPlantRow?.()
+      expect(queries.getSelection().map((target) => target.id)).toEqual(['h1', 'h2', 'h3'])
+      expect([...currentCanvasSelection.value]).toEqual(['h1', 'h2', 'h3'])
+      expect(queries.getSelectedPlantRow?.()?.whole, 'the row is selected').toBe(true)
+      expect(runtime.commandSurface.history.canUndo.value, 'Select row edits nothing').toBe(false)
+
+      select(['h1', 'lone'])
+      expect(queries.getSelectedPlantRow?.(), 'a selection reaching outside the row').toBeNull()
+      edits.selectPlantRow?.()
+      expect(queries.getSelection().map((target) => target.id)).toEqual(['h1', 'lone'])
+    } finally {
+      runtime.destroy()
+    }
   })
 })

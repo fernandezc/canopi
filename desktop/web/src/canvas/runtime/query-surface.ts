@@ -11,6 +11,7 @@ import type {
   CanvasPlantLabelCoverage,
   CanvasQueryRevision,
   CanvasQuerySurface,
+  CanvasSelectedPlantRow,
   CanvasViewSceneRequest,
 } from './runtime'
 import type {
@@ -20,6 +21,7 @@ import type {
   SceneStateReader,
 } from './scene'
 import type { PointerWorld } from './interaction-ports'
+import { rowOfSelection } from './scene/plant-rows'
 import type { SceneRuntimeMutationController } from './scene-runtime/mutations'
 import type { SceneRuntimePresentationController } from './scene-runtime/presentation'
 import { EMPTY_SELECTION_MODEL, getDesignObjectSelectionModel } from './scene-runtime/selection'
@@ -157,6 +159,19 @@ class SceneCanvasQueryRole implements SceneCanvasQuerySurface {
         plantContext: this.options.presentation.createPlantPresentationContext(viewportScale, scene.plants),
       },
     )
+  }
+  getSelectedPlantRow(): CanvasSelectedPlantRow | null {
+    // A reader in a component follows each Scene Edit: a re-spaced row's count and spacing reach the selection chip.
+    void this.options.revision.scene.value
+    const { persisted, session } = this.options.sceneStore
+    const selected = rowOfSelection(persisted, session.selectedTargets)
+    if (!selected) return null
+    return {
+      id: selected.row.id,
+      whole: selected.whole,
+      plants: selected.members.length,
+      spacing: { ...selected.row.spacing },
+    }
   }
   getSelectedPlantColorContext(): SelectedPlantColorContext {
     return this.options.mutations.getSelectedPlantColorContext()

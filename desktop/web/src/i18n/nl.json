@@ -731,7 +731,8 @@
       "measurements_many": "{{count, number}} metingen",
       "measurements_other": "{{count, number}} metingen",
       "clear": "Selectie wissen",
-      "rename": "Hernoemen…"
+      "rename": "Hernoemen…",
+      "selectRow": "Rij selecteren"
     },
     "viewChip": "Weergave",
     "map": {

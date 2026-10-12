@@ -8,6 +8,7 @@ import { renameZoneDialog } from '../app/rename-zone/state'
 import { SpeciesFocusChip } from '../components/canvas/SpeciesFocusChip'
 import { plantFinderMapMatches } from '../app/plant-finder/map-matches'
 import { SceneStore } from '../canvas/runtime/scene/store'
+import { rowOfSelection } from '../canvas/runtime/scene/plant-rows'
 import type { SceneDesignObjectSelection } from '../canvas/runtime/scene'
 import type { CanvasCommandSurface } from '../canvas/runtime/runtime'
 import { setCurrentCanvasSession } from '../canvas/session'
@@ -330,5 +331,78 @@ describe('Selection chip', () => {
       for (const id of ids) expect(text).not.toContain(id)
       expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}/i)
     }
+  })
+})
+
+// A planted row (plan §4 "2.0 plant along a path", A7): Select row on some of its plants, and its spacing once selected.
+describe('Selection chip on a planted row', () => {
+  const ROW = ['hazel-1', 'hazel-2', 'hazel-3'] as const
+  let container: HTMLDivElement
+  let queries: TestCanvasQuerySurface
+  let selectPlantRow: ReturnType<typeof vi.fn<NonNullable<CanvasCommandSurface['sceneEdits']['selectPlantRow']>>>
+
+  beforeEach(() => {
+    locale.value = 'en'
+    container = document.createElement('div')
+    document.body.append(container)
+    const store = new SceneStore()
+    store.updatePersisted((draft) => {
+      draft.plants = [...ROW, 'hazel-4'].map((id, index) => ({
+        id, canonicalName: 'Corylus avellana', commonName: 'Hazel', kind: 'plant', locked: false, color: null, symbol: 'shrub',
+        position: { x: index * 2, y: 0 }, canopySpreadM: null, rotationDeg: 0, notes: null, plantedDate: null, quantity: 1,
+      }))
+      draft.plantRows = [{
+        kind: 'plant-row', id: 'hedge', closed: false, spacing: { kind: 'interval', metres: 2 },
+        anchors: [{ position: { x: 0, y: 0 }, sharp: false }, { position: { x: 4, y: 0 }, sharp: false }],
+        members: ROW.map((plantId, index) => ({ plantId, at: { x: index * 2, y: 0 } })),
+      }]
+    })
+    const base = createTestCanvasQuerySurface({ scene: store.persisted, localizedNames: new Map([['Corylus avellana', 'Hazel']]) })
+    // The runtime's query reads the row through the row module; this one does the same over the fake's scene.
+    queries = Object.assign(base, {
+      getSelectedPlantRow: () => {
+        const selected = rowOfSelection(base.getSceneSnapshot(), base.getSelection())
+        return selected && { id: selected.row.id, whole: selected.whole, plants: selected.members.length, spacing: selected.row.spacing }
+      },
+    })
+    selectPlantRow = vi.fn()
+    setCurrentCanvasSession({
+      commands: createTestCanvasCommandSurface({ sceneEdits: { selectPlantRow } }),
+      queries,
+      documents: createTestCanvasDocumentSurface(),
+      keyboard: createTestCanvasKeyboardPort(),
+    })
+  })
+
+  afterEach(() => {
+    render(null, container)
+    container.remove()
+    currentCanvasSelection.value = new Set()
+    setCurrentCanvasSession(null)
+  })
+
+  async function select(ids: readonly string[]): Promise<void> {
+    await act(() => {
+      queries.setSelection(ids.map((id) => ({ kind: 'plant', id })))
+      currentCanvasSelection.value = new Set(ids)
+    })
+  }
+
+  const chip = () => container.querySelector<HTMLElement>('[data-selection-chip]')
+  const button = (name: string) => [...(chip()?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((entry) => entry.textContent === name)
+
+  it('offers Select row on some of a row\'s plants, which selects the row through the runtime, and not once it is selected', async () => {
+    await act(() => render(<SelectionChip />, container))
+    await select(['hazel-2'])
+    expect(button('Select row'), 'a row plant offers Select row').toBeDefined()
+    await act(() => button('Select row')!.click())
+    expect(selectPlantRow).toHaveBeenCalledTimes(1)
+
+    await select(ROW)
+    expect(button('Select row'), 'a selected row offers no Select row').toBeUndefined()
+    await select(['hazel-4'])
+    expect(button('Select row'), 'a plant of no row offers none').toBeUndefined()
+    await select(['hazel-1', 'hazel-4'])
+    expect(button('Select row'), 'nor a selection reaching outside the row').toBeUndefined()
   })
 })
