@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import type { Point } from '../support/fingers'
-import { mapHost, nextFrames, openFixture } from '../support/layout'
+import { boxOf, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap, type Box } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
@@ -210,3 +210,85 @@ test.describe('390×844 drafts and the sheet', () => {
     await expect(sheet(page), 'the first corner drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
   })
 })
+
+interface Landscape {
+  readonly width: number
+  readonly height: number
+  /** The new Apple, then the row's two points: clear ground right of the card, left of the zoom column, above the peek. */
+  readonly row: readonly [Point, Point, Point]
+}
+
+const LANDSCAPES: readonly Landscape[] = [
+  { width: 740, height: 360, row: [{ x: 600, y: 220 }, { x: 640, y: 220 }, { x: 640, y: 180 }] },
+  { width: 844, height: 390, row: [{ x: 680, y: 240 }, { x: 720, y: 240 }, { x: 720, y: 200 }] },
+]
+
+/** Places an Apple from Place plants' species list, then holds a Plant a row draft from it with two more points. */
+async function holdRow(page: Page, row: readonly [Point, Point, Point]): Promise<void> {
+  await mapHost(page).focus()
+  await page.keyboard.press('p')
+  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  await apple.scrollIntoViewIfNeeded()
+  await apple.click()
+  await tap(page, row[0])
+  // Esc leaves Place plants, the next clears the placed Apple's selection.
+  await mapHost(page).focus()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('w')
+  await tap(page, row[0])
+  await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
+  await page.keyboard.press('Enter')
+  await tap(page, row[1])
+  await tap(page, row[2])
+  await expect(card(page).locator('[data-plant-row-finish]'), 'the row holds three points').toBeVisible()
+}
+
+/** Every shown box matching `selector`. */
+async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
+  const boxes = await page.locator(selector).evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect()
+    const style = getComputedStyle(element)
+    const shown = style.visibility !== 'hidden' && style.display !== 'none' && Number.parseFloat(style.opacity) > 0
+    return shown ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null
+  }))
+  return boxes.filter((box): box is Box => box !== null && box.width > 0 && box.height > 0)
+}
+
+// Answer 17: the phone zoom column is placed from the visible map, not registered with it, so the map notice's room
+// ends left of the column; held on its side with the Plant a row card on the left, the notice's Retry is never under the
+// zoom group, with the sheet at its peek or its side sheet at half.
+for (const layout of LANDSCAPES) {
+  const size = `${layout.width}×${layout.height}`
+  test.describe(`${size} notice`, () => {
+    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, H) with a row held, the map notice and its Retry clear the zoom group, sheet at peek or half (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: 'shortcut' })
+      await holdRow(page, layout.row)
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect(card(page).locator('[data-plant-row-finish]'), `${size} ${height}: the row is still held`).toBeVisible()
+        await nextFrames(page)
+        const notice = page.locator('[data-map-notice]')
+        await expect(notice, `${size} ${height}: offline, the map notice shows`).toBeVisible()
+        const noticeBox = await boxOf(notice)
+        const retry = notice.locator('button')
+        const retryBox = await boxOf(retry)
+        const zoom = await shownBoxes(page, '[data-zoom-group]')
+        expect(zoom.length, `${size} ${height}: the zoom group shows`).toBeGreaterThan(0)
+        for (const box of zoom) {
+          expect(overlap(noticeBox, box), `${size} ${height}: the map notice clears the zoom group`).toBe(false)
+          expect(overlap(retryBox, box), `${size} ${height}: Retry is not under the zoom group`).toBe(false)
+        }
+        for (const [name, selector] of [['the tool card', '[data-tool-card]'], ['the panel sheet', '[data-phone-sheet]']] as const) {
+          for (const box of await shownBoxes(page, selector)) {
+            expect(overlap(noticeBox, box), `${size} ${height}: the map notice clears ${name}`).toBe(false)
+          }
+        }
+        await expectHitAtCentre(retry, `${size} ${height}: the map notice's Retry`)
+      }
+    })
+  })
+}
