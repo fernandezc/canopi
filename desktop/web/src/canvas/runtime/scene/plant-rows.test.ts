@@ -194,6 +194,98 @@ describe('applyPlantRowPositions, the row writer (A5, A7)', () => {
     expect(members).toEqual(['a', 'new-1', 'new-2', 'new-3', 'new-4'])
   })
 
+  describe('the spot a row left to another row', () => {
+    const at = (x: number, y = 0): ScenePoint => ({ x, y })
+    const straight = (length: number): ScenePlantRowEntity['anchors'] =>
+      [{ position: at(0), sharp: false }, { position: at(length), sharp: false }]
+    /** Hedge `hedge` (h0…h10 every 1 m along 10 m) whose h5 started side row `side`, which runs 2 m off the hedge. */
+    function hedgeWithSideRow(): ScenePersistedState {
+      const scene = createDefaultScenePersistedState()
+      scene.plants = Array.from({ length: 11 }, (_, index) => plant(`h${index}`, at(index)))
+      scene.plantRows = [{
+        kind: 'plant-row', id: 'hedge', anchors: straight(10), closed: false, spacing: { kind: 'interval', metres: 1 },
+        members: scene.plants.map((entry) => ({ plantId: entry.id, at: { ...entry.position } })),
+      }]
+      applyPlantRowPositions(scene, {
+        id: 'side', firstPlantId: 'h5', anchors: [{ position: at(5), sharp: false }, { position: at(5, 2), sharp: false }],
+        closed: false, spacing: { kind: 'interval', metres: 2 }, positions: [at(5), at(5, 2)], createId: ids(),
+      })
+      return scene
+    }
+    const respace = (scene: ScenePersistedState, length: number, positions: readonly ScenePoint[]) =>
+      applyPlantRowPositions(scene, {
+        id: 'hedge', anchors: straight(length), closed: false, spacing: { kind: 'interval', metres: 1 }, positions,
+        createId: ids(),
+      })
+    /** The plants within half a metre of h5, which must be h5 alone. */
+    const besideH5 = (scene: ScenePersistedState) => {
+      const h5 = plantsById(scene).get('h5')!.position
+      return scene.plants.filter((entry) => Math.hypot(entry.position.x - h5.x, entry.position.y - h5.y) < 0.5)
+        .map((entry) => entry.id)
+    }
+
+    it('stays the other row\'s when the hedge\'s points move a little', () => {
+      const scene = hedgeWithSideRow()
+      const members = respace(scene, 10.002, Array.from({ length: 11 }, (_, index) => at(index + 0.002)))
+      expect(members, 'the hedge keeps its ten plants').toHaveLength(10)
+      expect(besideH5(scene), 'no plant 2 mm from h5').toEqual(['h5'])
+    })
+
+    it('stays the other row\'s when the hedge\'s spots change (Plants: 11 spots over 10.5 m)', () => {
+      const scene = hedgeWithSideRow()
+      const members = respace(scene, 10.5, Array.from({ length: 11 }, (_, index) => at(index * 1.05)))
+      expect(members, 'ten plants and the spot nearest h5 left to it').toHaveLength(10)
+      expect(besideH5(scene), 'no plant 25 cm from h5').toEqual(['h5'])
+    })
+
+    it('stays the other row\'s when that row moves its plant a little', () => {
+      const scene = hedgeWithSideRow()
+      applyPlantRowPositions(scene, {
+        id: 'side', anchors: [{ position: at(5.002), sharp: false }, { position: at(5.002, 2), sharp: false }],
+        closed: false, spacing: { kind: 'interval', metres: 2 }, positions: [at(5.002), at(5.002, 2)], createId: ids(),
+      })
+      respace(scene, 10, Array.from({ length: 11 }, (_, index) => at(index)))
+      expect(besideH5(scene), 'no plant 2 mm from h5').toEqual(['h5'])
+    })
+
+    it('fills again once that plant has moved off', () => {
+      const scene = hedgeWithSideRow()
+      applyPlantRowPositions(scene, {
+        id: 'side', anchors: [{ position: at(5, 3), sharp: false }, { position: at(5, 5), sharp: false }],
+        closed: false, spacing: { kind: 'interval', metres: 2 }, positions: [at(5, 3), at(5, 5)], createId: ids(),
+      })
+      expect(respace(scene, 10, Array.from({ length: 11 }, (_, index) => at(index)))).toHaveLength(11)
+    })
+
+    it('is only a spot the row has no plant on: a row planted beside another row\'s first plant keeps its plants', () => {
+      // A second hedge 30 cm beside the first, starting at its 3 m plant: each hedge keeps every plant.
+      const scene = hedgeWithSideRow()
+      scene.plants.push(plant('twin', at(3, 0.3)))
+      applyPlantRowPositions(scene, {
+        id: 'twin-row', firstPlantId: 'twin', anchors: [{ position: at(3, 0.3), sharp: false }, { position: at(6, 0.3), sharp: false }],
+        closed: false, spacing: { kind: 'interval', metres: 1 }, positions: [0, 1, 2, 3].map((step) => at(3 + step, 0.3)),
+        createId: ids(),
+      })
+      expect(respace(scene, 10, Array.from({ length: 11 }, (_, index) => at(index))), 'all but h5\'s spot').toHaveLength(10)
+    })
+
+    it('costs the write next to nothing however many plants other rows hold', () => {
+      // 40 rows of 500 plants beside a 5,001-plant re-space: a check per held plant and position took seconds.
+      const scene = hedgeWithSideRow()
+      for (let row = 0; row < 40; row++) {
+        const plants = Array.from({ length: 500 }, (_, index) => plant(`r${row}-${index}`, at(index * 0.5, 10 + row)))
+        scene.plants.push(...plants)
+        scene.plantRows.push({
+          kind: 'plant-row', id: `r${row}`, anchors: straight(250), closed: false, spacing: { kind: 'interval', metres: 0.5 },
+          members: plants.map((entry) => ({ plantId: entry.id, at: { ...entry.position } })),
+        })
+      }
+      const started = performance.now()
+      expect(respace(scene, 1000, Array.from({ length: 5001 }, (_, index) => at(index * 0.2, 0.001)))).toHaveLength(5000)
+      expect(performance.now() - started).toBeLessThan(1000)
+    })
+  })
+
   it('writes nothing without positions or a first plant', () => {
     const scene = sceneWithRow()
     const before = structuredClone(scene)
