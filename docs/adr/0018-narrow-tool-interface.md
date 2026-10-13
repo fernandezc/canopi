@@ -36,7 +36,7 @@ Tools implemented a wide `SceneToolAdapter`: raw pointer events, DOM predicates,
 - Every tool (Select with its band, move, rotate handle and reshape; Pan; plant stamp; text; line, rectangle, ellipse; polygon; profile; measure; object and saved-object stamps; Plant a row) runs on the host.
 - Policy tests forbid the listed imports and DOM symbols in tool files. Tool modules are value-imported only inside `tools/` and by the composition root through the host (P5b).
 - Tools are tested through a gesture harness over the real host, with a fake view at any bearing, without jsdom.
-- Details: [`canvas-v2-spec.md`](../plans/canvas-v2-spec.md).
+- Details: `docs/plans/canvas-v2-spec.md` at commit `bd78820e` (deleted at the 2.0 release close).
 
 ## Amended 2026-09-30
 

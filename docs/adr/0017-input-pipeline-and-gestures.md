@@ -43,7 +43,7 @@ Pointer, wheel, context-menu and drag listeners were spread over the scene inter
 - Recogniser fixtures cover about 60 sequences per platform (Windows release-time menus, Mac Ctrl+click, pen barrel, touch, wheel, ignored chords) without a browser; each phase rewrites the expectations it changes; a property test checks every session ends once and every capture is released.
 - Policy tests confine pointer capture and canvas `addEventListener` to the source and keep the input core browser-free.
 - A new gesture is a recogniser rule and fixtures, not a new listener.
-- Details: [`canvas-v2-spec.md`](../plans/canvas-v2-spec.md).
+- Details: `docs/plans/canvas-v2-spec.md` at commit `bd78820e` (deleted at the 2.0 release close).
 
 ## Amended 2026-09-30 and 2026-10-01
 
