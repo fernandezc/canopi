@@ -11,8 +11,9 @@ export const plantDbStatus = signal<PlantDbStatus>('available')
 export const lidarLibraryStatus = signal<LidarLibraryStatus>({ kind: 'ready' })
 
 /**
- * Whether this start moved local data from before Canopi 2.0 aside (ADR 0021).
- * The native side reports `moved_aside` on that start only; dismissing the
- * notice sets it back to `current` for the session.
+ * Whether this start found local data from before Canopi 2.0 (ADR 0021): the
+ * native side reports `moved_aside` on the start that renamed the 1.x user
+ * database only; dismissing the notice sets it back to `current` for the
+ * session.
  */
 export const localDataStatus = signal<LocalDataStatus>({ kind: 'current' })

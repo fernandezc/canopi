@@ -126,7 +126,7 @@ describe('browser app data store', () => {
 
   describe('data from before Canopi 2.0', () => {
     const NOW = '2026-10-02T12:00:00.000Z'
-    const BACKUP = 'canopi:web-app-data:before-2.0-20261002T120000Z'
+    const NOTICE_MARKER = 'canopi:web-app-data:before-2.0-kept-in-place-notice'
 
     function seedEarlierData(storage: MemoryStorage) {
       const v1 = JSON.stringify({
@@ -135,61 +135,53 @@ describe('browser app data store', () => {
         settings: { locale: 'fr' },
       })
       storage.values.set(V1_KEY, v1)
-      // The released Web Edition stored Drafts at version 6 with a root
-      // `extra`; a Canopi 2 preview stored version 8.
-      const released = { ...makeDesign({ name: 'Orchard' }), version: 6, extra: {}, spatial_frame: null }
-      const preview = { ...makeDesign({ name: 'Hedge' }), version: 8 }
-      const damaged = { ...makeDesign({ name: 'Pond' }), plants: 'not-an-array' }
-      const newer = { ...makeDesign({ name: 'Future' }), version: 10 }
-      const current = makeDesign({ name: 'Terrace' })
-      const summaries = {
-        orchard: { id: 'orchard', name: 'Orchard', updatedAt: '2026-07-04T12:00:00.000Z' },
-        hedge: { id: 'hedge', name: 'Hedge', updatedAt: '2026-09-20T12:00:00.000Z' },
-        pond: { id: 'pond', name: 'Pond', updatedAt: '2026-07-04T11:00:00.000Z' },
-        future: { id: 'future', name: 'Future', updatedAt: '2026-10-01T11:00:00.000Z' },
-        terrace: { id: 'terrace', name: 'Terrace', updatedAt: '2026-10-01T12:00:00.000Z' },
-      }
-      storage.values.set(V2_KEYS.drafts, JSON.stringify({
-        version: 2,
-        drafts: Object.values(summaries),
-        draftFiles: { orchard: released, hedge: preview, pond: damaged, future: newer, terrace: current },
-      }))
-      return { v1, released, preview, damaged, newer, current, summaries }
+      seedOlderDrafts(storage)
+      return v1
     }
 
-    it('moves them to dated backup keys, byte for byte, and keeps the rest in place', () => {
+    /** Drafts a Canopi 2 preview stored at version 8, beside a current one. */
+    function seedOlderDrafts(storage: MemoryStorage) {
+      storage.values.set(V2_KEYS.drafts, JSON.stringify({
+        version: 2,
+        drafts: [
+          { id: 'hedge', name: 'Hedge', updatedAt: '2026-09-20T12:00:00.000Z' },
+          { id: 'terrace', name: 'Terrace', updatedAt: '2026-10-01T12:00:00.000Z' },
+        ],
+        draftFiles: {
+          hedge: { ...makeDesign({ name: 'Hedge' }), version: 8 },
+          terrace: makeDesign({ name: 'Terrace' }),
+        },
+      }))
+    }
+
+    it('leaves them in place, unread, and tells once, writing only the notice marker', () => {
       const storage = memoryStorage()
       seedV2Partitions(storage)
-      const seeded = seedEarlierData(storage)
+      seedEarlierData(storage)
+      const before = new Map(storage.values)
       const store = createBrowserAppDataStore({ storage })
 
-      expect(store.setAsideDataFromBefore2_0(NOW)).toEqual({ movedAside: true, keptInPlace: false, error: null })
-
-      expect(storage.values.has(V1_KEY)).toBe(false)
-      expect(storage.values.get(`${BACKUP}:v1`)).toBe(seeded.v1)
-      expect(JSON.parse(storage.values.get(`${BACKUP}:v2:drafts`)!)).toEqual({
-        version: 2,
-        drafts: [seeded.summaries.orchard, seeded.summaries.hedge],
-        draftFiles: { orchard: seeded.released, hedge: seeded.preview },
-      })
-      const kept = JSON.parse(storage.values.get(V2_KEYS.drafts)!) as { drafts: unknown[]; draftFiles: Record<string, unknown> }
-      expect(kept.drafts).toEqual([seeded.summaries.pond, seeded.summaries.future, seeded.summaries.terrace])
-      expect(kept.draftFiles).toEqual({ pond: seeded.damaged, future: seeded.newer, terrace: seeded.current })
+      expect(store.takeEarlierDataNotice(NOW)).toBe(true)
+      expect(storage.writes).toEqual([NOTICE_MARKER])
+      expect(new Map([...storage.values].filter(([key]) => key !== NOTICE_MARKER))).toEqual(before)
       expect(store.listDrafts().map((draft) => draft.id)).toEqual(['terrace'])
-      expect(store.loadSettings()).toEqual({ locale: 'fr' })
+
+      const told = new Map(storage.values)
+      storage.writes.length = 0
+      expect(store.takeEarlierDataNotice('2026-10-03T12:00:00.000Z')).toBe(false)
+      expect(storage.writes).toEqual([])
+      expect(storage.values).toEqual(told)
     })
 
-    it('moves nothing the second time, so the notice shows once', () => {
+    it('says nothing for Drafts of a 2.0 preview alone: only the 1.x document is told', () => {
       const storage = memoryStorage()
-      seedEarlierData(storage)
+      seedOlderDrafts(storage)
+      const before = new Map(storage.values)
       const store = createBrowserAppDataStore({ storage })
-      expect(store.setAsideDataFromBefore2_0(NOW)).toEqual({ movedAside: true, keptInPlace: false, error: null })
-      const after = new Map(storage.values)
-      storage.writes.length = 0
 
-      expect(store.setAsideDataFromBefore2_0('2026-10-03T12:00:00.000Z')).toEqual({ movedAside: false, keptInPlace: false, error: null })
+      expect(store.takeEarlierDataNotice(NOW)).toBe(false)
       expect(storage.writes).toEqual([])
-      expect(storage.values).toEqual(after)
+      expect(storage.values).toEqual(before)
     })
 
     it('writes nothing in a browser without earlier data', () => {
@@ -197,99 +189,34 @@ describe('browser app data store', () => {
       seedV2Partitions(storage)
       const store = createBrowserAppDataStore({ storage })
 
-      expect(store.setAsideDataFromBefore2_0(NOW)).toEqual({ movedAside: false, keptInPlace: false, error: null })
+      expect(store.takeEarlierDataNotice(NOW)).toBe(false)
       expect(storage.writes).toEqual([])
     })
 
-    it('never replaces an earlier backup with the same date', () => {
+    // Probe P-D2 (release close, stream D): Chromium and WebKit throw a
+    // QuotaExceededError DOMException for every write at the quota, the notice
+    // marker included, and leave existing keys as they were.
+    it('tells again and leaves the 1.x document untouched while the browser is full', () => {
       const storage = memoryStorage()
-      const seeded = seedEarlierData(storage)
-      storage.values.set(`${BACKUP}:v1`, 'an earlier backup')
+      const v1 = seedEarlierData(storage)
+      storage.rejectWrite = () => new DOMException('The quota has been exceeded.', 'QuotaExceededError')
       const store = createBrowserAppDataStore({ storage })
+      const before = new Map(storage.values)
 
-      expect(store.setAsideDataFromBefore2_0(NOW)).toEqual({ movedAside: true, keptInPlace: false, error: null })
-      expect(storage.values.get(`${BACKUP}:v1`)).toBe('an earlier backup')
-      expect(storage.values.get(`${BACKUP}-1:v1`)).toBe(seeded.v1)
+      expect(store.takeEarlierDataNotice(NOW)).toBe(true)
+      expect(store.takeEarlierDataNotice('2026-10-03T12:00:00.000Z')).toBe(true)
+      expect(storage.values).toEqual(before)
+      expect(storage.values.get(V1_KEY)).toBe(v1)
     })
 
-    it('leaves the data where it is when its backup cannot be written', () => {
-      const storage = memoryStorage()
-      const seeded = seedEarlierData(storage)
-      const draftsBefore = storage.values.get(V2_KEYS.drafts)
-      storage.failWrites = true
-      const store = createBrowserAppDataStore({ storage })
-
-      // The notice marker cannot be written either, so the user is told again next time.
-      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ movedAside: false, keptInPlace: true, error: expect.any(Error) })
-      expect(storage.values.get(V1_KEY)).toBe(seeded.v1)
-      expect(storage.values.get(V2_KEYS.drafts)).toBe(draftsBefore)
-      expect([...storage.values.keys()].filter((key) => key.includes('before-2.0'))).toEqual([])
-    })
-
-    it('keeps the earlier Drafts in place when their backup lands but the Drafts record cannot be rewritten', () => {
+    it('does not claim earlier data was found when browser storage cannot be read', () => {
       const storage = memoryStorage()
       seedEarlierData(storage)
-      const draftsBefore = storage.values.get(V2_KEYS.drafts)
-      storage.failWriteKeys.add(V2_KEYS.drafts)
-      const store = createBrowserAppDataStore({ storage })
-
-      // The browser data of the released Web Edition still moves and is reported.
-      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ movedAside: true, keptInPlace: true, error: expect.any(Error) })
-      expect(storage.values.has(V1_KEY)).toBe(false)
-      expect(storage.values.get(V2_KEYS.drafts)).toBe(draftsBefore)
-      expect(storage.values.has(`${BACKUP}:v2:drafts`)).toBe(false)
-    })
-
-    it('says once that earlier Drafts stay in place when the browser has no room for their copy', () => {
-      const storage = memoryStorage()
-      const older = { ...makeDesign({ name: 'x'.repeat(3_000) }), version: 8 }
-      const draftsBefore = JSON.stringify({
-        version: 2,
-        drafts: [{ id: 'hedge', name: 'Hedge', updatedAt: '2026-09-20T12:00:00.000Z' }],
-        draftFiles: { hedge: older },
-      })
-      storage.values.set(V2_KEYS.drafts, draftsBefore)
-      storage.maxTotalLength = 5_000
-      const store = createBrowserAppDataStore({ storage })
-
-      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ movedAside: false, keptInPlace: true, error: expect.any(Error) })
-      expect(storage.values.get(V2_KEYS.drafts)).toBe(draftsBefore)
-      expect(store.listDrafts()).toEqual([])
-
-      // Told once: the next start, still without room, says nothing.
-      expect(store.setAsideDataFromBefore2_0('2026-10-03T12:00:00.000Z')).toMatchObject({ movedAside: false, keptInPlace: false, error: expect.any(Error) })
-      expect(storage.values.get(V2_KEYS.drafts)).toBe(draftsBefore)
-
-      // Once there is room, the Drafts move aside and that is said too.
-      storage.maxTotalLength = null
-      expect(store.setAsideDataFromBefore2_0('2026-10-04T12:00:00.000Z')).toEqual({ movedAside: true, keptInPlace: false, error: null })
-      expect(JSON.parse(storage.values.get('canopi:web-app-data:before-2.0-20261004T120000Z:v2:drafts')!).draftFiles).toEqual({ hedge: older })
-      expect([...storage.values.keys()].sort()).toEqual([
-        'canopi:web-app-data:before-2.0-20261004T120000Z:v2:drafts',
-        V2_KEYS.drafts,
-      ])
-    })
-
-    it('says once that the 1.x document stays in place when the browser has no room for its copy', () => {
-      const storage = memoryStorage()
-      const v1 = JSON.stringify({ settings: { locale: 'fr' }, padding: 'x'.repeat(3_000) })
-      storage.values.set(V1_KEY, v1)
-      storage.maxTotalLength = 5_000
-      const store = createBrowserAppDataStore({ storage })
-
-      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ movedAside: false, keptInPlace: true, error: expect.any(Error) })
-      expect(storage.values.get(V1_KEY)).toBe(v1)
-      expect(store.setAsideDataFromBefore2_0('2026-10-03T12:00:00.000Z')).toMatchObject({ movedAside: false, keptInPlace: false })
-      expect(storage.values.get(V1_KEY)).toBe(v1)
-    })
-
-    it('does not claim earlier data stays in place when browser storage cannot be read', () => {
-      const storage = memoryStorage()
       storage.forbiddenReadKeys.add(V1_KEY)
-      storage.forbiddenReadKeys.add(V2_KEYS.drafts)
       const store = createBrowserAppDataStore({ storage })
 
-      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ movedAside: false, keptInPlace: false, error: expect.any(Error) })
+      expect(store.takeEarlierDataNotice(NOW)).toBe(false)
+      expect(storage.writes).toEqual([])
     })
   })
 
@@ -438,13 +365,11 @@ describe('browser app data store', () => {
 })
 
 interface MemoryStorage extends BrowserStorageAdapter {
-  failRemoveKeys: Set<string>
   failWrites: boolean
-  failWriteKeys: Set<string>
   forbiddenReadKeys: Set<string>
   maxWriteLength: number | null
-  maxTotalLength: number | null
-  onRejectedWrite: ((key: string, value: string) => void) | null
+  /** Every write throws what this returns, as a full browser storage does. */
+  rejectWrite: (() => unknown) | null
   reads: string[]
   writes: string[]
   values: Map<string, string>
@@ -454,12 +379,9 @@ function memoryStorage(): MemoryStorage {
   const values = new Map<string, string>()
   return {
     failWrites: false,
-    failRemoveKeys: new Set(),
-    failWriteKeys: new Set(),
     forbiddenReadKeys: new Set(),
     maxWriteLength: null,
-    maxTotalLength: null,
-    onRejectedWrite: null,
+    rejectWrite: null,
     reads: [],
     writes: [],
     values,
@@ -470,28 +392,16 @@ function memoryStorage(): MemoryStorage {
     },
     setItem(key, value) {
       this.writes.push(key)
-      const nextTotalLength = totalStoredLength(this) - (values.get(key)?.length ?? 0) + value.length
-      const rejected = (
-        this.failWrites
-        || this.failWriteKeys.has(key)
-        || (this.maxWriteLength !== null && value.length > this.maxWriteLength)
-        || (this.maxTotalLength !== null && nextTotalLength > this.maxTotalLength)
-      )
-      if (rejected) {
-        this.onRejectedWrite?.(key, value)
+      if (this.rejectWrite) throw this.rejectWrite()
+      if (this.failWrites || (this.maxWriteLength !== null && value.length > this.maxWriteLength)) {
         throw new Error('storage unavailable')
       }
       values.set(key, value)
     },
     removeItem(key) {
-      if (this.failRemoveKeys.has(key)) throw new Error('storage unavailable')
       values.delete(key)
     },
   }
-}
-
-function totalStoredLength(storage: Pick<MemoryStorage, 'values'>): number {
-  return [...storage.values.values()].reduce((total, value) => total + value.length, 0)
 }
 
 function seedV2Partitions(storage: MemoryStorage): void {

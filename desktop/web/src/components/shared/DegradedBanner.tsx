@@ -10,8 +10,8 @@ import styles from './DegradedBanner.module.css'
  * One line per subsystem that is unusable for the session: the plant catalog
  * when its database is missing or damaged, the Data library when it is refused
  * or could not be opened. A recovered library is not degraded and is explained
- * in the Data library itself. On the start that moved local data from before
- * Canopi 2.0 aside (ADR 0021), one dismissible line says so.
+ * in the Data library itself. On the start that found local data from before
+ * Canopi 2.0 (ADR 0021), one dismissible line says it was not opened.
  */
 export function DegradedBanner() {
   const messages: string[] = []
@@ -58,7 +58,7 @@ function DegradedNotice({ messages, movedAside }: {
             </button>
           )}
         >
-          {t('health.localDataMovedAside')}
+          {t('health.localDataNotOpened')}
         </Notice>
       )}
     </div>

@@ -11,7 +11,7 @@ import { lidarLibraryStatus, localDataStatus, plantDbStatus } from '../app/healt
 import { locale } from '../app/settings/state'
 import { DegradedBanner } from '../components/shared/DegradedBanner'
 
-const MOVED_ASIDE = 'Canopi 2.0 can’t read data saved by earlier versions, so it set that data aside unchanged and started fresh.'
+const NOT_OPENED = 'Canopi 2.0 can’t open data saved by earlier versions. It was left unchanged, and Canopi started fresh.'
 
 let container: HTMLDivElement
 
@@ -31,9 +31,9 @@ afterEach(() => {
 })
 
 /**
- * Canopi 2.0 moves local data from before 2.0 aside on first start (ADR 0021).
- * The native side reports it on that start only; the banner says so until
- * the user dismisses it.
+ * Canopi 2.0 does not open local data from before 2.0 (ADR 0021). The native
+ * side reports it on the start that renamed the 1.x user database only; the
+ * banner says so, in the Web Edition's words, until the user dismisses it.
  */
 describe('local data from before Canopi 2.0', () => {
   it('says nothing when the local data is current', async () => {
@@ -41,12 +41,12 @@ describe('local data from before Canopi 2.0', () => {
     expect(container.querySelector('[data-notice-tone]')).toBeNull()
   })
 
-  it('tells the user once that earlier data was set aside, until dismissed', async () => {
+  it('tells the user once that earlier data was not opened, until dismissed', async () => {
     localDataStatus.value = { kind: 'moved_aside' }
     await act(async () => { render(<DegradedBanner />, container) })
 
     const notice = container.querySelector('[data-notice-tone="info"]')
-    expect(notice?.textContent).toContain(MOVED_ASIDE)
+    expect(notice?.textContent).toContain(NOT_OPENED)
     expect(container.querySelector('[role="alert"]')).toBeNull()
 
     const dismiss = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Dismiss')

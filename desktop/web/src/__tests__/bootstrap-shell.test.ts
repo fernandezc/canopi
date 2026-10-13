@@ -25,12 +25,12 @@ const mocks = vi.hoisted(() => ({
   disposePlaceSearchSession: vi.fn(),
   installToolRailLearning: vi.fn(),
   disposeToolRailLearning: vi.fn(),
-  setAsideDataFromBefore2_0: vi.fn(),
+  takeEarlierDataNotice: vi.fn(),
   showBrowserShellNotice: vi.fn(),
 }));
 
 vi.mock("../web/browser-app-data", () => ({
-  browserAppDataStore: { setAsideDataFromBefore2_0: mocks.setAsideDataFromBefore2_0 },
+  browserAppDataStore: { takeEarlierDataNotice: mocks.takeEarlierDataNotice },
 }));
 
 vi.mock("../web/browser-shell-notice", () => ({
@@ -108,7 +108,7 @@ describe("settings platform bootstrap", () => {
     mocks.installPlaceSearchSession.mockReset().mockReturnValue(mocks.disposePlaceSearchSession);
     mocks.disposeToolRailLearning.mockReset();
     mocks.installToolRailLearning.mockReset().mockReturnValue(mocks.disposeToolRailLearning);
-    mocks.setAsideDataFromBefore2_0.mockReset().mockReturnValue({ movedAside: false, keptInPlace: false, error: null });
+    mocks.takeEarlierDataNotice.mockReset().mockReturnValue(false);
     mocks.showBrowserShellNotice.mockReset();
   });
 
@@ -159,56 +159,36 @@ describe("settings platform bootstrap", () => {
     expect(mocks.installContinuousSave).toHaveBeenCalledTimes(2);
   });
 
-  it("moves browser data from before Canopi 2.0 aside before restoring a Draft, and says so once", async () => {
-    mocks.setAsideDataFromBefore2_0.mockReturnValue({ movedAside: true, keptInPlace: false, error: null });
+  it("tells once that browser data from before Canopi 2.0 was not opened, once the locale is known", async () => {
+    mocks.takeEarlierDataNotice.mockReturnValue(true);
     const { t } = await import("../i18n");
     const { bootstrapPlatform } = await import("../platform/browser");
 
     bootstrapPlatform();
+    expect(mocks.showBrowserShellNotice).not.toHaveBeenCalled();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(mocks.setAsideDataFromBefore2_0).toHaveBeenCalledOnce();
-    expect(mocks.setAsideDataFromBefore2_0.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.restoreLatestDraft.mock.invocationCallOrder[0]!,
+    expect(mocks.takeEarlierDataNotice).toHaveBeenCalledOnce();
+    expect(mocks.showBrowserShellNotice).toHaveBeenCalledOnce();
+    expect(mocks.showBrowserShellNotice).toHaveBeenCalledWith({
+      tone: "info",
+      title: t("health.localDataNotOpenedTitle"),
+      message: t("health.localDataNotOpened"),
+    });
+    expect(t("health.localDataNotOpenedTitle")).toBe("Earlier data not opened");
+    expect(t("health.localDataNotOpened")).toBe(
+      "Canopi 2.0 can’t open data saved by earlier versions. It was left unchanged, and Canopi started fresh.",
     );
-    expect(mocks.showBrowserShellNotice).toHaveBeenCalledOnce();
-    expect(mocks.showBrowserShellNotice).toHaveBeenCalledWith({
-      tone: "info",
-      title: t("health.localDataMovedAsideTitle"),
-      message: t("health.localDataMovedAside"),
-    });
-  });
-
-  it("says once that earlier browser data stays in place when it could not be moved aside", async () => {
-    const error = new Error("quota");
-    mocks.setAsideDataFromBefore2_0.mockReturnValue({ movedAside: true, keptInPlace: true, error });
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    const { t } = await import("../i18n");
-    const { bootstrapPlatform } = await import("../platform/browser");
-
-    bootstrapPlatform();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
-    expect(mocks.showBrowserShellNotice).toHaveBeenCalledOnce();
-    expect(mocks.showBrowserShellNotice).toHaveBeenCalledWith({
-      tone: "info",
-      title: t("health.localDataKeptInPlaceTitle"),
-      message: t("health.localDataKeptInPlace"),
-    });
     expect(mocks.restoreLatestDraft).toHaveBeenCalledOnce();
   });
 
   it("says nothing when no browser data from before Canopi 2.0 was found", async () => {
-    const error = new Error("quota");
-    mocks.setAsideDataFromBefore2_0.mockReturnValue({ movedAside: false, keptInPlace: false, error });
-    const logError = vi.spyOn(console, "error").mockImplementation(() => {});
     const { bootstrapPlatform } = await import("../platform/browser");
 
     bootstrapPlatform();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mocks.showBrowserShellNotice).not.toHaveBeenCalled();
-    expect(logError).toHaveBeenCalledWith("Failed to set aside browser data from before Canopi 2.0:", error);
     expect(mocks.restoreLatestDraft).toHaveBeenCalledOnce();
   });
 
