@@ -20,11 +20,18 @@ const WEB_CATALOG = `${APP_ORIGIN}/app/canopi-catalog/`
  * Console errors a scenario allows. Anything else logged as an error, and every uncaught
  * page error, fails the test.
  */
-function isAllowedConsoleError(message: ConsoleMessage, aborted: ReadonlySet<string>, expected: readonly string[]): boolean {
+function isAllowedConsoleError(
+  message: ConsoleMessage,
+  aborted: ReadonlySet<string>,
+  expected: readonly string[],
+  expectedLines: readonly string[],
+): boolean {
   const text = message.text()
   const source = message.location().url
   // A failure the scenario causes on purpose (`test.use({ expectedConsoleErrors })`).
   if (expected.some((prefix) => text.startsWith(prefix))) return true
+  // The same, whole lines only, for a scenario where a prefix could let more through (`expectedConsoleLines`).
+  if (expectedLines.includes(text)) return true
   // The Web Edition's default basemap is remote (OpenFreeMap). Its style request is aborted
   // below, so the basemap never installs and the map keeps its backdrop colour; the app logs
   // this (app/canvas-map-surface/workspace-map-controls.ts) and shows "Basemap couldn't load"
@@ -44,10 +51,22 @@ function isAllowedConsoleError(message: ConsoleMessage, aborted: ReadonlySet<str
 }
 
 // Named `networkRule`: `offline` is Playwright's own context option.
-export const test = base.extend<{ networkRule: void, expectedConsoleErrors: readonly string[] }>({
+export const test = base.extend<{
+  networkRule: void,
+  expectedConsoleErrors: readonly string[],
+  expectedConsoleLines: readonly string[],
+  forbiddenText: readonly string[],
+}>({
   /** Starts of the console errors a spec causes on purpose; a spec sets them with test.use. */
   expectedConsoleErrors: [[], { option: true }],
-  networkRule: [async ({ context, expectedConsoleErrors }, use) => {
+  /** Whole console error lines a spec causes on purpose, for a scenario with a secret in play. */
+  expectedConsoleLines: [[], { option: true }],
+  /**
+   * Text no console message (of any type, allowed or not) and no uncaught page error may hold: a spec's test Google
+   * key. A message's location URL is the browser's (a failed request's own URL) and is not checked.
+   */
+  forbiddenText: [[], { option: true }],
+  networkRule: [async ({ context, expectedConsoleErrors, expectedConsoleLines, forbiddenText }, use) => {
     const aborted = new Set<string>()
     await context.route('**/*', (route) => {
       const url = route.request().url()
@@ -57,11 +76,19 @@ export const test = base.extend<{ networkRule: void, expectedConsoleErrors: read
       return route.abort('internetdisconnected')
     })
     const unexpected: string[] = []
+    // Reported by index, so a failure never prints the secret it found.
+    const forbiddenIn = (text: string) => forbiddenText.findIndex((secret) => text.includes(secret))
     context.on('console', (message) => {
-      if (message.type() !== 'error' || isAllowedConsoleError(message, aborted, expectedConsoleErrors)) return
-      unexpected.push(`console error: ${message.text()} (${message.location().url})`)
+      const secret = forbiddenIn(message.text())
+      if (secret >= 0) unexpected.push(`console ${message.type()} holds forbidden text #${secret}`)
+      if (message.type() !== 'error' || isAllowedConsoleError(message, aborted, expectedConsoleErrors, expectedConsoleLines)) return
+      if (secret < 0) unexpected.push(`console error: ${message.text()} (${message.location().url})`)
     })
-    context.on('weberror', (error) => unexpected.push(`uncaught: ${error.error().stack ?? error.error().message}`))
+    context.on('weberror', (error) => {
+      const text = error.error().stack ?? error.error().message
+      const secret = forbiddenIn(text)
+      unexpected.push(secret >= 0 ? `uncaught error holds forbidden text #${secret}` : `uncaught: ${text}`)
+    })
     await use()
     expect(unexpected, 'console errors and uncaught page errors').toEqual([])
   }, { auto: true }],
