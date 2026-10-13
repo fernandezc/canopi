@@ -34,12 +34,15 @@ pub fn record_recent_file(
 }
 
 /// Return recent files ordered by most recently opened, up to `limit` rows.
+/// `updated_at` is an RFC 3339 UTC instant (`2026-10-13T23:11:59Z`): the table
+/// stores SQLite's `datetime('now')`, UTC without a zone marker, which a reader
+/// would take for local time.
 pub fn get_recent_files(
     conn: &Connection,
     limit: u32,
 ) -> Result<Vec<DesignSummary>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT path, name, last_opened
+        "SELECT path, name, strftime('%Y-%m-%dT%H:%M:%SZ', last_opened)
          FROM recent_files
          ORDER BY last_opened DESC
          LIMIT ?1",
@@ -104,6 +107,22 @@ mod tests {
             names.contains(&"Forest"),
             "Forest should be in recent files"
         );
+    }
+
+    #[test]
+    fn listed_entries_say_when_they_were_opened_as_a_utc_instant() {
+        // SQLite's datetime('now') is UTC with no zone marker; read as is, the start screen took it for local time
+        // (canopi-f47t.61: a Design saved at 01:11 in Paris showed as "Yesterday, 11:11 PM").
+        let conn = test_db();
+        record_recent_file(&conn, "/home/user/garden.canopi", "Garden").unwrap();
+        conn.execute(
+            "UPDATE recent_files SET last_opened = '2026-10-13 23:11:59'",
+            [],
+        )
+        .unwrap();
+
+        let files = get_recent_files(&conn, 10).unwrap();
+        assert_eq!(files[0].updated_at, "2026-10-13T23:11:59Z");
     }
 
     #[test]
