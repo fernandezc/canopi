@@ -1,10 +1,10 @@
-Status: in progress. Phases 0, F, 1, 2, 3 and R, the 2.0 bug fixes, the 2.0 cleanup, the U-crs redesign, the 2.0 polish batch, the Layers redesign and the step "2.0 live bugs, guards and location" are done (2026-10-02 to 2026-10-10). Next (U57, U58): the step "2.0 plant along a path" (canopi-f47t.54, amended for U58), then the release close (plan section 4); 2.0 ships the week after 12 October. The architecture refactors (U52) are the first step of 2.1, planned after 2.0 ships. Deleted with the plan at the release close.
+Status: in progress. Phases 0, F, 1, 2, 3 and R, the 2.0 bug fixes, the 2.0 cleanup, the U-crs redesign, the 2.0 polish batch, the Layers redesign and the steps "2.0 live bugs, guards and location" and "2.0 plant along a path" are done (2026-10-02 to 2026-10-13). Next: the release close (plan section 4); 2.0 ships by 18 October (user, 2026-10-13). The architecture refactors (U52) are the first step of 2.1, planned after 2.0 ships. Deleted with the plan at the release close.
 
 # Canvas v2: session brief
 
 Trimmed at the docs cleanup of 2026-10-09 to what the next session needs; the text before it, with the sections now owned elsewhere, is at `fc4f556f` (earlier trims: `7f3baadd`, `f2db5e1a`, `c453bb21`, `bfbdf053`, `e45053ea`, `62a5bacb`, `7d92abf5`).
 
-You are the main agent finishing Canopi's canvas v2 in the integration worktree. What remains is the step "2.0 plant along a path" (U57), the release close, then the hand-over to the release. Everything ships together as 2.0 (U1); no step is a release candidate on its own.
+You are the main agent finishing Canopi's canvas v2 in the integration worktree. What remains is the release close, then the hand-over to the release (ship by 2026-10-18; user, 2026-10-13). Everything ships together as 2.0 (U1); no step is a release candidate on its own.
 
 ## 1. Where the rules live
 
@@ -16,18 +16,17 @@ One owner per rule; point agents at these instead of restating them.
 - [`canvas-v2-plan.md`](canvas-v2-plan.md): section 1 indexes the user's decisions (U1–U58) and where each lives; section 4 holds each step's goal, items and exit; section 7 the open beads.
 - ADRs 0015–0020 (canvas) and 0021 (stored data); [`canvas-v2-spec.md`](canvas-v2-spec.md) for contracts, read by section only when a step touches it.
 
-## 2. Read path for the 2.0 plant along a path step
+## 2. Read path for the 2.0 release close
 
 About 12k tokens; nothing else is read up front.
 
 1. `AGENTS.md`.
 2. `docs/guides/agentic-delivery.md`.
 3. The `phased-agentic-delivery` skill (`SKILL.md`, then `references/workflow-step.js`, `references/gotchas.md`, and `references/review-protocol.md` when the step reaches it).
-4. Plan section 1, the lines for U39, U53, U54, U55 and U57.
-5. Plan section 4, "2.0 plant along a path": goal, agreed UX, the questions it carries, procedure, exit; `bd show canopi-f47t.54` (the full agreed design).
-6. The current Plant a row (`desktop/web/src/canvas/runtime/tools/plant-row.ts`, `plant-spacing-sequence.ts` and their tests) and ADRs 0002 and 0015–0021 by section when the design check reaches them.
+4. Plan section 1, the lines for U33, U41, U53, U54, U55 and U58.
+5. Plan section 4, "2.0 release close", with its question-batch adds; `bd show canopi-u85o canopi-k94s canopi-f47t.29`.
 
-The release close's read path (plan section 4, "2.0 release close", with U33, U41 and its question-batch adds) is read after this step closes. Plan section 4, "2.1 architecture", waits for 2.1's planning.
+Plan section 4, "2.1 architecture", waits for 2.1's planning.
 
 ## 3. Phase order
 
@@ -52,7 +51,10 @@ Read with `bd show`, `bd dep tree canopi-f47t`, `bd list --parent canopi-f47t` a
 
 ## 5. What to do first
 
-1. **Plan and build "2.0 plant along a path"** (plan section 4; canopi-f47t.54, U57, U58) with the skill's loop, starting from its design check; then **run the release close** (plan section 4, "2.0 release close"). Orientation, read-only in the user's checkout: `git -C /home/daylon/projects/canopi status --short --branch` (the user's `.beads.gate.lock` is expected), `df -h /`. In the integration worktree: `git status --short --branch` (clean), `git fetch`, rebase if behind (the guide's Places); check CI on the last pushed commit (`gh run list --branch feature/geolibre-adoption --limit 3`).
+1. **Run the release close** (plan section 4, "2.0 release close"), sized for five days (user, 2026-10-13): first canopi-u85o (Start screen at 740×360) and canopi-k94s, the only bug blockers left after the 2026-10-13 bead triage (open beads are labelled `2.1` or `later`; the v2 epic holds only canopi-f47t.29 and the release beads), then the close's steps.
+   - In parallel, the `canopi-website` 2.0 update in its own repo: check the site against the release notes, one question batch (message, highlights, screenshots; the demo video is a stretch).
+   - The methodology review the user asked for runs at the start of 2.1, before its planning (data: `.rq-scratch/tools/retro-tokens.py`, `plant-path-results/finish-items.md`).
+   - Orientation, read-only in the user's checkout: `git -C /home/daylon/projects/canopi status --short --branch` (the user's `.beads.gate.lock` is expected), `df -h /`. In the integration worktree: `git status --short --branch` (clean), `git fetch`, rebase if behind (the guide's Places); check CI on the last pushed commit (`gh run list --branch feature/geolibre-adoption --limit 3`).
    Then read section 2's path, and run the design check, one question batch (P34 among them), the amendment, its steps 1–10 and the definition of done; the hand-over to canopi-2v5a and canopi-fxil.12 is its last step.
 2. **2.1 architecture comes after 2.0 ships** (plan section 4, "2.1 architecture"); the user reviews the list of future changes first.
 
