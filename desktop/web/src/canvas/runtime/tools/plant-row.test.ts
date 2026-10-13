@@ -784,8 +784,8 @@ describe('Plant a row along a path', () => {
     expect(row(h).points).toBe(2)
     expect(h.host.transientHistory.undo()).toBe(true)
     expect(row(h).points).toBe(1)
-    // Only the picked plant left: Ctrl+Z is the scene's again.
-    expect(h.host.transientHistory.canUndo()).toBe(false)
+    // Only the picked plant left: Ctrl+Z is still the draft's (it drops the pick), never the Design's.
+    expect(h.host.transientHistory.canUndo()).toBe(true)
     expect(h.host.transientHistory.redo()).toBe(true)
     expect(row(h).points).toBe(2)
 
@@ -796,6 +796,50 @@ describe('Plant a row along a path', () => {
     expect(h.host.transientHistory.canRedo()).toBe(false)
     expect(h.host.command({ kind: 'escape' })).toBe('pass')
     expect(added(h)).toEqual([])
+  })
+
+  it('with only the picked plant left, Ctrl+Z and Backspace drop the pick and never reach the Design\'s undo', () => {
+    const { h } = pathHarness()
+    // An earlier Design edit the Design's undo would take back.
+    h.edits.run('set-plant-color-for-species', (tx) => {
+      tx.mutate((draft) => {
+        draft.plants = draft.plants.map((plant) => ({ ...plant, color: '#2F6F4E' }))
+      })
+    })
+    expect(h.history.canUndo.value).toBe(true)
+
+    h.click({ x: 20, y: 30 })
+    expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    expect(h.host.transientHistory.canUndo()).toBe(true)
+    expect(h.host.transientHistory.undo()).toBe(true)
+    expect(row(h).phase).toBe('pick')
+    expect(h.renderer.lastDraft()).toBeNull()
+    expect(h.host.transientHistory.canUndo()).toBe(false)
+
+    h.click({ x: 20, y: 30 })
+    expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    expect(h.host.command({ kind: 'remove-last' })).toBe('handled')
+    expect(row(h).phase).toBe('pick')
+
+    expect(h.store.persisted.plants.map((plant) => [plant.id, plant.color])).toEqual([['source', '#2F6F4E']])
+    expect(h.history.canUndo.value).toBe(true)
+  })
+
+  it('a Design undo or redo that removes the picked plant returns to picking at once', () => {
+    const { h } = pathHarness()
+    h.click({ x: 20, y: 30 })
+    h.click({ x: 100, y: 30 })
+    expect(row(h)).toMatchObject({ phase: 'row', points: 2 })
+
+    h.store.updatePersisted((draft) => {
+      draft.plants = []
+    })
+    h.host.sceneChanged()
+
+    expect(row(h).phase).toBe('missed')
+    expect(h.renderer.lastDraft()).toBeNull()
+    expect(h.chrome.handles).toEqual([])
+    expect(h.host.transientHistory.canUndo()).toBe(false)
   })
 
   it('counts and draws only the row the finish plants once no pointer hovers the map: after a finger, an edit or the pointer leaving', () => {
