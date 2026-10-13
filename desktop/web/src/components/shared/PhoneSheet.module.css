@@ -1,8 +1,9 @@
 /* The phone panel sheet (board WebPhone). Portrait: across the bottom edge,
    resting at its context bar, handle and tabs (peek), half the workspace (or
-   taller, so its open panel keeps its share under the bar), or up to the top
-   bar (full); never above the top bar. Landscape: a side sheet at the right,
-   below the top bar. */
+   taller, so its open panel keeps its share under the bar, but a touch target
+   short of full, PhoneSheet's HALF_BELOW_FULL_PX), or up to the top bar
+   (full); never above the top bar. Landscape: a side sheet at the right, below
+   the top bar. */
 .sheet {
   position: absolute;
   right: 0;
@@ -23,6 +24,7 @@
 
 .sheet[data-phone-sheet="half"] {
   min-height: 50%;
+  max-height: calc(100% - var(--chrome-rail-top) - var(--control-size-touch));
 }
 
 .sheet[data-phone-sheet="full"] {
@@ -218,8 +220,8 @@
 /* An open panel keeps a quarter of the screen's height (PhoneSheet's OPEN_PANEL_SHARE), and a portrait half sheet grows
    past half for it; but never the bar's least height (a row's card: three touch targets and a ring's room, ToolCard's),
    which the open side sheet of a phone on its side, the shortest (the screen less the top bar, the inset, the safe area
-   and its two borders), would not leave. The bar above gives way to the rest: its card scrolls inside itself. During a
-   drag the finger's height leads and the panel gives way first. */
+   and its two borders), would not leave. The bar above gives way to the rest, and to an upright half sheet's stop short
+   of full: its card scrolls inside itself. During a drag the finger's height leads and the panel gives way first. */
 .sheet:not([data-phone-sheet="peek"], [data-dragging]) .dock {
   min-height: calc(var(--control-size-touch) * 2 + clamp(0px, 100svh - var(--chrome-rail-top) - var(--chrome-inset)
     - env(safe-area-inset-bottom) - 2px - var(--control-size-touch) * 5 - var(--space-2), 25svh));

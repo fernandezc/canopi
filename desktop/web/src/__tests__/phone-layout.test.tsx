@@ -308,6 +308,43 @@ describe('phone layout', () => {
     render(null, host)
   })
 
+  it('puts the drag\'s half stop a touch target short of full, where the peek and the open panel\'s quarter reach it', async () => {
+    const host = document.createElement('div')
+    container.appendChild(host)
+    host.style.position = 'relative'
+    await act(async () => { render(<Sheet layout="portrait" />, host) })
+    const sheet = host.querySelector<HTMLElement>('[data-phone-sheet]')!
+    const handle = host.querySelector<HTMLButtonElement>('[data-sheet-handle]')!
+    Object.defineProperty(sheet, 'offsetParent', { get: () => host })
+    // A 360x560 phone whose top bar ends at 64 px: full is 488 px tall. Offline with Place plants armed, the peek sheet is
+    // 378 px, and the peek plus a quarter of the screen (518 px) would pass full.
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(rect({ left: 0, top: 0, width: 360, height: 560 }))
+    vi.spyOn(sheet, 'getBoundingClientRect').mockReturnValue(rect({ left: 0, top: 182, width: 360, height: 378 }))
+    visibleMapFrame.value = { width: 360, height: 496, top: 64, right: 0, bottom: 0, left: 0 }
+
+    const pointer = (type: string, clientY: number, timeStamp: number) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientY }) as MouseEvent & { pointerId: number }
+      Object.defineProperty(event, 'pointerId', { value: 1 })
+      Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+      return event
+    }
+    const dragTo = async (height: number) => {
+      await act(async () => {
+        handle.dispatchEvent(pointer('pointerdown', 200, 0))
+        document.dispatchEvent(pointer('pointermove', 200 - (height - 378), 400))
+        document.dispatchEvent(pointer('pointerup', 200 - (height - 378), 800))
+        handle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+    }
+    // Half is 444 px, full 488 px: let go at 478 px, the sheet goes on to full; at 450 px it rests at half.
+    await dragTo(478)
+    expect(sheet.dataset.phoneSheet).toBe('full')
+    await dragTo(450)
+    expect(sheet.dataset.phoneSheet).toBe('half')
+    visibleMapFrame.value = { width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0 }
+    render(null, host)
+  })
+
   it('covers the bottom edge of the visible map in portrait, the right edge on its side (its corner at peek too), and ends the tool strip above it', async () => {
     const boxes = new Map<Element, Box>()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

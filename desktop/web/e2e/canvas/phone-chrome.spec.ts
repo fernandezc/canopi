@@ -744,7 +744,8 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
 }
 
 /** Raises the sheet from its peek a step at a time from its handle, runs `check` at each stop, and expects each step up
- *  to raise it (a portrait half sheet grows past half for its panel; a landscape peek stays below the top bar). */
+ *  to raise it (a portrait half sheet grows past half for its panel, and stops a touch target short of full; a landscape
+ *  peek stays below the top bar, and its half and full sheets differ in width). */
 async function expectStopsInOrder(page: Page, check: (height: string) => Promise<void>): Promise<void> {
   const heights: number[] = []
   for (const height of ['peek', 'half', 'full'] as const) {
@@ -758,6 +759,10 @@ async function expectStopsInOrder(page: Page, check: (height: string) => Promise
   }
   expect(heights[1]!, `raising the sheet to half never lowers it (peek ${heights[0]}, half ${heights[1]})`).toBeGreaterThanOrEqual(heights[0]! - 0.5)
   expect(heights[2]!, `raising the sheet to full never lowers it (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThanOrEqual(heights[1]! - 0.5)
+  const viewport = page.viewportSize()!
+  if (viewport.height > viewport.width) {
+    expect(heights[2]! - heights[1]!, `upright, raising the sheet to full raises it a touch target at least (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThanOrEqual(44 - 0.5)
+  }
 }
 
 // The tallest card the bar holds is Place plants' chooser, and the notice row goes on top of it offline: held upright or

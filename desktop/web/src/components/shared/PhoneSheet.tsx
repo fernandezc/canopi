@@ -29,6 +29,8 @@ const DRAG_SLOP_PX = 6
 const FULL_GAP_PX = 8
 /** The least height an open panel keeps under the context bar, as a share of the host's: the open `.dock`'s 25svh. */
 const OPEN_PANEL_SHARE = 0.25
+/** How far short of full an upright half sheet stops, so a step up from it always raises the sheet: a touch target. */
+const HALF_BELOW_FULL_PX = 44
 /** The tools that draw a draft point by point: while one holds a draft, the sheet drops to its peek (answer 17). */
 const DRAWING_TOOLS: ReadonlySet<ToolId> = new Set(['plant-spacing', 'polygon', 'profile'])
 
@@ -56,9 +58,9 @@ interface SheetDrag {
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
  * draft, it stays. An open panel keeps a quarter of the screen's height under
- * the context bar, which gives way above it and scrolls: half is half the
- * workspace, or taller where the bar would leave the panel less, so each step
- * up raises the sheet.
+ * the context bar, which gives way above it: half is half the workspace, or
+ * taller where the bar would leave the panel less, and upright it stops a
+ * touch target short of full, so each step up raises the sheet.
  *
  * Its first row is the context bar (answers 18 and 22): what the map's context
  * shows on a phone. Being part of the sheet, the bar moves with peek, half,
@@ -130,8 +132,12 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
         startSize: box.height,
         startTime: event.timeStamp,
         // Full rests just below the top bar, which the visible map frame measures; half is half the host, or the peek
-        // with the open panel's least height where that is taller, as far as full.
-        stops: { peek, half: Math.min(full, Math.max(hostBox.height / 2, peek + hostBox.height * OPEN_PANEL_SHARE)), full },
+        // with the open panel's least height where that is taller, a touch target short of full at most.
+        stops: {
+          peek,
+          half: Math.min(full - HALF_BELOW_FULL_PX, Math.max(hostBox.height / 2, peek + hostBox.height * OPEN_PANEL_SHARE)),
+          full,
+        },
         size: box.height,
       }
     },
