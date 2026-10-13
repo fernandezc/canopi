@@ -162,7 +162,8 @@
       "modeCount": "株数",
       "count": "这一行的株数",
       "loopSpacing": "等间距",
-      "length": "长度"
+      "length": "长度",
+      "checkSpacing": "请检查间距"
     },
     "contextMenu": {
       "ariaLabel": "画布编辑命令",
@@ -732,7 +733,8 @@
       "measurements_other": "{{count, number}} 个测量",
       "clear": "清除选择",
       "rename": "重命名…",
-      "selectRow": "选择整行"
+      "sameSpeciesShort": "同一物种",
+      "clearShort": "清除"
     },
     "viewChip": "视图",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "轻点添加点，双击种植",
       "pathKeys": "Alt 放置尖角点 · Shift 保持 45° 角 · {{mod}} 关闭吸附",
       "pathTouchHint": "拖动点以移动 · 拖动标记以添加点 · 长按点查看更多",
-      "pathFinish": "种下这一行"
+      "pathFinish": "种下这一行",
+      "options": "选项"
     },
     "placePreview": {
       "nearest": "距 {{name}} {{distance}}",

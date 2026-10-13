@@ -24,8 +24,8 @@ export const DOCUMENT_FILE_FIELD_OWNERS = GENERATED_DOCUMENT_FILE_FIELD_OWNERS
 const DOCUMENT_FILE_KNOWN_KEYS = KNOWN_CANOPI_KEYS
 
 const KNOWN_CANOPI_KEY_SET = new Set<string>(DOCUMENT_FILE_KNOWN_KEYS)
-/** Optional sections a Design writes only when it has them (the Rust side skips them when None or empty). */
-const WRITTEN_ONLY_WHEN_PRESENT: ReadonlySet<KnownCanopiKey> = new Set(['lidar', 'map_view', 'plant_rows'])
+/** Optional sections a Design writes only when it has them (the Rust side skips them when None). */
+const WRITTEN_ONLY_WHEN_PRESENT: ReadonlySet<KnownCanopiKey> = new Set(['lidar', 'map_view'])
 function normalizePersistedExtra(extra: CanopiFile['extra']): Record<string, unknown> {
   if (!extra || typeof extra !== 'object' || Array.isArray(extra)) return {}
   const normalized: Record<string, unknown> = {}
@@ -134,8 +134,6 @@ function normalizeDocumentKnownFields(file: CanopiFile): CanopiFile {
     zones: file.zones,
     annotations: file.annotations ?? [],
     measurement_guides: file.measurement_guides ?? [],
-    // Written only when the Design has a row (the Rust side skips an empty list).
-    ...(file.plant_rows?.length ? { plant_rows: file.plant_rows } : {}),
     consortiums: file.consortiums ?? [],
     groups: file.groups ?? [],
     timeline: file.timeline ?? [],

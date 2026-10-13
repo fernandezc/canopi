@@ -23,12 +23,13 @@ export function MoreFiltersPanel({ open, onClose }: Props) {
   const searchQuery = useSignal('')
   const panelRef = useRef<HTMLDivElement>(null)
 
-  // Esc closes the panel, and only it (the Esc chain's popover layer).
+  // Esc closes the panel, and only it (the Esc chain's popover layer), while it is in sight: hidden with its host (a
+  // phone's open panel under a tool's options, the catalog under a species' detail), it leaves the Esc to the next layer.
   useEffect(() => {
     if (!open) return
     return registerEscapeLayer({
       priority: ESCAPE_PRIORITY.popover,
-      isActive: () => true,
+      isActive: () => panelRef.current !== null && panelRef.current.closest('[hidden]') === null,
       escape: () => {
         onClose()
         return true

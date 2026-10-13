@@ -177,6 +177,17 @@
   height: var(--control-size-touch);
 }
 
+/* With less visible map than the column needs (ZoomControls), it steps aside instead of standing over the top bar or
+   the panel sheet. */
+.phone[data-roomless] {
+  visibility: hidden;
+}
+
+/* The inspection launcher hides while its lens is open. */
+.phone .button[hidden] {
+  display: none;
+}
+
 /* Short phone landscapes (844×390): the five 44 px buttons fit between the top bar and the panel sheet only packed,
    so the column closes its gaps and centres on that whole room. */
 @container (max-height: 480px) {

@@ -162,7 +162,8 @@
       "modeCount": "그루 수",
       "count": "줄의 그루 수",
       "loopSpacing": "같은 간격",
-      "length": "길이"
+      "length": "길이",
+      "checkSpacing": "간격을 확인하세요"
     },
     "contextMenu": {
       "ariaLabel": "캔버스 편집 명령",
@@ -732,7 +733,8 @@
       "measurements_other": "측정 {{count, number}}개",
       "clear": "선택 해제",
       "rename": "이름 바꾸기…",
-      "selectRow": "줄 선택"
+      "sameSpeciesShort": "같은 종",
+      "clearShort": "해제"
     },
     "viewChip": "보기",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "탭해 점을 추가하고 두 번 탭해 심기",
       "pathKeys": "Alt로 뾰족한 점 놓기 · Shift로 45° 유지 · {{mod}}로 맞춤 끄기",
       "pathTouchHint": "점을 끌어 옮기기 · 표시를 끌어 점 추가 · 점을 길게 눌러 더 보기",
-      "pathFinish": "줄 심기"
+      "pathFinish": "줄 심기",
+      "options": "옵션"
     },
     "placePreview": {
       "nearest": "{{name}}까지 {{distance}}",

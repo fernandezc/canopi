@@ -1002,7 +1002,6 @@ describe('screen-lock validation', () => {
       annotations: [],
       measurementGuides: [],
       groups: [],
-      plantRows: [],
     }
   }
 

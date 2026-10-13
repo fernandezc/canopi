@@ -119,6 +119,14 @@
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
+/* A finger's choices are 44 px targets (ADR 0010), as an action menu's items are; a floating menu sits outside any
+   touch rule of its field's surface, so it carries its own. */
+@media (pointer: coarse) {
+  .option {
+    min-height: var(--control-size-touch);
+  }
+}
+
 .optionLabel {
   flex: 1 1 auto;
   min-width: 0;

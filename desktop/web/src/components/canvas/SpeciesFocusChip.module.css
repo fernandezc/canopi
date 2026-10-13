@@ -108,10 +108,3 @@
 @media (max-width: 760px) {
   .topSlot { top: calc(var(--chrome-rail-top) + var(--control-size-3xl) + var(--space-2)); }
 }
-
-/* Phones: below the tool card while one shows (its bottom, `--tool-card-bottom`), across the visible map rather than right
-   of the card's reserve, so the chips stay inside the viewport. */
-.topSlot[data-phone] {
-  top: max(calc(var(--chrome-rail-top) + var(--control-size-3xl) + var(--space-2)), calc(var(--tool-card-bottom, 0px) + var(--space-2)));
-  left: calc(var(--map-inset-left, 0px) + var(--space-4));
-}

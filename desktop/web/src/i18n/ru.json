@@ -162,7 +162,8 @@
       "modeCount": "Растения",
       "count": "Растений в ряду",
       "loopSpacing": "Равные промежутки по",
-      "length": "Длина"
+      "length": "Длина",
+      "checkSpacing": "Проверьте интервал"
     },
     "contextMenu": {
       "ariaLabel": "Команды редактирования холста",
@@ -732,7 +733,8 @@
       "measurements_other": "{{count, number}} измерения",
       "clear": "Снять выделение",
       "rename": "Переименовать…",
-      "selectRow": "Выбрать ряд"
+      "sameSpeciesShort": "Тот же вид",
+      "clearShort": "Снять"
     },
     "viewChip": "Вид",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "нажимайте, чтобы добавить точки; двойное нажатие сажает",
       "pathKeys": "Alt ставит острую точку · Shift держит углы 45° · {{mod}} отключает привязку",
       "pathTouchHint": "Перетащите точку, чтобы сдвинуть · перетащите метку, чтобы добавить точку · долгое нажатие на точку — ещё",
-      "pathFinish": "Посадить ряд"
+      "pathFinish": "Посадить ряд",
+      "options": "Параметры"
     },
     "placePreview": {
       "nearest": "{{distance}} до «{{name}}»",

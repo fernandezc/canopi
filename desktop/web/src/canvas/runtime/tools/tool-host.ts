@@ -25,6 +25,8 @@ import type { CancelReason, CanvasDropPayload, Modifiers, PointerKind, ToolHandl
 import type { CanvasDesignObjectSelectionModel } from '../runtime'
 import {
   includesSceneDesignObjectTarget,
+  sceneDesignObjectTargetsEqual,
+  type SceneDesignObjectSelection,
   type SceneDesignObjectTarget,
 } from '../scene/design-object-targets'
 import { isSceneTargetLayerLocked } from '../scene/group-members'
@@ -176,7 +178,7 @@ export function createContextMenuPort(options: ContextMenuPortOptions): ContextM
         },
       )
     },
-    close: () => controller.close(),
+    close: (closeOptions) => controller.close(closeOptions),
     isOpen: () => controller.isOpen(),
   }
 }
@@ -227,6 +229,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   let publishedHandles: readonly ToolHandle[] = NO_HANDLES
   let publishedActiveHandle: ToolHandleId | null = null
   let publishedGuidance: string | null = null
+  /** The point menu the host opened last (A16), until it opens another menu: the menu names its point by index. */
+  let pointMenu: OpenPointMenu | null = null
 
   function frame(): ViewFrame {
     return deps.frames.viewFrame.peek()
@@ -326,6 +330,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
 
   function flush(): void {
     if (disposed) return
+    closeStalePointMenu()
     publishDraft()
     publishHandles()
     publishGuidance()
@@ -576,7 +581,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       gesture: toolGuidance?.gesture ?? hasActiveSceneEdit(),
       stamp: toolGuidance?.stamp ?? null,
       stampRotationDeg: toolGuidance?.stampRotationDeg ?? null,
-      promptSpecies: toolGuidance?.promptSpecies ?? false,
+      speciesPrompts: toolGuidance?.speciesPrompts ?? 0,
       plantRow: toolGuidance?.plantRow ?? null,
     }
     const key = JSON.stringify(guidance)
@@ -1199,29 +1204,62 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
    * at the handle, with "Finish shape" while the draft can finish. Null when the tool offers none for it (a dot, the
    * rotate handle, a tool with no points) or a focused handle is not shown: the ordinary menu opens instead.
    */
-  function pointMenuAt(at: ScreenPoint | 'selection', handle: ToolHandleId | null): Parameters<ContextMenuPort['open']>[0] | null {
+  function pointMenuAt(
+    at: ScreenPoint | 'selection',
+    handle: ToolHandleId | null,
+  ): { readonly menu: OpenPointMenu; readonly request: Parameters<ContextMenuPort['open']>[0] } | null {
     if (handle === null) return null
     const tool = activeTool
     const items = tool.pointMenu ? callTool(() => tool.pointMenu!(handle)) : []
     if (items.length === 0) return null
+    const menu = pointMenuOn(tool, handle)
     const view = frame().view
     const shown = at === 'selection' ? shownHandles().find((candidate) => candidate.id === handle) : null
     const screen = at === 'selection' ? (shown ? view.worldToScreen(shown.anchor) : null) : at
     if (!screen) return null
     return {
-      at: shown ? shown.anchor : view.screenToWorld(screen),
-      screen,
-      ...(tool.canFinish?.() ? { finishShape: finishShapeOf(tool) } : {}),
-      pointActions: items.map((item) => ({ action: item.action, disabled: item.disabled, run: pointActionOf(tool, handle, item.action) })),
+      menu,
+      request: {
+        at: shown ? shown.anchor : view.screenToWorld(screen),
+        screen,
+        ...(tool.canFinish?.() ? { finishShape: finishShapeOf(tool) } : {}),
+        pointActions: items.map((item) => ({ action: item.action, disabled: item.disabled, run: pointActionOf(menu, item.action) })),
+      },
     }
   }
 
-  /** A point menu entry: the tool's `point-action` for that point, while the tool that offered it is still armed. */
-  function pointActionOf(tool: CanvasTool, handle: ToolHandleId, action: PointAction): () => void {
+  /** A point menu entry: the tool's `point-action` for that point, while the menu still names it (pointMenuCurrent). */
+  function pointActionOf(menu: OpenPointMenu, action: PointAction): () => void {
     return () => {
-      if (disposed || activeTool !== tool) return
-      deps.admission.runWhenSettled(() => callTool(() => tool.command({ kind: 'point-action', handle, action })), 'pass' as ToolReply)
+      if (disposed || !pointMenuCurrent(menu)) return
+      const tool = menu.tool
+      deps.admission.runWhenSettled(() => callTool(() => tool.command({ kind: 'point-action', handle: menu.handle, action })), 'pass' as ToolReply)
     }
+  }
+
+  /** What a point menu stands on as it opens: the tool, the point's handle, the Scene, the selection and the tool's points. */
+  function pointMenuOn(tool: CanvasTool, handle: ToolHandleId): OpenPointMenu {
+    return { tool, handle, persisted: deps.scene.persisted, selection: deps.scene.selection(), points: handlePlaces(toolHandles) }
+  }
+
+  /**
+   * The menu names its point by index (`vertex:<zone>:<i>`, `point:draft:<i>`): it names the same point only while the
+   * armed tool, the Scene, the selection and the tool's points are those it opened on. Any edit, undo and redo included,
+   * a selection change, a tool change or a draft point added, moved or removed can give the index to another point.
+   */
+  function pointMenuCurrent(menu: OpenPointMenu): boolean {
+    return activeTool === menu.tool
+      && deps.scene.persisted === menu.persisted
+      && sceneDesignObjectTargetsEqual(deps.scene.selection(), menu.selection)
+      && handlePlaces(toolHandles) === menu.points
+  }
+
+  /** Closes an open point menu once it no longer names its point, giving focus back as its Esc does. */
+  function closeStalePointMenu(): void {
+    const menu = pointMenu
+    if (!menu || pointMenuCurrent(menu)) return
+    pointMenu = null
+    if (deps.menu.isOpen()) deps.menu.close({ restoreFocus: true })
   }
 
   /** The entries every menu, pointer or keyboard, takes from the armed tool and the hold: "Finish shape" while the tool
@@ -1417,10 +1455,12 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
           return true
         }
         if (deps.chrome.isTextEntryOpen()) focusMap()
+        pointMenu = null
         // A point the armed tool edits, pressed or (from the keyboard) focused, gets its point menu (A16).
-        const pointMenu = pointMenuAt(at, handle ?? (at === 'selection' ? deps.chrome.focusedHandle() : null))
-        if (pointMenu) {
-          deps.menu.open(pointMenu)
+        const point = pointMenuAt(at, handle ?? (at === 'selection' ? deps.chrome.focusedHandle() : null))
+        if (point) {
+          deps.menu.open(point.request)
+          pointMenu = point.menu
           return true
         }
         // A press, a tool transient or an entry its commit left open keeps the selection and its deletes (U39).
@@ -1559,6 +1599,27 @@ function cursorForTool(tool: ToolId): string {
     case 'plant-spacing': return 'crosshair'
     default: return 'default'
   }
+}
+
+/** A point menu the host opened (A16) and what it stood on then (pointMenuOn). */
+interface OpenPointMenu {
+  readonly tool: CanvasTool
+  readonly handle: ToolHandleId
+  readonly persisted: Readonly<ScenePersistedState>
+  readonly selection: SceneDesignObjectSelection
+  /** The tool's handles' ids and places (handlePlaces). */
+  readonly points: string
+}
+
+/**
+ * The tool's points and corners by id and place: what a point menu's index stands for. Midpoint dots follow the points
+ * and show by zoom, and the rotate handle follows the view, so neither counts; nor does a handle's size or label.
+ */
+function handlePlaces(handles: readonly ToolHandle[]): string {
+  return handles
+    .filter((handle) => handle.glyph === 'vertex' || handle.glyph === 'corner')
+    .map((handle) => `${handle.id}@${handle.anchor.x},${handle.anchor.y}`)
+    .join('|')
 }
 
 function sameHandles(a: readonly ToolHandle[], b: readonly ToolHandle[]): boolean {

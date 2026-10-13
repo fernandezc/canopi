@@ -2345,15 +2345,9 @@ const CANVAS_V2_POLICIES = [
     ],
   },
   {
-    // A5: membership is derived on read, so no transaction knows rows.
-    kind: 'forbid-imports',
-    name: 'P55 the scene transactions never import the plant row module',
-    from: ['src/canvas/runtime/scene-runtime/transactions.ts'],
-    targets: ['src/canvas/runtime/scene/plant-rows.ts'],
-  },
-  {
-    // Plant along a path (canopi-f47t.54, A8): a stored row's spacing never writes the device setting; only the row
-    // tool's draft does, through the tool contract and today's wiring (the adapters name it ...Meters).
+    // Settings own device state: only Plant a row's spacing field writes the device interval (canopi-f47t.54), through
+    // the tool contract and today's wiring (the adapters name it ...Meters); its "N plants" count, a panel or a chip never
+    // does (plant-row.test.ts checks the count's half).
     kind: 'confine-symbols',
     name: 'P56 only the row tool and its wiring write the device spacing interval',
     from: ['src/**'],
@@ -2376,19 +2370,6 @@ const CANVAS_V2_POLICIES = [
     from: ['src/**'],
     exceptFrom: ['src/app/canvas-runtime/app-adapter.ts', ...TEST_SOURCE_PATTERNS],
     targets: ['*.plantSpacingIntervalM', "*['plantSpacingIntervalM']", '*["plantSpacingIntervalM"]'],
-  },
-  {
-    // A10: the curve, points and dots exist only as the row tool's and Select's drafts and handles; PDF, GeoJSON and the
-    // selection summary read plants only.
-    kind: 'forbid-source-symbols',
-    name: 'P57 rows are not drawn, printed, exported or summarised at rest',
-    from: [
-      'src/canvas/runtime/renderers/world-layers.ts',
-      'src/canvas/runtime/print-snapshot.ts',
-      'src/app/geojson/**',
-      'src/app/map-selection/**',
-    ],
-    names: ['plantRows'],
   },
 ] satisfies readonly ArchitecturePolicy[]
 
@@ -4055,10 +4036,8 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
 })
 
 const P54 = '[P54 the point editor and the path engine import only each other and types]'
-const P55 = '[P55 the scene transactions never import the plant row module]'
 const P56 = '[P56 only the row tool and its wiring write the device spacing interval]'
 const P56_DRAFT = '[P56 only the canvas app adapter writes the device spacing draft]'
-const P57 = '[P57 rows are not drawn, printed, exported or summarised at rest]'
 
 describe('plant along a path policies (canopi-f47t.54)', () => {
   it('P5 rejects a DOM, event or camera name in the path engine, which needs no import to reach one', () => {
@@ -4112,22 +4091,6 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
     ])
   })
 
-  it('P55 rejects a scene transactions import of the plant row module, type-only included', () => {
-    const graph = createTypeScriptSourceGraph([
-      plantedSource('src/canvas/runtime/scene/plant-rows.ts', ['export const rows = 1', 'export type Row = number']),
-      plantedSource('src/canvas/runtime/scene-runtime/transactions.ts', [
-        "import type { Row } from '../scene/plant-rows'",
-        "import { rows } from '../scene/plant-rows'",
-      ]),
-      plantedSource('src/canvas/runtime/scene-runtime/drag-state.ts', ["import { rows } from '../scene/plant-rows'"]),
-    ])
-
-    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P55'))).toEqual([
-      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:1:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
-      `${P55} src/canvas/runtime/scene-runtime/transactions.ts:2:1 imports src/canvas/runtime/scene/plant-rows.ts via "../scene/plant-rows" (static)`,
-    ])
-  })
-
   it('P56 confines the device spacing interval writers and the settings draft write to the row tool and its wiring', () => {
     const allowed = [
       'src/canvas/runtime/tools/plant-row.ts',
@@ -4161,22 +4124,6 @@ describe('plant along a path policies (canopi-f47t.54)', () => {
       `${P56} src/canvas/runtime/command-surface.ts contains confined symbol commitPlantSpacingIntervalMeters; allowed sources: ${allowed}`,
       `${P56_DRAFT} src/components/canvas/RowSpacingField.tsx:1 writes d.plantSpacingIntervalM = 2`,
       `${P56_DRAFT} src/components/canvas/RowSpacingField.tsx:2 writes d['plantSpacingIntervalM'] = 2`,
-    ])
-  })
-
-  it('P57 rejects plantRows in the world layers, the print snapshot, GeoJSON and the map selection summary', () => {
-    const graph = createTypeScriptSourceGraph([
-      plantedSource('src/canvas/runtime/renderers/world-layers.ts', ['for (const row of scene.plantRows) draw(row)']),
-      plantedSource('src/canvas/runtime/print-snapshot.ts', ['const { plantRows } = persisted']),
-      plantedSource('src/app/geojson/codec.ts', ['export const rows = (s: { plantRows: unknown[] }) => s.plantRows']),
-      plantedSource('src/app/map-selection/summary.ts', ['const count = scene.plants.length']),
-      plantedSource('src/canvas/runtime/tools/plant-row.ts', ['const rows = scene.persisted.plantRows']),
-    ])
-
-    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P57'))).toEqual([
-      `${P57} src/canvas/runtime/renderers/world-layers.ts contains forbidden symbol plantRows`,
-      `${P57} src/canvas/runtime/print-snapshot.ts contains forbidden symbol plantRows`,
-      `${P57} src/app/geojson/codec.ts contains forbidden symbol plantRows`,
     ])
   })
 })

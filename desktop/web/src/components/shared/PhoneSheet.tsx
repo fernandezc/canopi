@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
+  phoneToolOptions,
   snapPhoneSheet,
   stepPhoneSheet,
   type PhoneLayout,
@@ -53,34 +54,58 @@ interface SheetDrag {
  * area, so fitting, chips and cards keep above it. When a drawing tool starts
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
- * draft, it stays.
+ * draft, it stays. The armed tool's options (answer 30) show in place of the
+ * open panel, which stays mounted under them, while `phoneToolOptions` holds their height: a panel opened by any
+ * route (a tab, More, the chooser's catalog link, a shortcut) shows in front of
+ * them, since `selectPanel` closes them even for the panel already open; a
+ * press on the open panel's tab or More item shows it, and closing them gives
+ * the sheet back its panel and height as they were.
+ *
+ * Its first row is the context bar (answers 18, 22 and 30): what the map's
+ * context shows on a phone, one touch row (and the map notice's row) that never
+ * scrolls or grows, so peek is predictable and half is half the workspace.
+ * Being part of the sheet, the bar moves with peek, half, full and a finger
+ * drag with no position of its own, and the sheet's one registration covers
+ * it. The bar sits outside the dock's key region, so a key
+ * from a control in it is the map's as a tool card's is. In landscape the sheet
+ * always covers the right edge, its corner box at peek included: with the bar
+ * it stands taller than a bottom band, and the zoom column then keeps the
+ * window's height beside it.
  */
-export function PhoneSheet({ layout, tabs, children }: {
+export function PhoneSheet({ layout, tabs, bar, options, children }: {
   readonly layout: PhoneLayout
   /**
    * The panel commands, in rail order; the first `PHONE_SHEET_TABS` show as
    * tabs and the rest wait in More under their full names.
    */
   readonly tabs: readonly PanelRailCommand[]
+  /** The context bar's content; the row takes no room while it renders nothing. */
+  readonly bar?: ComponentChildren
+  /** The armed tool's options (ToolOptions), shown in place of the open panel while `phoneToolOptions` is set. */
+  readonly options?: ComponentChildren
   /** The open panel, when there is one. */
   readonly children?: ComponentChildren
 }) {
   const sheet = useRef<HTMLElement>(null)
-  const handle = useRef<HTMLButtonElement>(null)
+  const dock = useRef<HTMLDivElement>(null)
   // Set by a drag, so the click that ends it is not taken for a press.
   const dragged = useRef(false)
   const panelId = useId()
+  const optionsId = useId()
   const portrait = layout === 'portrait'
   const panels = tabs.filter((command) => command.panel)
   // Only side panels open the sheet; a primary view (Templates) just switches the map.
   const sidePanels = panels.filter((command) => isSidePanel(command.panel!))
-  const open = sidePanels.some((command) => command.active)
-  const height: PhoneSheetHeight = open && children ? phoneSheetOpenHeight.value : 'peek'
+  const openPanel = sidePanels.find((command) => command.active)?.panel ?? null
+  const open = openPanel !== null
+  // The tool's options stand in front of the open panel, which comes back as it was once they close.
+  const optionsHeight = options ? phoneToolOptions.value : null
+  const height: PhoneSheetHeight = optionsHeight ?? (open && children ? phoneSheetOpenHeight.value : 'peek')
   // On its side the sheet rests in the bottom right corner and opens along the right edge.
-  useMapOccluder(sheet, portrait || height === 'peek' ? 'bottom' : 'right')
+  useMapOccluder(sheet, portrait ? 'bottom' : 'right')
   // The tool strip ends above the sheet rather than behind it.
   useUnderRail(sheet, 'tool', portrait)
-  useFocusRegion(sheet, 'dock')
+  useFocusRegion(dock, 'dock')
   // The tool's gesture flag is its held draft (a picked plant, a placed point); it is read from the tool's guidance.
   const drafting = DRAWING_TOOLS.has(currentCanvasTool.value) && currentCanvasToolGuidance.value.gesture
   useEffect(() => {
@@ -89,7 +114,12 @@ export function PhoneSheet({ layout, tabs, children }: {
 
   function moveTo(next: PhoneSheetHeight): void {
     if (next === 'peek') {
+      phoneToolOptions.value = null
       sidePanels.find((command) => command.active)?.action()
+      return
+    }
+    if (optionsHeight) {
+      phoneToolOptions.value = next
       return
     }
     phoneSheetOpenHeight.value = next
@@ -105,7 +135,8 @@ export function PhoneSheet({ layout, tabs, children }: {
       if (!portrait || !element || !(host instanceof HTMLElement)) return null
       const box = element.getBoundingClientRect()
       const hostBox = host.getBoundingClientRect()
-      const peek = (handle.current?.offsetHeight ?? 0) + (element.querySelector<HTMLElement>('[role="tablist"]')?.offsetHeight ?? 0)
+      // Peek is the sheet without its open panel: the bar, the handle, the tabs and the sheet's own edges.
+      const peek = box.height - (element.querySelector<HTMLElement>('[data-sheet-panel]:not([hidden])')?.offsetHeight ?? 0)
       return {
         sheet: element,
         startY: event.clientY,
@@ -152,6 +183,17 @@ export function PhoneSheet({ layout, tabs, children }: {
     items[next]?.focus()
   }
 
+  /** A tab or More item: over the tool's options its open panel shows; elsewhere a press on the open one rests the sheet,
+   *  as the rail closes the dock. Any other panel opens, which shows it in front of the options. */
+  function press(command: PanelRailCommand): void {
+    if (command.disabled) return
+    if (optionsHeight && command.active) {
+      phoneToolOptions.value = null
+      return
+    }
+    command.action()
+  }
+
   const focusIndex = Math.max(0, shown.findIndex((command) => command.active))
 
   return (
@@ -161,86 +203,89 @@ export function PhoneSheet({ layout, tabs, children }: {
       aria-label={t('panelRail.label')}
       data-phone-sheet={height}
       data-orientation={layout}
-      data-key-region={DOCK_KEY_REGION}
     >
-      <button
-        ref={handle}
-        type="button"
-        className={styles.handle}
-        aria-label={handleLabel}
-        aria-expanded={height !== 'peek'}
-        aria-controls={open ? panelId : undefined}
-        aria-keyshortcuts="ArrowUp ArrowDown"
-        data-owns-keys="arrows"
-        data-sheet-handle
-        onPointerDown={onPointerDown}
-        onClick={() => {
-          if (dragged.current) {
+      <div className={styles.bar} data-phone-context-bar>{bar}</div>
+      <div ref={dock} className={styles.dock} data-key-region={DOCK_KEY_REGION}>
+        <button
+          type="button"
+          className={styles.handle}
+          aria-label={handleLabel}
+          aria-expanded={height !== 'peek'}
+          aria-controls={optionsHeight ? optionsId : open ? panelId : undefined}
+          aria-keyshortcuts="ArrowUp ArrowDown"
+          data-owns-keys="arrows"
+          data-sheet-handle
+          onPointerDown={onPointerDown}
+          onClick={() => {
+            if (dragged.current) {
+              dragged.current = false
+              return
+            }
+            moveTo(cyclePhoneSheet(height))
+          }}
+          onKeyDown={(event) => {
             dragged.current = false
-            return
-          }
-          moveTo(cyclePhoneSheet(height))
-        }}
-        onKeyDown={(event) => {
-          dragged.current = false
-          const next = stepPhoneSheet(height, event.key)
-          if (!next) return
-          event.preventDefault()
-          if (next !== height) moveTo(next)
-        }}
-      >
-        <span className={styles.grip} aria-hidden="true" />
-      </button>
-      <div className={styles.tabRow}>
-        <div className={styles.tabs} role="tablist" aria-label={t('panelRail.label')} onKeyDown={onTabKeyDown}>
-          {shown.map((command, index) => (
-            <button
-              key={command.panel}
-              type="button"
-              role="tab"
-              className={styles.tab}
-              data-sheet-tab
-              data-panel={command.panel}
-              data-command-id={command.id ?? command.commandId}
-              aria-selected={command.active ?? false}
-              aria-controls={command.active && open ? panelId : undefined}
-              aria-disabled={command.disabled ? true : undefined}
-              tabIndex={index === focusIndex ? 0 : -1}
-              onClick={() => {
-                if (command.disabled) return
-                // A second press on the open tab rests the sheet, as the rail closes the dock.
-                command.action()
+            const next = stepPhoneSheet(height, event.key)
+            if (!next) return
+            event.preventDefault()
+            if (next !== height) moveTo(next)
+          }}
+        >
+          <span className={styles.grip} aria-hidden="true" />
+        </button>
+        <div className={styles.tabRow}>
+          <div className={styles.tabs} role="tablist" aria-label={t('panelRail.label')} onKeyDown={onTabKeyDown}>
+            {shown.map((command, index) => (
+              <button
+                key={command.panel}
+                type="button"
+                role="tab"
+                className={styles.tab}
+                data-sheet-tab
+                data-panel={command.panel}
+                data-command-id={command.id ?? command.commandId}
+                aria-selected={!optionsHeight && (command.active ?? false)}
+                aria-controls={!optionsHeight && command.active && open ? panelId : undefined}
+                aria-disabled={command.disabled ? true : undefined}
+                tabIndex={index === focusIndex ? 0 : -1}
+                onClick={() => press(command)}
+              >
+                <span className={styles.tabLabel}>{t(`webPhone.tabs.${command.panel}`)}</span>
+              </button>
+            ))}
+          </div>
+          {folded.length > 0 && (
+            <ActionMenu
+              label={t('panelRail.more')}
+              triggerClassName={styles.tab}
+              iconSize={20}
+              triggerLabel={<span className={styles.tabLabel}>{t('webPhone.more')}</span>}
+              triggerData={{
+                'data-sheet-more': '',
+                'data-holds-active': folded.some((command) => command.active) ? '' : undefined,
               }}
-            >
-              <span className={styles.tabLabel}>{t(`webPhone.tabs.${command.panel}`)}</span>
-            </button>
-          ))}
+              items={folded.map((command) => ({
+                id: command.id ?? command.commandId,
+                label: command.label,
+                checked: command.active ?? false,
+                disabled: command.disabled,
+                run: () => press(command),
+              }))}
+            />
+          )}
         </div>
-        {folded.length > 0 && (
-          <ActionMenu
-            label={t('panelRail.more')}
-            triggerClassName={styles.tab}
-            iconSize={20}
-            triggerLabel={<span className={styles.tabLabel}>{t('webPhone.more')}</span>}
-            triggerData={{
-              'data-sheet-more': '',
-              'data-holds-active': folded.some((command) => command.active) ? '' : undefined,
-            }}
-            items={folded.map((command) => ({
-              id: command.id ?? command.commandId,
-              label: command.label,
-              checked: command.active ?? false,
-              disabled: command.disabled,
-              run: () => command.action(),
-            }))}
-          />
+        {optionsHeight && (
+          <div id={optionsId} className={styles.panel} role="region" aria-label={t('canvas.toolCard.options')} data-sheet-panel="options">
+            {options}
+          </div>
+        )}
+        {/* Kept mounted under the options, so the panel's own state (a search, an opened species) is there when they close. */}
+        {open && children && (
+          <div id={panelId} className={styles.panel} role="tabpanel" hidden={optionsHeight !== null} data-sheet-panel>
+            {children}
+          </div>
         )}
       </div>
-      {height !== 'peek' && (
-        <div id={panelId} className={styles.panel} role="tabpanel">
-          {children}
-        </div>
-      )}
     </section>
   )
 }

@@ -1,6 +1,7 @@
 /* The phone panel sheet (board WebPhone). Portrait: across the bottom edge,
-   resting at its handle and tabs (peek), half the workspace, or up to the top
-   bar (full). Landscape: a side sheet at the right, below the top bar. */
+   resting at its context bar, handle and tabs (peek), half the workspace, or
+   up to the top bar (full). Landscape: a side sheet at the right, below the
+   top bar. */
 .sheet {
   position: absolute;
   right: 0;
@@ -144,19 +145,20 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* Phone fields take 16 px so iOS does not zoom into them. */
-.sheet .panel :is(input, select, textarea) {
+/* Phone fields take 16 px so iOS does not zoom into them, in the bar and the panel. */
+.sheet :is(input, select, textarea) {
   font-size: var(--text-touch);
 }
 
-/* Landscape: a side sheet on the right. At peek its handle and tabs rest in the
-   bottom right corner; half and full open it from below the top bar to the
-   bottom edge, full wider. */
+/* Landscape: a side sheet on the right. At peek its context bar, handle and
+   tabs rest in the bottom right corner, never above the top bar; half and full
+   open it from below the top bar to the bottom edge, full wider. */
 .sheet[data-orientation="landscape"] {
   top: auto;
   right: calc(var(--chrome-inset) + env(safe-area-inset-right));
   bottom: calc(var(--chrome-inset) + env(safe-area-inset-bottom));
   left: auto;
+  max-height: calc(100% - var(--chrome-rail-top) - var(--chrome-inset) - env(safe-area-inset-bottom));
   width: min(360px, 46%);
   padding: 0 var(--space-2);
   border-bottom: 1px solid var(--color-border);
@@ -175,4 +177,38 @@
 
 .sheet[data-orientation="landscape"] .handle {
   cursor: pointer;
+}
+
+/* The context bar: the sheet's first row (the header at full, the corner box's top at a landscape peek). It takes no
+   room while empty, and otherwise its content's: the map notice's row and one touch row (answer 30), never scrolling,
+   never giving way. */
+.bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.bar:empty {
+  display: none;
+}
+
+/* On a phone the bar is its controls' only home, so each is a 44 px target (ADR 0010), whichever chip or card holds it. */
+.bar :is(button, select, input:not([type="checkbox"], [type="radio"]), [role="button"]) {
+  min-width: var(--control-size-touch);
+  min-height: var(--control-size-touch);
+}
+
+/* The dock key region under the bar: the handle and the tabs, which it always keeps, and the open panel, which takes
+   the rest. */
+.dock {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 0;
+  min-height: calc(var(--control-size-touch) * 2);
+}
+
+/* The open panel waits under the tool's options, mounted but out of sight. */
+.panel[hidden] {
+  display: none;
 }

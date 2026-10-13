@@ -2,13 +2,14 @@ import { createPortal } from 'preact/compat'
 import { SurfaceHeader } from '../shared/SurfaceHeader'
 import type { ReadonlySignal } from '@preact/signals'
 import type { RefObject } from 'preact'
-import { useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { useSignal } from '@preact/signals'
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks'
+import { signal, useSignal } from '@preact/signals'
 import type { CanvasInspectionHandle, InspectionSourceQuad } from '../../canvas/inspection'
 import { detectPlatform, modKeyIsCmd } from '../../canvas/runtime/input/platform'
 import type { CanvasDocumentSurface, CanvasQuerySurface } from '../../canvas/runtime/runtime'
 import { currentCanvasDocumentSurface, currentCanvasQuerySurface } from '../../canvas/session'
 import { modKeyName } from '../../app/shell-commands/shortcut-text'
+import { phoneLayout } from '../../app/shell/phone-layout'
 import { leftChromeCrowdsMap, visibleMapFrame } from '../../app/shell/visible-map-area'
 import { t } from '../../i18n'
 import { ControlIcon } from '../shared/ControlIcon'
@@ -22,31 +23,58 @@ const LARGE_ARROW_STEP_PX = 60
 const MOD_IS_CMD = typeof navigator !== 'undefined'
   && modKeyIsCmd(detectPlatform(navigator, window as unknown as { readonly GestureEvent?: unknown }))
 
+/** Whether the lens is open: its one launcher (floating, or on a phone a button of the zoom column) toggles it. */
+const lensOpen = signal(false)
+/** The one lens panel, which its launcher controls. */
+const LENS_PANEL_ID = 'canopi-inspection-lens'
+
+/**
+ * The inspection lens and, beside the zoom group under the panel rail, its launcher; on a phone the launcher is a
+ * button of the zoom column (ZoomControls), so nothing but the column floats there (answer 25).
+ */
 export function InspectionLens({ canvasRef }: { canvasRef: RefObject<HTMLDivElement> }) {
   const documents = currentCanvasDocumentSurface.value
   const queries = currentCanvasQuerySurface.value
-  const [open, setOpen] = useState(false)
-  const launcher = useRef<HTMLButtonElement>(null)
+  const open = lensOpen.value
   const wasOpen = useRef(false)
-  const id = useId()
   // Opening hands focus to the map host, not the lens (U34, canopi-f47t.24): the launcher hides as the lens opens, and the
   // map keeps its arrows and Esc until a click or Tab moves focus into the lens. Closing returns focus to the launcher.
   useLayoutEffect(() => {
     if (open && !wasOpen.current) canvasRef.current?.focus({ preventScroll: true })
+    wasOpen.current = open
+  }, [open])
+  // A lens left open closes with the Design that showed it.
+  useEffect(() => () => { lensOpen.value = false }, [])
+  if (!documents || !queries) return null
+  return <>
+    {phoneLayout.value === null && <InspectionLauncher className={styles.launcher} underRail />}
+    {open && <InspectionPanel id={LENS_PANEL_ID} documents={documents} queries={queries} canvasRef={canvasRef} onClose={() => { lensOpen.value = false }} />}
+  </>
+}
+
+/** The lens's launcher, which hides while the lens is open and takes focus back when it closes. */
+export function InspectionLauncher({ className, underRail = false }: {
+  readonly className: string | undefined
+  /** In the panel rail's column, which ends above it (the floating launcher; the phone's column registers itself). */
+  readonly underRail?: boolean
+}) {
+  const shown = currentCanvasDocumentSurface.value !== null && currentCanvasQuerySurface.value !== null
+  const open = lensOpen.value
+  const launcher = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(open)
+  useLayoutEffect(() => {
     if (wasOpen.current && !open) launcher.current?.focus()
     wasOpen.current = open
   }, [open])
-  // The launcher sits in the panel rail's column; the rail ends above it.
-  useUnderRail(launcher, 'panel', !!documents && !!queries)
-  if (!documents || !queries) return null
-  return <>
-    <button ref={launcher} type="button" className={styles.launcher} hidden={open} aria-expanded={open} aria-controls={id} data-inspection-launcher
-      aria-label={t('canvas.inspection.title')} onClick={() => setOpen(!open)}>
+  useUnderRail(launcher, 'panel', underRail && shown)
+  if (!shown) return null
+  return (
+    <button ref={launcher} type="button" className={className} hidden={open} aria-expanded={open} aria-controls={LENS_PANEL_ID}
+      data-inspection-launcher aria-label={t('canvas.inspection.title')} onClick={() => { lensOpen.value = !open }}>
       <ControlIcon name="search" size={20} />
       <ButtonTooltip label={t('canvas.inspection.title')} side="left" />
     </button>
-    {open && <InspectionPanel id={id} documents={documents} queries={queries} canvasRef={canvasRef} onClose={() => setOpen(false)} />}
-  </>
+  )
 }
 
 function InspectionPanel({ id, documents, queries, canvasRef, onClose }: {

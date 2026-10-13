@@ -18,7 +18,6 @@ import { createTestView, placeOnHost } from '../../../__tests__/support/test-vie
 import { createDetachedCanvasRuntimeAppAdapter } from '../app-adapter'
 import { SceneCanvasRuntime } from '../scene-runtime'
 import { SceneRuntimeReoriginController } from './reorigin'
-import { attachedPlantRowMembers, plantsById } from '../scene/plant-rows'
 import type { SceneCommandAdmission, SceneEditCoordinator } from './transactions'
 import type { ViewFrame } from '../view/types'
 import { planarCameraOf } from '../view/view-transform'
@@ -219,58 +218,6 @@ describe('session plane re-origin', () => {
       expect(setCanvasClean).not.toHaveBeenCalledWith(false)
       expect(runtime.commandSurface.history.canUndo.value).toBe(false)
       expect(runtime.commandSurface.history.canRedo.value).toBe(false)
-    } finally {
-      runtime.destroy()
-    }
-  })
-
-  it('keeps every member of a planted row attached through a re-origin and the undo history it remaps', async () => {
-    const file = makeFile()
-    const [apple, pear] = file.plants
-    file.plant_rows = [{
-      id: 'row-1',
-      anchors: [{ position: apple!.position, sharp: false }, { position: pear!.position, sharp: true }],
-      closed: false,
-      spacing: { kind: 'interval', interval_m: 2.5 },
-      members: [{ plant_id: 'plant-1', at: apple!.position }, { plant_id: 'plant-2', at: pear!.position }],
-    }]
-    const runtime = new SceneCanvasRuntime({ appAdapter: createDetachedCanvasRuntimeAppAdapter() })
-    runtime.documentSurface.loadDocument(file)
-    runtime.documentSurface.resize(SCREEN.width, SCREEN.height)
-    const attached = () => {
-      const scene = runtime.querySurface.getSceneSnapshot()
-      return attachedPlantRowMembers(scene.plantRows[0]!, plantsById(scene)).map((member) => member.plantId)
-    }
-    try {
-      expect(attached()).toEqual(['plant-1', 'plant-2'])
-      // An edit before the re-origin, as the row writer makes one: the plant and its `at` move together.
-      expect(sceneEdits(runtime).run('move-row-member', (tx) => {
-        tx.mutate((draft) => {
-          const moved = { x: draft.plants[0]!.position.x + 3.25, y: draft.plants[0]!.position.y - 1.5 }
-          draft.plants[0] = { ...draft.plants[0]!, position: moved }
-          const row = draft.plantRows[0]!
-          draft.plantRows[0] = { ...row, members: [{ ...row.members[0]!, at: { ...moved } }, row.members[1]!] }
-        })
-      })).toBe(true)
-      const previous = sessionPlane(runtime)
-
-      centreViewOn(runtime, { x: FAR_EAST_METERS, y: 0 })
-      await settleReorigin()
-      expect(sessionPlane(runtime)).not.toBe(previous)
-      expect(attached()).toEqual(['plant-1', 'plant-2'])
-
-      runtime.commandSurface.history.undo()
-      expect(attached()).toEqual(['plant-1', 'plant-2'])
-      runtime.commandSurface.history.redo()
-      expect(attached()).toEqual(['plant-1', 'plant-2'])
-
-      // Saved, each member is written exactly where its plant is.
-      const content = runtime.documentSurface.captureForPersistence({ name: file.name }, file).content
-      const positions = new Map(content.plants.map((plant) => [plant.id, plant.position]))
-      expect(content.plant_rows?.[0]?.members.map((member) => [member.plant_id, member.at])).toEqual([
-        ['plant-1', positions.get('plant-1')],
-        ['plant-2', positions.get('plant-2')],
-      ])
     } finally {
       runtime.destroy()
     }

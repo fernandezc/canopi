@@ -162,7 +162,8 @@
       "modeCount": "Piante",
       "count": "Piante nel filare",
       "loopSpacing": "Spazi uguali di",
-      "length": "Lunghezza"
+      "length": "Lunghezza",
+      "checkSpacing": "Controlla la spaziatura"
     },
     "contextMenu": {
       "ariaLabel": "Comandi di modifica della tela",
@@ -732,7 +733,8 @@
       "measurements_other": "{{count, number}} misure",
       "clear": "Annulla la selezione",
       "rename": "Rinomina…",
-      "selectRow": "Seleziona il filare"
+      "sameSpeciesShort": "Stessa specie",
+      "clearShort": "Annulla"
     },
     "viewChip": "Vista",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "tocca per aggiungere punti, un doppio tocco pianta",
       "pathKeys": "Alt mette un punto ad angolo vivo · Maiusc mantiene angoli di 45° · {{mod}} disattiva l’aggancio",
       "pathTouchHint": "Trascina un punto per spostarlo · trascina un indicatore per aggiungerne uno · tieni premuto un punto per altro",
-      "pathFinish": "Pianta il filare"
+      "pathFinish": "Pianta il filare",
+      "options": "Opzioni"
     },
     "placePreview": {
       "nearest": "{{distance}} da {{name}}",

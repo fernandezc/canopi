@@ -26,13 +26,6 @@
   font-size: var(--text-base);
 }
 
-/* Phones: the zoom column stands on the right of the visible map, placed from it rather than registered with the seam
-   (ZoomControls.module.css `.phone`, whose right edge this repeats), so the chip's room ends left of the column, as
-   the map notice's does: a chip that wraps tall (a row's spacing, a long language) never runs under it. */
-:global([data-phone-layout]) .chip {
-  right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + var(--zoom-group-width, 0px) + var(--space-2));
-}
-
 .text {
   min-width: 0;
   overflow-wrap: anywhere;
@@ -84,82 +77,30 @@
   white-space: nowrap;
 }
 
-/* A selected row's spacing: the [Interval | Plants] switch and its field, which wrap as the chip's other items do. */
-.modes {
-  display: inline-flex;
-  flex-shrink: 0;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  overflow: hidden;
-}
-
-.mode {
-  min-height: var(--control-size-md);
-  padding: 0 var(--space-2);
-  border: 0;
-  background: var(--color-surface);
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.mode + .mode {
-  border-left: 1px solid var(--color-border-strong);
-}
-
-.mode:hover {
-  background: var(--color-control-hover);
-}
-
-.mode[aria-pressed="true"] {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-ink);
-  font-weight: 600;
-}
-
-.mode:focus-visible,
-.field:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-/* A locked row: its spacing shows, and takes no edit. */
-.mode:disabled,
-.field:disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.mode:disabled:hover {
-  background: var(--color-surface);
-}
-
-.field {
-  width: 60px;
-  min-height: var(--control-size-md);
+/* Phones: the context bar's (PhoneContextBar), the panel sheet's first row: one touch row and its rule (answer 30), the
+   text ellipsised before the buttons give way. */
+.chip[data-selection-chip='bar'] {
+  position: static;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
   box-sizing: border-box;
-  padding: var(--space-1);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  width: auto;
+  max-width: none;
+  height: calc(var(--control-size-touch) + 1px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
-.field[aria-invalid="true"] {
-  border-color: var(--color-danger);
-}
-
-/* The switch names the field: its label is read, not seen. */
-.hiddenLabel {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+.chip[data-selection-chip='bar'] .text {
+  flex: 1 1 auto;
   overflow: hidden;
-  clip-path: inset(50%);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }

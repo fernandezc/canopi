@@ -162,7 +162,8 @@
       "modeCount": "Plants",
       "count": "Plants in the row",
       "loopSpacing": "Equal gaps of",
-      "length": "Length"
+      "length": "Length",
+      "checkSpacing": "Check the spacing"
     },
     "contextMenu": {
       "ariaLabel": "Canvas edit commands",
@@ -732,7 +733,8 @@
       "measurements_other": "{{count, number}} measurements",
       "clear": "Clear selection",
       "rename": "Rename…",
-      "selectRow": "Select row"
+      "sameSpeciesShort": "Same species",
+      "clearShort": "Clear"
     },
     "viewChip": "View",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "tap to add points, double tap plants",
       "pathKeys": "Alt adds a sharp point · Shift keeps 45° angles · {{mod}} turns off snapping",
       "pathTouchHint": "Drag a point to move it · drag a dot to add one · long press a point for more",
-      "pathFinish": "Plant the row"
+      "pathFinish": "Plant the row",
+      "options": "Options"
     },
     "placePreview": {
       "nearest": "{{distance}} to {{name}}",

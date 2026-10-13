@@ -40,6 +40,7 @@ import { showInSiteData } from '../src/app/lidar/site-data-view'
 import { profileLineMenu } from '../src/app/lidar/profile'
 import { GalleryCanvasSurface } from './GalleryCanvasSurface'
 import { StampChooser } from '../src/components/canvas/StampChooser'
+import { ToolOptions } from '../src/components/canvas/ToolCard'
 import { PlantSymbolSheet } from './PlantSymbolSheet'
 import { GalleryViewSnapshots } from './GalleryViewSnapshots'
 import { readPlanningViewState } from '../src/app/planning-view/state'
@@ -61,6 +62,7 @@ import type { InputPlatform } from '../src/canvas/runtime/input/platform'
 import { WelcomeScreen } from '../src/components/shared/WelcomeScreen'
 import { DegradedBanner } from '../src/components/shared/DegradedBanner'
 import { BrowserAppShell } from '../src/web/BrowserAppShell'
+import { WebPhoneBar } from '../src/web/WebWorkspace'
 import {
   WorkspaceComposition,
   WorkspaceDialogs,
@@ -179,6 +181,8 @@ function Gallery() {
             surfaces={workspaceSurfaces}
             responsive
             phoneTabs={galleryPhoneTabs()}
+            phoneBar={<WebPhoneBar />}
+            phoneOptions={<ToolOptions />}
           />
         </GalleryWebFrame>
       ) : (

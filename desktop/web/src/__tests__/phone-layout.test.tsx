@@ -1,4 +1,5 @@
 import { render } from 'preact'
+import { useState } from 'preact/hooks'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -7,6 +8,7 @@ import {
   installPhoneLayout,
   phoneLayout,
   phoneSheetOpenHeight,
+  phoneToolOptions,
   snapPhoneSheet,
   stepPhoneSheet,
   type PhoneLayout,
@@ -18,7 +20,7 @@ import {
   toolRailRoom,
   visibleMapFrame,
 } from '../app/shell/visible-map-area'
-import { activePanel, navigateTo, sidePanel, type SidePanel } from '../app/shell/state'
+import { activePanel, navigateTo, selectPanel, sidePanel, type SidePanel } from '../app/shell/state'
 import { locale } from '../app/settings/state'
 import type { PanelRailCommand } from '../components/shared/PanelRail'
 import { PHONE_SHEET_TABS, PhoneSheet } from '../components/shared/PhoneSheet'
@@ -69,6 +71,7 @@ describe('phone layout', () => {
     sidePanel.value = null
     phoneLayout.value = null
     phoneSheetOpenHeight.value = 'half'
+    phoneToolOptions.value = null
   })
 
   afterEach(() => {
@@ -76,6 +79,7 @@ describe('phone layout', () => {
     container.remove()
     phoneLayout.value = null
     sidePanel.value = null
+    phoneToolOptions.value = null
     vi.restoreAllMocks()
   })
 
@@ -217,6 +221,87 @@ describe('phone layout', () => {
     expect((await key('Tab')).defaultPrevented).toBe(false)
   })
 
+  it('shows a panel opened by any route in front of the tool\'s options: a tab, More, or a request from elsewhere', async () => {
+    function WithOptions() {
+      const open = sidePanel.value
+      return (
+        <PhoneSheet layout="portrait" tabs={tabs()} options={<p data-tool-options-content />}>
+          {open ? <div data-panel-content={open} /> : null}
+        </PhoneSheet>
+      )
+    }
+    await act(async () => { render(<WithOptions />, container) })
+    const sheet = container.querySelector<HTMLElement>('[data-phone-sheet]')!
+    const optionsShown = () => container.querySelector('[data-sheet-panel="options"] [data-tool-options-content]') !== null
+    const panelShown = (panel: SidePanel) => container.querySelector(`[role="tabpanel"]:not([hidden]) [data-panel-content="${panel}"]`) !== null
+    const more = async (label: string) => {
+      await act(async () => { container.querySelector<HTMLButtonElement>('[data-sheet-more]')!.click() })
+      const item = Array.from(document.querySelectorAll<HTMLElement>('[role^="menuitem"]')).find((node) => node.textContent === label)!
+      await act(async () => { item.click() })
+    }
+
+    await act(async () => { phoneToolOptions.value = 'half' })
+    expect(optionsShown()).toBe(true)
+    // A request from outside the sheet, as Place plants' chooser opens the catalog.
+    await act(async () => { selectPanel('plant-db') })
+    expect(optionsShown(), 'the catalog link closes the options').toBe(false)
+    expect(panelShown('plant-db'), 'and shows the catalog').toBe(true)
+    expect(sheet.dataset.phoneSheet).toBe('half')
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Catalog')
+
+    // The same request with the catalog already open under the options, as when Place plants is armed from the catalog.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    expect(optionsShown()).toBe(true)
+    expect(panelShown('plant-db'), 'the catalog waits hidden under them').toBe(false)
+    await act(async () => { selectPanel('plant-db') })
+    expect(optionsShown(), 'the catalog link closes the options over the open catalog').toBe(false)
+    expect(panelShown('plant-db'), 'and shows it').toBe(true)
+
+    // A folded panel from More.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    await more('budget')
+    expect(optionsShown(), 'More closes the options').toBe(false)
+    expect(panelShown('budget'), 'and shows its panel').toBe(true)
+
+    // More on the panel already open, over the options, shows it, as its tab would, rather than closing it.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    await more('budget')
+    expect(sidePanel.value).toBe('budget')
+    expect(optionsShown()).toBe(false)
+    expect(panelShown('budget')).toBe(true)
+  })
+
+  it('gives the sheet back its panel as it was, its own state included, once the tool\'s options close', async () => {
+    function Searchable() {
+      const [search, setSearch] = useState('')
+      return <input data-panel-search value={search} onInput={(event) => setSearch(event.currentTarget.value)} />
+    }
+    function WithOptions() {
+      return (
+        <PhoneSheet layout="portrait" tabs={tabs()} options={<p data-tool-options-content />}>
+          {sidePanel.value ? <Searchable /> : null}
+        </PhoneSheet>
+      )
+    }
+    await act(async () => { render(<WithOptions />, container) })
+    await act(async () => { selectPanel('plant-db') })
+    const search = container.querySelector<HTMLInputElement>('[data-panel-search]')!
+    await act(async () => {
+      search.value = 'pear'
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    await act(async () => { phoneToolOptions.value = 'half' })
+    const panel = container.querySelector<HTMLElement>('[role="tabpanel"]')
+    expect(container.querySelector('[data-sheet-panel="options"] [data-tool-options-content]'), 'the options show').not.toBeNull()
+    expect(panel?.hidden ?? true, 'the panel is out of sight under them').toBe(true)
+
+    await act(async () => { phoneToolOptions.value = null })
+    expect(container.querySelector('[data-sheet-panel="options"]')).toBeNull()
+    expect(container.querySelector<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(false)
+    expect(container.querySelector<HTMLInputElement>('[data-panel-search]')?.value, 'the panel kept its search').toBe('pear')
+  })
+
   it('moves focus between the tabs with the arrow keys', async () => {
     await act(async () => { render(<Sheet layout="portrait" />, container) })
     const tabButtons = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'))
@@ -274,7 +359,7 @@ describe('phone layout', () => {
     render(null, host)
   })
 
-  it('covers the bottom edge of the visible map in portrait and at peek, the right edge when open on its side, and ends the tool strip above it', async () => {
+  it('covers the bottom edge of the visible map in portrait, the right edge on its side (its corner at peek too), and ends the tool strip above it', async () => {
     const boxes = new Map<Element, Box>()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const box = boxes.get(this)
@@ -311,9 +396,10 @@ describe('phone layout', () => {
     expect(visibleMapFrame.value).toMatchObject({ bottom: 0, right: 844 - 476 })
     expect(toolRailRoom.value).toBeNull()
 
-    // At peek it rests in the bottom right corner, over the bottom edge.
+    // At peek it rests in the bottom right corner, still over the right edge: its context bar can stand taller than a
+    // bottom band, and the zoom column keeps the window's height beside it.
     await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')!.click() })
-    expect(visibleMapFrame.value).toMatchObject({ bottom: 390 - 278, right: 0 })
+    expect(visibleMapFrame.value).toMatchObject({ bottom: 0, right: 844 - 476 })
 
     releaseStrip()
     releaseArea()
@@ -377,7 +463,10 @@ describe('phone layout', () => {
     await act(async () => { phoneLayout.value = 'portrait' })
     expect(container.querySelector('[role="separator"][aria-orientation="vertical"]')).toBeNull()
     expect(container.querySelector('[data-phone-sheet="half"] [role="tabpanel"] [data-layers-panel]')).not.toBeNull()
-    expect(container.querySelector('[data-phone-sheet]')?.matches('[data-key-region="dock"]')).toBe(true)
+    // In the sheet the dock region holds the handle, the tabs and the panel; the context bar above them is not in it.
+    expect(container.querySelector('[data-phone-sheet] [role="tabpanel"]')?.closest('[data-key-region="dock"]')).not.toBeNull()
+    expect(container.querySelector('[data-phone-sheet] [data-sheet-handle]')?.closest('[data-key-region="dock"]')).not.toBeNull()
+    expect(container.querySelector('[data-phone-sheet] [data-phone-context-bar]')?.closest('[data-key-region="dock"]')).toBeNull()
 
     await act(async () => { phoneLayout.value = 'landscape' })
     expect(container.querySelector('[data-phone-sheet]')?.getAttribute('data-orientation')).toBe('landscape')

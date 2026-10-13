@@ -108,7 +108,7 @@ export function toolCardContent(input: ToolCardInput): ToolCardContent | null {
     case 'plant-stamp':
       return input.speciesName
         ? card(input.speciesName, translate('canvas.toolCard.placeOne'))
-        : card(null, translate(guidance.promptSpecies ? 'canvas.toolCard.chooseFirst' : 'canvas.toolCard.chooseSpecies'))
+        : card(null, translate(guidance.speciesPrompts > 0 ? 'canvas.toolCard.chooseFirst' : 'canvas.toolCard.chooseSpecies'))
     case 'object-stamp':
       return guidance.stamp
         ? card(stampName(guidance.stamp, translate), stampInstruction(guidance.stamp, angle, translate), hints('canvas.toolCard.stampRotateKeys'))

@@ -40,7 +40,8 @@ export interface CanvasContextMenuController {
   openFromKeyboard(selection: CanvasDesignObjectSelectionModel, hull: WorldQuad | null, entries?: KeyboardMenuEntries): void
   /** True from an open until the app closes the menu (the request's `closed`) or close() closes it. */
   isOpen(): boolean
-  close(): void
+  /** `restoreFocus`: when focus is outside the map (in the menu), the request's returnFocus runs after the close. */
+  close(options?: { readonly restoreFocus?: boolean }): void
   dispose(): void
 }
 
@@ -134,10 +135,13 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
       )
     },
     isOpen: () => openRequest !== null,
-    close() {
+    close(closeOptions) {
       const request = openRequest
       openRequest = null
-      if (request) options.adapter?.close(request)
+      if (!request) return
+      const focusInMenu = closeOptions?.restoreFocus === true && focusIsOutside(options.container)
+      options.adapter?.close(request)
+      if (focusInMenu) request.returnFocus()
     },
     dispose() {
       this.close()
@@ -149,6 +153,12 @@ export function createCanvasContextMenu(options: CanvasContextMenuOptions): Canv
 function focusedInside(container: HTMLElement): HTMLElement | null {
   const focused = container.ownerDocument.activeElement
   return focused instanceof HTMLElement && focused !== container && container.contains(focused) ? focused : null
+}
+
+/** Focus is on an element outside the map: an open menu holds it, as focus leaving the menu closes it. */
+function focusIsOutside(container: HTMLElement): boolean {
+  const focused = container.ownerDocument.activeElement
+  return focused instanceof HTMLElement && focused !== container.ownerDocument.body && !container.contains(focused)
 }
 
 function focusIsLost(document: Document): boolean {

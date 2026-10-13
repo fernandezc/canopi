@@ -15,7 +15,7 @@ import {
 } from '../canvas/session-state'
 import { snapToGridEnabled } from '../app/canvas-settings/signals'
 import { plantSpacingIntervalM } from '../app/settings/state'
-import type { SceneStore } from '../canvas/runtime/scene'
+import { SceneStore } from '../canvas/runtime/scene'
 import type {
   SceneInteractionSession,
   SceneInteractionSessionDeps,
@@ -54,6 +54,7 @@ describe('SceneInteractionSession', () => {
     spacingInput,
     typeSpacing,
     openContextMenu,
+    appContextMenu,
   } = installSceneInteractionFixture(
     (f) => {
       ({ container, testView, store, events } = f)
@@ -748,6 +749,124 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  /** Plant a row armed on a picked plant at (2, 4) with three points after it, 10 px per metre. */
+  function drawRow(
+    overrides: Parameters<typeof createInteractionDeps>[3] = {},
+  ): { readonly session: SceneInteractionSession, readonly points: () => number } {
+    plantSpacingIntervalM.value = 2
+    testView.setViewport({ x: 0, y: 0, scale: 10 })
+    store.updatePersisted((draft) => {
+      draft.plants = [makePlant('source', 'Malus domestica', { x: 2, y: 4 })]
+    })
+    const session = createTestSession(createInteractionDeps(container, store, testView, overrides))
+    session.setTool('plant-spacing')
+    for (const at of [{ x: 20, y: 40 }, { x: 80, y: 40 }, { x: 140, y: 80 }, { x: 200, y: 40 }]) {
+      events.pointerDown(at, { button: 0 })
+      events.pointerUp(at, { button: 0 })
+    }
+    // The draft's points: one more than the highest point shown (the picked plant, point 0, shows from 3 points on).
+    const points = () => 1 + Math.max(0, ...[...container.querySelectorAll('[data-canvas-handle^="point:draft:"]')]
+      .map((handle) => Number(handle.getAttribute('data-canvas-handle')!.split(':').at(-1))))
+    expect(points(), 'the picked plant and three points').toBe(4)
+    return { session, points }
+  }
+
+  function draftPoint(index: number): HTMLElement {
+    return container.querySelector<HTMLElement>(`[data-canvas-handle="point:draft:${index}"]`)!
+  }
+
+  // The point menu names its point by index; once the draft's points change, that index may be another point's.
+  it('Plant a row: an open point menu closes when the draft\'s points or the tool change, and its stale Delete point removes nothing (A16)', () => {
+    const { session, points } = drawRow()
+    events.pointerDown({ x: 140, y: 80 }, { button: 2, target: draftPoint(2) })
+    events.pointerUp({ x: 140, y: 80 }, { button: 2 })
+    const afterUndo = contextMenuCommand('delete-point')
+    // Ctrl+Z takes the last point back: the menu's point 2 is the last point now.
+    expect(session.undoTransientHistory()).toBe(true)
+    expect(points()).toBe(3)
+    expect(contextMenuHost.current, 'a draft change closes the point menu').toBeNull()
+    afterUndo.run()
+    expect(points(), 'a stale Delete point removes nothing').toBe(3)
+
+    events.pointerDown({ x: 80, y: 40 }, { button: 2, target: draftPoint(1) })
+    events.pointerUp({ x: 80, y: 40 }, { button: 2 })
+    const afterTool = contextMenuCommand('delete-point')
+    session.setTool('select')
+    expect(contextMenuHost.current, 'a tool change closes the point menu').toBeNull()
+    afterTool.run()
+    expect(store.persisted.plants).toHaveLength(1)
+    session.dispose()
+  })
+
+  // In the point menu, Delete and Backspace are its Delete point, as the canvas menu's keys are its entries' shortcuts
+  // on what it names: never the last point, the last-touched one or the selection. Through the app's own menu.
+  it('Plant a row: Delete or Backspace in the point menu deletes the menu\'s point and closes it (A16)', () => {
+    const menu = appContextMenu()
+    const { session, points } = drawRow({ contextMenu: menu.adapter })
+    /** The row guide passes through the draft's points: is one at (x, y) in metres? */
+    const guideThrough = (x: number, y: number) => draftShapes('polyline')
+      .some((guide) => guide.points.some((point) => Math.abs(point.x - x) < 1e-6 && Math.abs(point.y - y) < 1e-6))
+    expect(guideThrough(8, 4) && guideThrough(14, 8) && guideThrough(20, 4)).toBe(true)
+
+    for (const [key, at, remaining] of [['Delete', { x: 80, y: 40 }, 3], ['Backspace', { x: 140, y: 80 }, 2]] as const) {
+      events.pointerDown(at, { button: 2, target: draftPoint(1) })
+      events.pointerUp(at, { button: 2 })
+      expect(menu.item('delete-point'), 'the point menu').not.toBeNull()
+      events.keyDown({ key, code: key, cancelable: true, target: document.activeElement! })
+      expect(points(), `${key} removes one point`).toBe(remaining)
+      expect(guideThrough(at.x / 10, at.y / 10), `${key} removes the menu's point`).toBe(false)
+      expect(guideThrough(20, 4), `${key} keeps the last point`).toBe(true)
+      expect(menu.isOpen(), `${key} closes the point menu`).toBe(false)
+      expect(document.activeElement, 'focus goes back to the map').toBe(container)
+    }
+    expect(store.persisted.plants, 'nothing is planted or deleted').toHaveLength(1)
+    session.dispose()
+  })
+
+  // Guard (answers 27, 28): the finish plants ordinary plants. One Scene Edit adds them after the Design's plants in path
+  // order with new ids, the picked plant stays where it is, and the picked plant and the new ones stay selected, not
+  // grouped (plant-row.test.ts checks its one Undo step). The saved Design holds them as plain plants and reopens to the same file.
+  it('Plant a row\'s finish plants ordinary plants in one Scene Edit, selected and not grouped, and the Design round trips them', () => {
+    plantSpacingIntervalM.value = 2
+    testView.setViewport({ x: 0, y: 0, scale: 10 })
+    store.updatePersisted((draft) => {
+      draft.plants = [makePlant('other', 'Corylus avellana', { x: 30, y: 30 }), makePlant('source', 'Malus domestica', { x: 2, y: 4 })]
+    })
+    const edits: string[] = []
+    const deps = createInteractionDeps(container, store, testView, { onSceneEditCommit: (type) => edits.push(type) })
+    const session = createTestSession(deps)
+    session.setTool('plant-spacing')
+    events.pointerDown({ x: 20, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 20, y: 40 }, { button: 0 })
+    events.pointerDown({ x: 80, y: 40 }, { button: 0 })
+    events.pointerUp({ x: 80, y: 40 }, { button: 0 })
+    events.keyDown({ key: 'Enter' })
+
+    expect(edits).toEqual(['interaction-plant-spacing'])
+    const plants = store.persisted.plants
+    expect(plants.map((plant) => plant.id).slice(0, 2)).toEqual(['other', 'source'])
+    expect(plants.slice(1).map((plant) => plant.position)).toEqual([{ x: 2, y: 4 }, { x: 4, y: 4 }, { x: 6, y: 4 }, { x: 8, y: 4 }])
+    const added = plants.slice(2).map((plant) => plant.id)
+    expect(new Set(added).size).toBe(3)
+    expect(added.some((id) => id === 'other' || id === 'source')).toBe(false)
+    expect(store.session.selectedTargets).toEqual(['source', ...added].map((id) => ({ kind: 'plant', id })))
+    expect(store.persisted.groups).toEqual([])
+
+    const file = store.toCanopiFile({ now: new Date('2026-10-13T00:00:00Z') })
+    expect(file.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
+    expect('plant_rows' in file, 'the finish stores no row').toBe(false)
+    const reopened = new SceneStore().hydrate(file)
+    expect(reopened.persisted.plants.map((plant) => plant.id)).toEqual(plants.map((plant) => plant.id))
+    // The reopened plane has its own origin: the plants keep their places relative to each other.
+    const origin = reopened.persisted.plants[0]!.position
+    for (const [index, plant] of reopened.persisted.plants.entries()) {
+      expect(plant.position.x - origin.x).toBeCloseTo(plants[index]!.position.x - plants[0]!.position.x, 3)
+      expect(plant.position.y - origin.y).toBeCloseTo(plants[index]!.position.y - plants[0]!.position.y, 3)
+    }
+    expect(reopened.toCanopiFile({ now: new Date('2026-10-13T00:00:00Z') })).toEqual(file)
+    session.dispose()
+  })
+
   it('snaps Plant Spacing endpoint before computing preview and commit positions', () => {
     plantSpacingIntervalM.value = 2
     snapToGridEnabled.value = true
@@ -1278,13 +1397,13 @@ describe('SceneInteractionSession', () => {
       })
       const session = createTestSession(deps)
       session.setTool('plant-stamp')
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
 
       events.pointerDown({ x: 40, y: 40 })
       events.pointerUp({ x: 40, y: 40 })
 
       expect(store.persisted.plants).toHaveLength(0)
-      expect(published.at(-1)?.promptSpecies).toBe(true)
+      expect(published.at(-1)?.speciesPrompts).toBe(1)
 
       selectPlantStampSource({ canonical_name: 'Malus domestica', common_name: 'Apple', stratum: null, width_max_m: 6 })
       // The pick reaches Place plants through the session's read model after a microtask (spec §1.4).
@@ -1293,7 +1412,7 @@ describe('SceneInteractionSession', () => {
       events.pointerUp({ x: 40, y: 40 })
 
       expect(store.persisted.plants).toHaveLength(1)
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
       session.dispose()
     })
   })
@@ -1317,7 +1436,7 @@ describe('SceneInteractionSession', () => {
 
       expect(tools.at(-1)).toBe('plant-stamp')
       expect(store.persisted.plants).toHaveLength(0)
-      expect(published.at(-1)?.promptSpecies).toBe(true)
+      expect(published.at(-1)?.speciesPrompts).toBe(1)
 
       selectPlantStampSource(APPLE)
       await Promise.resolve()
@@ -1325,7 +1444,7 @@ describe('SceneInteractionSession', () => {
       expect(store.persisted.plants).toHaveLength(1)
       expect(store.persisted.plants[0]).toMatchObject({ canonicalName: 'Malus domestica', position: { x: 120, y: 80 } })
       expect(store.session.selectedTargets).toEqual([plantTarget(store.persisted.plants[0]!.id)])
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
 
       // The pick is spent: choosing another species places nothing more.
       selectPlantStampSource({ ...APPLE, canonical_name: 'Pyrus communis' })

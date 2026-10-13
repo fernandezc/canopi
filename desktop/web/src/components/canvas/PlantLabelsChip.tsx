@@ -13,7 +13,10 @@ export const PLANT_LABELS_CHIP_MS = 4000
  * many plants in view carry one: "Codes shown for 70 of 282 plants in view".
  * The highlight chip wins the same place while plants are highlighted.
  */
-export function PlantLabelsChip() {
+export function PlantLabelsChip({ hidden = false }: {
+  /** Another context holds the phone's context bar: the chip keeps its window, unshown. */
+  readonly hidden?: boolean
+} = {}) {
   const labels = currentPlantDisplay.value.labels
   const previous = useRef(labels)
   const [visible, setVisible] = useState(false)
@@ -24,7 +27,7 @@ export function PlantLabelsChip() {
     const timer = globalThis.setTimeout(() => setVisible(false), PLANT_LABELS_CHIP_MS)
     return () => globalThis.clearTimeout(timer)
   }, [labels])
-  if (!visible) return null
+  if (!visible || hidden) return null
   const queries = currentCanvasQuerySurface.value
   if (!queries || queries.getSpeciesFocus().canonicalName || plantFinderMapMatches.value) return null
   const coverage = plantLabelCoverage()

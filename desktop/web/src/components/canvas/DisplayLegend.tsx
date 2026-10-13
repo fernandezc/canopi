@@ -2,6 +2,7 @@ import { buildPinnedPlantNameLegendEntries } from '../../canvas/pinned-plant-nam
 import { currentCanvasQuerySurface } from '../../canvas/session'
 import { t } from '../../i18n'
 import { currentPlantDisplay } from '../../app/plant-display/state'
+import { phoneLayout } from '../../app/shell/phone-layout'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import styles from './DisplayLegend.module.css'
 
@@ -10,7 +11,8 @@ export function DisplayLegend() {
   void querySurface?.revision.scene.value
   void querySurface?.revision.plantNames.value
 
-  if (!querySurface) return null
+  // Phones show the pinned names on the map only: nothing but the zoom column floats there (answer 25).
+  if (!querySurface || phoneLayout.value !== null) return null
 
   const pinnedEntries = buildPinnedPlantNameLegendEntries(querySurface, currentPlantDisplay.value)
   if (pinnedEntries.length === 0) return null

@@ -7,7 +7,7 @@ import { phoneLayout } from '../../app/shell/phone-layout'
 import { registerMapArea, registerMapOccluder } from '../../app/shell/visible-map-area'
 import { setCurrentCanvasSession } from '../../canvas/session'
 import { createTestCanvasRuntimeSurfaces } from '../../__tests__/support/canvas-runtime-surfaces'
-import { MapNotice } from './MapNotice'
+import { BarMapNotice, MapNotice } from './MapNotice'
 
 const failed: MapNoticeReadModel = {
   visible: true,
@@ -92,14 +92,9 @@ describe('MapNotice', () => {
 })
 
 describe('MapNotice on the visible-map-area seam', () => {
-  it.each([
-    ['in a window', null],
-    ['on a phone held upright', 'portrait'],
-  ] as const)('raises the chips\' bottom inset above itself, but never moves the camera\'s framing, %s', async (_name, phone) => {
+  it('raises the chips\' bottom inset above itself, but never moves the camera\'s framing', async () => {
     // Standing above the bottom row, the notice is under the selection chip's inset; it comes and goes with load state,
-    // so a Design opened while it shows is framed as one opened after it goes, and it stands in that framing frame. On a
-    // phone it stands where the selection chip would, so it registers there too.
-    phoneLayout.value = phone
+    // so a Design opened while it shows is framed as one opened after it goes, and it stands in that framing frame.
     const surfaces = createTestCanvasRuntimeSurfaces()
     const setFramingInsets = vi.spyOn(surfaces.commands.viewport, 'setFramingInsets')
     setCurrentCanvasSession(surfaces)
@@ -130,9 +125,39 @@ describe('MapNotice on the visible-map-area seam', () => {
       await act(async () => { render(null, container) })
       for (const release of releases.reverse()) release()
       setCurrentCanvasSession(null)
-      phoneLayout.value = null
       vi.restoreAllMocks()
       document.body.innerHTML = ''
     }
+  })
+})
+
+describe('MapNotice on a phone', () => {
+  afterEach(async () => {
+    phoneLayout.value = null
+    document.body.innerHTML = ''
+  })
+
+  it('is drawn as the context bar\'s status row, not on the canvas, and its Retry retries the map', async () => {
+    const canvas = document.createElement('div')
+    const bar = document.createElement('div')
+    document.body.append(canvas, bar)
+    const onRetry = vi.fn()
+    phoneLayout.value = 'portrait'
+    await act(async () => {
+      render(<MapNotice notice={failed} onRetry={onRetry} canvasRef={{ current: canvas }} />, canvas)
+      render(<BarMapNotice />, bar)
+    })
+    expect(canvas.querySelector('[data-map-notice]')).toBeNull()
+    const row = bar.querySelector<HTMLElement>('[data-map-notice]')!
+    expect(row.dataset.layer).toBe('bar')
+    expect(row.querySelector('[role="status"]')?.textContent).toBe('The map stopped drawing. Your Design is safe.')
+    await act(async () => row.querySelector('button')!.click())
+    expect(onRetry).toHaveBeenCalledOnce()
+
+    // Back in a window the canvas draws it again, and the bar has none.
+    await act(async () => { phoneLayout.value = null })
+    expect(canvas.querySelector('[data-map-notice]')).not.toBeNull()
+    expect(bar.querySelector('[data-map-notice]')).toBeNull()
+    await act(async () => { render(null, canvas); render(null, bar) })
   })
 })

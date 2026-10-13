@@ -197,7 +197,7 @@ describe('plant display rules', () => {
 
     const print = buildCanvasPrintSnapshot({
       plantSpeciesColors: {}, plantSpeciesSymbols: {}, plantSpeciesCodes: {}, layers: [], plants,
-      zones: [], annotations: [], measurementGuides: [], groups: [], plantRows: [],
+      zones: [], annotations: [], measurementGuides: [], groups: [],
     }, context)
     expect(print.plants.map((entry) => entry.color)).toEqual([STRATUM_DISPLAY_COLORS.emergent, NO_STRATUM_DISPLAY_COLOR])
   })

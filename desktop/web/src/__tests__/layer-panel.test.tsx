@@ -330,7 +330,6 @@ describe('LayerPanel', () => {
           annotations: [],
           measurementGuides: [],
           groups: [],
-          plantRows: [],
         },
       }),
     }))

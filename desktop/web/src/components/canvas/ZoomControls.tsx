@@ -1,5 +1,5 @@
 import type { FunctionComponent } from 'preact'
-import { useEffect, useId, useRef, useState } from 'preact/hooks'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import type { CanvasToolbarActionCommand } from '../../app/canvas-commands'
 import { locale } from '../../app/settings/state'
 import { phoneLayout } from '../../app/shell/phone-layout'
@@ -15,8 +15,10 @@ import { currentCanvasQuerySurface, currentCanvasViewportCommandSurface } from '
 import { t } from '../../i18n'
 import { ButtonTooltip } from '../shared/ButtonTooltip'
 import { ControlIcon, type ControlIconName } from '../shared/ControlIcon'
+import { visibleMapFrame } from '../../app/shell/visible-map-area'
 import { useMapOccluder, usePublishedWidth, useUnderRail } from '../shared/useMapChrome'
 import { Compass } from './Compass'
+import { InspectionLauncher } from './InspectionLens'
 import styles from './ZoomControls.module.css'
 
 const VIEW_ACTION_ICONS: Readonly<Record<string, ControlIconName>> = {
@@ -30,10 +32,12 @@ const VIEW_ACTION_ICONS: Readonly<Record<string, ControlIconName>> = {
  * a ratio (a menu of common scales), zoom in, Fit to Design and, after a
  * divider, the edition's Show my location (Web) and the compass (always
  * shown). The map attribution pill sits just left of it. On a phone it is a
- * column on the right above the panel sheet: zoom in, zoom out, Fit to Design,
- * Show my location and the compass, with 44 px targets and no ratio (phones
+ * column on the right above the panel sheet: the inspection lens's launcher,
+ * zoom in, zoom out, Fit to Design, Show my location and the compass, the only
+ * chrome floating over a phone's map, with 44 px targets and no ratio (phones
  * have no scale readout); it is placed from the visible map frame, so it
- * covers no edge. Show my location and the compass are buttons of the group:
+ * covers no edge, and hides where that frame has no room for it (a full
+ * sheet, a half sheet on a short phone). Show my location and the compass are buttons of the group:
  * the group's layer and map registration cover them.
  */
 export function ZoomControls({ viewActions, myLocation: MyLocation }: {
@@ -59,10 +63,13 @@ export function ZoomControls({ viewActions, myLocation: MyLocation }: {
 
   // The attribution pill is placed against this group's measured width.
   usePublishedWidth(group, '--zoom-group-width')
+  const roomless = usePhoneColumnRoomless(group, phone)
 
   if (phone) {
     return (
-      <div ref={group} className={`${styles.group} ${styles.phone}`} role="group" aria-label={t('canvas.grid.zoom')} data-zoom-group="phone">
+      <div ref={group} className={`${styles.group} ${styles.phone}`} role="group" aria-label={t('canvas.grid.zoom')} data-zoom-group="phone"
+        data-roomless={roomless ? '' : undefined}>
+        <InspectionLauncher className={styles.button} />
         <ZoomButton command={zoomIn} disabled={zoomIn.disabled || atMaximum} />
         <ZoomButton command={zoomOut} disabled={zoomOut.disabled || atMinimum} />
         <ZoomButton command={fit} disabled={fit.disabled} />
@@ -90,6 +97,26 @@ export function ZoomControls({ viewActions, myLocation: MyLocation }: {
       <Compass command={resetNorth} className={styles.button} />
     </div>
   )
+}
+
+/** The least room the phone column keeps between itself and the top bar (`--chrome-rail-top` is the top bar's bottom plus
+ *  this). */
+const COLUMN_TOP_GAP_PX = 8
+
+/**
+ * Whether the phone column is taller or wider than the visible map frame it is placed in (answer 25): it then hides
+ * rather than stand over the top bar or the panel sheet. Measured on every render, which the frame's changes cause.
+ */
+function usePhoneColumnRoomless(group: { readonly current: HTMLElement | null }, phone: boolean): boolean {
+  const frame = visibleMapFrame.value
+  const [roomless, setRoomless] = useState(false)
+  useLayoutEffect(() => {
+    const element = group.current
+    const height = frame.height - frame.top - frame.bottom - COLUMN_TOP_GAP_PX
+    const width = frame.width - frame.left - frame.right
+    setRoomless(phone && element !== null && frame.height > 0 && (element.offsetHeight > height || element.offsetWidth > width))
+  })
+  return roomless
 }
 
 /** The group's commands are static view commands: a missing one is a wiring bug, not a state to render. */

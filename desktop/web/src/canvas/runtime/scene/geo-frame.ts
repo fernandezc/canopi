@@ -4,7 +4,7 @@ import {
   type GeoPosition,
   type SessionPlane,
 } from '../../session-plane'
-import type { ScenePersistedState, ScenePlantRowEntity, ScenePoint, SceneZoneEntity } from './types'
+import type { ScenePersistedState, ScenePoint, SceneZoneEntity } from './types'
 
 // The largest 1e-9 degree grid latitude inside Web Mercator's ±85.0511287798066.
 const GRID_MAX_LATITUDE_DEG = 85.051128779
@@ -98,14 +98,6 @@ export class ScenePlaneReprojector {
     return { ...zone, points: zone.points.map((point) => this.point(point)) }
   }
 
-  plantRow(row: ScenePlantRowEntity): ScenePlantRowEntity {
-    return {
-      ...row,
-      anchors: row.anchors.map((anchor) => ({ ...anchor, position: this.point(anchor.position) })),
-      members: row.members.map((member) => ({ ...member, at: this.point(member.at) })),
-    }
-  }
-
   // One entry per persisted collection, so a new one cannot be left behind on a re-origin: tsc fails until it is
   // listed here, moved or kept as it is.
   private readonly collections: PersistedReprojection = {
@@ -125,7 +117,6 @@ export class ScenePlaneReprojector {
       start: this.point(guide.start),
       end: this.point(guide.end),
     })),
-    plantRows: (rows) => rows.map((row) => this.plantRow(row)),
   }
 
   persisted<T extends Partial<ScenePersistedState>>(state: T): T {

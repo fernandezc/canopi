@@ -162,7 +162,8 @@
       "modeCount": "株数",
       "count": "列の株数",
       "loopSpacing": "等間隔",
-      "length": "長さ"
+      "length": "長さ",
+      "checkSpacing": "間隔を確認してください"
     },
     "contextMenu": {
       "ariaLabel": "キャンバス編集コマンド",
@@ -732,7 +733,8 @@
       "measurements_other": "計測 {{count, number}} 件",
       "clear": "選択を解除",
       "rename": "名前を変更…",
-      "selectRow": "列を選択"
+      "sameSpeciesShort": "同じ種",
+      "clearShort": "解除"
     },
     "viewChip": "表示",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "タップで点を追加、ダブルタップで植える",
       "pathKeys": "Alt で鋭い点を置く · Shift で 45° に固定 · {{mod}} でスナップをオフ",
       "pathTouchHint": "点をドラッグして移動 · 印をドラッグして点を追加 · 点を長押しでその他",
-      "pathFinish": "列を植える"
+      "pathFinish": "列を植える",
+      "options": "オプション"
     },
     "placePreview": {
       "nearest": "{{name}} まで {{distance}}",

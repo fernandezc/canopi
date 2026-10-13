@@ -312,10 +312,20 @@ describe('Place plants species chooser', () => {
   })
 
   it('points to the chooser when the map is clicked with no species chosen', async () => {
-    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, promptSpecies: true }))
+    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, speciesPrompts: 1 }))
 
     expect(container.querySelector('[role="status"]')!.textContent).toContain('Choose a species first, then click the map')
     expect(document.activeElement).toBe(container.querySelector('input[type="search"]'))
+  })
+
+  it('takes the focus once per run of clicks with no species, so later clicks leave it on the map (a tablet keeps its keyboard closed)', async () => {
+    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, speciesPrompts: 1 }))
+    expect(document.activeElement).toBe(container.querySelector('input[type="search"]'))
+
+    map.focus()
+    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, speciesPrompts: 2 }))
+    expect(container.querySelector('[role="status"]')!.textContent).toContain('Choose a species first, then click the map')
+    expect(document.activeElement, 'a second click with no species leaves the focus where it was').toBe(map)
   })
 
   it('reopens the chooser from Change species and closes it with Esc', async () => {

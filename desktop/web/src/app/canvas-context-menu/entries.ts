@@ -151,11 +151,14 @@ export function buildCanvasContextMenuEntries(
 
   const pointActions = request.pointActions
   if (pointActions) {
+    // Delete point shows Delete's keys: in the point menu they delete its point (deletePointShortcuts).
+    const deleteKeys = shortcutOf(editDefinition('delete'), options.translate, options.characterKeyShortcuts)
     return [
       ...finishEntries,
       ...pointActions.map((entry): CanvasContextMenuCommand => ({
         id: entry.action,
         label: options.translate(POINT_ACTION_LABEL_KEYS[entry.action]),
+        ...(entry.action === 'delete-point' ? deleteKeys : {}),
         disabled: entry.disabled,
         run: () => {
           if (!entry.disabled) entry.run()
@@ -322,27 +325,47 @@ function editCommand(
   characterKeys: boolean,
   extra: Partial<CanvasContextMenuCommand>,
 ): CanvasContextMenuCommand {
-  const definition = canvasCommandDefinitions.find(
-    (candidate): candidate is CanvasEditCommandDefinition => candidate.kind === 'edit' && candidate.id === id,
-  )
-  if (!definition) throw new Error(`Missing Canvas edit command '${id}'`)
-  // Only real shortcuts: Deselect's Esc hint belongs to the map, not this menu.
-  const shortcut = definition.shortcuts ? canvasCommandDisplayKey(definition, characterKeys) : undefined
+  const definition = editDefinition(id)
   return {
     id,
     label: translate(definition.labelKey),
-    ...(shortcut
-      ? {
-          shortcut: formatShortcut(shortcut, translate),
-          keyShortcuts: canvasCommandAriaKeys(definition, characterKeys),
-        }
-      : {}),
+    ...shortcutOf(definition, translate, characterKeys),
     disabled,
     run: () => {
       if (!disabled) run()
     },
     ...extra,
   }
+}
+
+function editDefinition(id: CanvasEditAction): CanvasEditCommandDefinition {
+  const definition = canvasCommandDefinitions.find(
+    (candidate): candidate is CanvasEditCommandDefinition => candidate.kind === 'edit' && candidate.id === id,
+  )
+  if (!definition) throw new Error(`Missing Canvas edit command '${id}'`)
+  return definition
+}
+
+/** An edit command's shortcut as the menu shows and announces it. Only real shortcuts: Deselect's Esc hint belongs to
+ *  the map, not this menu. */
+function shortcutOf(
+  definition: CanvasEditCommandDefinition,
+  translate: (key: string) => string,
+  characterKeys: boolean,
+): Pick<CanvasContextMenuCommand, 'shortcut' | 'keyShortcuts'> {
+  const shortcut = definition.shortcuts ? canvasCommandDisplayKey(definition, characterKeys) : undefined
+  if (!shortcut) return {}
+  const keyShortcuts = canvasCommandAriaKeys(definition, characterKeys)
+  return { shortcut: formatShortcut(shortcut, translate), ...(keyShortcuts ? { keyShortcuts } : {}) }
+}
+
+/**
+ * The keys a point menu (A16) takes for its Delete point while it is open: Delete's (Delete, Backspace). The canvas
+ * menu's keys are its entries' shortcuts on what it names (Delete on the selection's menu deletes the selection), and a
+ * point menu names a point, so they delete that point, never the selection (components/canvas/CanvasContextMenu).
+ */
+export function deletePointShortcuts(): readonly string[] {
+  return editDefinition('delete').shortcuts ?? []
 }
 
 /**

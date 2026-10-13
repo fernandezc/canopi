@@ -1,4 +1,9 @@
-import { buildCanvasContextMenuEntries, type CanvasContextMenuProfileLine } from '../../app/canvas-context-menu/entries'
+import { useLayoutEffect } from 'preact/hooks'
+import {
+  buildCanvasContextMenuEntries,
+  deletePointShortcuts,
+  type CanvasContextMenuProfileLine,
+} from '../../app/canvas-context-menu/entries'
 import {
   canvasContextMenuRequest,
   closeCanvasContextMenu,
@@ -6,6 +11,8 @@ import {
 } from '../../app/canvas-context-menu/state'
 import { requestBudgetPrice } from '../../app/budget/price-request'
 import { useMapSelectionSummary } from '../../app/map-selection/summary'
+import { chordMatches, chordsOfShortcut } from '../../app/keyboard/key-chord'
+import { pushKeyScope } from '../../app/keyboard/keymap'
 import { mapSelectionHeading } from '../../app/map-selection/summary-text'
 import { openSpeciesDetail } from '../../app/plant-detail/actions'
 import { locale, singleKeyShortcuts } from '../../app/settings/state'
@@ -37,6 +44,7 @@ function OpenCanvasContextMenu({ request, profileLine }: {
   const targets = request.selection ? request.selection.editableTargets.length + request.selection.lockedTargets.length : 0
   const summary = targets ? selectionSummary : null
   const heading = summary ? mapSelectionHeading(summary, locale.value) : null
+  usePointMenuKeys(request)
   const entries = buildCanvasContextMenuEntries(request, {
     translate: t,
     characterKeyShortcuts: singleKeyShortcuts.value,
@@ -61,6 +69,28 @@ function OpenCanvasContextMenu({ request, profileLine }: {
       }}
     />
   )
+}
+
+/**
+ * While a point menu is open, Delete and Backspace are its Delete point (A16): they close the menu with focus given back
+ * and delete the point, as choosing the entry does (ActionMenu.activate), or do nothing while Delete point is refused.
+ * A pushed key scope, so the keymap's selection deletion never runs from the menu.
+ */
+function usePointMenuKeys(request: CanvasContextMenuRequest): void {
+  useLayoutEffect(() => {
+    const deletePoint = request.pointActions?.find((entry) => entry.action === 'delete-point')
+    if (!deletePoint) return undefined
+    const chords = deletePointShortcuts().flatMap(chordsOfShortcut)
+    return pushKeyScope((chord) => {
+      if (!chords.some((key) => chordMatches(key, chord))) return false
+      if (!deletePoint.disabled) {
+        closeCanvasContextMenu(request)
+        request.returnFocus()
+        deletePoint.run()
+      }
+      return true
+    })
+  }, [request])
 }
 
 const requestKeys = new WeakMap<object, number>()

@@ -1,7 +1,8 @@
 // One point rule for zone corners, and Esc stepping back in Polygon (canopi-f47t.54, stream Z; plan section 4 "2.0
 // plant along a path", amendment A2, A16, A17): under Select, Alt+click deletes a corner (guard), a click on a midpoint
 // dot adds nothing and its double-click inserts a corner (guard), and a dot drag now inserts a corner where it is
-// released; right-click, a long press or Shift+F10 on a corner opens the point menu, Delete point only; in Polygon, Esc
+// released; right-click, a long press or Shift+F10 on a corner opens the point menu, Delete point only, which Delete and
+// Backspace pressed in it run and which Undo or a tool letter closes (stream D); in Polygon, Esc
 // removes the last point, steps back to nothing, then returns to Select, and Ctrl+Shift+Z restores a removed point. Both
 // engines unless a test says otherwise; the long press is Chromium-only (CDP touch). DOM assertions only, no baselines.
 //
@@ -331,6 +332,51 @@ test.describe('long press', () => {
     await expectDeletePointOnly(page, 'a long press on a corner')
     await expect(undo(page), 'the lift runs no entry').toBeDisabled()
   })
+})
+
+// The canvas menu's keys are its entries' shortcuts on what it names; a point menu names a corner.
+test('(canopi-f47t.54, D) Delete and Backspace in a corner\'s point menu delete that corner, never the zone; refused at three corners, the menu stays', async ({ page }) => {
+  await openBase(page)
+  await selectPolygon(page)
+  for (const [key, left] of [['Delete', POLYGON_CORNERS - 1], ['Backspace', POLYGON_CORNERS - 2]] as const) {
+    await (await firstCorner(page)).focus()
+    await page.keyboard.press('Shift+F10')
+    await expectDeletePointOnly(page, 'Shift+F10 on a focused corner')
+    await expect(pointMenu(page).first(), 'Delete point shows Delete\'s keys').toHaveAttribute('aria-keyshortcuts', /Delete/)
+    await expect(pointMenu(page).first(), 'the menu has focus').toBeFocused()
+    await page.keyboard.press(key)
+    await expect.poll(() => corners(page), `${key} deletes the corner`).toBe(left)
+    await expect(page.getByRole('menu'), `${key} closes the menu`).toHaveCount(0)
+    await expect(selectionChip(page), `${key} keeps the zone`).toHaveText(/^Polygon zone/)
+  }
+  await (await firstCorner(page)).focus()
+  await page.keyboard.press('Shift+F10')
+  await expectDeletePointOnly(page, 'Shift+F10 on a triangle\'s corner')
+  await page.keyboard.press('Delete')
+  await expect(page.getByRole('menu'), 'a refused Delete point keeps the menu').toHaveCount(1)
+  await expect.poll(() => corners(page), 'the triangle keeps its corners').toBe(3)
+  await expect(selectionChip(page), 'the zone stays').toHaveText(/^Polygon zone/)
+})
+
+// The point menu names its corner by index; once the corners or the tool change, it closes.
+test('(canopi-f47t.54, D) a corner\'s point menu closes on Undo and on a tool letter pressed in it', async ({ page }) => {
+  await openBase(page)
+  await selectPolygon(page)
+  await (await firstCorner(page)).click({ modifiers: ['Alt'] })
+  await expect.poll(() => corners(page), 'Alt+click deletes a corner: an edit to undo').toBe(POLYGON_CORNERS - 1)
+  await (await firstCorner(page)).click({ button: 'right' })
+  await expectDeletePointOnly(page, 'a right-click on a corner')
+  await pressMod(page, 'z')
+  await expect(page.getByRole('menu'), 'Undo closes the point menu').toHaveCount(0)
+  await expect.poll(() => corners(page), 'Undo brings the corner back').toBe(POLYGON_CORNERS)
+  await expect(mapHost(page), 'focus goes back to the map').toBeFocused()
+
+  await (await firstCorner(page)).click({ button: 'right' })
+  await expectDeletePointOnly(page, 'a right-click on a corner')
+  await page.keyboard.press('w')
+  await expect(page.getByRole('menu'), 'a tool letter closes the point menu').toHaveCount(0)
+  await expect(page.locator('[data-tool-card]'), 'the letter arms Plant a row').toHaveAttribute('data-tool-card', 'plant-spacing')
+  await expect(undo(page), 'nothing is deleted').toBeDisabled()
 })
 
 test('(canopi-f47t.54, Z) Shift+F10 on a focused zone corner opens the point menu', async ({ page }) => {

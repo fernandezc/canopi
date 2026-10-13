@@ -62,14 +62,16 @@ describe('Plant Spacing interval parsing', () => {
 })
 
 describe('Plant a row count parsing', () => {
-  it('accepts a whole number of plants from 2 to 5000, the picked plant counted', () => {
+  // The most a row plants is Plant a row's own guard (plant-row.ts), not the parser's.
+  it('accepts a whole number of plants from 2, the picked plant counted', () => {
     expect(parsePlantRowCountInput('2')).toEqual({ valid: true, count: 2 })
     expect(parsePlantRowCountInput(' 12 ')).toEqual({ valid: true, count: 12 })
     expect(parsePlantRowCountInput('5000')).toEqual({ valid: true, count: 5000 })
+    expect(parsePlantRowCountInput('5001')).toEqual({ valid: true, count: 5001 })
   })
 
-  it('rejects blank, fewer than 2, more than 5000, fractional and non-numeric counts', () => {
-    for (const text of ['', ' ', '0', '1', '5001', '2.5', '3,0', '-4', '1e3', 'ten', '12 plants']) {
+  it('rejects blank, fewer than 2, fractional, non-numeric and unsafe counts', () => {
+    for (const text of ['', ' ', '0', '1', '2.5', '3,0', '-4', '1e3', 'ten', '12 plants', '9007199254740993']) {
       expect(parsePlantRowCountInput(text), text).toEqual({ valid: false })
     }
   })

@@ -50,8 +50,8 @@ export function placePlantFromSpecies(
 export function createPlantStampTool(): CanvasTool {
   let ctx: ToolContext | null = null
   let species: PlantStampSourceInput | null = null
-  /** A click found no species chosen, and none has been chosen since. */
-  let speciesPrompted = false
+  /** The clicks that found no species chosen since one was. */
+  let speciesPrompts = 0
   /** Where "Place plants here" waits for a species to be chosen. */
   let pendingWorld: WorldPoint | null = null
   /** The snapped point under the pointer while the preview shows. */
@@ -63,11 +63,10 @@ export function createPlantStampTool(): CanvasTool {
   }
 
   function publishGuidance(): void {
-    context().effects.setGuidance({ promptSpecies: speciesPrompted && species === null })
+    context().effects.setGuidance({ speciesPrompts })
   }
 
   function place(chosen: PlantStampSourceInput, world: WorldPoint): void {
-    speciesPrompted = false
     const { effects, scene } = context()
     // The preview follows the placement: its nearest plant may now be the one just placed.
     placePlantFromSpecies({ edits: effects.edits, scene }, chosen, world, 'interaction-stamp-plant', showPreview)
@@ -91,6 +90,7 @@ export function createPlantStampTool(): CanvasTool {
 
   function setSource(source: ToolSource | null): void {
     species = source?.kind === 'species' ? source.species : null
+    if (species) speciesPrompts = 0
   }
 
   return {
@@ -115,8 +115,8 @@ export function createPlantStampTool(): CanvasTool {
       switch (g.kind) {
         case 'press':
           pendingWorld = null
-          speciesPrompted = species === null
           if (species) place(species, g.point.snapped)
+          else speciesPrompts += 1
           publishGuidance()
           return 'handled'
         case 'hover':
@@ -138,12 +138,12 @@ export function createPlantStampTool(): CanvasTool {
     command(c) {
       if (c.kind !== 'place-at') return 'pass'
       // The host snapped the point and drops the command in overview.
-      speciesPrompted = species === null
       if (species) {
         pendingWorld = null
         place(species, c.world)
       } else {
         pendingWorld = c.world
+        speciesPrompts += 1
       }
       publishGuidance()
       return 'handled'
@@ -160,7 +160,7 @@ export function createPlantStampTool(): CanvasTool {
       if (reason === 'overview') hidePreview()
     },
     deactivate() {
-      speciesPrompted = false
+      speciesPrompts = 0
       pendingWorld = null
       hidePreview()
       ctx = null

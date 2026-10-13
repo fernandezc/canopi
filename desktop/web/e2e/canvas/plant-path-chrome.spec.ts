@@ -1,5 +1,5 @@
-// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, streams P
-// and S; plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
+// The Plant a row tool card and its points keep clear of the other chrome in every layout (canopi-f47t.54, stream P;
+// plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
 // points beside it (at 1440x900 with the inspection lens open, in the card's slot), then close a loop; each time the
@@ -9,12 +9,11 @@
 // a 44 px target after a tap; the spacing field and the mode switch show whole and do once scrolled into view (the
 // card's text and fields scroll above its foot); with an invalid spacing the check button focuses the field, which
 // shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two
-// points; after a tap on a point, in its own tests per touch layout). On phones the top chip slot sits below the card,
-// inside the viewport. Once a row is planted, the selection chip with its spacing field keeps clear of its neighbours
-// (stream S). Both engines; offline, so the map notice shows. DOM assertions only, no baselines. Selectors are
-// locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`, `[data-plant-row-mode]`,
-// `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles;
-// `[data-plant-row-spacing-input]` in the selection chip).
+// points; after a tap on a point, in its own tests per touch layout). On phones the tool is a row of the context bar,
+// in the panel sheet, so its clearance is phone-chrome.spec.ts's; the invalid spacing (the bar's status and the
+// options' field), the touched points and a spacing changed in the tool's options are checked here on phones. Both engines; offline, so the map notice shows. DOM assertions only, no baselines.
+// Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`, `[data-plant-row-mode]`,
+// `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import type { Point } from '../support/fingers'
@@ -49,6 +48,11 @@ const LAYOUTS: readonly Layout[] = [
   { width: 740, height: 360, locales: ['en', 'de', 'ru'], touch: true },
 ]
 
+/** The Web Edition's phone layout (app/shell/phone-layout.ts): under 640 px wide, or on its side under 480 px tall. */
+function isPhone(layout: Layout): boolean {
+  return layout.width < 640 || (layout.width > layout.height && layout.height < 480 && layout.width < 960)
+}
+
 /** The card's neighbours; an element that is absent or has no area is not one. */
 const NEIGHBOURS: ReadonlyArray<readonly [string, string]> = [
   ['the tool rail', '[data-tool-rail]'],
@@ -64,6 +68,23 @@ const NEIGHBOURS: ReadonlyArray<readonly [string, string]> = [
 
 function card(page: Page): Locator {
   return page.locator('[data-tool-card]')
+}
+
+/** On a phone, the armed tool's options in the panel sheet (answer 30): Place plants' chooser, the row's fields. */
+function toolOptions(page: Page): Locator {
+  return page.locator('[data-sheet-panel="options"]')
+}
+
+/** On a phone, opens the armed tool's options from the bar's Options button. */
+async function openToolOptions(page: Page): Promise<void> {
+  await page.locator('[data-tool-options-button]').tap()
+  await expect(toolOptions(page), 'the tool\'s options show').toBeVisible()
+}
+
+/** On a phone, closes the tool's options from Options, so the sheet rests at its peek again. */
+async function closeToolOptions(page: Page): Promise<void> {
+  await page.locator('[data-tool-options-button]').tap()
+  await expect(toolOptions(page), 'the tool\'s options close').toHaveCount(0)
 }
 
 async function openBase(page: Page, layout: Layout, locale: string): Promise<void> {
@@ -102,6 +123,9 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
   const maxHeight = await card(page).evaluate((element) => Number.parseFloat(getComputedStyle(element).maxHeight))
   const obstacles: Box[] = [{ ...cardBox, height: Number.isFinite(maxHeight) ? maxHeight : frame.bottom - cardBox.y }]
   for (const [, selector] of NEIGHBOURS) obstacles.push(...await shownBoxes(page, selector))
+  // On a phone the zoom column is placed midway down the visible map, which moves as the card in the panel sheet grows
+  // and shrinks (Place plants' species list, then the row's fields): its whole column is kept clear.
+  for (const box of await shownBoxes(page, '[data-zoom-group="phone"]')) obstacles.push({ ...box, y: frame.top, height: frame.bottom - frame.top })
   const reach = (layout.touch ? TOUCH_TARGET_PX : 20) / 2 + 4
   const gap = layout.touch ? 60 : 40
   const clear = (at: Point) => at.x - reach >= frame.left && at.x + reach <= frame.right && at.y - reach >= frame.top
@@ -120,21 +144,31 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
 }
 
 /**
- * Places an Apple beside the tool card (Place plants, from the card's species list; rowSpots), clears the selection,
- * arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter, and adds two points beside it.
- * Returns the picked plant, the two points and a spot off their line.
+ * Places an Apple beside the tool card (Place plants, from the card's species list, or on a phone the tool's options;
+ * rowSpots), clears the selection, arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter
+ * (on a phone in the tool's options, closed again after), and adds two points beside it. Returns the picked plant, the
+ * two points and a spot off their line.
  */
 async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<readonly [Point, Point, Point, Point | null]> {
+  const phone = isPhone(layout)
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  // On a phone, arming Place plants with no species opens its chooser, the tool's options.
+  const apple = (phone ? toolOptions(page) : card(page)).getByRole('button', { name: /Malus domestica/ }).first()
   await expect(apple).toBeVisible()
-  const spots = await rowSpots(page, layout)
+  // On a phone the spots are found once the options close and the sheet rests at its peek again.
+  let spots = phone ? null : await rowSpots(page, layout)
   // The list scrolls inside the card, so the option is brought into view as a click would; then a covered button,
   // which would hold the click until the test times out, names what covers the card at once.
   await apple.scrollIntoViewIfNeeded()
   await expectHitAtCentre(apple, 'the card\'s species list')
   await apple.click()
+  if (phone) {
+    await expect(toolOptions(page), 'choosing a species closes the options').toHaveCount(0)
+    await nextFrames(page)
+    spots = await rowSpots(page, layout)
+  }
+  if (!spots) throw new Error('no spots for the row')
   await press(page, layout, spots[0])
   // Esc leaves Place plants, the next clears the placed Apple's selection, so its chip covers nothing.
   await mapHost(page).focus()
@@ -143,10 +177,16 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   await page.keyboard.press('w')
   await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
   await press(page, layout, spots[0])
-  const field = card(page).locator('[data-plant-spacing-interval-input]')
-  await expect(field, 'the pick focuses the spacing field').toBeFocused()
+  if (phone) {
+    // The field is the tool's options', which the pick leaves closed.
+    await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the tap picks the Apple').toBeVisible()
+    await openToolOptions(page)
+  }
+  const field = (phone ? toolOptions(page) : card(page)).locator('[data-plant-spacing-interval-input]')
+  await expect(field, 'the pick (on a phone, the options) focuses the spacing field').toBeFocused()
   await field.fill(spacing)
   await page.keyboard.press('Enter')
+  if (phone) await closeToolOptions(page)
   for (const point of [spots[1], spots[2]]) await press(page, layout, point)
   await nextFrames(page)
   return spots
@@ -249,7 +289,9 @@ async function expectHandleTargets(page: Page, layout: Layout, where: string): P
   }
 }
 
-for (const layout of LAYOUTS) {
+// On a phone the card is the context bar's, in the panel sheet, and has no neighbours to clear: phone-chrome.spec.ts
+// checks it there.
+for (const layout of LAYOUTS.filter((each) => !isPhone(each))) {
   const size = `${layout.width}×${layout.height}${layout.name ? ` ${layout.name}` : ''}`
   test.describe(size, () => {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
@@ -279,23 +321,58 @@ for (const layout of LAYOUTS) {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
 
     // The pick's field takes an invalid spacing, the row grows below it, then the check button plants nothing and hands
-    // the field the focus: the field shows whole, so the press is seen to answer (and a phone's keyboard opens on it).
+    // the field the focus: the field shows whole, so the press is seen to answer (and a phone's keyboard opens on it). On
+    // a phone the bar's row says the spacing needs fixing, and the check button opens the tool's options on the field.
     test(`(canopi-f47t.54, P) the check button with an invalid spacing shows the focused field at ${size} (${locales.join(' ')})`, async ({ page }) => {
+      const phone = isPhone(layout)
       for (const locale of locales) {
         const where = `${layout.width}x${layout.height} ${locale}`
         await openBase(page, layout, locale)
         await drawTwoPoints(page, layout, '0')
-        const field = card(page).locator('[data-plant-spacing-interval-input]')
-        await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
+        const field = (phone ? toolOptions(page) : card(page)).locator('[data-plant-spacing-interval-input]')
+        if (phone) await expect(card(page).locator('[data-plant-row-invalid]'), `${where}: the bar says the spacing needs fixing`).toBeVisible()
+        else await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
         const finish = card(page).locator('[data-plant-row-finish]')
         const box = await boxOf(finish)
         await press(page, layout, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
         await expect(field, `${where}: the check button focuses the invalid field`).toBeFocused()
+        await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
         await expect(finish, `${where}: nothing is planted`).toBeVisible()
         await nextFrames(page)
         await expectWhollyShown(field, `${where}: the focused field`)
         await expectHitAtCentre(field, `${where}: the focused field`)
       }
+    })
+  })
+}
+
+// On a phone a row is drawn on the map, its spacing changed in the tool's options (answer 30) and planted with the bar's
+// check button: the bar's count follows the new spacing, and the planted plants stay selected.
+for (const layout of LAYOUTS.filter(isPhone)) {
+  const size = `${layout.width}×${layout.height}`
+  test.describe(`${size} options`, () => {
+    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D4) a row's spacing changed in the tool's options is the one the bar's check button plants at ${size}`, async ({ page }) => {
+      await openBase(page, layout, 'en')
+      await drawTwoPoints(page, layout, '1')
+      const count = card(page).locator('[data-plant-spacing-generated-count]')
+      await expect(count, 'the bar counts the row at 1 m').toContainText('1 m')
+      const atOne = Number.parseInt((await count.textContent())!, 10)
+      await openToolOptions(page)
+      const field = toolOptions(page).locator('[data-plant-spacing-interval-input]')
+      await field.fill('2')
+      await page.keyboard.press('Enter')
+      await expect(mapHost(page), 'Enter gives the map its focus').toBeFocused()
+      await closeToolOptions(page)
+      await expect(count, 'the bar counts the row at 2 m').toContainText('2 m')
+      const atTwo = Number.parseInt((await count.textContent())!, 10)
+      expect(atTwo, `twice the spacing plants fewer (${atOne} at 1 m, ${atTwo} at 2 m)`).toBeLessThan(atOne)
+      await card(page).locator('[data-plant-row-finish]').tap()
+      await expect(card(page).locator('[data-plant-row-finish]'), 'the check button plants the row').toHaveCount(0)
+      await mapHost(page).focus()
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-selection-chip]'), 'the planted plants stay selected').toBeVisible()
     })
   })
 }
@@ -316,90 +393,3 @@ for (const layout of LAYOUTS.filter((each) => each.touch)) {
     })
   })
 }
-
-const PHONES = LAYOUTS.filter((layout) => [[390, 844], [360, 560], [740, 360]].some(([width, height]) => layout.width === width && layout.height === height))
-
-test.describe('phones', () => {
-  test.use({ hasTouch: true })
-
-  test('(canopi-f47t.54, P) on phones the top chip slot sits below the tool card, inside the viewport (390×844, 360×560, 740×360)', async ({ page }) => {
-    for (const layout of PHONES) {
-      const where = `${layout.width}x${layout.height}`
-      await page.setViewportSize({ width: layout.width, height: layout.height })
-      await openBase(page, layout, 'en')
-      await drawTwoPoints(page, layout)
-      const cardBox = await boxOf(card(page))
-      const slot = await boxOf(page.locator('[data-top-chip-slot]'))
-      expect(slot.y, `${where}: the top chip slot sits below the card`).toBeGreaterThanOrEqual(cardBox.y + cardBox.height)
-      expect(slot.x, `${where}: the slot starts inside the viewport`).toBeGreaterThanOrEqual(0)
-      expect(slot.x + slot.width, `${where}: the slot ends inside the viewport`).toBeLessThanOrEqual(layout.width)
-      expect(slot.y, `${where}: the slot is above the viewport's bottom`).toBeLessThan(layout.height)
-    }
-  })
-})
-
-// On a phone held upright the card covers the map's top edge, so the map notice stays at the bottom, below the card,
-// above the panel sheet: with the sheet at half height (bottom chrome that leaves the map little room), the card still
-// stops above the notice rather than above the sheet.
-test.describe('360×560 half sheet', () => {
-  test.use({ viewport: { width: 360, height: 560 }, hasTouch: true })
-
-  test('(canopi-f47t.54, P) on a phone held upright the tool card stops above the map notice with the panel sheet at half height (360×560 en)', async ({ page }) => {
-    const layout = LAYOUTS.find((each) => each.width === 360 && each.height === 560)!
-    await openBase(page, layout, 'en')
-    await drawTwoPoints(page, layout)
-    // The handle's ArrowUp raises the sheet a step in both engines (a tap on it moved nothing in WebKit's touch emulation).
-    await page.locator('[data-sheet-handle]').focus()
-    await page.keyboard.press('ArrowUp')
-    await expect(page.locator('[data-phone-sheet]'), 'the panel sheet rests at half height').toHaveAttribute('data-phone-sheet', 'half')
-    await expect(card(page).locator('[data-plant-row-finish]'), 'the row is still held').toBeVisible()
-    await nextFrames(page)
-    await expectCardClear(page, layout, 'en', 'a half sheet')
-  })
-})
-
-const CHIP_LAYOUTS: readonly Layout[] = [
-  ...PHONES.filter((layout) => layout.width !== 740).map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] })),
-  { width: 1024, height: 768, locales: ['en', 'de', 'ru'], touch: false },
-]
-const SHORT_LANDSCAPE: readonly Layout[] = PHONES.filter((layout) => layout.width === 740)
-  .map((layout) => ({ ...layout, locales: ['en', 'de', 'ru'] }))
-
-/** Plants a row with the row tool in each layout and locale; the selection chip, with the row's spacing, clears every
- *  neighbour and the tool card, stays in the viewport, and its field and switch take the click at their centre. */
-async function expectRowChipClear(page: Page, layouts: readonly Layout[]): Promise<void> {
-  for (const layout of layouts) {
-    for (const locale of layout.locales) {
-      const where = `${layout.width}x${layout.height} ${locale}`
-      await page.setViewportSize({ width: layout.width, height: layout.height })
-      await openBase(page, { ...layout, touch: false }, locale)
-      await drawTwoPoints(page, { ...layout, touch: false })
-      await page.keyboard.press('Enter')
-      const chip = page.locator('[data-selection-chip]')
-      const spacing = chip.locator('[data-plant-row-spacing-input]')
-      await expect(spacing, `${where}: the planted row is selected with its spacing field`).toBeVisible()
-      await nextFrames(page)
-      const chipBox = await boxOf(chip)
-      for (const [name, selector] of [...NEIGHBOURS.filter(([, selector]) => selector !== '[data-selection-chip]'), ['the tool card', '[data-tool-card]'] as const]) {
-        for (const box of await shownBoxes(page, selector)) {
-          expect(overlap(chipBox, box), `${where}: the selection chip clears ${name}`).toBe(false)
-        }
-      }
-      expect(chipBox.x, `${where}: the chip starts inside the viewport`).toBeGreaterThanOrEqual(0)
-      expect(chipBox.x + chipBox.width, `${where}: the chip ends inside the viewport`).toBeLessThanOrEqual(layout.width)
-      await expectHitAtCentre(spacing, `${where}: the row's spacing field`)
-      for (const mode of await chip.locator('[data-plant-row-mode]').all()) await expectHitAtCentre(mode, `${where}: the row's mode switch`)
-    }
-  }
-}
-
-test('(canopi-f47t.54, S) the selection chip with a row\'s spacing field stays clear of its neighbours at 390×844, 360×560 and 1024×768 (en de ru)', async ({ page }) => {
-  await expectRowChipClear(page, CHIP_LAYOUTS)
-})
-
-// At 740×360 offline, the idle Plant a row card (registered with the visible map only while it holds a row, answer 15)
-// and the map notice leave the chip about 33 px of map between them: in German the chip's 40 px meets the card. A chip
-// cannot fit there; which chrome gives way is the main agent's (or the user's) call.
-test.fail('(canopi-f47t.54, S, main decides) the selection chip with a row\'s spacing field stays clear of the Plant a row card at 740×360 (en de ru)', async ({ page }) => {
-  await expectRowChipClear(page, SHORT_LANDSCAPE)
-})

@@ -89,7 +89,6 @@ describe('Canvas Layer Presentation', () => {
           annotations: [],
           measurementGuides: [],
           groups: [],
-          plantRows: [],
         },
       }),
     }))

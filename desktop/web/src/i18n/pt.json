@@ -162,7 +162,8 @@
       "modeCount": "Plantas",
       "count": "Plantas na fileira",
       "loopSpacing": "Espaços iguais de",
-      "length": "Comprimento"
+      "length": "Comprimento",
+      "checkSpacing": "Verifique o espaçamento"
     },
     "contextMenu": {
       "ariaLabel": "Comandos de edição da tela",
@@ -732,7 +733,8 @@
       "measurements_other": "{{count, number}} medições",
       "clear": "Limpar a seleção",
       "rename": "Renomear…",
-      "selectRow": "Selecionar fileira"
+      "sameSpeciesShort": "Mesma espécie",
+      "clearShort": "Limpar"
     },
     "viewChip": "Visualização",
     "map": {
@@ -807,7 +809,8 @@
       "pathTouchInstruction": "toque para adicionar pontos, um toque duplo planta",
       "pathKeys": "Alt coloca um ponto em canto vivo · Shift mantém ângulos de 45° · {{mod}} desativa o ajuste",
       "pathTouchHint": "Arraste um ponto para movê-lo · arraste uma marca para adicionar um · mantenha um ponto pressionado para mais",
-      "pathFinish": "Plantar a fileira"
+      "pathFinish": "Plantar a fileira",
+      "options": "Opções"
     },
     "placePreview": {
       "nearest": "{{distance}} até {{name}}",

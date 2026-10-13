@@ -2,8 +2,9 @@
 // the pick, clicks add points and Enter, a double-click on the last point or the tool card's check button plants the row
 // along a smooth curve through them, in one Undo step; a click on the first point closes a loop; "N plants" counts the
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
-// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point (the card
-// offers no point buttons: decision 16). A drag from the plant still plants a straight row (guard). Both engines unless a
+// makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point, and a
+// right-click or long press on a point opens its menu (the card offers no point buttons: decision 16), where Delete and
+// Backspace delete that point and Ctrl+Z closes it (stream D). A drag from the plant still plants a straight row (guard). Both engines unless a
 // test says otherwise; WebKit has taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no
 // baselines; the path engine's positions are compared bit for bit between Node and each browser, so these tests read
 // exact positions.
@@ -375,6 +376,77 @@ test('(canopi-f47t.54, P) a click on a point then Delete removes that point; the
   const kept = await pointAt(page, 2)
   expect(Math.hypot(kept.x - P3.x, kept.y - P3.y), 'the last point is kept, the clicked one gone').toBeLessThan(2)
   await expectNothingPlanted(page, 'Delete plants nothing')
+})
+
+function menuEntries(page: Page): Locator {
+  return page.getByRole('menu').getByRole('menuitem')
+}
+
+/** The open canvas menu holds `names`, in order; Esc then closes it. */
+async function expectMenu(page: Page, names: readonly RegExp[], how: string): Promise<void> {
+  await expect(menuEntries(page), how).toHaveCount(names.length)
+  for (const [index, name] of names.entries()) await expect(menuEntries(page).nth(index), how).toHaveAccessibleName(name)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+}
+
+// Moved from plant-path-select.spec.ts when Select stopped editing rows (answer 27): the point menu while drawing.
+test('(canopi-f47t.54, P) right-click and long press on a point while drawing open Finish shape, Delete point and Sharp or Smooth corner, and plant nothing (long press Chromium)', async ({ page, browserName }) => {
+  await openBase(page)
+  await pickApple(page)
+  await click(page, P1)
+  await click(page, P2, ['Alt'])
+  await expect.poll(() => pointCount(page), 'the picked plant and two points').toBe(3)
+
+  const smooth = await pointAt(page, 1)
+  await page.mouse.click(smooth.x, smooth.y, { button: 'right' })
+  await expectMenu(page, [/^Finish shape/, /^Delete point/, /^Sharp corner/], 'a right-click on a smooth point')
+  const sharp = await pointAt(page, 2)
+  await page.mouse.click(sharp.x, sharp.y, { button: 'right' })
+  await expectMenu(page, [/^Finish shape/, /^Delete point/, /^Smooth corner/], 'a right-click on a sharp point')
+  if (browserName === 'chromium') {
+    const fingers = await Fingers.of(page)
+    await fingers.tap(smooth, { holdMs: 600 })
+    await expectMenu(page, [/^Finish shape/, /^Delete point/, /^Sharp corner/], 'a long press on a point')
+  }
+
+  await expect.poll(() => pointCount(page), 'the row is still drawn').toBe(3)
+  await expectNothingPlanted(page, 'opening the menus plants nothing')
+})
+
+// In a point's menu, Delete and Backspace are its Delete point: never the last point or the last-touched one.
+test('(canopi-f47t.54, D) Delete and Backspace in a point\'s menu while drawing delete that point and close the menu', async ({ page }) => {
+  await openBase(page)
+  await pickApple(page)
+  for (const at of [P1, P2, P3]) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
+
+  for (const [key, left, next] of [['Delete', 3, P2], ['Backspace', 2, P3]] as const) {
+    const point = await pointAt(page, 1)
+    await page.mouse.click(point.x, point.y, { button: 'right' })
+    await expect(menuEntries(page), 'the point menu').toHaveCount(3)
+    await page.keyboard.press(key)
+    await expect(page.getByRole('menu'), `${key} closes the menu`).toHaveCount(0)
+    await expect.poll(() => pointCount(page), `${key} removes one point`).toBe(left)
+    expect(distance(await pointAt(page, 1), next), `${key} removes the menu's point, not the last one`).toBeLessThan(2)
+  }
+  await expectNothingPlanted(page, 'the keys plant nothing')
+})
+
+// The point menu names its point by index; once the draft's points change, it closes.
+test('(canopi-f47t.54, D) Ctrl+Z with a point\'s menu open while drawing takes the last point back and closes the menu', async ({ page }) => {
+  await openBase(page)
+  await pickApple(page)
+  for (const at of [P1, P2, P3]) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
+  const second = await pointAt(page, 2)
+  await page.mouse.click(second.x, second.y, { button: 'right' })
+  await expect(menuEntries(page), 'the point menu').toHaveCount(3)
+  await pressMod(page, 'z')
+  await expect(page.getByRole('menu'), 'Ctrl+Z closes the point menu').toHaveCount(0)
+  await expect.poll(() => pointCount(page), 'Ctrl+Z takes the last point back').toBe(3)
+  await expect(mapHost(page), 'focus goes back to the map').toBeFocused()
+  await expectNothingPlanted(page, 'nothing is planted')
 })
 
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {
