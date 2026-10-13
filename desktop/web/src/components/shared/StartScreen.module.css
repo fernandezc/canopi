@@ -1,10 +1,11 @@
-/* The start screen fills the window under the floating title bar. */
+/* The start screen fills the window under the floating title bar. Its last column is the room the chrome on the right
+   edge takes (the panel rail), so the library ends beside that chrome, not under it. */
 .start {
   position: absolute;
   inset: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr) var(--map-clear-right, 0px);
   background: var(--color-bg);
   color: var(--color-text);
 }
@@ -27,12 +28,13 @@
   flex: 0 0 calc(var(--chrome-rail-top) - var(--space-8));
 }
 
-/* Room for the chrome the visible-map-area seam registers at the bottom (the phone's panel sheet): the start screen
-   is mounted in the registered map area, so it reads `--map-inset-bottom` and each column ends above that chrome. */
+/* Room for the chrome the visible-map-area seam registers: the start screen is mounted in the registered map area, so
+   it reads the clearance a scrolled page keeps (`--map-clear-*`). Each column ends above the chrome in the lower half
+   (the phone's panel sheet, its landscape corner box at peek included). */
 .intro::after,
 .library::after {
   content: '';
-  flex: 0 0 var(--map-inset-bottom, 0px);
+  flex: 0 0 var(--map-clear-bottom, 0px);
 }
 
 .brand {
@@ -358,13 +360,14 @@
 /* One page that scrolls: each row is as tall as its content, so the library never lies over the intro. */
 @media (max-width: 760px) {
   .start {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) var(--map-clear-right, 0px);
     grid-auto-rows: max-content;
     overflow-y: auto;
   }
 
   .intro,
   .library {
+    grid-column: 1;
     overflow: visible;
     padding-right: var(--space-4);
     padding-left: var(--space-4);
