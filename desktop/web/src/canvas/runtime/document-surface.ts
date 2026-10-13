@@ -133,8 +133,8 @@ class SceneCanvasDocumentRole implements SceneCanvasDocumentSurface {
    */
   private _mapViewForSave(): SavedViewCamera | null {
     const { view } = this.options.cameraHost.frames.viewFrame.peek()
-    if (!this._placed || view.screen.width <= 0 || view.screen.height <= 0) return this._savedMapView
-    return savedViewCameraOf(geographicViewOfCamera(view.camera), view.screen)
+    if (!this._placed) return this._savedMapView
+    return savedViewCameraOf(geographicViewOfCamera(view.camera), view.screen) ?? this._savedMapView
   }
 
   private _opened(file: CanopiFile): void {

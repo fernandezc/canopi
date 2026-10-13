@@ -874,7 +874,7 @@ export type SavedViewCamera = {
 	lat: number,
 	zoom: number,
 	bearing: number,
-	ground_size_m?: SavedViewGroundSize | null,
+	ground_size_m: SavedViewGroundSize,
 };
 
 export type SavedViewGroundSize = {

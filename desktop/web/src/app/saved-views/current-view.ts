@@ -25,7 +25,7 @@ export function canShowSavedViews(): boolean {
   return currentDesign.value !== null && queries?.sessionPlane.value != null
 }
 
-/** What the map shows now as a saved view, with the labels it shows; null without a Design on a map. */
+/** What the map shows now as a saved view, with the labels it shows; null without a Design on a map with a size. */
 interface CurrentViewCapture {
   readonly view: SavedView
   readonly labels: PlantLabelMode
@@ -49,21 +49,19 @@ export function captureCurrentView({ id, name, title = '' }: {
   if (!queries || !plane || !design || trimmed.length === 0) return null
   // What is on screen now: the live frame, not the settled camera.
   const capture = queries.view.captureView()
-  return {
-    view: composeSavedView({
-      id,
-      name: trimmed,
-      title: title.trim() || null,
-      view: geographicViewOfCamera(capture.camera),
-      screen: capture.screen,
-      mapLayers: mapLayers.value,
-      sceneLayers: queries.getSceneSnapshot().layers,
-      siteData: shownSiteData(design.lidar),
-      focusedSpecies: queries.getSpeciesFocus().canonicalName,
-      selection: queries.getSelection(),
-    }),
-    labels: currentPlantDisplay.peek().labels,
-  }
+  const view = composeSavedView({
+    id,
+    name: trimmed,
+    title: title.trim() || null,
+    view: geographicViewOfCamera(capture.camera),
+    screen: capture.screen,
+    mapLayers: mapLayers.value,
+    sceneLayers: queries.getSceneSnapshot().layers,
+    siteData: shownSiteData(design.lidar),
+    focusedSpecies: queries.getSpeciesFocus().canonicalName,
+    selection: queries.getSelection(),
+  })
+  return view ? { view, labels: currentPlantDisplay.peek().labels } : null
 }
 
 /**

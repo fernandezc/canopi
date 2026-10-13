@@ -254,9 +254,8 @@ function watchPresentation(): void {
 
 /**
  * The step on screen keeps its frame: when the map settles at another size
- * (full screen ends, the window is resized), a step whose view records its
- * framed ground is fitted again, with a jump. A view saved without it keeps
- * its camera zoom in any window, so nothing moves.
+ * (full screen ends, the window is resized), the step's view is fitted again
+ * to its framed ground, with a jump.
  */
 function watchSettledScreen(): void {
   const view = currentCanvasQuerySurface.value?.view
@@ -268,7 +267,7 @@ function watchSettledScreen(): void {
   presentedScreen = size
   if (previous === null || previous === size) return
   const shown = presentedStep.peek()?.view
-  if (shown?.camera.ground_size_m) goToSavedView(shown.id, 'jump')
+  if (shown) goToSavedView(shown.id, 'jump')
 }
 
 function applyStep({ view }: PresentedStep): void {

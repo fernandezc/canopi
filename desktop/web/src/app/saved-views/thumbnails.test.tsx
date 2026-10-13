@@ -20,7 +20,7 @@ const { useSavedViewThumbnail } = await import('./thumbnails')
 const VIEW: SavedView = {
   id: 'hedges',
   name: 'Hedges',
-  camera: { lon: 13, lat: 23, zoom: 19, bearing: 30 },
+  camera: { lon: 13, lat: 23, zoom: 19, bearing: 30, ground_size_m: { width: 20, height: 15 } },
   visible_layers: {
     background: { kind: 'none' },
     terrain: { contours: false, hillshade: false },
@@ -75,33 +75,10 @@ afterEach(() => {
 })
 
 describe('saved view thumbnails in the workspace', () => {
-  it('without their framed area, are drawn again once the workspace size settles, since each is fitted to it (spec §4.10)', async () => {
+  it('are never drawn again for a workspace size change', async () => {
+    // The image shows the ground the view framed, which no window changes (spec §4.10).
     const host = workspace(1600, 900)
     await act(() => { render(<Thumbnail view={VIEW} />, container) })
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(capture).toHaveBeenCalledTimes(1)
-
-    // A pan that settles at the same size draws nothing.
-    await host.settle()
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(capture).toHaveBeenCalledTimes(1)
-
-    // A drag-resize draws nothing until it settles, then draws once.
-    host.resize(1200, 700)
-    await vi.advanceTimersByTimeAsync(1_000)
-    host.resize(800, 450)
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(capture).toHaveBeenCalledTimes(1)
-    await host.settle()
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(capture).toHaveBeenCalledTimes(2)
-  })
-
-  it('with their framed area, are never drawn again for a workspace size change', async () => {
-    // The image shows the ground the view framed, which no window changes (spec §4.10).
-    const framed: SavedView = { ...VIEW, camera: { ...VIEW.camera, ground_size_m: { width: 400, height: 250 } } }
-    const host = workspace(1600, 900)
-    await act(() => { render(<Thumbnail view={framed} />, container) })
     await vi.advanceTimersByTimeAsync(1_000)
     expect(capture).toHaveBeenCalledTimes(1)
 

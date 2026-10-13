@@ -26,7 +26,7 @@ function view(id: string): SavedView {
   return {
     id,
     name: `View ${id}`,
-    camera: { lon: 2.2945, lat: 48.8584, zoom: 18, bearing: 0 },
+    camera: { lon: 2.2945, lat: 48.8584, zoom: 18, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'basemap', style: 'liberty' },
       terrain: { contours: false, hillshade: false },
@@ -233,22 +233,12 @@ describe('recapturing a saved view', () => {
     expect(currentDesign.value).toBe(before)
   })
 
-  it('leaves an unchanged view loaded with a null ground size alone', () => {
-    // Desktop's loader writes an absent ground size as `null`; a capture leaves the key out.
-    const loaded = { ...view('a'), camera: { ...view('a').camera, ground_size_m: null } }
-    open([], [loaded])
-    const before = currentDesign.value
-    recaptureSavedView('a', { ...view('fresh'), camera: view('a').camera })
-    expect(currentDesign.value).toBe(before)
-    expect(designSessionStore.designDirty.value).toBe(false)
-  })
-
   it('writes back only the fields a saved view has, never a field the view carried from elsewhere', () => {
     // A view object holding a stray field (the deleted `extent`, say): recapturing builds the view from its named fields.
     const stray = { ...view('a'), extent: { west: 2.9, south: 44.9, east: 3.1, north: 45.1 } } as SavedView
     open([], [stray])
-    recaptureSavedView('a', { ...view('fresh'), camera: { lon: 3, lat: 45, zoom: 17, bearing: 0 } })
+    recaptureSavedView('a', { ...view('fresh'), camera: { lon: 3, lat: 45, zoom: 17, bearing: 0, ground_size_m: { width: 20, height: 15 } } })
     expect(currentDesign.value?.views?.[0]).not.toHaveProperty('extent')
-    expect(currentDesign.value?.views?.[0]).toEqual({ ...view('a'), camera: { lon: 3, lat: 45, zoom: 17, bearing: 0 } })
+    expect(currentDesign.value?.views?.[0]).toEqual({ ...view('a'), camera: { lon: 3, lat: 45, zoom: 17, bearing: 0, ground_size_m: { width: 20, height: 15 } } })
   })
 })

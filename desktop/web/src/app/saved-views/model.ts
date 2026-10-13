@@ -10,7 +10,7 @@ export interface SavedViewCaptureInput {
   readonly name: string
   readonly title: string | null
   readonly view: GeographicView
-  /** The whole map's size in CSS pixels: the ground it shows is the view's frame. A map with no size frames none, and the view keeps its camera zoom. */
+  /** The whole map's size in CSS pixels: the ground it shows is the view's frame. A map with no size frames none and gives no view. */
   readonly screen: { readonly width: number; readonly height: number }
   readonly mapLayers: MapLayersState
   readonly sceneLayers: readonly { readonly name: string; readonly visible: boolean }[]
@@ -19,12 +19,17 @@ export interface SavedViewCaptureInput {
   readonly selection: readonly SceneDesignObjectTarget[]
 }
 
-/** What the current view shows, as a saved view: its camera as stored, with the ground the whole map shows (savedViewCameraOf). */
-export function composeSavedView(input: SavedViewCaptureInput): SavedView {
+/**
+ * What the current view shows, as a saved view: its camera as stored, with the ground the whole map shows (savedViewCameraOf);
+ * null on a map with no size.
+ */
+export function composeSavedView(input: SavedViewCaptureInput): SavedView | null {
+  const camera = savedViewCameraOf(input.view, input.screen)
+  if (!camera) return null
   return {
     id: input.id,
     name: input.name,
-    camera: savedViewCameraOf(input.view, input.screen),
+    camera,
     visible_layers: {
       ...viewMapLayersOf(input.mapLayers),
       scene_layers: input.sceneLayers.filter((layer) => layer.visible).map((layer) => layer.name),

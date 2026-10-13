@@ -355,7 +355,7 @@ function savedView(id: string): Record<string, unknown> {
   return {
     id,
     name: 'Orchard',
-    camera: { lon: 2, lat: 48, zoom: 17, bearing: 0 },
+    camera: { lon: 2, lat: 48, zoom: 17, bearing: 0, ground_size_m: { width: 300, height: 200 } },
     visible_layers: {
       background: { kind: 'satellite' },
       terrain: { contours: false, hillshade: false },

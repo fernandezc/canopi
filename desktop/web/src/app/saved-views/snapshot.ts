@@ -47,8 +47,7 @@ export interface SavedViewSnapshotContext {
  * The off-screen capture request for a saved view of the open Design, or null
  * when no Design is open on a map. The camera is the view's centre and bearing
  * at the zoom that fits its framed ground into the image, the rule going to the
- * view follows (spec §4.10); a view saved without its ground frames what the
- * workspace shows now at its camera zoom. Background, Design layers, the
+ * view follows (spec §4.10). Background, Design layers, the
  * focused species and the labels come from the view; opacities and locale from
  * the user's current settings.
  */
@@ -59,14 +58,13 @@ export function describeSavedViewSnapshot(
 ): ViewSnapshotRequest | null {
   const plane = context.queries.sessionPlane.peek()
   if (!plane) return null
-  const { screen: screenSize } = context.queries.view.captureView()
   const visibleLayerNames = [...view.visible_layers.scene_layers]
   const focusedSpecies = view.highlighted.species[0] ?? null
   return {
     camera: {
       lon: view.camera.lon,
       lat: view.camera.lat,
-      zoom: savedViewZoom(view.camera, options, screenSize),
+      zoom: savedViewZoom(view.camera, options),
       bearing: view.camera.bearing,
     },
     width: options.width,

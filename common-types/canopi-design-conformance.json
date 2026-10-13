@@ -280,7 +280,10 @@
             "lat": 48.8579,
             "zoom": 18.0,
             "bearing": 45.0,
-            "ground_size_m": null
+            "ground_size_m": {
+              "width": 312.5,
+              "height": 200.25
+            }
           },
           "visible_layers": {
             "background": {
@@ -652,7 +655,11 @@
               "lon": 2.2951,
               "lat": 48.8579,
               "zoom": 18.0,
-              "bearing": 45.0
+              "bearing": 45.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -1659,7 +1666,11 @@
               "lon": 2.2944812345,
               "lat": 86.0,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -1796,7 +1807,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 28,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2347,7 +2362,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2483,7 +2502,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2560,7 +2583,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2697,7 +2724,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2859,7 +2890,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -2996,7 +3031,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -3133,7 +3172,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -3270,7 +3313,11 @@
               "lon": 2.2944812345,
               "lat": 48.8583701234,
               "zoom": 19.25,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -4144,7 +4191,11 @@
               "lon": 13.0,
               "lat": 23.0,
               "zoom": 18.0,
-              "bearing": 361.0
+              "bearing": 361.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -4341,6 +4392,249 @@
       "native_error_path": "$.views[0].camera.ground_size_m"
     },
     {
+      "id": "reject-view-without-ground-size",
+      "input": {
+        "version": 9,
+        "name": "Story Garden",
+        "description": null,
+        "plant_species_colors": {},
+        "plant_species_symbols": {},
+        "plant_species_codes": {},
+        "layers": [],
+        "plants": [],
+        "zones": [],
+        "annotations": [],
+        "measurement_guides": [],
+        "consortiums": [],
+        "groups": [],
+        "timeline": [],
+        "budget": [],
+        "budget_currency": "EUR",
+        "views": [
+          {
+            "id": "view-berries",
+            "name": "Berry hedges",
+            "camera": {
+              "lon": 2.2944812345,
+              "lat": 48.8583701234,
+              "zoom": 19.25,
+              "bearing": 0.0
+            },
+            "visible_layers": {
+              "background": {
+                "kind": "basemap",
+                "style": "liberty"
+              },
+              "terrain": {
+                "contours": false,
+                "hillshade": true
+              },
+              "scene_layers": [
+                "plants",
+                "zones"
+              ],
+              "site_data": [
+                "lidar-dtm-1"
+              ]
+            },
+            "highlighted": {
+              "species": [
+                "Lycium barbarum"
+              ],
+              "objects": [
+                {
+                  "kind": "plant",
+                  "id": "plant-1"
+                },
+                {
+                  "kind": "measurement_guide",
+                  "id": "guide-1"
+                }
+              ]
+            },
+            "title": "Berry hedges",
+            "text": [
+              {
+                "kind": "paragraph",
+                "spans": [
+                  {
+                    "text": "Two hedges ",
+                    "bold": true,
+                    "italic": false,
+                    "link": null
+                  },
+                  {
+                    "text": "shelter",
+                    "bold": false,
+                    "italic": true,
+                    "link": "https://example.org"
+                  }
+                ]
+              },
+              {
+                "kind": "bullets",
+                "items": [
+                  {
+                    "spans": [
+                      {
+                        "text": "Year one",
+                        "bold": false,
+                        "italic": false,
+                        "link": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "view-pond",
+            "name": "Pond",
+            "camera": {
+              "lon": 2.2951,
+              "lat": 48.8579,
+              "zoom": 18.0,
+              "bearing": 45.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
+            },
+            "visible_layers": {
+              "background": {
+                "kind": "basemap",
+                "style": "liberty"
+              },
+              "terrain": {
+                "contours": false,
+                "hillshade": true
+              },
+              "scene_layers": [
+                "plants",
+                "zones"
+              ],
+              "site_data": [
+                "lidar-dtm-1"
+              ]
+            },
+            "highlighted": {
+              "species": [],
+              "objects": []
+            },
+            "title": null,
+            "text": [],
+            "extent": {
+              "west": 2.2941,
+              "south": 48.8573,
+              "east": 2.2961,
+              "north": 48.8585
+            }
+          }
+        ],
+        "stories": [
+          {
+            "id": "story-visit",
+            "name": "Client visit",
+            "steps": [
+              {
+                "id": "step-1",
+                "view_id": "view-berries",
+                "title": "Berry hedges",
+                "text": [
+                  {
+                    "kind": "paragraph",
+                    "spans": [
+                      {
+                        "text": "They crop from year two."
+                      }
+                    ]
+                  }
+                ],
+                "images": [
+                  {
+                    "src": "https://example.org/hedge.jpg",
+                    "alt": "The hedge in June"
+                  },
+                  {
+                    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+                    "alt": "A pixel"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "created_at": "2026-09-25T00:00:00.000Z",
+        "updated_at": "2026-09-25T00:00:00.000Z",
+        "lidar": {
+          "schema_version": 1,
+          "visible": true,
+          "entries": [
+            {
+              "kind": "Source",
+              "id": "lidar-dtm-1",
+              "name": "Terrain model",
+              "visible": true,
+              "opacity": 1.0,
+              "order": 0,
+              "ramp": null,
+              "reversed": false,
+              "range": null
+            },
+            {
+              "kind": "Derived",
+              "id": "slope-1",
+              "name": "Slope",
+              "visible": true,
+              "opacity": 0.5,
+              "order": 1,
+              "ramp": null,
+              "reversed": false,
+              "range": null
+            }
+          ]
+        }
+      },
+      "error_kind": "invalid_document",
+      "error_path": "$.views[0].camera.ground_size_m",
+      "native_error_path": "$"
+    },
+    {
+      "id": "reject-map-view-without-ground-size",
+      "input": {
+        "version": 9,
+        "name": "Reopened Garden",
+        "description": null,
+        "plant_species_colors": {},
+        "plant_species_symbols": {},
+        "plant_species_codes": {},
+        "layers": [],
+        "plants": [],
+        "zones": [],
+        "annotations": [],
+        "measurement_guides": [],
+        "consortiums": [],
+        "groups": [],
+        "timeline": [],
+        "budget": [],
+        "budget_currency": "EUR",
+        "views": [],
+        "stories": [],
+        "map_view": {
+          "lon": 2.2944812345,
+          "lat": 48.8583701234,
+          "zoom": 19.25,
+          "bearing": 30.5
+        },
+        "created_at": "2026-09-25T00:00:00.000Z",
+        "updated_at": "2026-09-25T00:00:00.000Z"
+      },
+      "error_kind": "invalid_document",
+      "error_path": "$.map_view.ground_size_m",
+      "native_error_path": "$"
+    },
+    {
       "id": "reject-duplicate-story-id",
       "input": {
         "version": 9,
@@ -4364,7 +4658,11 @@
               "lon": 13.0,
               "lat": 23.0,
               "zoom": 18.0,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {
@@ -4441,7 +4739,11 @@
               "lon": 13.0,
               "lat": 23.0,
               "zoom": 18.0,
-              "bearing": 0.0
+              "bearing": 0.0,
+              "ground_size_m": {
+                "width": 312.5,
+                "height": 200.25
+              }
             },
             "visible_layers": {
               "background": {

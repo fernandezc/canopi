@@ -1037,7 +1037,10 @@ mod tests {
         value["views"] = serde_json::json!([{
             "id": "view-1",
             "name": "Berry hedges",
-            "camera": { "lon": 2.294_481_234_5, "lat": 48.858_370_123_4, "zoom": 19.25, "bearing": 0.0 },
+            "camera": {
+                "lon": 2.294_481_234_5, "lat": 48.858_370_123_4, "zoom": 19.25, "bearing": 0.0,
+                "ground_size_m": { "width": 312.5, "height": 187.5 }
+            },
             "visible_layers": {
                 "background": { "kind": "satellite" },
                 "terrain": { "contours": false, "hillshade": false },
@@ -1120,10 +1123,10 @@ mod tests {
                 lat: 48.858_370_123_4,
                 zoom: 19.25,
                 bearing: 30.5,
-                ground_size_m: Some(SavedViewGroundSize {
+                ground_size_m: SavedViewGroundSize {
                     width: 312.5,
                     height: 187.5,
-                }),
+                },
             })
         );
         assert!(
@@ -1143,6 +1146,7 @@ mod tests {
             ("zoom", serde_json::json!(27.5), "$.map_view: "),
             ("bearing", serde_json::json!(361.0), "$.map_view: "),
             ("lat", serde_json::json!(86.0), "$.map_view: "),
+            ("ground_size_m", serde_json::Value::Null, "$: "),
             (
                 "ground_size_m",
                 serde_json::json!({ "width": 0.0, "height": 187.5 }),

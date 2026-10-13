@@ -61,8 +61,7 @@ export function viewsAndStoriesProblem(
 
 /** The schema already bounds the camera itself when a file is read; this checks its recorded ground. */
 function groundSizeProblem(camera: SavedView['camera'], path: string): string | null {
-  const ground = camera.ground_size_m
-  return ground && !isAdmittedGroundSize(ground)
+  return !isAdmittedGroundSize(camera.ground_size_m)
     ? `${path}.ground_size_m: expected a finite width and height above 0 and at most ${SAVED_VIEW_MAX_GROUND_SIZE_M} m`
     : null
 }

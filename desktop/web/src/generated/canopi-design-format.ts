@@ -768,15 +768,7 @@ export const CANOPI_FILE_SCHEMA = {
           "type": "number"
         },
         "ground_size_m": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SavedViewGroundSize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/SavedViewGroundSize"
         },
         "lat": {
           "format": "double",
@@ -801,7 +793,8 @@ export const CANOPI_FILE_SCHEMA = {
         "lon",
         "lat",
         "zoom",
-        "bearing"
+        "bearing",
+        "ground_size_m"
       ],
       "type": "object"
     },

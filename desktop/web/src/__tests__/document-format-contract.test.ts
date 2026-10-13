@@ -61,7 +61,7 @@ function savedView(id: string): SavedView {
   return {
     id,
     name: id,
-    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0 },
+    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'satellite' },
       terrain: { contours: false, hillshade: false },
