@@ -67,6 +67,24 @@ export function pointAlong(flat: FlatPath, distance: number): WorldPoint {
   if (vertices.length === 0) return { x: 0, y: 0 }
   if (distance <= 0) return vertices[0]!
   if (distance >= total) return vertices[vertices.length - 1]!
+  return lerpAt(vertices, lengths, segmentAt(lengths, distance), distance)
+}
+
+/** The direction of a flattened path `distance` metres along it, clamped to its ends: its segment's there, not
+ *  normalised (zero on a path of fewer than 2 vertices). */
+export function tangentAlong(flat: FlatPath, distance: number): WorldPoint {
+  const { vertices, lengths } = flat
+  if (vertices.length < 2) return { x: 0, y: 0 }
+  const total = lengths[lengths.length - 1]!
+  const index = segmentAt(lengths, Math.min(Math.max(distance, 0), total))
+  const a = vertices[index]!
+  const b = vertices[index + 1]!
+  return { x: b.x - a.x, y: b.y - a.y }
+}
+
+/** The segment `distance` metres along a polyline of 2 vertices or more lies on: the last vertex at or before it (the
+ *  last segment at the far end). */
+function segmentAt(lengths: readonly number[], distance: number): number {
   let low = 0
   let high = lengths.length - 1
   while (high - low > 1) {
@@ -74,7 +92,7 @@ export function pointAlong(flat: FlatPath, distance: number): WorldPoint {
     if (lengths[middle]! <= distance) low = middle
     else high = middle
   }
-  return lerpAt(vertices, lengths, low, distance)
+  return low
 }
 
 /** The point of each segment halfway along it on the curve: where its midpoint dot sits (point-editor/layout.ts). */

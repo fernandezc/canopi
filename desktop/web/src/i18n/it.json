@@ -1765,7 +1765,7 @@
   "shortcuts": {
     "title": "Scorciatoie da tastiera",
     "toolsHeading": "{{menu}} (ovunque tranne nei campi di testo)",
-    "escape": "Esc fa una cosa alla volta: chiude un menu o una finestra, annulla il disegno in corso, torna a Seleziona, svuota la selezione.",
+    "escape": "Esc fa una cosa alla volta: chiude un menu o una finestra, fa un passo indietro nel disegno in corso, torna a Seleziona, svuota la selezione.",
     "footnote": "I tasti degli strumenti funzionano ovunque tranne nei campi di testo.",
     "workspaceHeading": "Mappa e area di lavoro",
     "nextRegion": "Area successiva: barra del titolo, strumenti, mappa, pannello",
@@ -1893,7 +1893,7 @@
     "intro": "Canopi disegna il tuo progetto direttamente sulla mappa. Ecco come iniziare.",
     "site": "Trova il tuo terreno: scrivi un luogo o delle coordinate nel campo di ricerca in alto ({{shortcut}}).",
     "zones": "Disegna aiuole, frutteti e sentieri con gli strumenti zona a sinistra.",
-    "plants": "{{placePlants}}: scegli una specie, poi fai clic sulla mappa. {{plantRow}} ripete una pianta lungo una linea.",
+    "plants": "{{placePlants}}: scegli una specie, poi fai clic sulla mappa. {{plantRow}} ripete una pianta lungo i punti che posizioni.",
     "menu": "Fai clic destro su qualsiasi elemento della mappa per i suoi comandi. {{esc}} torna a {{select}}.",
     "plan": "Pianifica cure, costi e associazioni di piante in {{calendar}}, {{budget}} e {{consortium}}, dai pannelli a destra.",
     "save": "Canopi salva mentre lavori. {{file}} › {{export}} crea un piano di impianto (PDF) da stampare.",

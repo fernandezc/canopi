@@ -332,7 +332,7 @@ test('(canopi-f47t.54, P) before planting: drag a point, drag a dot to insert, d
   await expectNothingPlanted(page, 'editing the draft plants nothing')
 })
 
-test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; Esc steps back to the picked plant, drops it, then returns to Select', async ({ page }) => {
+test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ctrl+Shift+Z restores it; only Esc drops the picked plant, then returns to Select', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -344,11 +344,14 @@ test('(canopi-f47t.54, P) Esc, Backspace and Ctrl+Z remove the last point and Ct
   await expect.poll(() => pointCount(page), 'Backspace removes the last point').toBe(2)
   await pressMod(page, 'z')
   await expect.poll(() => pointCount(page), 'Ctrl+Z removes the last point').toBeLessThanOrEqual(1)
+  // Only the picked plant left: Ctrl+Z and Backspace do nothing, never the Design's undo or Delete selected.
+  await pressMod(page, 'z')
+  await page.keyboard.press('Backspace')
   await expect(intervalField(page), 'the picked plant stays').toBeVisible()
-  await pressMod(page, 'Shift+z')
-  await expect.poll(() => pointCount(page), 'Ctrl+Shift+Z restores the last removed point').toBe(2)
+  for (let step = 0; step < 3; step += 1) await pressMod(page, 'Shift+z')
+  await expect.poll(() => pointCount(page), 'Ctrl+Shift+Z restores every removed point').toBe(4)
 
-  await page.keyboard.press('Escape')
+  for (let step = 0; step < 3; step += 1) await page.keyboard.press('Escape')
   await expect.poll(() => pointCount(page), 'Esc steps back to the picked plant').toBeLessThanOrEqual(1)
   await expect(intervalField(page), 'the picked plant stays after the points').toBeVisible()
   await page.keyboard.press('Escape')

@@ -592,7 +592,8 @@ describe('Tool card', () => {
         expect(input.value).toBe('12')
         expect(input.getAttribute('inputmode')).toBe('numeric')
         expect(container.querySelector(`label[for="${input.id}"]`)?.textContent).toBe('Plants in the row')
-        // Switching to Plants focuses the count, as the pick focuses the interval.
+        // A focus request the field has not taken yet (a fresh field's, here) focuses the count, as the pick's focuses the
+        // interval; switching modes alone moves no focus.
         expect(document.activeElement).toBe(input)
         input.value = '5'
         await act(() => { input.dispatchEvent(new Event('input', { bubbles: true })) })
@@ -602,6 +603,24 @@ describe('Tool card', () => {
 
         await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, mode: 'count', countText: '1', countValid: false } })
         expect(container.querySelector('[data-plant-row-count-input]')!.getAttribute('aria-invalid')).toBe('true')
+      })
+
+      it('keeps the focus on the mode switch as it switches, both ways; only a new focus request moves it to the field', async () => {
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, focusRequest: 1 } })
+        expect(document.activeElement).toBe(field())
+
+        modes()[1]!.focus()
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, focusRequest: 1, mode: 'count', countText: '8' } })
+        expect(modes()[1]!.getAttribute('aria-pressed')).toBe('true')
+        expect(document.activeElement, 'Interval to Plants').toBe(modes()[1])
+
+        modes()[0]!.focus()
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, focusRequest: 1 } })
+        expect(modes()[0]!.getAttribute('aria-pressed')).toBe('true')
+        expect(document.activeElement, 'Plants to Interval').toBe(modes()[0])
+
+        await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, focusRequest: 2 } })
+        expect(document.activeElement).toBe(field())
       })
 
       it('shows a loop\'s rounded spacing; the foot holds the row\'s facts and the check button alone (decision 16: points are edited where they are)', async () => {

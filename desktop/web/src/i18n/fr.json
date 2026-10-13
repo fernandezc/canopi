@@ -1765,7 +1765,7 @@
   "shortcuts": {
     "title": "Raccourcis clavier",
     "toolsHeading": "{{menu}} (partout sauf dans les champs de texte)",
-    "escape": "Échap fait une chose à la fois : fermer un menu ou une boîte de dialogue, annuler le tracé en cours, revenir à Sélection, vider la sélection.",
+    "escape": "Échap fait une chose à la fois : fermer un menu ou une boîte de dialogue, reculer d’une étape dans le dessin en cours, revenir à Sélection, vider la sélection.",
     "footnote": "Les touches d’outils fonctionnent partout sauf dans les champs de texte.",
     "workspaceHeading": "Carte et espace de travail",
     "nextRegion": "Zone suivante : barre de titre, outils, carte, panneau",
@@ -1893,7 +1893,7 @@
     "intro": "Canopi dessine votre Design directement sur la carte. Voici comment commencer.",
     "site": "Trouvez votre terrain : saisissez un lieu ou des coordonnées dans le champ de recherche en haut ({{shortcut}}).",
     "zones": "Dessinez potagers, vergers et allées avec les outils de zone à gauche.",
-    "plants": "{{placePlants}} : choisissez une espèce, puis cliquez sur la carte. {{plantRow}} répète une plante le long d’une ligne.",
+    "plants": "{{placePlants}} : choisissez une espèce, puis cliquez sur la carte. {{plantRow}} répète une plante le long des points que vous placez.",
     "menu": "Faites un clic droit sur un élément de la carte pour voir ses commandes. {{esc}} revient à {{select}}.",
     "plan": "Planifiez l’entretien, les coûts et les associations de plantes dans {{calendar}}, {{budget}} et {{consortium}}, depuis les panneaux à droite.",
     "save": "Canopi enregistre au fil de votre travail. {{file}} › {{export}} crée un plan de plantation (PDF) à imprimer.",

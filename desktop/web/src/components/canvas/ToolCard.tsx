@@ -409,8 +409,8 @@ function RowFields({ row }: { readonly row: CanvasPlantRowGuidance }) {
   return (
     <div className={styles.fieldRow}>
       {(rowPath || mode === 'count') && <RowModeSwitch mode={mode} />}
-      {mode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
-      {mode === 'count' && <SpacingField row={row} kind="count" switched />}
+      {/* One field whose kind follows the mode, so a switch keeps it mounted: only a new focus request moves focus. */}
+      <SpacingField row={row} kind={mode} switched={rowPath !== null || mode === 'count'} />
       {/* A loop's rounded gap beside the spacing it rounds; it moves with the points, so it is not announced. */}
       {rowPath?.loopSpacing && (
         <span className={styles.fact} aria-live="off">

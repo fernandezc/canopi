@@ -1,16 +1,25 @@
 // canvas/point-editor/rules.ts
 //
-// The one point contract (plan §4 "2.0 plant along a path", A2; spec §1.11 and §3.2) for row points, while drawing and
-// under Select, and for polygon zone corners alike: what a press on a point or a midpoint dot does, which entries the
-// point menu offers, and how close to the first point a press closes a loop. Pure and framework-free: the point editor
-// imports only its own modules and types (frontend-architecture-policies, P54).
+// The one point contract (plan §4 "2.0 plant along a path", A2; spec §1.11 and §3.2) for row points while drawing and
+// for polygon zone corners alike: what a press on a point or a midpoint dot does, which entries the point menu offers,
+// and how close to the first point a press closes a loop. Pure and framework-free: the point editor imports only its own
+// modules and types (frontend-architecture-policies, P54).
 
 import type { PointerKind } from '../runtime/interaction-types'
+import type { WorldPoint } from '../runtime/view/types'
 
 /** A press this close to the first point, on screen, closes the shape: a finger's within half ADR 0010's 44 px target. */
 export const CLOSE_DISTANCE_PX: Readonly<Record<PointerKind, number>> = Object.freeze({ mouse: 8, pen: 8, touch: 22 })
 
-/** What the point menu and the tool card do to one point. */
+/** A placed point this close to another, on both axes (metres), is the same point: a press there adds none. */
+const SAME_POINT_M = 0.0001
+
+/** Whether two placed points are the same point (SAME_POINT_M). */
+export function isSamePoint(a: WorldPoint, b: WorldPoint): boolean {
+  return Math.abs(a.x - b.x) < SAME_POINT_M && Math.abs(a.y - b.y) < SAME_POINT_M
+}
+
+/** What the point menu does to one point. */
 export type PointAction = 'delete-point' | 'sharp-corner' | 'smooth-corner'
 
 export interface PointMenuItem {

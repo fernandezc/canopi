@@ -5,17 +5,18 @@
 // the last point through the host's constraint, its length then snapped, spec §2.3). The spec's `closesAt` may finish on
 // a press (Polygon: within 8 px of the first corner, a finger's within 22 px, Q5, tested on ToolPoint.free); the second
 // press of a double-click, Enter and the canvas menu's "Finish shape" (canFinish) finish a path of `minPoints` or more
-// through the spec's `finish`. Hovers, and the drag after a press, move the rubber band and add nothing. Backspace,
-// Edit › Undo and Esc take the last point back onto a redo stack (transient history, no Scene Edit), and Ctrl+Shift+Z
-// restores it; the Esc that takes the last point empties the draft and its redo, so the next Esc leaves the tool, and an
-// Esc on a redo-only history drops it and arms Select at once (A17); an interruption ('navigate') keeps them while the
-// draft has points and drops a redo-only history, as today; overview, a tool change or a document replacement drops them. The draft holds re-origin (hasTransient), so its points
-// stay in one plane.
+// through the spec's `finish`. Alt+press on a placed point (within the closing radius) deletes it and the redo, the
+// first included (answer 2: the zone corners' rule while drawing). Hovers, and the drag after a press, move the rubber
+// band and add nothing. Backspace, Edit › Undo and Esc take the last point back onto a redo stack (transient history, no Scene Edit), and
+// Ctrl+Shift+Z restores it; the Esc that takes the last point empties the draft and its redo, so the next Esc leaves the
+// tool, and an Esc on a redo-only history drops it and arms Select at once (A17); an interruption ('navigate') keeps
+// them while the draft has points and drops a redo-only history, as today; overview, a tool change or a document
+// replacement drops them. The draft holds re-origin (hasTransient), so its points stay in one plane.
 // Polygon: the first corner clears the selection without an undo step, and the finish is one Scene Edit that adds the
 // zone and selects it. Its draft is a fill-only polygon of the corners, the rubber band, a disc per corner and the edge
 // and area chips (tools/measure-labels.ts), whose edge chips re-cull on every camera frame.
 
-import { CLOSE_DISTANCE_PX } from '../../point-editor/rules'
+import { CLOSE_DISTANCE_PX, isSamePoint } from '../../point-editor/rules'
 import type { ToolId } from '../interaction-types'
 import type { WorldPoint } from '../view/types'
 import { createPolygonalZoneDraftMeasurements } from '../zone-measurements'
@@ -25,8 +26,6 @@ import type { CanvasTool, ToolCommand, ToolContext, ToolGesture, ToolPoint, Tool
 import { appendPolygonZoneToDraft } from './tool-actions'
 import { DRAFT_STROKE, ZONE_DRAFT_FILL } from './zone-drag'
 
-/** A press on the last corner moves the rubber band only. */
-const SAME_CORNER_M = 0.0001
 /** The corners' fill carries no stroke: the rubber band draws the edges. */
 const FILL_ONLY: DraftStroke = Object.freeze({ token: 'draft', widthPx: 0 })
 /** A light disc of radius 3.5 px on a 1 px casing ring (plan §1, exception 2), at each point of a vertex path. */
@@ -116,6 +115,12 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
       drop()
       return
     }
+    // Alt+press on a placed point deletes it, the first included: it never closes or finishes (answer 2).
+    const under = point.modifiers.subtractive ? pointUnder(point) : null
+    if (under !== null) {
+      deletePoint(under)
+      return
+    }
     // A press the spec closes on, or the second press of a double-click, finishes a path of minPoints or more; the
     // second press of a double-click whose first finished the path starts nothing.
     if (closesAt(point) || (clickCount >= 2 && points.length >= spec.minPoints)) {
@@ -134,6 +139,29 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
     points = [...points, next]
     redo = []
     active = next
+    redraw()
+  }
+
+  /** The placed point nearest an Alt+press within the closing radius on screen (a finger's on touch), else null. */
+  function pointUnder(press: ToolPoint): number | null {
+    const { view } = context()
+    let nearest: number | null = null
+    let best = CLOSE_DISTANCE_PX[press.pointer]
+    points.forEach((placed, index) => {
+      const distance = view.screenDistance(placed, press.free)
+      if (distance <= best) {
+        best = distance
+        nearest = index
+      }
+    })
+    return nearest
+  }
+
+  /** Alt+press: the point goes, and the redo with it (a new edit, as a new point). */
+  function deletePoint(index: number): void {
+    points = points.filter((_, at) => at !== index)
+    redo = []
+    if (points.length === 0) active = null
     redraw()
   }
 
@@ -272,8 +300,4 @@ function polygonDraftShapes(corners: readonly WorldPoint[], active: WorldPoint |
   const chips = createPolygonalZoneDraftMeasurements(corners, active)
   shapes.push(...measureLabelShapes(chips, (a, b) => view.screenDistance(a, b)))
   return shapes
-}
-
-function isSamePoint(a: WorldPoint, b: WorldPoint): boolean {
-  return Math.abs(a.x - b.x) < SAME_CORNER_M && Math.abs(a.y - b.y) < SAME_CORNER_M
 }

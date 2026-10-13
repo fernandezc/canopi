@@ -224,6 +224,43 @@ describe('Polygon tool', () => {
     ])
   })
 
+  it('Alt+click on a placed corner deletes it, the first included (answer 2)', () => {
+    const h = harness()
+    for (const at of [{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }]) h.click(at)
+
+    // Alt+click within 8 px deletes the corner, and the redo with it; nothing is committed.
+    h.host.command({ kind: 'remove-last' })
+    expect(h.host.transientHistory.canRedo()).toBe(true)
+    h.click({ x: 104, y: 96 }, { mods: { alt: true } })
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 100, y: 10 }])
+    expect(h.host.transientHistory.canRedo()).toBe(false)
+    h.click({ x: 100, y: 100 })
+    h.click({ x: 10, y: 100 })
+
+    // On the first corner Alt deletes it rather than closing the zone.
+    h.click({ x: 12, y: 12 }, { mods: { alt: true } })
+    expect(cornerMarkers(h)).toEqual([{ x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }])
+    expect(h.store.persisted.zones).toEqual([])
+    expect(h.history.canUndo.peek()).toBe(false)
+
+    // Closing on the first corner still works.
+    h.click({ x: 98, y: 12 })
+    expect(h.store.persisted.zones.map((zone) => zone.points)).toEqual([[{ x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }]])
+  })
+
+  it('a plain click or a finger\'s tap near a placed corner other than the first adds a corner there', () => {
+    const h = harness()
+    for (const at of [{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }]) h.click(at)
+    h.click({ x: 96, y: 14 })
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 96, y: 14 }])
+
+    const touch = harness()
+    touch.click({ x: 100, y: 100 }, { pointer: 'touch' })
+    touch.click({ x: 200, y: 100 }, { pointer: 'touch' })
+    touch.click({ x: 215, y: 112 }, { pointer: 'touch' })
+    expect(cornerMarkers(touch)).toEqual([{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 215, y: 112 }])
+  })
+
   it('a Shift corner keeps the new edge on 45° from the last corner', () => {
     const h = harness()
 

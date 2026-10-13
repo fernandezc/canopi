@@ -12,8 +12,11 @@
 // drag inserts a point, its double-click inserts one in place; Alt+click, Delete and the point menu delete a point
 // (never the picked plant, never below 2 points, 3 on a loop); the point menu turns a point sharp or smooth. A press, a
 // drag or a point action makes a point the last touched, which Delete takes when no point has focus. Esc,
-// Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it;
-// the step after the last point drops the picked plant, and with none the chain's tool layer leaves (A17).
+// Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it.
+// While a plant is picked Ctrl+Z, Ctrl+Shift+Z and Backspace never reach the Design: with nothing to step they do
+// nothing, and only Esc drops the picked plant; with none picked Esc lets the chain's tool layer leave (A17). A picked
+// plant that can no longer repeat (deleted, moved, locked, hidden or grouped, or its layer locked or hidden) ends the
+// draft at once with "source missed".
 // The row's plants repeat the source at the card's spacing: every N m (Settings keeps the interval) or N plants, the
 // picked one counted. Shift turns the next point to 45° steps against the screen from the last one (the host's
 // constraint; none while a point drags, U36), Ctrl or Cmd turns snapping off (noSnap), and the host clamps the pointer to
@@ -22,7 +25,7 @@
 // zone chip format; the points and dots are DOM handles. On a 2-point row all of it is the straight row's, bit for bit.
 
 import { plantAlongPath, type PathPlanting, type PathSpacing } from '../../plant-path/spacing'
-import { flattenPath, pointAlong, type PathPoints } from '../../plant-path/curve'
+import { flattenPath, pointAlong, tangentAlong, type PathPoints } from '../../plant-path/curve'
 import {
   addPoint,
   closePath,
@@ -37,7 +40,7 @@ import {
   type PathDraft,
 } from '../../point-editor/anchors'
 import { dotHandles, parsePointHandle, pointHandleId, pointHandles } from '../../point-editor/layout'
-import { CLOSE_DISTANCE_PX, pointMenuItems, pointPressIntent, type PointAction } from '../../point-editor/rules'
+import { CLOSE_DISTANCE_PX, isSamePoint, pointMenuItems, pointPressIntent, type PointAction } from '../../point-editor/rules'
 import {
   formatPlantSpacingIntervalInput,
   parsePlantRowCountInput,
@@ -69,8 +72,6 @@ const SOURCE_RING_STROKE: DraftStroke = Object.freeze({ token: 'selection', widt
 const ROW_GUIDE_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2, dash: Object.freeze([6, 6]) })
 /** The owner of the draft's point and dot handles (`point:draft:<i>`, `dot:draft:<i>`). */
 const DRAFT_OWNER = 'draft'
-/** A placed point this close to the last one, on both axes, is the same point (polygon.ts's rule). */
-const SAME_POINT_M = 0.0001
 /** A length chip beside a dot keeps this much screen between the curve and its nearest side (measure-labels.ts). */
 const BESIDE_DOT_GAP_PX = 6
 
@@ -230,7 +231,7 @@ export function createPlantRowTool(): CanvasTool {
       shapes.push({ kind: 'ghost', entity: { kind: 'plant', plant, mark: 'dot', sizeFrom: start }, opacity: PLANT_ROW_GHOST_OPACITY })
     }
     const anchor = flat ? pointAlong(flat, row.planting.lengthM / 2) : { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
-    const beside = besideDot(tool, anchor, flat ? tangentAt(flat, row.planting.lengthM / 2) : { x: end.x - start.x, y: end.y - start.y })
+    const beside = besideDot(tool, anchor, flat ? tangentAlong(flat, row.planting.lengthM / 2) : { x: end.x - start.x, y: end.y - start.y })
     shapes.push({
       kind: 'label',
       anchor,
@@ -335,13 +336,16 @@ export function createPlantRowTool(): CanvasTool {
     straightPress = true
   }
 
+  /** The picked plant can still repeat: there, where it was picked, not locked, hidden or grouped. */
   function canUseSource(candidate: PlantRowSource): boolean {
     const persisted = context().scene.persisted
     const target = { kind: 'plant', id: candidate.sourceId } as const
     if (isSceneDesignObjectLocked(persisted, target)) return false
     const layer = persisted.layers.find((entry) => entry.name === 'plants')
     if (layer?.visible === false || layer?.locked === true) return false
-    if (!persisted.plants.some((plant) => plant.id === candidate.sourceId)) return false
+    const plant = persisted.plants.find((entry) => entry.id === candidate.sourceId)
+    const picked = candidate.plant.position
+    if (!plant || plant.position.x !== picked.x || plant.position.y !== picked.y) return false
     return !persisted.groups.some((group) => group.members.some((member) => isSceneObjectGroupMemberTarget(member, target)))
   }
 
@@ -509,6 +513,7 @@ export function createPlantRowTool(): CanvasTool {
     return true
   }
 
+  /** Ctrl+Shift+Z: the state the last step back took; false with none. */
   function stepForwardOnce(): boolean {
     const forward = draft ? stepForward(draft) : null
     if (!forward) return false
@@ -732,20 +737,21 @@ export function createPlantRowTool(): CanvasTool {
           publish()
           return 'handled'
         case 'remove-last': {
-          // Backspace: the focused point, else the last point.
+          // Backspace: the focused point, else the last point; while a plant is picked it never reaches Delete selected.
+          if (!source) return 'pass'
           const focused = context().focusedHandle()
           const index = focused === null ? null : pointIndexOf(focused)
-          const done = index !== null ? deletePoint(index) : stepBackOnce()
-          if (!done) return 'pass'
+          if (index !== null) deletePoint(index)
+          else stepBackOnce()
           publish()
           return 'handled'
         }
         case 'undo-transient':
-          if (!stepBackOnce()) return 'pass'
-          publish()
-          return 'handled'
         case 'redo-transient':
-          if (!stepForwardOnce()) return 'pass'
+          // While a plant is picked Ctrl+Z and Ctrl+Shift+Z are the draft's alone, even with nothing to step.
+          if (!source) return 'pass'
+          if (c.kind === 'undo-transient') stepBackOnce()
+          else stepForwardOnce()
           publish()
           return 'handled'
         case 'delete-handle': {
@@ -781,7 +787,14 @@ export function createPlantRowTool(): CanvasTool {
           return 'pass'
       }
     },
-    sceneChanged: publish,
+    sceneChanged() {
+      // The picked plant can no longer repeat (the Layers panel locked or hid its layer, say): the draft ends at once.
+      if (source && ctx && !canUseSource(source)) {
+        clear()
+        showSourcePicking('source-missed')
+      }
+      publish()
+    },
     viewChanged: publish,
     canFinish: () => source !== null && draft !== null && draft.path.points.length >= 2,
     pointMenu(handle) {
@@ -795,8 +808,8 @@ export function createPlantRowTool(): CanvasTool {
     hasTransient: () => source !== null,
     // The picked source and its points outlive every cancellation (a pan, a blur, overview); Esc steps them back.
     cancelTransient() {},
-    canUndoTransient: () => draft !== null && (draft.path.points.length > 1 || draft.path.closed),
-    canRedoTransient: () => (draft?.redo.length ?? 0) > 0,
+    canUndoTransient: () => source !== null,
+    canRedoTransient: () => source !== null,
     deactivate() {
       clear()
       ctx?.effects.setDraft(null)
@@ -804,18 +817,4 @@ export function createPlantRowTool(): CanvasTool {
       ctx = null
     },
   }
-}
-
-function isSamePoint(a: WorldPoint, b: WorldPoint): boolean {
-  return Math.abs(a.x - b.x) < SAME_POINT_M && Math.abs(a.y - b.y) < SAME_POINT_M
-}
-
-/** The polyline's direction `distance` metres along it. */
-function tangentAt(flat: ReturnType<typeof flattenPath>, distance: number): WorldPoint {
-  const { vertices, lengths } = flat
-  let index = 0
-  while (index < lengths.length - 2 && lengths[index + 1]! < distance) index += 1
-  const a = vertices[index]!
-  const b = vertices[index + 1] ?? a
-  return { x: b.x - a.x, y: b.y - a.y }
 }

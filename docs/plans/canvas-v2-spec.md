@@ -1178,7 +1178,7 @@ export type DraftFill = { readonly token: 'draft-fill' | 'selection-fill' | 'war
 export interface DraftPresentation { readonly shapes: readonly DraftShape[] }
 
 export interface ToolHandle {
-  readonly id: ToolHandleId              // unique across objects: 'rotate', 'vertex:<zone id>:<index>', 'rect-corner:<id>:ne', 'guide-end:<id>:a', 'edge-mid:<zone id>:<index>'; U58: 'point:<owner>:<i>', 'dot:<owner>:<i>' (point-editor/layout.ts: row points and dots, zone dots from S)
+  readonly id: ToolHandleId              // unique across objects: 'rotate', 'vertex:<zone id>:<index>', 'rect-corner:<id>:ne', 'guide-end:<id>:a', 'edge-mid:<zone id>:<index>'; U58: 'point:<owner>:<i>', 'dot:<owner>:<i>' (point-editor/layout.ts: row points and dots, zone dots from Z)
   readonly anchor: WorldPoint
   readonly offsetPx?: ScreenPoint        // rotate handle: centred 28 px above the selection's projected hull; 48 px while the selected polygon shows midpoint dots, so it clears a dotted edge's chip (U38, canopi-f47t.29)
   readonly hitRadiusPx: number           // 10 for mouse and pen; 22 after a touch (44 px target, ADR 0010): the kind that last pressed or hovered (U41)
@@ -1743,7 +1743,7 @@ Rotation from the pointer is never available without Shift (user: deliberate ges
 | Delete with the point focused or last-touched, or Backspace with the point focused | deletes it (same minimum); in a draft, Backspace and Ctrl+Z with no point focused remove the last point (A17) | — |
 | right-click, long press, Shift+F10 with it focused | the point menu (§1.4 "Menus") | the ordinary canvas menu |
 
-Alt held while placing a new row point makes it sharp; sharpness otherwise changes only through the point menu. While a new row is drawn, its picked plant (the first point) never moves and cannot be deleted; from 3 points it is the loop's close target. Zone corners keep the double-click on the edge itself (U42). Polygon and Profile draft points have no handles, so the point menu and Alt+click apply to row points and zone corners only (convention). Touch has no hover: the curve and ghosts redraw on each tap.
+Alt held while placing a new row point makes it sharp; sharpness otherwise changes only through the point menu. While a new row is drawn, its picked plant (the first point) never moves and cannot be deleted; from 3 points it is the loop's close target. Zone corners keep the double-click on the edge itself (U42). Polygon and Profile draft points have no handles, so the point menu applies to row points and zone corners only; while drawing, Alt+click within the close radius (8 px, 22 px on touch) of a placed point deletes it (the first included, never a close) and adds none (convention). Touch has no hover: the curve and ghosts redraw on each tap.
 
 Cells the table leaves implicit:
 - **Select, mod at a drag that starts on an object:** as Shift: toggles the object on press and moves nothing (today: `hasAdditiveModifier` treats Ctrl and Cmd like Shift; on Mac from 2 only Cmd, since a physical Ctrl is a right-click).
@@ -1873,7 +1873,7 @@ Where the rotation rows live (phase 1): Shift+←/→ and Shift+↑ (`view-arrow
 | Shift+F, Ctrl+0, Home | fit the Design at the current bearing | `command` (Home: `canvas-focus`, spec) | Shift+F follows | Home 2 |
 | Shift+2 | zoom to the selection at the current bearing | `command` | follows (spec: like Shift+G) | 2 |
 | Ctrl+Alt+R | rotate the selection | `outside-dock` | n/a | F (was `command`) |
-| Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y | undo, redo; during a drawing draft (Polygon, Profile, Plant a row) Ctrl+Z removes the last point and Ctrl+Shift+Z restores it (U58); a row left with only its picked plant passes Ctrl+Z to the scene's Undo | `command` | n/a | unchanged |
+| Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y | undo, redo; during a drawing draft (Polygon, Profile, Plant a row) Ctrl+Z removes the last point and Ctrl+Shift+Z restores it (U58); while Plant a row holds a picked plant neither reaches the Design's history: with nothing to step they do nothing, and only Esc drops the pick | `command` | n/a | unchanged |
 | Ctrl+X, C, D, A, Shift+A, G, Shift+G, Shift+L | cut, copy, duplicate, select all, same species, group, ungroup, lock: they act on the map's selection from any focus but a text field and the dock or phone sheet, so a panel keeps the browser's copy and select all. Cut, which deletes the selection, does nothing while `holdsSelectionDeletes()` holds (as Delete): the key is consumed (pointer session from 1; draft from 2, U33, canopi-f47t.21) | `outside-dock` | n/a | F (was `command`) |
 | Ctrl+V | paste | `command` | n/a | unchanged |
 | Ctrl+K, Ctrl+S, F1, F6 | place search, save, shortcuts, next region; work in text fields, as every shell shortcut but a single key does (F2 included) | `global` | n/a | unchanged |

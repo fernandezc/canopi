@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorldPoint } from '../runtime/view/types'
-import { flattenPath, pointAlong, segmentMidpoints, type PathPoints } from './curve'
+import { flattenPath, pointAlong, segmentMidpoints, tangentAlong, type PathPoints } from './curve'
 
 function path(points: readonly (WorldPoint & { readonly sharp?: boolean })[], closed = false): PathPoints {
   return { points: points.map(({ sharp = false, ...position }) => ({ position, sharp })), closed }
@@ -61,13 +61,19 @@ describe('flattenPath', () => {
   })
 })
 
-describe('pointAlong and segmentMidpoints', () => {
+describe('pointAlong, tangentAlong and segmentMidpoints', () => {
   it('finds the point at a length and each segment\'s middle on the curve', () => {
     const line = path([{ x: 0, y: 0, sharp: true }, { x: 4, y: 0, sharp: true }, { x: 4, y: 6, sharp: true }])
     const flat = flattenPath(line)
     expect(pointAlong(flat, -1)).toEqual({ x: 0, y: 0 })
     expect(pointAlong(flat, 5)).toEqual({ x: 4, y: 1 })
     expect(pointAlong(flat, 99)).toEqual({ x: 4, y: 6 })
+    // The direction of the segment there, clamped to the ends.
+    expect(tangentAlong(flat, -1)).toEqual({ x: 4, y: 0 })
+    expect(tangentAlong(flat, 2)).toEqual({ x: 4, y: 0 })
+    expect(tangentAlong(flat, 5)).toEqual({ x: 0, y: 6 })
+    expect(tangentAlong(flat, 99)).toEqual({ x: 0, y: 6 })
+    expect(tangentAlong(flattenPath(path([{ x: 1, y: 1 }])), 0)).toEqual({ x: 0, y: 0 })
     expect(segmentMidpoints(line)).toEqual([{ x: 2, y: 0 }, { x: 4, y: 3 }])
     expect(segmentMidpoints({ ...line, closed: true })).toEqual([{ x: 2, y: 0 }, { x: 4, y: 3 }, { x: 2, y: 3 }])
 

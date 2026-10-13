@@ -1,9 +1,9 @@
-// The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18 and 22-26). The guard: at
+// The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18, 22-26 and 30). The guard: at
 // 390x844, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
 // in the context bar takes the tap at its centre, idle, with the labels chip, with a row held at peek, half and full,
 // and with the planted row selected. The context bar is the panel sheet's first row: it moves with peek, half, full and
-// a finger drag, the sheet's registration covers it, and it holds the map notice on top of one context (Plant a row's
-// card, the selection, the labels chip). The inspection launcher is a button of the zoom column, which hides where the
+// a finger drag, the sheet's registration covers it, and it holds the map notice on top of one context (the tool's
+// one-row bar, the selection, the labels chip). The inspection launcher is a button of the zoom column, which hides where the
 // visible map has no room for it. When a drawing tool starts a draft the panel sheet drops to its peek. After a tap, a
 // mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3). Both engines, touch, offline (so the map
 // notice shows) unless the basemap is hidden. DOM assertions only, no baselines.
