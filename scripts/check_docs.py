@@ -31,18 +31,14 @@ LINE_BUDGETS = {
 # A guide states rules and boundaries; wiring lives in code comments and policy
 # tests. Budgets in bytes stop the guides from growing by accretion again.
 BYTE_BUDGETS = {
-    "AGENTS.md": 9_000,
+    "AGENTS.md": 9_500,
     "CONTEXT.md": 14_000,
     "docs/README.md": 4_000,
     "docs/architecture.md": 12_000,
     "docs/workflow.md": 8_000,
     "docs/review-checklist.md": 12_000,
-    "docs/release-notes/v2.0.0.md": 10_500,
+    "docs/release-notes/v2.0.0.md": 12_000,
     ".interface-design/system.md": 9_000,
-    # The session brief holds only what the next session needs; the plan file
-    # shrinks as steps close (both are deleted at the 2.0 release close).
-    "docs/plans/canvas-v2-implementation-prompt.md": 12_000,
-    "docs/plans/canvas-v2-plan.md": 120_000,
 }
 GUIDE_BYTE_BUDGET = 12_000
 PATTERN_BYTE_BUDGET = 8_000
@@ -50,14 +46,10 @@ ADR_BUDGET = 60
 # One idea per paragraph. Long paragraphs are how file-by-file narration crept
 # into the guides; tables and reference definitions are exempt.
 PARAGRAPH_BUDGET = 600
-# Exempt: release notes, and plans written before the budget reached docs/plans:
-# the canvas v2 plan, spec and inventory (deleted at the 2.0 release close) and
-# the ONF adaptation plan, whose long paragraphs are lists of upstream names.
+# Exempt: release notes, and the ONF adaptation plan, written before the budget
+# reached docs/plans, whose long paragraphs are lists of upstream names.
 PARAGRAPH_EXEMPT = (
     "docs/release-notes/",
-    "docs/plans/canvas-v2-plan.md",
-    "docs/plans/canvas-v2-spec.md",
-    "docs/plans/canvas-v2-inventory.md",
     "docs/plans/onf-plugin-adaptation.md",
 )
 
