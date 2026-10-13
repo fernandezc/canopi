@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
-import { signal } from '@preact/signals'
+import { effect, signal } from '@preact/signals'
 import { googleMapsApiKey, satelliteSource } from '../app/settings/state'
 import { MAPLIBRE_SATELLITE_LAYER_ID, MAPLIBRE_SATELLITE_SOURCE_ID } from '../maplibre/config'
 import { BasemapTileAuth } from '../maplibre/basemap-tile-auth'
@@ -161,6 +161,25 @@ describe('map background band', () => {
     googleMapsApiKey.value = 'SECRET-KEY'
     await settle()
     expect(map.sources.has(MAPLIBRE_SATELLITE_SOURCE_ID)).toBe(false)
+    background.dispose()
+  })
+
+  // A surface applies its presentation inside its own effect (WorldMapSurface); the band reads the Google key while it
+  // starts Satellite, and that read must not subscribe the surface: only the band's settings observer follows the key.
+  it('does not subscribe the effect that applies a presentation to the Google key', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })))
+    const { background } = mount()
+    let runs = 0
+    const stop = effect(() => {
+      runs += 1
+      background.update(presentation({ satelliteVisible: true }))
+    })
+    await settle()
+    satelliteSource.value = 'google_key'
+    googleMapsApiKey.value = 'SECRET-KEY'
+    await settle()
+    expect(runs).toBe(1)
+    stop()
     background.dispose()
   })
 

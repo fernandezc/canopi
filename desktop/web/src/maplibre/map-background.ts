@@ -1,3 +1,4 @@
+import { untracked } from '@preact/signals'
 import type { BasemapStyle } from '../generated/contracts'
 import {
   MAPLIBRE_BASEMAP_BACKGROUND_LAYER_ID,
@@ -202,14 +203,18 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
   return {
     // A surface may send the same presentation again whenever anything else it reads changes (the view, the visible map
     // area); only a change reaches the band, so a Basemap that failed to download stays failed until Retry (ADR 0004).
+    // Untracked: a surface may apply its presentation inside its own effect, and starting Satellite reads the Google key
+    // and the locale; only the band's settings observer (satellite-bind.ts) follows them.
     update(next) {
       if (disposed || (presentation && mapBackgroundPresentationsEqual(presentation, next))) return
-      show(next)
+      untracked(() => show(next))
     },
     retry(next) {
       if (disposed) return
-      vector.discardFailedResources()
-      show(next)
+      untracked(() => {
+        vector.discardFailedResources()
+        show(next)
+      })
     },
     claimMapError(event) {
       return !disposed && vector.claimResourceError(event)
