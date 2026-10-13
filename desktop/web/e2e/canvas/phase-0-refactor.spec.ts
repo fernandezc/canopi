@@ -10,6 +10,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import { designMap, expectCanvasDrawn, pressMod } from '../support/canvas'
+import { openFixture } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
@@ -308,4 +309,108 @@ test('canvas v2 0E: a viewport resize keeps the map and the Design on their grou
     await test.info().attach('back', { body: back, contentType: 'image/png' })
   }
   expect(back.equals(before), 'resizing back gives the pixels before the resize: the map and the Design kept their ground').toBe(true)
+})
+
+// Probes P-F1 to P-F3 (release close design check, section 7): the riskiest assumptions of the 2.0 Web scenario.
+
+/** The view's bearing, read from the compass needle (`rotate(-bearing 10 10)`). */
+async function probeBearing(page: Page): Promise<number> {
+  const transform = await page.locator('[data-compass] [data-needle]').first().getAttribute('transform')
+  const match = /rotate\(([-\d.e]+)/.exec(transform ?? '')
+  if (!match) throw new Error(`the compass needle has no rotation: ${transform}`)
+  return -Number(match[1])
+}
+
+/** Counts contextmenu events at the window and how many arrived default-prevented (the native menu shut). */
+async function watchContextMenus(page: Page): Promise<() => Promise<{ seen: number, prevented: number }>> {
+  await page.evaluate(() => {
+    const record = { seen: 0, prevented: 0 }
+    ;(window as unknown as { probeMenus: typeof record }).probeMenus = record
+    window.addEventListener('contextmenu', (event) => {
+      record.seen += 1
+      if (event.defaultPrevented) record.prevented += 1
+    })
+  })
+  return async () => await page.evaluate(() => (window as unknown as { probeMenus: { seen: number, prevented: number } }).probeMenus)
+}
+
+test('probe P-F1: Shift+right-drag with Control held turns the view and opens no menu (WebKit: a Mac user agent)', async ({ page }) => {
+  await openBaseFixture(page)
+  const mac = await page.evaluate(() => /Macintosh|Mac OS X/.test(navigator.userAgent))
+  const menus = await watchContextMenus(page)
+  await page.mouse.move(NEUTRAL.x, NEUTRAL.y)
+  await page.keyboard.down('Shift')
+  await page.keyboard.down('Control')
+  await page.mouse.down({ button: 'right' })
+  await page.mouse.move(NEUTRAL.x + 20, NEUTRAL.y, { steps: 4 })
+  await page.mouse.move(NEUTRAL.x + 50, NEUTRAL.y, { steps: 6 })
+  await page.mouse.up({ button: 'right' })
+  await page.keyboard.up('Control')
+  await page.keyboard.up('Shift')
+  const turned = await probeBearing(page)
+  const seen = await menus()
+  test.info().annotations.push({ type: 'probe', description: `mac UA ${mac}; bearing ${turned}; contextmenu ${JSON.stringify(seen)}` })
+  expect(Math.abs(turned), 'the drag turned the view').toBeGreaterThan(1)
+  // Ctrl steps the turn to 15° only where mod is Ctrl; on a Mac mod is Cmd, and Control steps nothing.
+  if (!mac) expect(Math.abs(turned) % 15, 'Ctrl steps the turn to a multiple of 15°').toBeCloseTo(0, 6)
+  await expect(page.getByRole('menu'), 'no canvas menu opens').toHaveCount(0)
+  expect(seen.prevented, 'every contextmenu event reached the window default-prevented').toBe(seen.seen)
+  await expect(tool(page, 'Undo'), 'turning never edits the Design').toBeDisabled()
+})
+
+test('probe P-F2: F6 reaches the map host, and Shift+Digit2 reaches the key router as Shift+2', async ({ page }) => {
+  await openBaseFixture(page)
+  const keys: string[] = []
+  await page.exposeFunction('probeKey', (key: string) => { keys.push(key) })
+  await page.evaluate(() => window.addEventListener('keydown', (event) => {
+    void (window as unknown as { probeKey: (key: string) => void }).probeKey(`${event.key}/${event.code}/${event.defaultPrevented}`)
+  }))
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  let presses = 0
+  while (presses < 8 && !await designMap(page).evaluate((host) => document.activeElement === host)) {
+    await page.keyboard.press('F6')
+    presses += 1
+  }
+  test.info().annotations.push({ type: 'probe', description: `F6 presses to the map: ${presses}` })
+  await expect(designMap(page), 'F6 reaches the map host').toBeFocused()
+
+  await page.mouse.click(RECT_ZONE_EDGE.x, RECT_ZONE_EDGE.y)
+  await expect(selection(page).getByRole('status')).toHaveText(RECT_ZONE_CHIP)
+  await page.mouse.move(NEUTRAL.x, NEUTRAL.y)
+  await page.keyboard.press('Shift+Digit2')
+  await expect(scaleChip(page), 'Shift+2 zooms to the selection').not.toHaveText('1:240')
+  test.info().annotations.push({ type: 'probe', description: `keydowns: ${keys.join(' ')}` })
+})
+
+test('probe P-F3: a wheel during a Rectangle drag keeps the drag: the fixed corner stays on the ground, the free corner under the cursor', async ({ page }) => {
+  // Snapping off, so both corners are exactly where the pointer put them.
+  await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+  await expect(scaleChip(page)).toHaveText('1:240')
+  await page.keyboard.press('r')
+  await expect(tool(page, 'Rectangle zone')).toHaveAttribute('aria-pressed', 'true')
+  const fixed = { x: 700, y: 420 }
+  const mid = { x: 800, y: 500 }
+  const free = { x: 860, y: 560 }
+  await page.mouse.move(fixed.x, fixed.y)
+  await page.mouse.down()
+  await page.mouse.move(mid.x, mid.y, { steps: 8 })
+  await page.mouse.wheel(0, -300)
+  await expect(scaleChip(page), 'the wheel zooms during the drag').not.toHaveText('1:240')
+  await page.mouse.move(free.x, free.y, { steps: 8 })
+  await page.mouse.up()
+  await expect(selection(page).getByRole('status'), 'the drag drew one rectangle').toHaveText(/^Rectangle zone · /)
+  await page.keyboard.press('Escape')
+  await expect(tool(page, 'Select'), 'Esc returns to Select, keeping the new zone selected with its handles').toHaveAttribute('aria-pressed', 'true')
+  const corners = await zoneCorners(page)
+  const nearest = (to: { x: number, y: number }) => Math.min(...corners.map(({ x, y }) => Math.hypot(x - to.x, y - to.y)))
+  expect(nearest(free), 'a corner is under the cursor at the release').toBeLessThanOrEqual(1)
+
+  // Zooming back about the same point restores the opening camera: the fixed corner is back where the press was.
+  await page.mouse.move(mid.x, mid.y)
+  await page.mouse.wheel(0, 300)
+  await expect(scaleChip(page), 'the opposite wheel returns to the opening scale').toHaveText('1:240')
+  await expect.poll(async () => {
+    const back = await zoneCorners(page)
+    return Math.min(...back.map(({ x, y }) => Math.hypot(x - fixed.x, y - fixed.y)))
+  }, 'the fixed corner stayed on the ground under the press').toBeLessThanOrEqual(1)
 })
