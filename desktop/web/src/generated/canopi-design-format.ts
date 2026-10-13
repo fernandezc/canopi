@@ -592,6 +592,14 @@ export const CANOPI_FILE_SCHEMA = {
       ],
       "type": "object"
     },
+    "PlantLabels": {
+      "enum": [
+        "none",
+        "codes",
+        "names"
+      ],
+      "type": "string"
+    },
     "RichTextBlock": {
       "oneOf": [
         {
@@ -684,6 +692,17 @@ export const CANOPI_FILE_SCHEMA = {
         },
         "id": {
           "type": "string"
+        },
+        "labels": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlantLabels"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "name": {
           "type": "string"

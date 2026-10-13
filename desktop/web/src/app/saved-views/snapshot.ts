@@ -11,8 +11,6 @@ import type { SavedView } from '../../types/design'
 import { locale } from '../settings/state'
 import { mapLayers, type MapLayersState } from '../map-layers/state'
 import { backgroundPresentationOf, mapLayersOfView } from '../map-layers/background-presentation'
-import { savedViewPlantLabels } from '../design-edit/views'
-import { currentDesign } from '../document-session/store'
 import { currentPlantDisplay } from '../plant-display/state'
 import type { PlantLabelMode } from '../../canvas/runtime/plant-display'
 import { savedViewZoom } from '../../canvas/saved-view-framing'
@@ -96,9 +94,9 @@ export class ViewSnapshotSceneBusyError extends Error {
   }
 }
 
-/** The labels a view is presented with: those recorded with it, else the Design's current choice. */
-export function savedViewPresentedLabels(view: Pick<SavedView, 'id'>): PlantLabelMode {
-  return savedViewPlantLabels(currentDesign.peek(), view.id) ?? currentPlantDisplay.peek().labels
+/** The labels a view is presented with: those stored with it, else the Design's current choice. */
+export function savedViewPresentedLabels(view: Pick<SavedView, 'labels'>): PlantLabelMode {
+  return view.labels ?? currentPlantDisplay.peek().labels
 }
 
 let owner: ViewSnapshotMap | null = null

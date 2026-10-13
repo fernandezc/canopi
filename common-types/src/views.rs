@@ -28,6 +28,10 @@ pub struct SavedView {
     pub title: Option<String>,
     #[serde(default)]
     pub text: Vec<RichTextBlock>,
+    // How the view shows plant labels, recorded at capture; null (or a missing
+    // key) shows the Design's labels.
+    #[serde(default)]
+    pub labels: Option<crate::settings::PlantLabels>,
 }
 
 // Camera of a saved view: centre, zoom and bearing (degrees clockwise from
@@ -405,7 +409,8 @@ mod tests {
                 ]
             },
             "title": null,
-            "text": []
+            "text": [],
+            "labels": null
         })
     }
 
@@ -436,6 +441,27 @@ mod tests {
             }
         );
         assert_eq!(serde_json::to_value(&view).expect("serialize"), value);
+    }
+
+    #[test]
+    fn a_view_keeps_the_plant_labels_it_was_saved_with_and_writes_null_when_unset() {
+        let mut value = view_value(camera(2.2945, 48.8584, 18.5, 0.0));
+        let unset: SavedView = serde_json::from_value(value.clone()).expect("view should parse");
+        assert_eq!(unset.labels, None);
+        assert_eq!(serde_json::to_value(&unset).expect("serialize"), value);
+
+        value["labels"] = json!("codes");
+        let labelled: SavedView = serde_json::from_value(value.clone()).expect("view should parse");
+        assert_eq!(labelled.labels, Some(crate::settings::PlantLabels::Codes));
+        assert_eq!(serde_json::to_value(&labelled).expect("serialize"), value);
+
+        value["labels"] = json!("everything");
+        assert!(serde_json::from_value::<SavedView>(value.clone()).is_err());
+
+        let older = value.as_object_mut().expect("object");
+        older.remove("labels");
+        let missing: SavedView = serde_json::from_value(value).expect("view should parse");
+        assert_eq!(missing.labels, None);
     }
 
     #[test]

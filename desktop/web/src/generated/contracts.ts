@@ -702,7 +702,6 @@ export type PlacedPlant = {
 
 export type PlantDbStatus = "available" | "missing" | "corrupt";
 
-// Plant labels on the map: none, species codes or names.
 export type PlantLabels = "none" | "codes" | "names";
 
 export type ProblemReportRequest = {
@@ -865,6 +864,7 @@ export type SavedView = {
 	highlighted: SavedViewHighlight,
 	title: string | null,
 	text?: RichTextBlock[],
+	labels?: PlantLabels | null,
 };
 
 export type SavedViewBackground = { kind: "basemap"; style: string } | { kind: "satellite" } | { kind: "none" };

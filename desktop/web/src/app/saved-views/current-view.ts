@@ -10,7 +10,6 @@ import type { CanopiFile, SavedView } from '../../types/design'
 import { currentDesign } from '../document-session/store'
 import { mapLayers } from '../map-layers/state'
 import { currentPlantDisplay } from '../plant-display/state'
-import type { PlantLabelMode } from '../../canvas/runtime/plant-display'
 import { savedViewZoom } from '../../canvas/saved-view-framing'
 import { composeSavedView } from './model'
 
@@ -25,12 +24,6 @@ export function canShowSavedViews(): boolean {
   return currentDesign.value !== null && queries?.sessionPlane.value != null
 }
 
-/** What the map shows now as a saved view, with the labels it shows; null without a Design on a map with a size. */
-interface CurrentViewCapture {
-  readonly view: SavedView
-  readonly labels: PlantLabelMode
-}
-
 /**
  * Captures what the map shows now as a view (not yet saved): camera and the
  * ground the whole map shows, map background and terrain, visible Design
@@ -41,7 +34,7 @@ export function captureCurrentView({ id, name, title = '' }: {
   readonly id: string
   readonly name: string
   readonly title?: string
-}): CurrentViewCapture | null {
+}): SavedView | null {
   const queries = currentCanvasQuerySurface.value
   const plane = queries?.sessionPlane.value
   const design = currentDesign.value
@@ -49,7 +42,7 @@ export function captureCurrentView({ id, name, title = '' }: {
   if (!queries || !plane || !design || trimmed.length === 0) return null
   // What is on screen now: the live frame, not the settled camera.
   const capture = queries.view.captureView()
-  const view = composeSavedView({
+  return composeSavedView({
     id,
     name: trimmed,
     title: title.trim() || null,
@@ -60,8 +53,8 @@ export function captureCurrentView({ id, name, title = '' }: {
     siteData: shownSiteData(design.lidar),
     focusedSpecies: queries.getSpeciesFocus().canonicalName,
     selection: queries.getSelection(),
+    labels: currentPlantDisplay.peek().labels,
   })
-  return view ? { view, labels: currentPlantDisplay.peek().labels } : null
 }
 
 /**

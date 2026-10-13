@@ -263,7 +263,9 @@ settings_enum! {
 }
 
 settings_enum! {
-    /// Plant labels on the map: none, species codes or names.
+    // Plant labels on the map: none, species codes or names. A saved view
+    // stores them too, so the Canopi schema has no description keyword here.
+    #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
     #[serde(rename_all = "lowercase")]
     pub enum PlantLabels {

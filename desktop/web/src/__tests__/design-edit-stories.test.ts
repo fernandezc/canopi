@@ -17,7 +17,6 @@ import {
   restoreSavedView,
 } from '../app/design-edit'
 import { viewsAndStoriesProblem } from '../app/contracts/views-admission'
-import { savedViewPlantLabels } from '../app/design-edit/views'
 import { currentDesign, designSessionStore } from '../app/document-session/store'
 import { replaceCurrentDesignState } from './support/design-session-state'
 import type { CanopiFile, SavedView, Story, StoryStep } from '../types/design'
@@ -217,18 +216,19 @@ describe('recapturing a saved view', () => {
       camera: { lon: 3, lat: 45, zoom: 17, bearing: 0, ground_size_m: { width: 340, height: 210 } },
       visible_layers: { ...view('a').visible_layers, background: { kind: 'satellite' } },
       highlighted: { species: ['Lycium barbarum'], objects: [] },
+      labels: 'codes',
     }
-    recaptureSavedView('a', capture, { labels: 'codes' })
+    recaptureSavedView('a', capture)
     expect(currentDesign.value?.views?.[0]).toEqual({
       ...view('a'),
       camera: capture.camera,
       visible_layers: capture.visible_layers,
       highlighted: capture.highlighted,
+      labels: 'codes',
     })
-    expect(savedViewPlantLabels(currentDesign.value, 'a')).toBe('codes')
 
     const before = currentDesign.value
-    recaptureSavedView('a', capture, { labels: 'codes' })
+    recaptureSavedView('a', capture)
     recaptureSavedView('missing', capture)
     expect(currentDesign.value).toBe(before)
   })

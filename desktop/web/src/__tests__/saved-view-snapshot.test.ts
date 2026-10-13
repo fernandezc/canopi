@@ -229,14 +229,14 @@ describe('capturing a saved view', () => {
   it('draws the labels recorded with the view, else the Design’s current choice', async () => {
     replaceCurrentDesignState({
       ...design(),
-      extra: { plant_display: { labels: 'codes' }, saved_view_display: { hedges: { labels: 'none' } } },
+      extra: { plant_display: { labels: 'codes' } },
     }, null, 'Orchard')
     const surface = queries()
     const build = vi.spyOn(surface, 'captureViewScene')
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: surface }))
 
+    await captureSavedViewSnapshot({ ...VIEW, labels: 'none' }, VIEW_SNAPSHOT_THUMBNAIL)
     await captureSavedViewSnapshot(VIEW, VIEW_SNAPSHOT_THUMBNAIL)
-    await captureSavedViewSnapshot({ ...VIEW, id: 'older' }, VIEW_SNAPSHOT_THUMBNAIL)
 
     expect(build.mock.calls.map(([request]) => request.plantLabels)).toEqual(['none', 'codes'])
   })

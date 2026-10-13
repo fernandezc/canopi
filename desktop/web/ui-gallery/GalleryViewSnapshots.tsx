@@ -156,6 +156,7 @@ function galleryViews(tiles: boolean): SavedView[] {
       siteData: [],
       focusedSpecies: options.species ?? null,
       selection: [],
+      labels: 'names',
     })
   }
   const views = [

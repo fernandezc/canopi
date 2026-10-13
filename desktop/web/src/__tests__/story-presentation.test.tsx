@@ -85,11 +85,12 @@ function design(): CanopiFile {
       {
         ...view('hedges', { background: { kind: 'basemap', style: 'dark' }, terrain: { contours: false, hillshade: true }, scene_layers: ['zones'], site_data: [] }, ['Lycium barbarum']),
         camera: { lon: TEST_GEO_ORIGIN.lon + 0.001, lat: TEST_GEO_ORIGIN.lat, zoom: 20, bearing: 45, ground_size_m: { width: 20, height: 15 } },
+        labels: 'codes',
       },
     ],
     stories: [TOUR],
     created_at: '', updated_at: '',
-    extra: { saved_view_display: { hedges: { labels: 'codes' } } },
+    extra: {},
   }
 }
 

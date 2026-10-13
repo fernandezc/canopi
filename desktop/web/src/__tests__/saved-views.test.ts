@@ -23,9 +23,8 @@ import { saveCurrentView } from '../app/saved-views/actions'
 import { composeSavedView } from '../app/saved-views/model'
 import { savedViewZoom } from '../canvas/saved-view-framing'
 import { SAVED_VIEW_MAX_GROUND_SIZE_M } from '../generated/canopi-design-format'
-import { describeSavedViewSnapshot, VIEW_SNAPSHOT_THUMBNAIL } from '../app/saved-views/snapshot'
+import { describeSavedViewSnapshot, savedViewPresentedLabels, VIEW_SNAPSHOT_THUMBNAIL } from '../app/saved-views/snapshot'
 import type { ViewCamera } from '../canvas/runtime/view/types'
-import { savedViewPlantLabels } from '../app/design-edit/views'
 import { setPlantLabels } from '../app/plant-display/actions'
 import { createDefaultMapLayers, mapLayers } from '../app/map-layers/state'
 import { currentDesign, designSessionStore } from '../app/document-session/store'
@@ -225,14 +224,24 @@ describe('saving the current view', () => {
 
     const saved = saveCurrentView({ name: 'Hedges' })!
 
-    expect(savedViewPlantLabels(currentDesign.value, saved.id)).toBe('codes')
-    // The file format keeps views as they are; the choice is Design extra data.
-    expect(currentDesign.value?.extra?.saved_view_display).toEqual({ [saved.id]: { labels: 'codes' } })
-    expect(Object.keys(saved)).not.toContain('labels')
+    // The view stores the choice itself, as `views[].labels`.
+    expect(saved.labels).toBe('codes')
+    expect(currentDesign.value?.views?.find((view) => view.id === saved.id)?.labels).toBe('codes')
+    expect(currentDesign.value?.extra).not.toHaveProperty('saved_view_display')
     setPlantLabels('none')
-    expect(savedViewPlantLabels(currentDesign.value, saved.id)).toBe('codes')
-    // A view saved before labels were recorded shows the Design's current choice.
-    expect(savedViewPlantLabels(currentDesign.value, 'unknown')).toBeNull()
+    expect(savedViewPresentedLabels(saved)).toBe('codes')
+    // A view stored without labels shows the Design's current choice.
+    expect(savedViewPresentedLabels(BERRIES)).toBe('none')
+  })
+
+  it('reads a view’s labels from the view, never from a saved_view_display key in extra', () => {
+    replaceCurrentDesignState(
+      { ...design([BERRIES]), extra: { saved_view_display: { berries: { labels: 'codes' } } } },
+      null,
+      'Orchard',
+    )
+    setPlantLabels('none')
+    expect(savedViewPresentedLabels(currentDesign.value!.views![0]!)).toBe('none')
   })
 
   it('stores a blank title as none', () => {
@@ -409,20 +418,11 @@ describe('managing views', () => {
     expect(savedViewUndo.value).toBeNull()
   })
 
-  it('forgets a deleted view’s label choice and brings it back with Undo', () => {
-    replaceCurrentDesignState(
-      { ...design([BERRIES, POND]), extra: { saved_view_display: { berries: { labels: 'none' }, pond: { labels: 'codes' } } } },
-      null,
-      'Orchard',
-    )
+  it('brings a deleted view back with its label choice on Undo', () => {
+    replaceCurrentDesignState(design([{ ...BERRIES, labels: 'none' }, POND]), null, 'Orchard')
     requestDeleteView('berries')
-    expect(currentDesign.value?.extra?.saved_view_display).toEqual({ pond: { labels: 'codes' } })
     undoDeleteView()
-    expect(savedViewPlantLabels(currentDesign.value, 'berries')).toBe('none')
-
-    requestDeleteView('pond')
-    requestDeleteView('berries')
-    expect(currentDesign.value?.extra).not.toHaveProperty('saved_view_display')
+    expect(currentDesign.value?.views?.[0]).toEqual({ ...BERRIES, labels: 'none' })
   })
 
   it('asks first, naming the stories, when stories show the view', () => {
@@ -473,7 +473,7 @@ describe('saved view model', () => {
   const capture = (view: { lon: number; lat: number; zoom: number; bearing: number }, screen: WindowSize) => composeSavedView({
     id: 'v', name: 'V', title: null, view, screen,
     mapLayers: createDefaultMapLayers(),
-    sceneLayers: [], siteData: [], focusedSpecies: null, selection: [],
+    sceneLayers: [], siteData: [], focusedSpecies: null, selection: [], labels: 'names',
   })
 
   it('rounds the camera like stored positions and clamps zoom to the map range', () => {
@@ -501,7 +501,7 @@ describe('saved view model', () => {
       view: { lon: 2.2944, lat: 48.8583, zoom: 18, bearing },
       screen: { width: 400, height: 300 },
       mapLayers: createDefaultMapLayers(),
-      sceneLayers: [], siteData: [], focusedSpecies: null, selection: [],
+      sceneLayers: [], siteData: [], focusedSpecies: null, selection: [], labels: 'names',
     })!.camera.bearing
     expect(bearingOf(30)).toBe(30)
     expect(bearingOf(30.12345678912)).toBe(30.123457)

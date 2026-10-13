@@ -2,6 +2,7 @@ import type { SceneDesignObjectTarget } from '../../canvas/runtime/scene'
 import type { GeographicView } from '../../canvas/session-plane'
 import { savedViewCameraOf } from '../../canvas/saved-view-framing'
 import type { CanopiFile, SavedView, SavedViewObject } from '../../types/design'
+import type { PlantLabelMode } from '../../canvas/runtime/plant-display'
 import type { MapLayersState } from '../map-layers/state'
 import { viewMapLayersOf } from '../map-layers/background-presentation'
 
@@ -17,6 +18,8 @@ export interface SavedViewCaptureInput {
   readonly siteData: readonly { readonly id: string; readonly visible: boolean }[]
   readonly focusedSpecies: string | null
   readonly selection: readonly SceneDesignObjectTarget[]
+  /** The plant labels the map shows, stored with the view. */
+  readonly labels: PlantLabelMode
 }
 
 /**
@@ -41,6 +44,7 @@ export function composeSavedView(input: SavedViewCaptureInput): SavedView | null
     },
     title: input.title,
     text: [],
+    labels: input.labels,
   }
 }
 
