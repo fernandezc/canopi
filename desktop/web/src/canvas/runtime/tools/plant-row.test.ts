@@ -772,7 +772,7 @@ describe('Plant a row along a path', () => {
     expect(h.history.canUndo.value).toBe(false)
   })
 
-  it('Esc, Backspace and Ctrl+Z step back one point, Ctrl+Shift+Z restores it, and Esc then drops the picked plant', () => {
+  it('Esc, Backspace and Ctrl+Z step back one point, Ctrl+Shift+Z restores it, and Esc alone then drops the picked plant', () => {
     const { h } = pathHarness()
     h.click({ x: 20, y: 30 })
     for (const x of [60, 100, 140]) h.click({ x, y: 30 })
@@ -784,12 +784,13 @@ describe('Plant a row along a path', () => {
     expect(row(h).points).toBe(2)
     expect(h.host.transientHistory.undo()).toBe(true)
     expect(row(h).points).toBe(1)
-    // Only the picked plant left: Ctrl+Z is still the draft's (it drops the pick), never the Design's.
-    expect(h.host.transientHistory.canUndo()).toBe(true)
     expect(h.host.transientHistory.redo()).toBe(true)
     expect(row(h).points).toBe(2)
 
     expect(h.host.command({ kind: 'escape' })).toBe('handled')
+    expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    // Only the picked plant left: Backspace keeps it; Esc drops it, then passes.
+    expect(h.host.command({ kind: 'remove-last' })).toBe('handled')
     expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
     expect(h.host.command({ kind: 'escape' })).toBe('handled')
     expect(row(h).phase).toBe('pick')
@@ -798,31 +799,54 @@ describe('Plant a row along a path', () => {
     expect(added(h)).toEqual([])
   })
 
-  it('with only the picked plant left, Ctrl+Z and Backspace drop the pick and never reach the Design\'s undo', () => {
+  it('while a plant is picked Ctrl+Z and Ctrl+Shift+Z are the draft\'s alone: three back and three forward restore every point', () => {
     const { h } = pathHarness()
-    // An earlier Design edit the Design's undo would take back.
-    h.edits.run('set-plant-color-for-species', (tx) => {
-      tx.mutate((draft) => {
-        draft.plants = draft.plants.map((plant) => ({ ...plant, color: '#2F6F4E' }))
+    // Two earlier Design edits, the second undone: the Design has both an undo and a redo to lose.
+    const recolour = (color: string): void => {
+      h.edits.run('set-plant-color-for-species', (tx) => {
+        tx.mutate((draft) => {
+          draft.plants = draft.plants.map((plant) => ({ ...plant, color }))
+        })
       })
-    })
+    }
+    recolour('#2F6F4E')
+    recolour('#7A4E2F')
+    h.undo()
     expect(h.history.canUndo.value).toBe(true)
+    expect(h.history.canRedo.value).toBe(true)
+    /** Edit › Undo and Redo as the command surface routes them: the draft first, else the Design. */
+    const ctrlZ = (): void => {
+      if (!h.host.transientHistory.undo()) h.undo()
+    }
+    const ctrlShiftZ = (): void => {
+      if (!h.host.transientHistory.redo()) throw new Error('Ctrl+Shift+Z reached the Design')
+    }
 
     h.click({ x: 20, y: 30 })
+    for (const x of [60, 100, 140]) h.click({ x, y: 30 })
+    expect(row(h).points).toBe(4)
+    expect(h.host.transientHistory.canRedo()).toBe(true)
+
+    for (let step = 0; step < 3; step += 1) ctrlZ()
     expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
+    // Only the pick left: Ctrl+Z is handled and does nothing, the pick and the draft's redo stack stay.
     expect(h.host.transientHistory.canUndo()).toBe(true)
-    expect(h.host.transientHistory.undo()).toBe(true)
-    expect(row(h).phase).toBe('pick')
-    expect(h.renderer.lastDraft()).toBeNull()
-    expect(h.host.transientHistory.canUndo()).toBe(false)
-
-    h.click({ x: 20, y: 30 })
+    ctrlZ()
+    ctrlZ()
     expect(row(h)).toMatchObject({ phase: 'row', points: 1 })
-    expect(h.host.command({ kind: 'remove-last' })).toBe('handled')
-    expect(row(h).phase).toBe('pick')
+
+    for (let step = 0; step < 3; step += 1) ctrlShiftZ()
+    expect(row(h)).toMatchObject({ phase: 'row', points: 4 })
+    expect(pointAt(h, 3)).toEqual({ x: 14, y: 3 })
+    // Nothing left to redo: Ctrl+Shift+Z is still the draft's, and does nothing.
+    expect(h.host.transientHistory.canRedo()).toBe(true)
+    ctrlShiftZ()
+    expect(row(h).points).toBe(4)
 
     expect(h.store.persisted.plants.map((plant) => [plant.id, plant.color])).toEqual([['source', '#2F6F4E']])
     expect(h.history.canUndo.value).toBe(true)
+    expect(h.history.canRedo.value).toBe(true)
+    expect(added(h)).toEqual([])
   })
 
   it('a Design undo or redo that removes the picked plant returns to picking at once', () => {

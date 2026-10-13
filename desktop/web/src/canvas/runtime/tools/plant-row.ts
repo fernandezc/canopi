@@ -12,10 +12,10 @@
 // drag inserts a point, its double-click inserts one in place; Alt+click, Delete and the point menu delete a point
 // (never the picked plant, never below 2 points, 3 on a loop); the point menu turns a point sharp or smooth. A press, a
 // drag or a point action makes a point the last touched, which Delete takes when no point has focus. Esc,
-// Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it;
-// the step after the last point drops the picked plant (Ctrl+Z never reaches the Design's undo while a plant is
-// picked), and with none Esc lets the chain's tool layer leave (A17). A picked plant that leaves the Scene (a Design
-// undo or redo) drops the draft at once.
+// Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it.
+// While a plant is picked Ctrl+Z, Ctrl+Shift+Z and Backspace never reach the Design: with nothing to step they do
+// nothing, and only Esc drops the picked plant; with none picked Esc lets the chain's tool layer leave (A17). A picked
+// plant that leaves the Scene (a Design undo or redo) drops the draft at once.
 // The row's plants repeat the source at the card's spacing: every N m (Settings keeps the interval) or N plants, the
 // picked one counted. Shift turns the next point to 45° steps against the screen from the last one (the host's
 // constraint; none while a point drags, U36), Ctrl or Cmd turns snapping off (noSnap), and the host clamps the pointer to
@@ -492,21 +492,24 @@ export function createPlantRowTool(): CanvasTool {
     return true
   }
 
-  /** Esc, Backspace or Ctrl+Z, on the map or in the card's field (U58): one point back onto the redo stack, else the
-   *  picked plant goes; false with none picked. */
-  function escapeOnce(): boolean {
-    if (!source) return false
+  /** Esc, Backspace or Ctrl+Z: one point back onto the redo stack; false with only the picked plant left. */
+  function stepBackOnce(): boolean {
     const back = draft ? stepBack(draft, 1) : null
-    if (!back) {
-      clear()
-      return true
-    }
+    if (!back) return false
     setDraft(back)
     touched = null
     pointDrag = null
     return true
   }
 
+  /** Esc, on the map or in the card's field (U58): the last point, else the picked plant; false with none picked. */
+  function escapeOnce(): boolean {
+    if (!source) return false
+    if (!stepBackOnce()) clear()
+    return true
+  }
+
+  /** Ctrl+Shift+Z: the state the last step back took; false with none. */
   function stepForwardOnce(): boolean {
     const forward = draft ? stepForward(draft) : null
     if (!forward) return false
@@ -730,21 +733,21 @@ export function createPlantRowTool(): CanvasTool {
           publish()
           return 'handled'
         case 'remove-last': {
-          // Backspace: the focused point, else the last point.
+          // Backspace: the focused point, else the last point; while a plant is picked it never reaches Delete selected.
+          if (!source) return 'pass'
           const focused = context().focusedHandle()
           const index = focused === null ? null : pointIndexOf(focused)
-          const done = index !== null ? deletePoint(index) : escapeOnce()
-          if (!done) return 'pass'
+          if (index !== null) deletePoint(index)
+          else stepBackOnce()
           publish()
           return 'handled'
         }
         case 'undo-transient':
-          // With only the picked plant left the pick goes, so Ctrl+Z never reaches the Design's undo while a draft holds it.
-          if (!escapeOnce()) return 'pass'
-          publish()
-          return 'handled'
         case 'redo-transient':
-          if (!stepForwardOnce()) return 'pass'
+          // While a plant is picked Ctrl+Z and Ctrl+Shift+Z are the draft's alone, even with nothing to step.
+          if (!source) return 'pass'
+          if (c.kind === 'undo-transient') stepBackOnce()
+          else stepForwardOnce()
           publish()
           return 'handled'
         case 'delete-handle': {
@@ -802,7 +805,7 @@ export function createPlantRowTool(): CanvasTool {
     // The picked source and its points outlive every cancellation (a pan, a blur, overview); Esc steps them back.
     cancelTransient() {},
     canUndoTransient: () => source !== null,
-    canRedoTransient: () => (draft?.redo.length ?? 0) > 0,
+    canRedoTransient: () => source !== null,
     deactivate() {
       clear()
       ctx?.effects.setDraft(null)
