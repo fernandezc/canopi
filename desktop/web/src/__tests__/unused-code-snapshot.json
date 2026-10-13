@@ -30,7 +30,6 @@
     "src/app/design-edit/authority-capability.ts#DesignEditAuthorityCapability",
     "src/app/design-edit/extra-keys.ts#DesignEditExtraKey",
     "src/app/design-edit/plant-display.ts#PlantDisplayOptions",
-    "src/app/design-edit/views.ts#SavedViewDisplay",
     "src/app/design-template-import/coordinator.ts#DesignTemplateImportCoordinator",
     "src/app/design-template-import/coordinator.ts#DesignTemplateImportCoordinatorAdapters",
     "src/app/design-template-import/workflow.browser.ts#BrowserDesignTemplateImportAdapters",
