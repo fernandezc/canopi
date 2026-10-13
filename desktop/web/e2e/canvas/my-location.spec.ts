@@ -130,7 +130,8 @@ test.describe('granted', () => {
   test.describe('phone landscape', () => {
     test.use({ viewport: { width: 844, height: 390 }, hasTouch: true })
 
-    test('the zoom column with the location button clears the top bar, the lens, the tools and the panel sheet', async ({ page }) => {
+    // The inspection lens's launcher is a button of the column on a phone, so there is no lens button to clear.
+    test('the zoom column with the location button clears the top bar, the tools and the panel sheet', async ({ page }) => {
       await openBaseFixture(page)
       await expectButtonBeforeCompass(page)
       const column = await boxOf(zoomGroup(page))
@@ -138,7 +139,6 @@ test.describe('granted', () => {
       expect(column.y + column.height, 'the column ends in the window').toBeLessThanOrEqual(390)
       for (const [name, chrome] of [
         ['the top bar', page.getByRole('banner')],
-        ['Inspection lens', page.getByRole('button', { name: 'Inspection lens' })],
         ['the tools', page.getByRole('toolbar', { name: 'Tools' })],
         ['the panel sheet', page.getByRole('region', { name: 'Panels' })],
       ] as const) {
