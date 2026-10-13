@@ -997,3 +997,26 @@ for (const phone of PHONES) {
     }
   })
 }
+
+// A tablet is not a phone: the desktop card stays, and its chooser takes the focus at the first tap with no species only,
+// so a later tap leaves the on-screen keyboard closed.
+test.describe('1024×768 tablet', () => {
+  test.use({ viewport: { width: 1024, height: 768 }, hasTouch: true })
+
+  test('(canopi-f47t.54, D4) the desktop card\'s chooser takes the focus at the first tap with no species, not at each', async ({ page }) => {
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
+    await expect(sheet(page), 'not the phone layout').toHaveCount(0)
+    await mapHost(page).focus()
+    await page.keyboard.press('p')
+    await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-stamp')
+    const search = card(page).locator('input[type="search"]')
+
+    // Empty ground at the opening camera on a 1024x768 screen (point-rules.spec.ts).
+    await tap(page, { x: 860, y: 560 })
+    await expect(search, 'the first tap with no species points to the chooser').toBeFocused()
+    await mapHost(page).focus()
+    await tap(page, { x: 940, y: 620 })
+    await expect(card(page), 'the card still asks for a species').toContainText('Choose a species first')
+    await expect(search, 'a later tap leaves the focus where it was').not.toBeFocused()
+  })
+})

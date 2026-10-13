@@ -179,7 +179,9 @@ export function ToolCard({ stampChooser: StampChooser }: {
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
-          focusRequest={guidance.speciesPrompts}
+          // The first click with no species points here; later ones leave the focus be, so a tablet's keyboard stays
+          // closed and a mouse keeps the map's keys (the phone's options take it at each tap).
+          focusRequest={guidance.speciesPrompts > 0 ? 1 : 0}
           onChosen={closeChooser}
           onEscape={escapeSpeciesChooser}
         />
