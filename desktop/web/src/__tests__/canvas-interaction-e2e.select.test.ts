@@ -2947,6 +2947,69 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  // F5: a point menu names its point by index; once the corners, the selection or the tool change, that index may be
+  // another corner's, so the menu closes and an entry chosen from it anyway removes nothing.
+  it('an open point menu closes when the Scene, the selection or the tool changes, and its stale Delete point removes nothing (A16)', () => {
+    const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]
+    const inserted = { x: 70, y: 0 }
+    const zone = (id: string, points: readonly ScenePoint[]) => ({
+      kind: 'zone' as const, locked: false, id, name: id, zoneType: 'polygon' as const, rotationDeg: 0,
+      points: [...points], fillColor: null, notes: null,
+    })
+    store.updatePersisted((draft) => {
+      draft.zones = [zone('polygon-1', square), zone('polygon-2', square.map((point) => ({ x: point.x + 200, y: point.y })))]
+    })
+    const deps = createInteractionDeps(container, store, testView)
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const handle = (id: string) => container.querySelector<HTMLElement>(`[data-canvas-handle="${id}"]`)!
+    const rightClick = (at: ScenePoint, id: string) => {
+      events.pointerDown(at, { button: 2, target: handle(id) })
+      events.pointerUp(at, { button: 2 })
+    }
+    /** What the runtime does on any Scene edit, undo and redo included: the Scene changes, then the session refreshes. */
+    const setCorners = (points: readonly ScenePoint[]) => {
+      store.updatePersisted((draft) => { draft.zones[0] = zone('polygon-1', points) })
+      session.refreshMeasurements()
+    }
+
+    // An edit inserted a corner before the second one, then the point menu opens on that corner, now corner 2.
+    setCorners([square[0]!, inserted, ...square.slice(1)])
+    rightClick({ x: 120, y: 20 }, 'vertex:polygon-1:2')
+    expect(contextMenuItemIds()).toEqual(['delete-point'])
+    const afterUndo = contextMenuCommand('delete-point')
+    // Undo takes the inserted corner back: corner 2 is now the third corner of the square.
+    setCorners(square)
+    expect(contextMenuHost.current, 'a Scene change closes the point menu').toBeNull()
+    afterUndo.run()
+    expect(store.persisted.zones[0]!.points, 'a stale Delete point removes nothing').toEqual(square)
+
+    rightClick({ x: 120, y: 20 }, 'vertex:polygon-1:1')
+    const afterSelection = contextMenuCommand('delete-point')
+    deps.setSelection([zoneTarget('polygon-2')])
+    session.refreshMeasurements()
+    expect(contextMenuHost.current, 'a selection change closes the point menu').toBeNull()
+    afterSelection.run()
+    expect(store.persisted.zones.map((entry) => entry.points)).toEqual([square, square.map((point) => ({ x: point.x + 200, y: point.y }))])
+
+    deps.setSelection([zoneTarget('polygon-1')])
+    session.refreshMeasurements()
+    rightClick({ x: 120, y: 20 }, 'vertex:polygon-1:1')
+    const afterTool = contextMenuCommand('delete-point')
+    // The app's menu holds focus, as a tool letter pressed in it finds it.
+    const menuItem = document.body.appendChild(document.createElement('button'))
+    menuItem.focus()
+    session.setTool('plant-spacing')
+    expect(contextMenuHost.current, 'a tool change closes the point menu').toBeNull()
+    expect(document.activeElement, 'focus goes back to the map, as the menu\'s Esc gives it').toBe(container)
+    afterTool.run()
+    expect(store.persisted.zones[0]!.points).toEqual(square)
+    menuItem.remove()
+    session.dispose()
+  })
+
   it('a selection command chosen from a menu opened on a line\'s end gives focus to the map once the command removes that end', async () => {
     store.updatePersisted((draft) => {
       draft.zones = [makeRectZone('line-1', [{ x: 20, y: 20 }, { x: 120, y: 20 }], { zoneType: 'line' })]

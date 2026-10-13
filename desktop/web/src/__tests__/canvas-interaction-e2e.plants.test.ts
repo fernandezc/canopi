@@ -748,6 +748,51 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
+  /** Plant a row armed on a picked plant at (2, 4) with three points after it, 10 px per metre. */
+  function drawRow(): { readonly session: SceneInteractionSession, readonly points: () => number } {
+    plantSpacingIntervalM.value = 2
+    testView.setViewport({ x: 0, y: 0, scale: 10 })
+    store.updatePersisted((draft) => {
+      draft.plants = [makePlant('source', 'Malus domestica', { x: 2, y: 4 })]
+    })
+    const session = createTestSession(createInteractionDeps(container, store, testView))
+    session.setTool('plant-spacing')
+    for (const at of [{ x: 20, y: 40 }, { x: 80, y: 40 }, { x: 140, y: 80 }, { x: 200, y: 40 }]) {
+      events.pointerDown(at, { button: 0 })
+      events.pointerUp(at, { button: 0 })
+    }
+    const points = () => container.querySelectorAll('[data-canvas-handle^="point:draft:"]').length
+    expect(points(), 'the picked plant and three points').toBe(4)
+    return { session, points }
+  }
+
+  function draftPoint(index: number): HTMLElement {
+    return container.querySelector<HTMLElement>(`[data-canvas-handle="point:draft:${index}"]`)!
+  }
+
+  // F5: the point menu names its point by index; once the draft's points change, that index may be another point's.
+  it('Plant a row: an open point menu closes when the draft\'s points or the tool change, and its stale Delete point removes nothing (A16)', () => {
+    const { session, points } = drawRow()
+    events.pointerDown({ x: 140, y: 80 }, { button: 2, target: draftPoint(2) })
+    events.pointerUp({ x: 140, y: 80 }, { button: 2 })
+    const afterUndo = contextMenuCommand('delete-point')
+    // Ctrl+Z takes the last point back: the menu's point 2 is the last point now.
+    expect(session.undoTransientHistory()).toBe(true)
+    expect(points()).toBe(3)
+    expect(contextMenuHost.current, 'a draft change closes the point menu').toBeNull()
+    afterUndo.run()
+    expect(points(), 'a stale Delete point removes nothing').toBe(3)
+
+    events.pointerDown({ x: 80, y: 40 }, { button: 2, target: draftPoint(1) })
+    events.pointerUp({ x: 80, y: 40 }, { button: 2 })
+    const afterTool = contextMenuCommand('delete-point')
+    session.setTool('select')
+    expect(contextMenuHost.current, 'a tool change closes the point menu').toBeNull()
+    afterTool.run()
+    expect(store.persisted.plants).toHaveLength(1)
+    session.dispose()
+  })
+
   // Guard (answers 27, 28): the finish plants ordinary plants. One Scene Edit adds them after the Design's plants in path
   // order with new ids, the picked plant stays where it is, and the picked plant and the new ones stay selected, not
   // grouped (plant-row.test.ts checks its one Undo step). The saved Design holds them as plain plants and reopens to the same file.
