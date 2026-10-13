@@ -40,6 +40,7 @@ import { showInSiteData } from '../src/app/lidar/site-data-view'
 import { profileLineMenu } from '../src/app/lidar/profile'
 import { GalleryCanvasSurface } from './GalleryCanvasSurface'
 import { StampChooser } from '../src/components/canvas/StampChooser'
+import { ToolOptions } from '../src/components/canvas/ToolCard'
 import { PlantSymbolSheet } from './PlantSymbolSheet'
 import { GalleryViewSnapshots } from './GalleryViewSnapshots'
 import { readPlanningViewState } from '../src/app/planning-view/state'
@@ -181,6 +182,7 @@ function Gallery() {
             responsive
             phoneTabs={galleryPhoneTabs()}
             phoneBar={<WebPhoneBar />}
+            phoneOptions={<ToolOptions />}
           />
         </GalleryWebFrame>
       ) : (
