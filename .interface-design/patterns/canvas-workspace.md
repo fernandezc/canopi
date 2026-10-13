@@ -33,7 +33,7 @@ A modal (Edit › Rotate…, the menu, Ctrl Alt R), "Rotate selection": Angle in
 ## Tools
 
 - Tool cards (320 px): the species glyph (map colour) or stamp icon before the name; the subject (bold) on its own line, the instruction under it; key hints ending with what the next Esc does ("Esc to clear the stamp", "Esc to clear the row" (picked plant only), "Esc or Backspace removes the last point" (row, Profile; Polygon: corner), "Esc to stop placing", "Esc to cancel", "Esc to go back to Select"). Select: one quiet line of its gestures (pinch, not wheel, on a trackpad).
-- On phones cards and chips dock, one at a time, in the [context bar](controls-and-shell.md#web-on-phones); Select and Pan: no card.
+- On phones a tool is one [context bar](controls-and-shell.md#web-on-phones) row, its card the sheet's Options.
 - Place plants arms without a species; the card holds a chooser (plant finder with Stratum and Form: this Design's species, Favorites, recent picks, "Open the full catalog").
 - Place plants previews under the pointer: the symbol at 85% opacity, a dashed ring for the mature width (if known) and a dashed line to the nearest plant within 320 px.
 - Plant a row: click a placed plant, then points along a curve (Alt: sharp; the first point closes a loop); Enter, double-click or the check button plants ordinary plants, left selected; dragging from it plants a straight row (Ctrl or Cmd skips snapping). Card: Interval (focused on pick) or Plants, length, live count (ochre when dense, red over the limit).

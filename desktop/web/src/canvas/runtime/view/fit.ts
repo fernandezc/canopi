@@ -46,8 +46,8 @@ interface OrientedExtent {
 
 /**
  * The part of the screen not covered by floating chrome. An axis the insets leave under 120 px grows to 120 px around the
- * centre of its free band, clamped to the screen, and the other axis keeps its insets (answer 17: a phone's tool card and
- * half sheet leave a thin band, and the Design is framed there, not under them). Invalid insets frame the whole screen.
+ * centre of its free band, clamped to the screen, and the other axis keeps its insets (answer 17: a short window's chrome
+ * can leave a thin band, and the Design is framed there, not under the chrome). Invalid insets frame the whole screen.
  */
 export function framingRect(screen: { readonly width: number; readonly height: number }, insets: ScreenInsets = NO_INSETS): FramingRect {
   const across = framingSpan(screen.width, insets.left, insets.right)

@@ -53,10 +53,11 @@ Pages move on the preview (drag, or arrows on the focused page). No map backgrou
 ## Web on phones
 
 - Phone sizes: narrower than 640 px, or wider than tall, shorter than 480 px and narrower than 960 px. Wider windows keep the rails and dock (narrow rules from 640 to 760 px). Safe-area insets apply; inputs are 16 px.
-- Top bar: 8 px from the edges and below the notch, 52 px tall with 44 px buttons: Menu, the Design name over its save status (the status action waits in File), Undo, and Search a place (a card over the bar with Back and the field; Ctrl K).
+- Top bar: 8 px from the edges, below the notch, 52 px with 44 px buttons: Menu, the Design name over its save status (action in File), Undo, Search a place (a card over the bar; Ctrl K).
 - Tool strip (left): Select, Pan, Place plants, Polygon zone (44 px), then More tools (soft accent while it holds the active tool). Redo is in Edit; Grid and Snap in View.
-- Zoom: a column on the right, midway down the visible map ([canvas navigation](canvas-navigation.md#phones)), the inspection button first; the only chrome floating over the map, hidden where the map has no room for it.
-- Sheet: across the bottom, resting at peek (bar, handle, tabs), half, or full up to the top bar. The 44 px handle steps peek, half, full (also ArrowUp/Down, PageUp/Down, Home, End). Tabs Layers, Plants, Catalog, More; pressing the open tab rests it at peek. A draft's start drops it to peek; raised again, it stays.
-- Context bar: the sheet's first row, moving with it. The map notice (with Retry) on top, then one context, in order: the overview notice, the armed tool's card (not Select or Pan), the selection (one line), the highlight chip, the labels chip, else nothing.
+- Zoom: a column on the right, midway down the visible map ([canvas navigation](canvas-navigation.md#phones)), the inspection button first; the only floating chrome, hidden without room.
+- Sheet: across the bottom, at peek (bar, handle, tabs), half or full. The 44 px handle steps them (also arrows, PageUp/Down, Home, End). Tabs Layers, Plants, Catalog, More; the open tab's press rests it at peek. A draft's start drops it to peek.
+- Context bar: the sheet's first row; one 44 px row, never scrolling (the map notice adds a row on top). One context: the overview notice, the armed tool (not Select or Pan), the selection, the highlight chip, the labels chip, else nothing.
+- Tool row: name, status, the row's check button, Options: the card's content in place of the open panel at half, closed by a tab, peek or disarming. Place plants with no species opens it.
 - Landscape: the sheet rests in the bottom right corner and opens along the right edge (half 360 px, full up to 560 px); the bar is its header.
-- The sheet covers the bottom (landscape: right, at peek too) edge of the visible map frame, so fitting keeps clear of it.
+- The sheet covers the frame's bottom (landscape: right) edge, so fitting avoids it.
