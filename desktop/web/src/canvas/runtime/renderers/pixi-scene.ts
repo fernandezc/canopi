@@ -9,7 +9,7 @@ import { bandCentreScale, zoomBandOf } from '../view/frame-source'
 import type { ViewTransform } from '../view/types'
 import { createBillboardLayer, drawPlantGlyph, noteTextRotation, styleAnnotationText, traceAnnotationMarker } from './billboard-layer'
 import { createDraftLayer, type DraftScenePainters } from './draft-layer'
-import { cssColorAlpha, pixiPaint, screenPxToWorldPx, toPixiColor } from './scene-paint'
+import { cssColorAlpha, resolveCasedStroke, toPixiColor } from './scene-paint'
 import type { SceneRendererSnapshot } from './scene-types'
 import { createWorldLayers, traceZonePath, ZONE_STROKE_PX } from './world-layers'
 
@@ -95,18 +95,18 @@ export function createPixiScenePresentation(options: PixiScenePresentationOption
  */
 export function createDraftScenePainters(getSnapshot: () => SceneRendererSnapshot | null): DraftScenePainters {
   return {
-    drawZoneGhost(graphics, zone, scale) {
-      // The ghost: the zone's fill at a fifth and its stroke, with round ends and no casing; the stroke is traced at
-      // the band's centre scale, as the zone it places is.
+    drawZoneGhost(fill, outline, zone, scale) {
+      // The ghost: the zone's fill at a fifth (a line has none) and the placed zone's outline, its cream stroke over its
+      // dark casing, traced at the band's centre scale as the zone it places is.
       const visual = resolveZoneVisual(zone)
-      if (!traceZonePath(graphics, zone)) return false
-      if (zone.zoneType !== 'line') graphics.fill({ color: toPixiColor(visual.fill), alpha: 0.2 * cssColorAlpha(visual.fill) })
-      graphics.stroke({
-        ...pixiPaint(visual.stroke),
-        width: screenPxToWorldPx(ZONE_STROKE_PX, bandCentreScale(zoomBandOf(scale))),
-        cap: 'round',
-        join: 'round',
-      })
+      if (!traceZonePath(outline, zone)) return false
+      const stroke = resolveCasedStroke(null, { color: visual.stroke, casing: visual.casing }, ZONE_STROKE_PX, bandCentreScale(zoomBandOf(scale)))
+      outline.stroke(stroke.casing)
+      traceZonePath(outline, zone)
+      outline.stroke(stroke.stroke)
+      if (zone.zoneType !== 'line' && traceZonePath(fill, zone)) {
+        fill.fill({ color: toPixiColor(visual.fill), alpha: 0.2 * cssColorAlpha(visual.fill) })
+      }
       return true
     },
     drawPlantGhost(graphics, plant, mark, scale, sizeFrom) {
