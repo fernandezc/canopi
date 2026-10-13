@@ -77,7 +77,7 @@ export function hydrateScenePersistedStateInFrame(file: CanopiFile, plane: Sessi
     plants: file.plants.map((plant) => hydratePlantEntity(plant, plane)),
     zones: file.zones.map((zone) => hydrateZoneEntity(zone, plane)),
     annotations: (file.annotations ?? []).map((annotation) => hydrateAnnotationEntity(annotation, plane)),
-    measurementGuides: (file.measurement_guides ?? []).map((guide, index) => hydrateMeasurementGuideEntity(guide, index, plane)),
+    measurementGuides: (file.measurement_guides ?? []).map((guide) => hydrateMeasurementGuideEntity(guide, plane)),
     groups: (file.groups ?? []).map(hydrateGroupEntity),
   }
 }
@@ -282,12 +282,11 @@ function cloneAnnotationEntity(annotation: SceneAnnotationEntity): SceneAnnotati
 
 function hydrateMeasurementGuideEntity(
   guide: MeasurementGuide,
-  index: number,
   plane: SessionPlane,
 ): SceneMeasurementGuideEntity {
   return {
     kind: 'measurement-guide',
-    id: guide.id || `measurement-guide-${index + 1}`,
+    id: guide.id,
     locked: guide.locked ?? false,
     start: hydrateGeoPoint(plane, guide.start),
     end: hydrateGeoPoint(plane, guide.end),

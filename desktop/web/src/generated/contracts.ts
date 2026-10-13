@@ -655,7 +655,7 @@ export type LocalDataStatus =
 export type Locale = "en" | "fr" | "es" | "pt" | "it" | "zh" | "de" | "ja" | "ko" | "nl" | "ru";
 
 export type MeasurementGuide = {
-	id?: string,
+	id: string,
 	locked?: boolean,
 	start: GeoPoint,
 	end: GeoPoint,

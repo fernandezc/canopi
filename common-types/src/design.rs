@@ -350,7 +350,6 @@ pub struct PlacedPlant {
 
 #[derive(Deserialize)]
 struct PlacedPlantInput {
-    #[serde(default)]
     id: String,
     #[serde(default)]
     locked: bool,
@@ -461,19 +460,14 @@ pub fn validate_design_geometry(file: &CanopiFile) -> Result<(), String> {
 }
 
 /// Identities and ranges of an admitted Design, checked after version
-/// admission. Zones, annotations and groups need unique, non-empty ids because
-/// targets, groups and saved views refer to them. A plant or measurement
-/// guide without an id (an id is optional in the file) is repaired with a generated
-/// one that no other entry uses, wherever it appears; a duplicate explicit id
-/// is refused. Opacities, scales and font sizes must be
+/// admission. Plants, zones, annotations, measurement guides and groups need
+/// unique, non-empty ids because targets, groups and saved views refer to
+/// them; Canopi never invents a missing one. Opacities, scales and font sizes must be
 /// finite and in range, and the LiDAR section must be the schema this build
 /// writes, with named entries and any custom colour range a finite rising pair.
-pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), String> {
-    let mut plant_ids = explicit_ids("plants", file.plants.iter().map(|plant| plant.id.as_str()))?;
-    for (index, plant) in file.plants.iter_mut().enumerate() {
-        if plant.id.is_empty() {
-            plant.id = generated_id("plant", index, &mut plant_ids);
-        }
+pub fn admit_design_identities_and_ranges(file: &CanopiFile) -> Result<(), String> {
+    check_unique_ids("plants", file.plants.iter().map(|plant| plant.id.as_str()))?;
+    for (index, plant) in file.plants.iter().enumerate() {
         if plant
             .scale
             .is_some_and(|scale| !(scale.is_finite() && scale > 0.0))
@@ -488,17 +482,12 @@ pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), S
             ));
         }
     }
-    let mut guide_ids = explicit_ids(
+    check_unique_ids(
         "measurement_guides",
         file.measurement_guides
             .iter()
             .map(|guide| guide.id.as_str()),
     )?;
-    for (index, guide) in file.measurement_guides.iter_mut().enumerate() {
-        if guide.id.is_empty() {
-            guide.id = generated_id("measurement-guide", index, &mut guide_ids);
-        }
-    }
     check_unique_ids("zones", file.zones.iter().map(|zone| zone.id.as_str()))?;
     check_unique_ids(
         "annotations",
@@ -557,38 +546,6 @@ pub fn admit_design_identities_and_ranges(file: &mut CanopiFile) -> Result<(), S
         }
     }
     Ok(())
-}
-
-/// Every explicit (non-empty) id of a list that may repair missing ids,
-/// refusing a duplicate among them. Collected before any id is generated, so
-/// a generated id never takes an explicit id that appears later in the list.
-fn explicit_ids<'a>(
-    key: &str,
-    ids: impl Iterator<Item = &'a str>,
-) -> Result<std::collections::HashSet<String>, String> {
-    let mut seen = std::collections::HashSet::new();
-    for (index, id) in ids.enumerate() {
-        if !id.is_empty() && !seen.insert(id.to_owned()) {
-            return Err(format!("$.{key}[{index}].id: duplicate id {id:?}"));
-        }
-    }
-    Ok(seen)
-}
-
-/// The first free `{prefix}-{n}` from `index + 1`, recorded as taken.
-fn generated_id(
-    prefix: &str,
-    index: usize,
-    taken: &mut std::collections::HashSet<String>,
-) -> String {
-    let mut n = index + 1;
-    loop {
-        let candidate = format!("{prefix}-{n}");
-        if taken.insert(candidate.clone()) {
-            return candidate;
-        }
-        n += 1;
-    }
 }
 
 fn check_unique_ids<'a>(key: &str, ids: impl Iterator<Item = &'a str>) -> Result<(), String> {
@@ -679,7 +636,6 @@ pub struct Annotation {
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct MeasurementGuide {
-    #[serde(default)]
     pub id: String,
     #[serde(default)]
     pub locked: bool,
@@ -1179,8 +1135,8 @@ mod tests {
     }
 
     fn admitted(value: serde_json::Value) -> Result<CanopiFile, String> {
-        let mut file: CanopiFile = serde_json::from_value(value).map_err(|e| e.to_string())?;
-        admit_design_identities_and_ranges(&mut file)?;
+        let file: CanopiFile = serde_json::from_value(value).map_err(|e| e.to_string())?;
+        admit_design_identities_and_ranges(&file)?;
         Ok(file)
     }
 
@@ -1202,67 +1158,61 @@ mod tests {
     }
 
     #[test]
-    fn plants_and_guides_without_ids_are_repaired_and_duplicates_refused() {
-        let file = admitted(design_with(json!({
-            "plants": [
-                { "canonical_name": "Malus domestica", "position": { "lon": 13.0, "lat": 23.0 } },
-                { "id": "plant-2", "canonical_name": "Pyrus communis", "position": { "lon": 13.0, "lat": 23.0 } },
-                { "canonical_name": "Prunus avium", "position": { "lon": 13.0, "lat": 23.0 } }
-            ],
-            "measurement_guides": [
-                { "start": { "lon": 13.0, "lat": 23.0 }, "end": { "lon": 13.001, "lat": 23.0 } }
-            ]
-        })))
-        .expect("missing ids are generated");
-        assert_eq!(
-            file.plants
-                .iter()
-                .map(|p| p.id.as_str())
-                .collect::<Vec<_>>(),
-            ["plant-1", "plant-2", "plant-3"]
+    fn plants_and_guides_need_an_id_and_unique_non_empty_ids() {
+        let plant = |id: Option<&str>| {
+            let mut value = json!({ "canonical_name": "Malus domestica", "position": { "lon": 13.0, "lat": 23.0 } });
+            if let Some(id) = id {
+                value["id"] = json!(id);
+            }
+            value
+        };
+        let guide = |id: Option<&str>| {
+            let mut value = json!({ "start": { "lon": 13.0, "lat": 23.0 }, "end": { "lon": 13.001, "lat": 23.0 } });
+            if let Some(id) = id {
+                value["id"] = json!(id);
+            }
+            value
+        };
+        // A hand-edited file missing an id is refused: Canopi never invents one.
+        assert!(
+            admitted(design_with(json!({ "plants": [plant(None)] })))
+                .unwrap_err()
+                .contains("missing field `id`")
         );
-        assert_eq!(file.measurement_guides[0].id, "measurement-guide-1");
-
-        let duplicate = admitted(design_with(json!({
-            "plants": [
-                { "id": "plant-1", "canonical_name": "Malus domestica", "position": { "lon": 13.0, "lat": 23.0 } },
-                { "id": "plant-1", "canonical_name": "Pyrus communis", "position": { "lon": 13.0, "lat": 23.0 } }
-            ]
-        })));
+        assert!(
+            admitted(design_with(json!({ "measurement_guides": [guide(None)] })))
+                .unwrap_err()
+                .contains("missing field `id`")
+        );
         assert_eq!(
-            duplicate.unwrap_err(),
+            admitted(design_with(json!({ "plants": [plant(Some(""))] }))).unwrap_err(),
+            "$.plants[0].id: expected a non-empty id"
+        );
+        assert_eq!(
+            admitted(design_with(json!({ "measurement_guides": [guide(Some(""))] }))).unwrap_err(),
+            "$.measurement_guides[0].id: expected a non-empty id"
+        );
+        assert_eq!(
+            admitted(design_with(
+                json!({ "plants": [plant(Some("plant-1")), plant(Some("plant-1"))] })
+            ))
+            .unwrap_err(),
             "$.plants[1].id: duplicate id \"plant-1\""
         );
-    }
-
-    #[test]
-    fn generated_ids_avoid_explicit_ids_that_come_later() {
+        assert_eq!(
+            admitted(design_with(
+                json!({ "measurement_guides": [guide(Some("g")), guide(Some("g"))] })
+            ))
+            .unwrap_err(),
+            "$.measurement_guides[1].id: duplicate id \"g\""
+        );
         let file = admitted(design_with(json!({
-            "plants": [
-                { "canonical_name": "Malus domestica", "position": { "lon": 13.0, "lat": 23.0 } },
-                { "canonical_name": "Prunus avium", "position": { "lon": 13.0, "lat": 23.0 } },
-                { "id": "plant-2", "canonical_name": "Pyrus communis", "position": { "lon": 13.0, "lat": 23.0 } }
-            ],
-            "measurement_guides": [
-                { "start": { "lon": 13.0, "lat": 23.0 }, "end": { "lon": 13.001, "lat": 23.0 } },
-                { "id": "measurement-guide-1", "start": { "lon": 13.0, "lat": 23.0 }, "end": { "lon": 13.002, "lat": 23.0 } }
-            ]
+            "plants": [plant(Some("plant-2")), plant(Some("plant-1"))],
+            "measurement_guides": [guide(Some("guide-1"))]
         })))
-        .expect("a generated id never takes an explicit id");
-        assert_eq!(
-            file.plants
-                .iter()
-                .map(|p| p.id.as_str())
-                .collect::<Vec<_>>(),
-            ["plant-1", "plant-3", "plant-2"]
-        );
-        assert_eq!(
-            file.measurement_guides
-                .iter()
-                .map(|g| g.id.as_str())
-                .collect::<Vec<_>>(),
-            ["measurement-guide-2", "measurement-guide-1"]
-        );
+        .expect("explicit ids are admitted as they are");
+        assert_eq!(file.plants[0].id, "plant-2");
+        assert_eq!(file.measurement_guides[0].id, "guide-1");
     }
 
     #[test]
@@ -1371,7 +1321,7 @@ mod tests {
                 min: f64::NAN,
                 max: 30.0,
             });
-        assert!(admit_design_identities_and_ranges(&mut file).is_err());
+        assert!(admit_design_identities_and_ranges(&file).is_err());
     }
 
     fn zone_file(zone: serde_json::Value) -> Result<CanopiFile, serde_json::Error> {

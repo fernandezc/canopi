@@ -331,7 +331,6 @@ export const CANOPI_FILE_SCHEMA = {
           "$ref": "#/$defs/GeoPoint"
         },
         "id": {
-          "default": "",
           "type": "string"
         },
         "locked": {
@@ -343,6 +342,7 @@ export const CANOPI_FILE_SCHEMA = {
         }
       },
       "required": [
+        "id",
         "start",
         "end"
       ],

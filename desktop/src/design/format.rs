@@ -272,14 +272,14 @@ fn admit_current_design_value(
     }
 
     value["version"] = serde_json::json!(CURRENT_CANOPI_FILE_VERSION);
-    let mut file: CanopiFile = serde_json::from_value(value).map_err(|error| {
+    let file: CanopiFile = serde_json::from_value(value).map_err(|error| {
         CanopiDesignIngestionError::new(
             CanopiDesignIngestionErrorKind::InvalidDocument,
             format!("$: {error}"),
         )
     })?;
     validate_design_geometry(&file)
-        .and_then(|()| admit_design_identities_and_ranges(&mut file))
+        .and_then(|()| admit_design_identities_and_ranges(&file))
         .and_then(|()| validate_views_and_stories(&file.views, &file.stories))
         .and_then(|()| validate_map_view(file.map_view.as_ref()))
         .map_err(|error| {
