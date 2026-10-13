@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import '../../../__tests__/support/camera-tolerance'
 
 import { createTestRendererView, createTestSceneRendererSnapshot } from '../../../__tests__/support/scene-renderer-snapshot'
-import { CANVAS_CHROME_FONT_FAMILY, CANVAS_CHROME_MONO_FONT_FAMILY } from '../../chrome-fonts'
+import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 import { getCanvasColor } from '../../theme-refresh'
 import { getAnnotationPresentation } from '../annotation-layout'
 import { buildPlantPresentationEntries, resolvePlantDisplayColor } from '../plant-presentation'
@@ -192,6 +192,7 @@ describe('draft layer', () => {
     expect(global(layer.worldDraftRoot)).toEqual({ x: 100, y: 50 })
     expect(layer.worldDraftRoot.scale.x).toBeCloseTo(10, 9)
     const [polyline, polygon, quad, ellipse, zoneGhost, ...extraWorld] = layer.worldDraftRoot.children as Graphics[]
+    const zoneOutline = zoneGhost!.children[1] as Graphics
     expect(extraWorld).toEqual([])
     expect(tracedPoints(paintInstructions(polyline!, 'stroke')[1]!)).toEqual([{ x: 1, y: 2 }, { x: 3, y: 2 }])
     expect(tracedPoints(paintInstructions(polygon!, 'fill')[0]!)).toEqual([{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 2 }])
@@ -203,7 +204,7 @@ describe('draft layer', () => {
     for (const point of ellipsePoints) {
       expect(((point.x - 10) / 2) ** 2 + ((point.y - 10) / 3) ** 2).toBeCloseTo(1, 6)
     }
-    expect(pathSteps(paintInstructions(zoneGhost!, 'stroke')[0]!).find((step) => step.action === 'rect')?.data.slice(0, 4))
+    expect(pathSteps(paintInstructions(zoneOutline, 'stroke')[0]!).find((step) => step.action === 'rect')?.data.slice(0, 4))
       .toEqual([0, 0, 2, 1])
 
     // Upright parts sit at the global point of their world anchor, in CSS px.
@@ -335,22 +336,50 @@ describe('draft layer', () => {
     expect((plantGhost as Container).children[0]!.alpha).toBe(1)
     expect((stampPlants!.filters as AlphaFilter[])[0]!.alpha).toBe(0.62)
 
-    const zoneGhost = layer.worldDraftRoot.children[0] as Graphics
-    expect(zoneGhost.alpha).toBe(0.62)
-    // The scene's zone look: its fill at a fifth, the zone stroke, no casing.
-    const zoneFill = getCanvasColor('zone-fill')
-    expect(paints(zoneGhost, 'fill')).toEqual([expect.objectContaining({ color: pixiColor(zoneFill), alpha: 0.2 * cssAlpha(zoneFill) })])
-    // Its stroke is the zone's own at this scale (traced at the band's centre), so the ghost and the result match.
+    // The zones: the fill at the ghost's opacity over the zone's own, the outline the placed zone's cream stroke over its
+    // dark casing at full opacity, so it previews what lands and reads on paper and imagery (Q10).
+    const zoneGhost = layer.worldDraftRoot.children[0] as Container
+    const [zoneFill, zoneOutline, ...moreZoneParts] = zoneGhost.children as Graphics[]
+    expect(moreZoneParts).toEqual([])
+    expect(zoneGhost.alpha).toBe(1)
+    expect(zoneFill!.alpha).toBe(0.62)
+    const fillColour = getCanvasColor('zone-fill')
+    expect(paints(zoneFill!, 'fill')).toEqual([expect.objectContaining({ color: pixiColor(fillColour), alpha: 0.2 * cssAlpha(fillColour) })])
+    expect(paints(zoneFill!, 'stroke')).toEqual([])
+    expect(zoneOutline!.alpha).toBe(1)
+    expect(paints(zoneOutline!, 'fill')).toEqual([])
+    // The outline is the placed zone's at this scale (traced at the band's centre), casing then stroke, so the ghost and
+    // the result match.
     const world = createWorldLayers()
     world.present(at({ x: 0, y: 0 }, 14), createTestSceneRendererSnapshot({ scene: { zones: [createZone()] } }))
-    const zoneStroke = paints(world.root.children[1]!.children[0] as Graphics, 'stroke').at(-1)!
-    expect(paints(zoneGhost, 'stroke')).toEqual([expect.objectContaining({ color: pixiColor(getCanvasColor('zone-stroke')), width: zoneStroke.width })])
+    const placed = paints(world.root.children[1]!.children[0] as Graphics, 'stroke')
+    expect(paints(zoneOutline!, 'stroke')).toEqual(placed)
+    expect(placed.map((paint) => [paint.color, paint.alpha])).toEqual([
+      [pixiColor(getCanvasColor('overlay-casing')), cssAlpha(getCanvasColor('overlay-casing'))],
+      [pixiColor(getCanvasColor('zone-stroke')), cssAlpha(getCanvasColor('zone-stroke'))],
+    ])
 
     const { textOpacity, markerOpacity } = getAnnotationPresentation(createNote(), 14)
     expect(textOpacity).toBeGreaterThan(0)
     expect(markerOpacity).toBeGreaterThan(0)
     expect(noteText!.alpha).toBeCloseTo(0.62 * textOpacity)
     expect(noteMarker!.alpha).toBeCloseTo(0.62 * markerOpacity)
+  })
+
+  it('a line zone\'s ghost is its outline only, at full opacity', () => {
+    const layer = mountLayer()
+    const line: SceneZoneEntity = { ...createZone(), id: 'hedge', zoneType: 'line', points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }] }
+    const template = { plants: [], zones: [{ sourceId: 'hedge', entity: line }], annotations: [], measurementGuides: [], groups: [] }
+    layer.setDraft({ shapes: [{ kind: 'ghost', entity: { kind: 'objects', template }, opacity: 0.62 }] })
+    layer.setView(at({ x: 0, y: 0 }, 14))
+
+    const zoneGhost = layer.worldDraftRoot.children[0] as Container
+    const [outline, ...more] = zoneGhost.children as Graphics[]
+    expect(more).toEqual([])
+    expect(outline!.alpha).toBe(1)
+    expect(paints(outline!, 'fill')).toEqual([])
+    expect(paints(outline!, 'stroke').map((paint) => paint.color))
+      .toEqual([pixiColor(getCanvasColor('overlay-casing')), pixiColor(getCanvasColor('zone-stroke'))])
   })
 
   it('an objects ghost\'s note draws as its marker at an overview scale and as its turned text closer in', () => {
@@ -476,8 +505,8 @@ describe('draft layer', () => {
 
       const size = getDraftLabelVisual('measure').fontSizePx
       expect(load.mock.calls).toEqual([
-        [`600 ${size}px ${CANVAS_CHROME_MONO_FONT_FAMILY}`],
-        [`400 ${size}px ${CANVAS_CHROME_MONO_FONT_FAMILY}`],
+        [`600 ${size}px ${CANVAS_CHROME_FONT_FAMILY}`],
+        [`400 ${size}px ${CANVAS_CHROME_FONT_FAMILY}`],
       ])
       const before = layer.billboardDraftRoot.children[0]
       finishLoad()
@@ -534,8 +563,8 @@ describe('draft layer', () => {
 
   it('each label tone draws its chip style', () => {
     const cases = [
-      { tone: 'measure', font: CANVAS_CHROME_MONO_FONT_FAMILY, weight: '600', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
-      { tone: 'measure-quiet', font: CANVAS_CHROME_MONO_FONT_FAMILY, weight: '400', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
+      { tone: 'measure', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
+      { tone: 'measure-quiet', font: CANVAS_CHROME_FONT_FAMILY, weight: '400', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
       { tone: 'hint', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 20, text: 'chip-text', background: 'chip-surface', placement: 'above', padding: { x: 6, y: 2 } },
       { tone: 'hint-primary', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 20, text: 'chip-primary', background: 'chip-surface', placement: 'above', padding: { x: 8, y: 4 } },
     ] as const

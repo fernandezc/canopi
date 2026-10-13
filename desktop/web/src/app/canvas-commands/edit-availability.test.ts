@@ -80,4 +80,21 @@ describe('canvas edit availability', () => {
     ])
     expect(unavailable(input({ selection: { ...EVERYTHING, unlock: false } }))).toEqual(['unlock'])
   })
+
+  it('on a mixed locked and unlocked selection runs the edits that act on the unlocked part; group and rotate stay strict (U59)', () => {
+    // What selectionCommandAvailability gives two unlocked plants and a locked zone (the canvas menu seam test,
+    // canvas-interaction-e2e.select.test.ts): Delete, Cut, Copy, Duplicate, Bring to front, Send to back and Lock act on
+    // the plants and silently leave the zone (U55 overturned, 2026-10-13); Group and Rotate… refuse a locked member.
+    const mixed: CanvasEditSelectionAvailability = {
+      ...EVERYTHING,
+      group: false,
+      ungroup: false,
+      rotate: false,
+      selectSameSpecies: false,
+    }
+    expect(ALL_EDITS.filter((action) => canvasEditAvailable(action, input({ selection: mixed })))).toEqual([
+      'cut', 'copy', 'paste', 'duplicate', 'delete', 'select-all', 'deselect', 'bring-to-front', 'send-to-back', 'lock',
+      'unlock', 'unlock-all', 'save-as-stamp',
+    ])
+  })
 })

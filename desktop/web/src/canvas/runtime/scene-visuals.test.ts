@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { CANVAS_CHROME_FONT_FAMILY, CANVAS_CHROME_MONO_FONT_FAMILY } from '../chrome-fonts'
+import { CANVAS_CHROME_FONT_FAMILY } from '../chrome-fonts'
 import { getCanvasColor } from '../theme-refresh'
 import { getCanvasInteractionStrokeVisual, getDraftLabelVisual, getDraftVisual } from './scene-visuals'
 
@@ -52,7 +52,7 @@ describe('scene visuals', () => {
     }
     const measure = getDraftLabelVisual('measure')
     expect(measure).toMatchObject({
-      ...chip, placement: 'centre', fontFamily: CANVAS_CHROME_MONO_FONT_FAMILY, fontWeight: '600',
+      ...chip, placement: 'centre', fontFamily: CANVAS_CHROME_FONT_FAMILY, fontWeight: '600',
       color: getCanvasColor('chip-text'), background: getCanvasColor('chip-surface-muted'), paddingPx: { x: 5, y: 2 },
     })
     expect(getDraftLabelVisual('measure-quiet')).toEqual({ ...measure, fontWeight: '400' })

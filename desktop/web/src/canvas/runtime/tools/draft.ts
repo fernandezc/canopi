@@ -13,8 +13,9 @@ export type DraftShape =
   | { readonly kind: 'ghost'; readonly entity: GhostEntity; readonly opacity: number }
   | { readonly kind: 'label'; readonly anchor: WorldPoint; readonly offsetPx: ScreenPoint; readonly text: string; readonly tone: 'measure' | 'measure-quiet' | 'hint' | 'hint-primary'
       readonly beside?: LabelBeside }  // upright chip
-// A label is today's UI chip, drawn upright in Pixi; its tone carries the whole chip style (spec §1.4): 'measure' centred mono,
-// 'measure-quiet' the same at weight 400, 'hint' bottom-centre sans, 'hint-primary' the same in the primary colour.
+// A label is today's UI chip, drawn upright in Pixi in Source Sans 3; its tone carries the whole chip style (spec §1.4):
+// 'measure' centred at weight 600, 'measure-quiet' the same at 400, 'hint' bottom-centre, 'hint-primary' the same in the
+// primary colour.
 /** A chip drawn beside its point rather than on it: moved along the unit screen `normalPx` until its nearest side is
  *  `gapPx` past anchor + offset, whatever the chip's size (an edge chip beside its midpoint dot, U38). */
 interface LabelBeside { readonly normalPx: ScreenPoint; readonly gapPx: number }

@@ -44,8 +44,11 @@ export interface DraftLayer {
 
 /** The scene's own drawing code (pixi-scene.ts), lent so a ghost looks like the object a click would create. */
 export interface DraftScenePainters {
-  /** A zone as the stamp ghost draws it, in world units; false when nothing is drawable. */
-  drawZoneGhost(graphics: Graphics, zone: SceneZoneEntity, scale: number): boolean
+  /**
+   * A zone as the stamp ghost draws it, in world units: its fill into `fill` (none for a line), its outline as the placed
+   * zone's into `outline`; false when nothing is drawable.
+   */
+  drawZoneGhost(fill: Graphics, outline: Graphics, zone: SceneZoneEntity, scale: number): boolean
   /**
    * A plant's mark at the local origin in CSS px; false before the scene has a snapshot. A 'dot' takes its radius from the
    * plant's presentation at `sizeFrom` when given, else at the plant's own position.
@@ -299,8 +302,8 @@ export function createDraftLayer(options: DraftLayerOptions): DraftLayer {
   }
 
   /**
-   * Canvas text drawn while its web font is still loading keeps the fallback font, and nothing in the DOM asks for a
-   * chip's font (the mono chips' IBM Plex Mono may be used nowhere else). So the layer asks the browser for it, once per
+   * Canvas text drawn while its web font is still loading keeps the fallback font, and nothing in the DOM need have asked
+   * for a chip's face yet (a weight the page has not drawn). So the layer asks the browser for it, once per
    * font while a face has not loaded, and when a face that had not loaded then has loaded, redraws the live draft and
    * asks for a frame. `fonts.check()` cannot tell: WebKit reports a face still loading under font-display: swap as
    * failed, so check() is true, and only `load()` waits for the face to arrive (as the notes' measure does).
@@ -357,14 +360,20 @@ export function createDraftLayer(options: DraftLayerOptions): DraftLayer {
     }
     const { template } = entity
     if (template.zones.length > 0) {
-      const zones = new Graphics()
+      // The fill fades with the ghost; the outline is the placed zone's at full opacity, so it previews what lands (Q10).
+      const fill = new Graphics()
+      const outline = new Graphics()
       let drewZone = false
-      for (const { entity: zone } of template.zones) drewZone = painters.drawZoneGhost(zones, zone, scale) || drewZone
+      for (const { entity: zone } of template.zones) drewZone = painters.drawZoneGhost(fill, outline, zone, scale) || drewZone
       if (drewZone) {
-        zones.alpha = opacity
-        add(world, zones)
+        const zones = add(world, new Container())
+        fill.alpha = opacity
+        if (fill.context.instructions.length > 0) zones.addChild(fill)
+        else fill.destroy()
+        zones.addChild(outline)
       } else {
-        zones.destroy()
+        fill.destroy()
+        outline.destroy()
       }
     }
     drawPlantGhosts(template.plants.map(({ entity: plant }) => plant), 'symbol', opacity, scale)

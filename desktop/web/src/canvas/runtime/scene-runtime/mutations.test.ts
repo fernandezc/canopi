@@ -142,7 +142,7 @@ function createController(file = makeFile()) {
     },
   })
 
-  return { controller, sceneStore, state }
+  return { controller, sceneStore, sceneEdits, state }
 }
 
 describe('scene runtime mutation controller', () => {
@@ -179,6 +179,58 @@ describe('scene runtime mutation controller', () => {
     const after = sceneStore.persisted
     expect(after.plants.find((entry) => entry.id === pastedPlants[1]!.id)!.position).toEqual(pastedPlants[1]!.position)
     expect(after.zones.find((entry) => entry.id === pastedZones[1]!.id)!.points).toEqual(pastedZones[1]!.points)
+  })
+
+  it('Cut (copy then delete, as the Edit command runs it) does nothing while an edit owns the Scene, and once settled copies before it deletes', () => {
+    const { controller, sceneStore, sceneEdits } = createController()
+    sceneStore.setSelection([{ kind: 'plant', id: 'plant-1' }])
+    const pending = sceneEdits.begin('move-selection')
+
+    controller.copy()
+    controller.deleteSelected()
+
+    pending.abort()
+    expect(sceneStore.persisted.plants.map((plant) => plant.id)).toEqual(['plant-1', 'plant-2'])
+    expect(controller.canPaste()).toBe(false)
+
+    controller.copy()
+    controller.deleteSelected()
+
+    expect(sceneStore.persisted.plants.map((plant) => plant.id)).toEqual(['plant-2'])
+    expect(sceneStore.session.selectedTargets).toEqual([])
+    controller.paste()
+    const pasted = sceneStore.persisted.plants.filter((plant) => plant.id !== 'plant-2')
+    expect(pasted.map((plant) => plant.canonicalName)).toEqual(['Malus domestica'])
+  })
+
+  it('on a selection mixing locked and unlocked objects, Cut, Duplicate and Lock act on the unlocked part and silently leave the locked one (U59)', () => {
+    const file = makeFile()
+    file.zones = file.zones.map((zone) => ({ ...zone, locked: true }))
+    const { controller, sceneStore } = createController(file)
+    const mixed = [{ kind: 'plant' as const, id: 'plant-1' }, { kind: 'zone' as const, id: 'zone-1' }]
+
+    sceneStore.setSelection(mixed)
+    controller.duplicateSelected()
+    expect(sceneStore.persisted.plants).toHaveLength(3)
+    expect(sceneStore.persisted.zones.map((zone) => zone.id)).toEqual(['zone-1'])
+
+    // Cut, as the Edit command runs it: the clipboard holds the plant only, the locked zone stays, the selection clears.
+    sceneStore.setSelection(mixed)
+    controller.copy()
+    controller.deleteSelected()
+    expect(sceneStore.persisted.plants.map((plant) => plant.id)).not.toContain('plant-1')
+    expect(sceneStore.persisted.zones.map((zone) => [zone.id, zone.locked])).toEqual([['zone-1', true]])
+    expect(sceneStore.session.selectedTargets).toEqual([])
+    const before = sceneStore.persisted.plants.length
+    controller.paste()
+    expect(sceneStore.persisted.plants).toHaveLength(before + 1)
+    expect(sceneStore.persisted.zones).toHaveLength(1)
+
+    // Lock locks the rest.
+    sceneStore.setSelection([{ kind: 'plant', id: 'plant-2' }, { kind: 'zone', id: 'zone-1' }])
+    controller.lockSelected()
+    expect(sceneStore.persisted.plants.find((plant) => plant.id === 'plant-2')?.locked).toBe(true)
+    expect(sceneStore.persisted.zones[0]!.locked).toBe(true)
   })
 
   it('locks only the typed selected Design Object when raw ids collide', () => {
