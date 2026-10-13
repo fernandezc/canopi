@@ -31,7 +31,6 @@ function openDesign(name: string, entryName: string): void {
   designSessionStore.replaceCurrentDesignState({
     name,
     lidar: {
-      schema_version: 1,
       visible: true,
       entries: [{ kind: 'Source', id: 'a', name: entryName, order: 0, visible: true, opacity: 1, ramp: null, reversed: false, range: null }],
     },

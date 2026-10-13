@@ -61,7 +61,6 @@ function design(views: SavedView[] = [], stories: Story[] = []): CanopiFile {
     budget: [],
     budget_currency: 'EUR',
     lidar: {
-      schema_version: 1,
       visible: true,
       entries: [
         { kind: 'Source', id: 'dtm-shown', name: 'Shown terrain', visible: true, opacity: 1, order: 0, ramp: null, reversed: false, range: null },

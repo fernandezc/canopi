@@ -571,7 +571,6 @@
   "budget": [],
   "budget_currency": "EUR",
   "lidar": {
-    "schema_version": 1,
     "visible": true,
     "entries": [
       {

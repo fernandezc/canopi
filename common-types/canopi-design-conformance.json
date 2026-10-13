@@ -163,7 +163,6 @@
       "budget": [],
       "budget_currency": "EUR",
       "lidar": {
-        "schema_version": 1,
         "visible": true,
         "entries": [
           {
@@ -403,7 +402,6 @@
       "budget": [],
       "budget_currency": "EUR",
       "lidar": {
-        "schema_version": 1,
         "visible": false,
         "entries": [
           {
@@ -731,7 +729,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -970,7 +967,6 @@
           }
         ],
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -1587,7 +1583,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -2062,7 +2057,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -2231,7 +2225,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4048,31 +4041,6 @@
       "error_path": "$.annotations[0].font_size"
     },
     {
-      "id": "reject-lidar-schema-version",
-      "input": {
-        "version": 9,
-        "name": "Conformance Garden",
-        "plant_species_colors": {},
-        "layers": [],
-        "plants": [],
-        "zones": [],
-        "annotations": [],
-        "consortiums": [],
-        "groups": [],
-        "timeline": [],
-        "budget": [],
-        "created_at": "2026-09-25T00:00:00.000Z",
-        "updated_at": "2026-09-25T00:00:00.000Z",
-        "lidar": {
-          "schema_version": 2,
-          "visible": true,
-          "entries": []
-        }
-      },
-      "error_kind": "invalid_document",
-      "error_path": "$.lidar.schema_version"
-    },
-    {
       "id": "reject-lidar-entry-opacity-above-one",
       "input": {
         "version": 9,
@@ -4089,7 +4057,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4126,7 +4093,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4167,7 +4133,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4209,7 +4174,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4246,7 +4210,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4283,7 +4246,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "entries": [
             {
               "kind": "Source",
@@ -4495,7 +4457,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {
@@ -4704,7 +4665,6 @@
         "created_at": "2026-09-25T00:00:00.000Z",
         "updated_at": "2026-09-25T00:00:00.000Z",
         "lidar": {
-          "schema_version": 1,
           "visible": true,
           "entries": [
             {

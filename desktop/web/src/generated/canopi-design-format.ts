@@ -298,17 +298,11 @@ export const CANOPI_FILE_SCHEMA = {
           },
           "type": "array"
         },
-        "schema_version": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
         "visible": {
           "type": "boolean"
         }
       },
       "required": [
-        "schema_version",
         "visible",
         "entries"
       ],

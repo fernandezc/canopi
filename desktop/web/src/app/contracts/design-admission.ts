@@ -1,9 +1,6 @@
 import type { LidarColourRange } from '../../generated/contracts'
 import type { CanopiFile } from '../../types/design'
 
-/** The LiDAR presentation schema this build writes (`common-types/src/lidar.rs`). */
-const LIDAR_PRESENTATION_SCHEMA_VERSION = 1
-
 /**
  * Identities and ranges of an admitted current-format Design: the Web mirror
  * of `admit_design_identities_and_ranges` in `common-types/src/design.rs`,
@@ -69,9 +66,6 @@ export function isAdmittedColourRange(range: LidarColourRange | null): boolean {
 function lidarProblem(file: CanopiFile): string | null {
   const lidar = file.lidar
   if (!lidar) return null
-  if (lidar.schema_version !== LIDAR_PRESENTATION_SCHEMA_VERSION) {
-    return `$.lidar.schema_version: expected ${LIDAR_PRESENTATION_SCHEMA_VERSION}`
-  }
   for (const [index, entry] of lidar.entries.entries()) {
     if (!isAdmittedOpacity(entry.opacity)) {
       return `$.lidar.entries[${index}].opacity: expected a number in [0, 1]`

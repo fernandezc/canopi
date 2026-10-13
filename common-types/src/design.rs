@@ -513,12 +513,6 @@ pub fn admit_design_identities_and_ranges(file: &CanopiFile) -> Result<(), Strin
         }
     }
     if let Some(lidar) = &file.lidar {
-        if lidar.schema_version != crate::lidar::LIDAR_PRESENTATION_SCHEMA_VERSION {
-            return Err(format!(
-                "$.lidar.schema_version: expected {}",
-                crate::lidar::LIDAR_PRESENTATION_SCHEMA_VERSION
-            ));
-        }
         for (index, entry) in lidar.entries.iter().enumerate() {
             if !(entry.opacity.is_finite() && (0.0..=1.0).contains(&entry.opacity)) {
                 return Err(format!(
@@ -1293,15 +1287,23 @@ mod tests {
             })))
             .is_err()
         );
+        // The section has no version of its own: the file's version covers it,
+        // and an older dev file's `schema_version` is dropped like any unknown key.
+        assert!(
+            admitted(design_with(json!({
+                "lidar": { "visible": true, "entries": [] }
+            })))
+            .is_ok()
+        );
         assert!(
             admitted(design_with(json!({
                 "lidar": { "schema_version": 2, "visible": true, "entries": [] }
             })))
-            .is_err()
+            .is_ok()
         );
         let lidar = |entry: serde_json::Value| {
             design_with(json!({
-                "lidar": { "schema_version": 1, "visible": true, "entries": [entry] }
+                "lidar": { "visible": true, "entries": [entry] }
             }))
         };
         let entry = |opacity: f64, name: &str, range: serde_json::Value| {
@@ -1331,7 +1333,7 @@ mod tests {
         // JSON cannot carry a non-finite number, but a Design built in memory
         // can; admission refuses it before it is written.
         let mut file: CanopiFile = serde_json::from_value(design_with(json!({
-            "lidar": { "schema_version": 1, "visible": true, "entries": [{
+            "lidar": { "visible": true, "entries": [{
                 "kind": "Source", "id": "dem", "name": "Terrain model", "visible": true,
                 "opacity": 1.0, "order": 0, "ramp": null, "reversed": false, "range": null
             }] }

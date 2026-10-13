@@ -361,7 +361,6 @@ export function designFixture(state = 'populated'): CanopiFile {
     name: 'Orchard notebook',
     ...(state === 'empty' ? {} : storyFixture(designOrigin(state), state === 'long')),
     lidar: state === 'empty' ? null : {
-      schema_version: 1,
       visible: true,
       entries: lidarEntries(state),
     },

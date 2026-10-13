@@ -585,7 +585,6 @@ export type LidarPresentationEntry = {
 };
 
 export type LidarPresentationSection = {
-	schema_version: number,
 	visible: boolean,
 	entries: LidarPresentationEntry[],
 };

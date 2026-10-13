@@ -112,7 +112,6 @@ describe('document format contract', () => {
       }],
       budget_currency: 'USD',
       lidar: {
-        schema_version: 1,
         visible: true,
         entries: [{
           kind: 'Source',
@@ -383,7 +382,6 @@ describe('document format contract', () => {
       }],
       budget_currency: 'USD',
       lidar: {
-        schema_version: 1,
         visible: true,
         entries: [{
           kind: 'Source',

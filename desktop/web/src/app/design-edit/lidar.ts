@@ -6,14 +6,10 @@ import type {
   LidarRamp,
 } from '../../generated/contracts'
 
-// Mirrors common_types::lidar::LIDAR_PRESENTATION_SCHEMA_VERSION (not part of
-// the generated type surface).
-const LIDAR_PRESENTATION_SCHEMA_VERSION = 1
-
 import { editCurrentDesign, readCurrentDesign, reconcileCurrentDesign } from './core'
 
 function emptySection(): LidarPresentationSection {
-  return { schema_version: LIDAR_PRESENTATION_SCHEMA_VERSION, visible: true, entries: [] }
+  return { visible: true, entries: [] }
 }
 
 /**

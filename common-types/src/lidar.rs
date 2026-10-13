@@ -265,7 +265,6 @@ pub struct LidarDisplayDescriptor {
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 pub struct LidarPresentationSection {
-    pub schema_version: u32,
     // The Site data eye in Layers: an entry draws only while both this flag
     // and its own `visible` are on, and each entry keeps its own eye.
     pub visible: bool,
@@ -327,8 +326,6 @@ pub enum LidarColourRange {
     CutOutliers,
     Custom { min: f64, max: f64 },
 }
-
-pub const LIDAR_PRESENTATION_SCHEMA_VERSION: u32 = 1;
 
 #[cfg(test)]
 mod tests {
