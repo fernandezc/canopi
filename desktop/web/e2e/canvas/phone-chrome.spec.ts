@@ -239,19 +239,21 @@ async function expectInsetsCoverSheet(page: Page, portrait: boolean, where: stri
 }
 
 /**
- * The zoom column, placed from the framing frame, clears the bar wherever the frame is as tall as the column. A shorter
- * frame (360x560 with the sheet at half) is answer 25's: the column hides there, as at full.
+ * The zoom column, placed from the framing frame, clears the bar; where that frame is shorter than the column (360x560
+ * with the sheet at half, any full sheet) it hides instead (answer 25).
  */
 async function expectZoomClearOfBar(page: Page, bar: Locator, where: string): Promise<void> {
   const barBox = await boxOf(bar)
   const frame = await framingEdges(page)
-  for (const zoom of await shownBoxes(page, '[data-zoom-group]')) {
-    if (zoom.height > frame.bottom - frame.top) {
-      test.info().annotations.push({ type: 'zoom column taller than its frame', description: `${where}: ${zoom.height} px in ${frame.bottom - frame.top} px` })
-      continue
-    }
-    expect(overlap(zoom, barBox), `${where}: the zoom column clears the bar`).toBe(false)
+  const column = page.locator('[data-zoom-group]')
+  const height = await column.evaluate((element) => (element as HTMLElement).offsetHeight)
+  const shown = await shownBoxes(page, '[data-zoom-group]')
+  if (height > frame.bottom - frame.top) {
+    expect(shown, `${where}: the ${height} px column hides in a ${frame.bottom - frame.top} px frame`).toEqual([])
+    return
   }
+  expect(shown.length, `${where}: the column shows in a ${frame.bottom - frame.top} px frame`).toBe(1)
+  expect(overlap(shown[0]!, barBox), `${where}: the zoom column clears the bar`).toBe(false)
 }
 
 async function expectBarTakesTap(page: Page, bar: Locator, where: string): Promise<void> {

@@ -177,6 +177,12 @@
   height: var(--control-size-touch);
 }
 
+/* With less visible map than the column needs (ZoomControls), it steps aside instead of standing over the top bar or
+   the panel sheet. */
+.phone[data-roomless] {
+  visibility: hidden;
+}
+
 /* The inspection launcher hides while its lens is open. */
 .phone .button[hidden] {
   display: none;

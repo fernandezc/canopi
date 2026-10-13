@@ -131,9 +131,3 @@
   flex: 1 1 auto;
   width: auto;
 }
-
-/* A full panel sheet leaves no map: the zoom column, placed from the visible
-   map frame, steps aside instead of slipping behind the top bar. */
-.shell[data-phone-layout]:has([data-phone-sheet="full"]) [data-zoom-group] {
-  visibility: hidden;
-}
