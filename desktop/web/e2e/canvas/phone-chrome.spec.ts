@@ -1,5 +1,5 @@
 // The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18, 22-26 and 30). The guard: at
-// 390x844, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
+// 390x844, 360x740, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
 // in the context bar takes the tap at its centre, idle, with the labels chip, with a row held at peek, half and full,
 // and with the planted row selected. The context bar is the panel sheet's first row: it moves with peek, half, full and
 // a finger drag, the sheet's registration covers it, and it holds the map notice on top of one context (the tool's
@@ -183,6 +183,7 @@ test.describe('390×844 boundary events', () => {
 // driver, so there the drag is a mouse's (the handle takes pointer events of either kind).
 const PHONES = [
   { width: 390, height: 844 },
+  { width: 360, height: 740 },
   { width: 360, height: 560 },
   { width: 740, height: 360 },
   { width: 844, height: 390 },
