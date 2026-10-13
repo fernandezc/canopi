@@ -18,8 +18,8 @@ Canopi v1 drew Designs in local metres on a canvas and attached them to the Eart
 - **Navigation.** Place search (name or coordinates) is the title-bar place field, Ctrl K ([ADR 0010](0010-map-first-interface.md) replaced the pin button first decided here); confirm flies the camera. A new Design opens at the last view in settings, else at lat 23.0, lon 13.0, zoom 4, and asks "Where is your site?". Opening a Design restores the view it was saved with (`map_view`, [ADR 0015](0015-rotating-map-and-canvas-controls.md), 2026-10-04); a Design saved without one fits to its objects at the live bearing (U33); a new or empty Design opens north-up.
 - **Map layers.**
   - The default basemap is the OpenFreeMap Liberty vector style (Positron, Bright, Dark selectable) with OpenFreeMap/OpenMapTiles/OpenStreetMap attribution.
-  - Satellite is its own Site references row under Basemap and hides the Basemap when on; Google is the only satellite imagery.
-  - Without a key, Google uses its public tiles (`https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}`), as GeoLibre's basemap control does; entering the user's own Google Maps API key in the Satellite row switches to the official Map Tiles API.
+  - Background is one Layers choice: Satellite, Street map or None; Google is the only satellite imagery.
+  - Without a key, Google uses its public tiles (`https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}`), as GeoLibre's basemap control does; the user's own Google key (Layers › Satellite or Settings › Map and imagery) switches to the official Map Tiles API.
   - The public tile endpoint is not a published Google API and Google's terms do not cover using it directly; the user accepted that risk for its resolution (2026-09-25).
   - EOX Sentinel-2 cloudless, the licensed keyless alternative, was removed at the user's request (2026-09-25), so there is no provider choice.
   - Esri World Imagery was not adopted: its Master License Agreement does not clearly allow keyless display in a free third-party app.
