@@ -50,7 +50,7 @@ function view(id: string, overrides: Partial<SavedView['visible_layers']> = {}, 
   return {
     id,
     name: `View ${id}`,
-    camera: { lon: TEST_GEO_ORIGIN.lon + 0.001, lat: TEST_GEO_ORIGIN.lat, zoom: 20, bearing: 0 },
+    camera: { lon: TEST_GEO_ORIGIN.lon + 0.001, lat: TEST_GEO_ORIGIN.lat, zoom: 20, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'satellite' },
       terrain: { contours: true, hillshade: false },
@@ -84,12 +84,13 @@ function design(): CanopiFile {
       // Saved turned 45°: the step restores its bearing.
       {
         ...view('hedges', { background: { kind: 'basemap', style: 'dark' }, terrain: { contours: false, hillshade: true }, scene_layers: ['zones'], site_data: [] }, ['Lycium barbarum']),
-        camera: { lon: TEST_GEO_ORIGIN.lon + 0.001, lat: TEST_GEO_ORIGIN.lat, zoom: 20, bearing: 45 },
+        camera: { lon: TEST_GEO_ORIGIN.lon + 0.001, lat: TEST_GEO_ORIGIN.lat, zoom: 20, bearing: 45, ground_size_m: { width: 20, height: 15 } },
+        labels: 'codes',
       },
     ],
     stories: [TOUR],
     created_at: '', updated_at: '',
-    extra: { saved_view_display: { hedges: { labels: 'codes' } } },
+    extra: {},
   }
 }
 
@@ -252,13 +253,13 @@ describe('presenting a story', () => {
 
     expect(showCamera).toHaveBeenCalledTimes(1)
     expect(showCamera).toHaveBeenCalledWith({ ...stepCamera(45), zoom: 19 }, { motion: 'jump' })
-    // Another step's view without the size keeps its camera when the screen changes again.
-    showCamera.mockClear()
+    // Every step's view records its frame, so another step is fitted again too; one framed smaller than both maps keeps its zoom.
     goToPresentedStep(0)
     showCamera.mockClear()
     map.resize(400, 300)
     map.settle()
-    expect(showCamera).not.toHaveBeenCalled()
+    expect(showCamera).toHaveBeenCalledTimes(1)
+    expect(showCamera).toHaveBeenCalledWith(stepCamera(0), { motion: 'jump' })
   })
 
   it('moves between steps within the story', () => {

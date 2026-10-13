@@ -50,7 +50,6 @@ function openDesign(entries: { id: string; visible: boolean; kind?: 'Source' | '
   const design = {
     name: 'Orchard',
     lidar: {
-      schema_version: 1,
       visible: true,
       entries: entries.map(({ id, visible, kind = 'Source' }, order) => ({
         kind, id, name: id, visible, opacity: 1, order, ramp: null, reversed: false, range: null,

@@ -11,8 +11,6 @@ import type { SavedView } from '../../types/design'
 import { locale } from '../settings/state'
 import { mapLayers, type MapLayersState } from '../map-layers/state'
 import { backgroundPresentationOf, mapLayersOfView } from '../map-layers/background-presentation'
-import { savedViewPlantLabels } from '../design-edit/views'
-import { currentDesign } from '../document-session/store'
 import { currentPlantDisplay } from '../plant-display/state'
 import type { PlantLabelMode } from '../../canvas/runtime/plant-display'
 import { savedViewZoom } from '../../canvas/saved-view-framing'
@@ -47,8 +45,7 @@ export interface SavedViewSnapshotContext {
  * The off-screen capture request for a saved view of the open Design, or null
  * when no Design is open on a map. The camera is the view's centre and bearing
  * at the zoom that fits its framed ground into the image, the rule going to the
- * view follows (spec §4.10); a view saved without its ground frames what the
- * workspace shows now at its camera zoom. Background, Design layers, the
+ * view follows (spec §4.10). Background, Design layers, the
  * focused species and the labels come from the view; opacities and locale from
  * the user's current settings.
  */
@@ -59,14 +56,13 @@ export function describeSavedViewSnapshot(
 ): ViewSnapshotRequest | null {
   const plane = context.queries.sessionPlane.peek()
   if (!plane) return null
-  const { screen: screenSize } = context.queries.view.captureView()
   const visibleLayerNames = [...view.visible_layers.scene_layers]
   const focusedSpecies = view.highlighted.species[0] ?? null
   return {
     camera: {
       lon: view.camera.lon,
       lat: view.camera.lat,
-      zoom: savedViewZoom(view.camera, options, screenSize),
+      zoom: savedViewZoom(view.camera, options),
       bearing: view.camera.bearing,
     },
     width: options.width,
@@ -98,9 +94,9 @@ export class ViewSnapshotSceneBusyError extends Error {
   }
 }
 
-/** The labels a view is presented with: those recorded with it, else the Design's current choice. */
-export function savedViewPresentedLabels(view: Pick<SavedView, 'id'>): PlantLabelMode {
-  return savedViewPlantLabels(currentDesign.peek(), view.id) ?? currentPlantDisplay.peek().labels
+/** The labels a view is presented with: those stored with it, else the Design's current choice. */
+export function savedViewPresentedLabels(view: Pick<SavedView, 'labels'>): PlantLabelMode {
+  return view.labels ?? currentPlantDisplay.peek().labels
 }
 
 let owner: ViewSnapshotMap | null = null

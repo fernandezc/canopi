@@ -28,13 +28,17 @@ pub struct SavedView {
     pub title: Option<String>,
     #[serde(default)]
     pub text: Vec<RichTextBlock>,
+    // How the view shows plant labels, recorded at capture; null (or a missing
+    // key) shows the Design's labels.
+    #[serde(default)]
+    pub labels: Option<crate::settings::PlantLabels>,
 }
 
 // Camera of a saved view: centre, zoom and bearing (degrees clockwise from
 // north, written normalised to [0, 360)), and the ground the view framed.
 // Going to the view restores the centre and bearing, never snapped, and fits
-// the framed ground into the window, never zooming in past the saved zoom; a
-// view without the ground size keeps its zoom (ADR 0011).
+// the framed ground into the window, never zooming in past the saved zoom
+// (ADR 0011).
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub struct SavedViewCamera {
@@ -55,10 +59,8 @@ pub struct SavedViewCamera {
     #[cfg_attr(feature = "design-schema", schemars(range(min = 0.0, max = 360.0)))]
     pub bearing: f64,
     // The ground the map showed when the view was saved, in metres in the
-    // view's own turned frame. Absent for a view saved before 2.0 recorded it.
-    #[serde(default)]
-    #[cfg_attr(feature = "design-schema", schemars(default))]
-    pub ground_size_m: Option<SavedViewGroundSize>,
+    // view's own turned frame, each side clamped to 1e8 m.
+    pub ground_size_m: SavedViewGroundSize,
 }
 
 // Width (along the view's screen x axis) and height of the ground a saved view
@@ -298,10 +300,7 @@ fn validate_camera(camera: &SavedViewCamera, path: &str) -> Result<(), String> {
             "{path}: expected lon in [-180, 180], a Web Mercator latitude (±{WEB_MERCATOR_MAX_LATITUDE_DEG}), zoom in [0, {SAVED_VIEW_MAX_ZOOM}] and bearing in [0, 360]"
         ));
     }
-    if camera
-        .ground_size_m
-        .is_some_and(|ground| !ground.is_valid())
-    {
+    if !camera.ground_size_m.is_valid() {
         return Err(format!(
             "{path}.ground_size_m: expected a finite width and height above 0 and at most {SAVED_VIEW_MAX_GROUND_SIZE_M} m"
         ));
@@ -410,18 +409,21 @@ mod tests {
                 ]
             },
             "title": null,
-            "text": []
+            "text": [],
+            "labels": null
         })
     }
 
     fn camera(lon: f64, lat: f64, zoom: f64, bearing: f64) -> serde_json::Value {
-        json!({ "lon": lon, "lat": lat, "zoom": zoom, "bearing": bearing })
+        json!({
+            "lon": lon, "lat": lat, "zoom": zoom, "bearing": bearing,
+            "ground_size_m": { "width": 312.5, "height": 200.25 }
+        })
     }
 
     #[test]
     fn saved_views_round_trip_with_typed_objects_and_rich_text() {
         let mut value = view_value(camera(2.2945, 48.8584, 18.5, 0.0));
-        value["camera"]["ground_size_m"] = serde_json::Value::Null;
         value["text"] = json!([
             { "kind": "paragraph", "spans": [
                 { "text": "Goji ", "bold": true, "italic": false, "link": null },
@@ -439,6 +441,27 @@ mod tests {
             }
         );
         assert_eq!(serde_json::to_value(&view).expect("serialize"), value);
+    }
+
+    #[test]
+    fn a_view_keeps_the_plant_labels_it_was_saved_with_and_writes_null_when_unset() {
+        let mut value = view_value(camera(2.2945, 48.8584, 18.5, 0.0));
+        let unset: SavedView = serde_json::from_value(value.clone()).expect("view should parse");
+        assert_eq!(unset.labels, None);
+        assert_eq!(serde_json::to_value(&unset).expect("serialize"), value);
+
+        value["labels"] = json!("codes");
+        let labelled: SavedView = serde_json::from_value(value.clone()).expect("view should parse");
+        assert_eq!(labelled.labels, Some(crate::settings::PlantLabels::Codes));
+        assert_eq!(serde_json::to_value(&labelled).expect("serialize"), value);
+
+        value["labels"] = json!("everything");
+        assert!(serde_json::from_value::<SavedView>(value.clone()).is_err());
+
+        let older = value.as_object_mut().expect("object");
+        older.remove("labels");
+        let missing: SavedView = serde_json::from_value(value).expect("view should parse");
+        assert_eq!(missing.labels, None);
     }
 
     #[test]
@@ -466,18 +489,27 @@ mod tests {
     }
 
     #[test]
-    fn a_view_saved_without_a_ground_size_loads_and_falls_back_to_its_camera_zoom() {
-        // A view saved by a 2.0 preview build has no ground size, and one saved before the
-        // extent was deleted still carries it: both load, the extent is dropped.
+    fn a_view_without_its_ground_size_is_refused() {
+        // Every view records the ground it framed (U33): one without it, or
+        // with a null one, does not load.
+        for ground in [None, Some(serde_json::Value::Null)] {
+            let mut value = view_value(camera(2.0, 48.0, 17.0, 0.0));
+            let camera = value["camera"].as_object_mut().expect("camera object");
+            camera.remove("ground_size_m");
+            if let Some(ground) = ground {
+                camera.insert("ground_size_m".to_owned(), ground);
+            }
+            assert!(serde_json::from_value::<SavedView>(value).is_err());
+        }
+    }
+
+    #[test]
+    fn an_older_extent_record_is_dropped_on_load() {
         let mut value = view_value(camera(2.0, 48.0, 17.0, 0.0));
         value["extent"] = json!({ "west": 1.99, "south": 47.995, "east": 2.01, "north": 48.005 });
         let view: SavedView = serde_json::from_value(value).expect("view should parse");
-        assert_eq!(view.camera.ground_size_m, None);
-        validate_views_and_stories(std::slice::from_ref(&view), &[])
-            .expect("a view without a ground size is valid");
         let written = serde_json::to_value(&view).expect("serialize");
         assert!(written.get("extent").is_none(), "{written}");
-        assert_eq!(written["camera"]["ground_size_m"], serde_json::Value::Null);
     }
 
     #[test]
@@ -488,19 +520,19 @@ mod tests {
         let view: SavedView = serde_json::from_value(value.clone()).expect("view should parse");
         assert_eq!(
             view.camera.ground_size_m,
-            Some(SavedViewGroundSize {
+            SavedViewGroundSize {
                 width: 312.5,
                 height: 200.25
-            })
+            }
         );
         assert_eq!(serde_json::to_value(&view).expect("serialize"), value);
         validate_views_and_stories(&[view], &[]).expect("a positive ground size is valid");
 
         let mut largest = valid_view();
-        largest.camera.ground_size_m = Some(SavedViewGroundSize {
+        largest.camera.ground_size_m = SavedViewGroundSize {
             width: SAVED_VIEW_MAX_GROUND_SIZE_M,
             height: SAVED_VIEW_MAX_GROUND_SIZE_M,
-        });
+        };
         validate_views_and_stories(&[largest], &[]).expect("1e8 m is the largest ground size");
 
         for (width, height) in [
@@ -511,7 +543,7 @@ mod tests {
             (1.000_000_1e8, 200.0),
         ] {
             let mut view = valid_view();
-            view.camera.ground_size_m = Some(SavedViewGroundSize { width, height });
+            view.camera.ground_size_m = SavedViewGroundSize { width, height };
             let error =
                 validate_views_and_stories(&[view], &[]).expect_err("ground size is invalid");
             assert!(

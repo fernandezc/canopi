@@ -13,12 +13,6 @@ export const STORY_IMAGE_DATA_TYPES = ["image/png","image/jpeg","image/webp","im
 export const STORY_IMAGE_MAX_BYTES = 1048576
 export const STORY_IMAGES_MAX_TOTAL_BYTES = 10485760
 
-export const OBSOLETE_CANOPI_ROOT_KEYS = [
-  "location",
-  "north_bearing_deg",
-  "spatial_frame",
-] as const
-
 export const CANOPI_DESIGN_INGESTION_ERROR_KINDS = [
   "invalid_version",
   "unsupported_version",
@@ -298,17 +292,11 @@ export const CANOPI_FILE_SCHEMA = {
           },
           "type": "array"
         },
-        "schema_version": {
-          "format": "uint32",
-          "minimum": 0,
-          "type": "integer"
-        },
         "visible": {
           "type": "boolean"
         }
       },
       "required": [
-        "schema_version",
         "visible",
         "entries"
       ],
@@ -331,7 +319,6 @@ export const CANOPI_FILE_SCHEMA = {
           "$ref": "#/$defs/GeoPoint"
         },
         "id": {
-          "default": "",
           "type": "string"
         },
         "locked": {
@@ -343,6 +330,7 @@ export const CANOPI_FILE_SCHEMA = {
         }
       },
       "required": [
+        "id",
         "start",
         "end"
       ],
@@ -525,7 +513,6 @@ export const CANOPI_FILE_SCHEMA = {
           ]
         },
         "id": {
-          "default": "",
           "type": "string"
         },
         "locked": {
@@ -587,10 +574,19 @@ export const CANOPI_FILE_SCHEMA = {
         }
       },
       "required": [
+        "id",
         "canonical_name",
         "position"
       ],
       "type": "object"
+    },
+    "PlantLabels": {
+      "enum": [
+        "none",
+        "codes",
+        "names"
+      ],
+      "type": "string"
     },
     "RichTextBlock": {
       "oneOf": [
@@ -685,6 +681,17 @@ export const CANOPI_FILE_SCHEMA = {
         "id": {
           "type": "string"
         },
+        "labels": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlantLabels"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "name": {
           "type": "string"
         },
@@ -768,15 +775,7 @@ export const CANOPI_FILE_SCHEMA = {
           "type": "number"
         },
         "ground_size_m": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SavedViewGroundSize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
+          "$ref": "#/$defs/SavedViewGroundSize"
         },
         "lat": {
           "format": "double",
@@ -801,7 +800,8 @@ export const CANOPI_FILE_SCHEMA = {
         "lon",
         "lat",
         "zoom",
-        "bearing"
+        "bearing",
+        "ground_size_m"
       ],
       "type": "object"
     },
@@ -1193,14 +1193,12 @@ export const CANOPI_FILE_SCHEMA = {
   "additionalProperties": true,
   "properties": {
     "annotations": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/Annotation"
       },
       "type": "array"
     },
     "budget": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/BudgetItem"
       },
@@ -1211,7 +1209,6 @@ export const CANOPI_FILE_SCHEMA = {
       "type": "string"
     },
     "consortiums": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/Consortium"
       },
@@ -1228,7 +1225,6 @@ export const CANOPI_FILE_SCHEMA = {
       ]
     },
     "groups": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/ObjectGroup"
       },
@@ -1304,7 +1300,6 @@ export const CANOPI_FILE_SCHEMA = {
       "type": "array"
     },
     "timeline": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/TimelineAction"
       },
@@ -1339,6 +1334,11 @@ export const CANOPI_FILE_SCHEMA = {
     "layers",
     "plants",
     "zones",
+    "annotations",
+    "consortiums",
+    "groups",
+    "timeline",
+    "budget",
     "created_at",
     "updated_at"
   ],

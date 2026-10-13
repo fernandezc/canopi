@@ -61,7 +61,7 @@ function savedView(id: string): SavedView {
   return {
     id,
     name: id,
-    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0 },
+    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'satellite' },
       terrain: { contours: false, hillshade: false },
@@ -112,7 +112,6 @@ describe('document format contract', () => {
       }],
       budget_currency: 'USD',
       lidar: {
-        schema_version: 1,
         visible: true,
         entries: [{
           kind: 'Source',
@@ -212,7 +211,6 @@ describe('document format contract', () => {
 
     expect(saved.name).toBe('Metadata name')
     expect(saved.description).toBe('Document-owned description')
-    expect(saved).not.toHaveProperty('spatial_frame')
     // `extra` is all the document's: a key left in a development file stays as unknown extra (ADR 0011).
     expect(saved.extra).toEqual(document.extra)
   })
@@ -383,7 +381,6 @@ describe('document format contract', () => {
       }],
       budget_currency: 'USD',
       lidar: {
-        schema_version: 1,
         visible: true,
         entries: [{
           kind: 'Source',
@@ -456,7 +453,6 @@ describe('document format contract', () => {
 
     expect(saved.name).toBe('Saved document')
     expect(saved.description).toBe('Document description')
-    expect(saved).not.toHaveProperty('spatial_frame')
     expect(saved.created_at).toBe(document.created_at)
     expect(saved.updated_at).toBe(canvas.updated_at)
     expect(saved.consortiums).toEqual(document.consortiums)

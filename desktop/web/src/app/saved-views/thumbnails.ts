@@ -1,4 +1,4 @@
-import { computed, effect, signal, untracked, type ReadonlySignal, type Signal } from '@preact/signals'
+import { effect, signal, untracked, type ReadonlySignal, type Signal } from '@preact/signals'
 import { useEffect } from 'preact/hooks'
 import { currentCanvasQuerySurface } from '../../canvas/session'
 import type { SavedView } from '../../types/design'
@@ -192,20 +192,6 @@ export function createSavedViewThumbnailCache(options: SavedViewThumbnailCacheOp
 }
 
 /**
- * The workspace size the thumbnail of a view saved without its framed ground is
- * fitted to (spec §4.10), read once per settled frame: a drag-resize draws
- * again once, after it settles, and a pan that settles at the same size
- * notifies nobody.
- */
-const settledWorkspaceSize = computed(() => {
-  const view = currentCanvasQuerySurface.value?.view
-  if (!view) return null
-  void view.settledRevision.value
-  const { width, height } = view.captureView().screen
-  return `${Math.round(width)}x${Math.round(height)}`
-})
-
-/**
  * What a view's thumbnail depends on besides the view itself. Reading it in a
  * component subscribes the component to those signals.
  */
@@ -214,7 +200,6 @@ function savedViewThumbnailKey(view: SavedView): string {
   const layers = mapLayers.value
   return JSON.stringify([
     sceneRevision,
-    view.camera.ground_size_m ? null : settledWorkspaceSize.value,
     view.camera,
     view.visible_layers,
     view.highlighted.species,

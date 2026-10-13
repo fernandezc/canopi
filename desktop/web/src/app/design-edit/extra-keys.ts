@@ -13,8 +13,6 @@ import { recordFrontendDiagnostic } from '../problem-report/diagnostics'
 export const DESIGN_EDIT_EXTRA_KEYS = Object.freeze({
   /** Display on the map; a new Design carries it from Settings › New Designs. */
   plantDisplay: 'plant_display',
-  /** How each saved view shows plants, by view id. */
-  savedViewDisplay: 'saved_view_display',
 } as const)
 
 export type DesignEditExtraKey = (typeof DESIGN_EDIT_EXTRA_KEYS)[keyof typeof DESIGN_EDIT_EXTRA_KEYS]

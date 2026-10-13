@@ -23,6 +23,7 @@ import {
 import {
   DEFAULT_PLANT_DISPLAY,
   NO_STRATUM_DISPLAY_COLOR,
+  PLANT_LABEL_MODES,
   STRATUM_DISPLAY_COLORS,
   nextPlantLabelMode,
   normalizePlantDisplay,
@@ -37,6 +38,7 @@ import { buildCanvasPrintSnapshot } from '../canvas/runtime/print-snapshot'
 import { contrastRatio } from '../canvas/plant-colors'
 import type { ScenePlantEntity } from '../canvas/runtime/scene'
 import type { CanopiFile } from '../types/design'
+import { SETTINGS_PLANT_LABELS } from '../generated/settings'
 import { designSessionFixture, replaceCurrentDesignState } from './support/design-session-state'
 
 function design(overrides: Partial<CanopiFile> = {}): CanopiFile {
@@ -164,6 +166,10 @@ describe('plant display rules', () => {
     expect(nextPlantLabelMode('names')).toBe('none')
     expect(normalizePlantDisplay({ colorBy: 'rainbow' as never, oneColor: 'red', symbolScale: 9, labels: 'all' as never }))
       .toMatchObject({ colorBy: 'species', oneColor: DEFAULT_PLANT_DISPLAY.oneColor, symbolScale: 2, labels: 'names' })
+  })
+
+  it('reads labels from the one stored enum that settings, Display on the map and saved views share', () => {
+    expect(PLANT_LABEL_MODES).toBe(SETTINGS_PLANT_LABELS)
   })
 
   it('draws, hit tests and prints with the display colour and size, never changing stored colours', () => {

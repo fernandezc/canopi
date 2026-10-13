@@ -156,6 +156,7 @@ function galleryViews(tiles: boolean): SavedView[] {
       siteData: [],
       focusedSpecies: options.species ?? null,
       selection: [],
+      labels: 'names',
     })
   }
   const views = [
@@ -165,5 +166,6 @@ function galleryViews(tiles: boolean): SavedView[] {
     view('Focused species', 0.5, tiles ? 'satellite' : 'none', { species }),
     view('Plants hidden', 0, 'none', { layers: sceneLayers.map((layer) => ({ ...layer, visible: layer.name !== 'plants' })) }),
   ]
-  return views
+  // A map with no size gives no view.
+  return views.filter((entry): entry is SavedView => entry !== null)
 }

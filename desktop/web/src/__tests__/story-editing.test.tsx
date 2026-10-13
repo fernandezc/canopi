@@ -36,7 +36,7 @@ const CARET = ''
 function view(id: string): SavedView {
   return {
     id, name: id,
-    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0 },
+    camera: { lon: 13, lat: 23, zoom: 18, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: { background: { kind: 'none' }, terrain: { contours: false, hillshade: false }, scene_layers: [], site_data: [] },
     highlighted: { species: [], objects: [] },
     title: null, text: [],

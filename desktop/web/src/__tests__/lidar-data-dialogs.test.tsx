@@ -81,7 +81,6 @@ function library(layers: LibraryItemSummary[], analyses: LibraryItemSummary[] = 
 function design(entries: { kind: 'Source' | 'Derived'; id: string }[]) {
   return {
     lidar: {
-      schema_version: 1,
       visible: true,
       entries: entries.map((entry, order) => ({ ...entry, name: entry.id, order, visible: true, opacity: 1, ramp: null, reversed: false, range: null })),
     },

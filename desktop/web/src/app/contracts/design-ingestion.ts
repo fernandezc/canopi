@@ -2,7 +2,6 @@ import {
   CANOPI_FILE_SCHEMA,
   CURRENT_CANOPI_FILE_VERSION,
   MISSING_CANOPI_FILE_VERSION,
-  OBSOLETE_CANOPI_ROOT_KEYS,
 } from '../../generated/canopi-design-format'
 import type { CanopiFile } from '../../types/design'
 import { mapViewProblem, viewsAndStoriesProblem } from './views-admission'
@@ -51,13 +50,6 @@ function admitDesignVersion(value: unknown): number {
 
 /** Current-format admission. */
 function admitCurrentDesignValue(value: Record<string, unknown>): CanopiFile {
-  const obsolete = OBSOLETE_CANOPI_ROOT_KEYS.find((key) => Object.prototype.hasOwnProperty.call(value, key))
-  if (obsolete) {
-    throw new CanopiDesignIngestionError(
-      'invalid_document',
-      `$.${obsolete}: obsolete root field; Designs store lon/lat on each design object`,
-    )
-  }
   // Unknown fields travel at the root; `extra` is only the in-memory holder
   // and the canonical encoder never writes it, so a root `extra` is refused.
   if (Object.prototype.hasOwnProperty.call(value, 'extra')) {

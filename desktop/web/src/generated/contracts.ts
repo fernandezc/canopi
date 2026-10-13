@@ -113,12 +113,12 @@ export type CanopiFile = {
 	layers: Layer[],
 	plants: PlacedPlant[],
 	zones: Zone[],
-	annotations?: Annotation[],
+	annotations: Annotation[],
 	measurement_guides?: MeasurementGuide[],
-	consortiums?: Consortium[],
-	groups?: ObjectGroup[],
-	timeline?: TimelineAction[],
-	budget?: BudgetItem[],
+	consortiums: Consortium[],
+	groups: ObjectGroup[],
+	timeline: TimelineAction[],
+	budget: BudgetItem[],
 	budget_currency: string,
 	lidar?: LidarPresentationSection | null,
 	views?: SavedView[],
@@ -585,7 +585,6 @@ export type LidarPresentationEntry = {
 };
 
 export type LidarPresentationSection = {
-	schema_version: number,
 	visible: boolean,
 	entries: LidarPresentationEntry[],
 };
@@ -655,7 +654,7 @@ export type LocalDataStatus =
 export type Locale = "en" | "fr" | "es" | "pt" | "it" | "zh" | "de" | "ja" | "ko" | "nl" | "ru";
 
 export type MeasurementGuide = {
-	id?: string,
+	id: string,
 	locked?: boolean,
 	start: GeoPoint,
 	end: GeoPoint,
@@ -685,11 +684,11 @@ export type PanelTarget = { kind: "placed_plant"; plant_id: string } | { kind: "
 export type ParamValue = { Number: number } | { Integer: number } | { Boolean: boolean } | { Choice: string };
 
 export type PlacedPlant = {
-	id?: string,
+	id: string,
 	locked: boolean,
 	canonical_name: string,
 	common_name: string | null,
-	color?: string | null,
+	color: string | null,
 	symbol?: string | null,
 	pinned_name?: boolean,
 	position: GeoPoint,
@@ -702,7 +701,6 @@ export type PlacedPlant = {
 
 export type PlantDbStatus = "available" | "missing" | "corrupt";
 
-// Plant labels on the map: none, species codes or names.
 export type PlantLabels = "none" | "codes" | "names";
 
 export type ProblemReportRequest = {
@@ -865,6 +863,7 @@ export type SavedView = {
 	highlighted: SavedViewHighlight,
 	title: string | null,
 	text?: RichTextBlock[],
+	labels?: PlantLabels | null,
 };
 
 export type SavedViewBackground = { kind: "basemap"; style: string } | { kind: "satellite" } | { kind: "none" };
@@ -874,7 +873,7 @@ export type SavedViewCamera = {
 	lat: number,
 	zoom: number,
 	bearing: number,
-	ground_size_m?: SavedViewGroundSize | null,
+	ground_size_m: SavedViewGroundSize,
 };
 
 export type SavedViewGroundSize = {

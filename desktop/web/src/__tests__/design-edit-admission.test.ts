@@ -31,7 +31,7 @@ function view(id: string): SavedView {
   return {
     id,
     name: `View ${id}`,
-    camera: { lon: 2.2945, lat: 48.8584, zoom: 18, bearing: 0 },
+    camera: { lon: 2.2945, lat: 48.8584, zoom: 18, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'basemap', style: 'liberty' },
       terrain: { contours: false, hillshade: false },

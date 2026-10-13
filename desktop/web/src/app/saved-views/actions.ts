@@ -21,7 +21,6 @@ interface SaveCurrentViewInput {
 export function saveCurrentView({ name, title = '' }: SaveCurrentViewInput): SavedView | null {
   const capture = captureCurrentView({ id: createUuid(), name, title })
   if (!capture) return null
-  // The label choice travels as Design extra data: a saved view has no field for it.
-  addSavedView(capture.view, { labels: capture.labels })
-  return capture.view
+  addSavedView(capture)
+  return capture
 }

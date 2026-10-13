@@ -21,9 +21,10 @@ import {
 } from '../app/saved-views'
 import { saveCurrentView } from '../app/saved-views/actions'
 import { composeSavedView } from '../app/saved-views/model'
-import { describeSavedViewSnapshot, VIEW_SNAPSHOT_THUMBNAIL } from '../app/saved-views/snapshot'
+import { savedViewZoom } from '../canvas/saved-view-framing'
+import { SAVED_VIEW_MAX_GROUND_SIZE_M } from '../generated/canopi-design-format'
+import { describeSavedViewSnapshot, savedViewPresentedLabels, VIEW_SNAPSHOT_THUMBNAIL } from '../app/saved-views/snapshot'
 import type { ViewCamera } from '../canvas/runtime/view/types'
-import { savedViewPlantLabels } from '../app/design-edit/views'
 import { setPlantLabels } from '../app/plant-display/actions'
 import { createDefaultMapLayers, mapLayers } from '../app/map-layers/state'
 import { currentDesign, designSessionStore } from '../app/document-session/store'
@@ -60,7 +61,6 @@ function design(views: SavedView[] = [], stories: Story[] = []): CanopiFile {
     budget: [],
     budget_currency: 'EUR',
     lidar: {
-      schema_version: 1,
       visible: true,
       entries: [
         { kind: 'Source', id: 'dtm-shown', name: 'Shown terrain', visible: true, opacity: 1, order: 0, ramp: null, reversed: false, range: null },
@@ -78,7 +78,8 @@ function design(views: SavedView[] = [], stories: Story[] = []): CanopiFile {
 const BERRIES: SavedView = {
   id: 'berries',
   name: 'Berry hedges',
-  camera: { lon: 13.0012, lat: 22.9991, zoom: 19.5, bearing: 0 },
+  // Framed in the 400 × 300 window mountCanvas makes by default.
+  camera: { lon: 13.0012, lat: 22.9991, zoom: 19.5, bearing: 0, ground_size_m: groundSizeShown({ lat: 22.9991, zoom: 19.5 }, { width: 400, height: 300 }) },
   visible_layers: {
     background: { kind: 'satellite' },
     terrain: { contours: false, hillshade: true },
@@ -222,14 +223,24 @@ describe('saving the current view', () => {
 
     const saved = saveCurrentView({ name: 'Hedges' })!
 
-    expect(savedViewPlantLabels(currentDesign.value, saved.id)).toBe('codes')
-    // The file format keeps views as they are; the choice is Design extra data.
-    expect(currentDesign.value?.extra?.saved_view_display).toEqual({ [saved.id]: { labels: 'codes' } })
-    expect(Object.keys(saved)).not.toContain('labels')
+    // The view stores the choice itself, as `views[].labels`.
+    expect(saved.labels).toBe('codes')
+    expect(currentDesign.value?.views?.find((view) => view.id === saved.id)?.labels).toBe('codes')
+    expect(currentDesign.value?.extra).not.toHaveProperty('saved_view_display')
     setPlantLabels('none')
-    expect(savedViewPlantLabels(currentDesign.value, saved.id)).toBe('codes')
-    // A view saved before labels were recorded shows the Design's current choice.
-    expect(savedViewPlantLabels(currentDesign.value, 'unknown')).toBeNull()
+    expect(savedViewPresentedLabels(saved)).toBe('codes')
+    // A view stored without labels shows the Design's current choice.
+    expect(savedViewPresentedLabels(BERRIES)).toBe('none')
+  })
+
+  it('reads a view’s labels from the view, never from a saved_view_display key in extra', () => {
+    replaceCurrentDesignState(
+      { ...design([BERRIES]), extra: { saved_view_display: { berries: { labels: 'codes' } } } },
+      null,
+      'Orchard',
+    )
+    setPlantLabels('none')
+    expect(savedViewPresentedLabels(currentDesign.value!.views![0]!)).toBe('none')
   })
 
   it('stores a blank title as none', () => {
@@ -237,6 +248,13 @@ describe('saving the current view', () => {
     mountCanvas()
     expect(saveCurrentView({ name: 'Pond', title: '   ' })?.title).toBeNull()
     expect(saveCurrentView({ name: 'Pond again' })?.title).toBeNull()
+  })
+
+  it('saves no view from a map with no size', () => {
+    replaceCurrentDesignState(design(), null, 'Orchard')
+    mountCanvas({ width: 0, height: 0 })
+    expect(saveCurrentView({ name: 'Nowhere' })).toBeNull()
+    expect(currentDesign.value?.views).toEqual([])
   })
 
   it('cannot save without an open Design on a map', () => {
@@ -369,16 +387,6 @@ describe('going to a saved view', () => {
     )
   })
 
-  it('a saved view without the size falls back to the camera zoom', () => {
-    // Saved by a 2.0 preview build: centre, zoom and bearing only, restored as saved in any window.
-    replaceCurrentDesignState(design([{ ...BERRIES, camera: { ...BERRIES.camera, bearing: 30 } }]), null, 'Orchard')
-    const { showCamera } = mountCanvas({ width: 1000, height: 700 })
-
-    goToSavedView('berries')
-
-    expect(showCamera).toHaveBeenCalledWith(berriesCamera(30), { motion: 'fly' })
-  })
-
   it('does nothing without a map', () => {
     replaceCurrentDesignState(design([BERRIES]), null, 'Orchard')
     expect(goToSavedView('berries')).toBe(false)
@@ -409,20 +417,11 @@ describe('managing views', () => {
     expect(savedViewUndo.value).toBeNull()
   })
 
-  it('forgets a deleted view’s label choice and brings it back with Undo', () => {
-    replaceCurrentDesignState(
-      { ...design([BERRIES, POND]), extra: { saved_view_display: { berries: { labels: 'none' }, pond: { labels: 'codes' } } } },
-      null,
-      'Orchard',
-    )
+  it('brings a deleted view back with its label choice on Undo', () => {
+    replaceCurrentDesignState(design([{ ...BERRIES, labels: 'none' }, POND]), null, 'Orchard')
     requestDeleteView('berries')
-    expect(currentDesign.value?.extra?.saved_view_display).toEqual({ pond: { labels: 'codes' } })
     undoDeleteView()
-    expect(savedViewPlantLabels(currentDesign.value, 'berries')).toBe('none')
-
-    requestDeleteView('pond')
-    requestDeleteView('berries')
-    expect(currentDesign.value?.extra).not.toHaveProperty('saved_view_display')
+    expect(currentDesign.value?.views?.[0]).toEqual({ ...BERRIES, labels: 'none' })
   })
 
   it('asks first, naming the stories, when stories show the view', () => {
@@ -470,17 +469,29 @@ describe('managing views', () => {
 })
 
 describe('saved view model', () => {
+  const capture = (view: { lon: number; lat: number; zoom: number; bearing: number }, screen: WindowSize) => composeSavedView({
+    id: 'v', name: 'V', title: null, view, screen,
+    mapLayers: createDefaultMapLayers(),
+    sceneLayers: [], siteData: [], focusedSpecies: null, selection: [], labels: 'names',
+  })
+
   it('rounds the camera like stored positions and clamps zoom to the map range', () => {
-    const view = composeSavedView({
-      id: 'v', name: 'V', title: null,
-      view: { lon: 2.29448123456789, lat: 48.85837012345678, zoom: 31, bearing: 0 },
-      screen: { width: 0, height: 0 },
-      mapLayers: createDefaultMapLayers(),
-      sceneLayers: [], siteData: [], focusedSpecies: null, selection: [],
-    })
-    // A map with no size frames no ground: the view keeps its camera zoom.
-    expect(view.camera).toEqual({ lon: 2.294481235, lat: 48.858370123, zoom: 27, bearing: 0 })
+    const view = capture({ lon: 2.29448123456789, lat: 48.85837012345678, zoom: 31, bearing: 0 }, { width: 400, height: 300 })!
+    expect(view.camera).toMatchObject({ lon: 2.294481235, lat: 48.858370123, zoom: 27, bearing: 0 })
     expect(view.highlighted).toEqual({ species: [], objects: [] })
+  })
+
+  it('a map with no size frames no ground and saves no view', () => {
+    expect(capture({ lon: 2.2944, lat: 48.8583, zoom: 18, bearing: 0 }, { width: 0, height: 0 })).toBeNull()
+    expect(capture({ lon: 2.2944, lat: 48.8583, zoom: 18, bearing: 0 }, { width: 400, height: 0 })).toBeNull()
+  })
+
+  it('at zoom 0 a 2,000 px map frames at most 1e8 m a side, and going there keeps the zoom', () => {
+    const view = capture({ lon: 0, lat: 0, zoom: 0, bearing: 0 }, { width: 2000, height: 1000 })!
+    const shown = groundSizeShown({ lat: 0, zoom: 0 }, { width: 2000, height: 1000 })
+    expect(shown.width).toBeGreaterThan(SAVED_VIEW_MAX_GROUND_SIZE_M)
+    expect(view.camera.ground_size_m).toEqual({ width: SAVED_VIEW_MAX_GROUND_SIZE_M, height: Number(shown.height.toPrecision(10)) })
+    expect(savedViewZoom(view.camera, { width: 2000, height: 1000 })).toBe(0)
   })
 
   it('capture writes the bearing, rounded, 360 as 0', () => {
@@ -489,8 +500,8 @@ describe('saved view model', () => {
       view: { lon: 2.2944, lat: 48.8583, zoom: 18, bearing },
       screen: { width: 400, height: 300 },
       mapLayers: createDefaultMapLayers(),
-      sceneLayers: [], siteData: [], focusedSpecies: null, selection: [],
-    }).camera.bearing
+      sceneLayers: [], siteData: [], focusedSpecies: null, selection: [], labels: 'names',
+    })!.camera.bearing
     expect(bearingOf(30)).toBe(30)
     expect(bearingOf(30.12345678912)).toBe(30.123457)
     expect(bearingOf(359.99999999)).toBe(0)

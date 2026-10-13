@@ -4,6 +4,7 @@ import { createDefaultScenePersistedState } from '../src/canvas/runtime/scene'
 import { PLANT_SYMBOL_IDS, serializeScenePersistedState } from '../src/canvas/runtime/scene'
 import { createSessionPlane } from '../src/canvas/session-plane'
 import { PLANT_COLOR_PALETTE } from '../src/canvas/plant-colors'
+import { mapZoomToStageScale } from '../src/canvas/projection'
 
 export const detail: SpeciesDetail = {
   "canonical_name": "Malus domestica",
@@ -222,10 +223,18 @@ const plain = (text: string, marks: { bold?: boolean; italic?: boolean; link?: s
   text, bold: marks.bold ?? false, italic: marks.italic ?? false, link: marks.link ?? null,
 })
 
+/** The map a gallery story view was framed in: what a 1280 × 800 window shows at its zoom. */
+const STORY_VIEW_SCREEN = { width: 1280, height: 800 }
+
 function storyView(id: string, name: string, origin: { lon: number; lat: number }, offset: [number, number], zoom: number, species: string[], background: SavedView['visible_layers']['background'] = { kind: 'none' }): SavedView {
+  const lat = origin.lat + offset[1]
+  const pixelsPerMetre = mapZoomToStageScale(zoom, lat)
   return {
     id, name,
-    camera: { lon: origin.lon + offset[0], lat: origin.lat + offset[1], zoom, bearing: 0 },
+    camera: {
+      lon: origin.lon + offset[0], lat, zoom, bearing: 0,
+      ground_size_m: { width: STORY_VIEW_SCREEN.width / pixelsPerMetre, height: STORY_VIEW_SCREEN.height / pixelsPerMetre },
+    },
     visible_layers: {
       background,
       terrain: { contours: false, hillshade: false },
@@ -352,7 +361,6 @@ export function designFixture(state = 'populated'): CanopiFile {
     name: 'Orchard notebook',
     ...(state === 'empty' ? {} : storyFixture(designOrigin(state), state === 'long')),
     lidar: state === 'empty' ? null : {
-      schema_version: 1,
       visible: true,
       entries: lidarEntries(state),
     },

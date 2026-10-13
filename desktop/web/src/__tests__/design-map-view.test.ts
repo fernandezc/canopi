@@ -111,7 +111,7 @@ function moveTheView(host: CanvasRuntimeHost): void {
 /** What saving now should write: the live view as stored, with the ground the whole map shows. */
 function liveMapView(host: CanvasRuntimeHost) {
   const { camera, screen } = host.surfaces.queries.view.captureView()
-  return savedViewCameraOf(geographicViewOfCamera(camera), screen)
+  return savedViewCameraOf(geographicViewOfCamera(camera), screen)!
 }
 
 describe('the view a Design is saved with', () => {

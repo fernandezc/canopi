@@ -173,7 +173,7 @@ describe('LiDAR display descriptor requests', () => {
       plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
       layers: [], plants: [], zones: [], annotations: [], measurement_guides: [],
       consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
-      lidar: { schema_version: 1, visible: true, entries: [
+      lidar: { visible: true, entries: [
         { kind: 'Source', id: 'lyr-1', name: 'Orchard terrain', visible: false, opacity: 1, order: 0, ramp: null, reversed: false, range: null },
       ] },
       created_at: '', updated_at: '', extra: {},
@@ -221,7 +221,7 @@ describe('LiDAR display descriptor requests', () => {
       plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
       layers: [], plants: [], zones: [], annotations: [], measurement_guides: [],
       consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
-      lidar: { schema_version: 1, visible: true, entries: [entry('lyr-1', { mode: 'CutOutliers' }), entry('lyr-2', null)] as never },
+      lidar: { visible: true, entries: [entry('lyr-1', { mode: 'CutOutliers' }), entry('lyr-2', null)] as never },
       created_at: '', updated_at: '', extra: {},
     }
     try {
@@ -261,7 +261,7 @@ describe('LiDAR display descriptor requests', () => {
       plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
       layers: [], plants: [], zones: [], annotations: [], measurement_guides: [],
       consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
-      lidar: { schema_version: 1, visible: true, entries: [entry('lyr-1', { mode: 'CutOutliers' }), entry('lyr-2', null)] as never },
+      lidar: { visible: true, entries: [entry('lyr-1', { mode: 'CutOutliers' }), entry('lyr-2', null)] as never },
       created_at: '', updated_at: '', extra: {},
     }
     try {

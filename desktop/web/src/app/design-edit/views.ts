@@ -1,80 +1,32 @@
-import type { CanopiFile, SavedView, StoryStep } from '../../types/design'
-import { PLANT_LABEL_MODES, type PlantLabelMode } from '../../canvas/runtime/plant-display'
+import type { SavedView, StoryStep } from '../../types/design'
 import { editCurrentDesign, readCurrentDesign } from './core'
-import { DESIGN_EDIT_EXTRA_KEYS, readExtra, reportExtraRepair, withExtra } from './extra-keys'
 import { editWithinImageLimit, parkStepsAwaitingView, takeStepsAwaitingView, type StoryEditOutcome } from './stories'
 
 // Saved views are Design Edit data (ADR 0011): every command dirties the Design
 // for continuous save, none is in the scene history, and a command that changes
 // nothing returns the Design untouched. Story commands live in stories.ts.
 
-/**
- * How each saved view shows the Design's plants, by view id, as the Design
- * stores it in `extra.saved_view_display` (a root key the format keeps as
- * unknown `extra`, like `plant_display`): `{ "<view id>": { "labels": "codes" } }`.
- * A saved view has no field for it, and the format stays as it is. Every write
- * prunes entries whose view is gone.
- */
-const SAVED_VIEW_DISPLAY_EXTRA_KEY = DESIGN_EDIT_EXTRA_KEYS.savedViewDisplay
-
-export interface SavedViewDisplay {
-  readonly labels: PlantLabelMode
-}
-
-/** The labels recorded with a view, or null for a view saved without them. */
-export function savedViewPlantLabels(design: Pick<CanopiFile, 'extra'> | null, viewId: string): PlantLabelMode | null {
-  return readSavedViewDisplay(design, viewId)?.labels ?? null
-}
-
-function readSavedViewDisplay(design: Pick<CanopiFile, 'extra'> | null, viewId: string): SavedViewDisplay | null {
-  const entry = readExtra(design, SAVED_VIEW_DISPLAY_EXTRA_KEY)?.[viewId]
-  if (entry === undefined) return null
-  const labels = entry && typeof entry === 'object' ? (entry as { labels?: unknown }).labels : undefined
-  if (!PLANT_LABEL_MODES.includes(labels as PlantLabelMode)) {
-    reportExtraRepair(design, SAVED_VIEW_DISPLAY_EXTRA_KEY, `view ${viewId} has no valid labels`)
-    return null
-  }
-  return { labels: labels as PlantLabelMode }
-}
-
-/**
- * The Design with `viewId`'s display set, or removed with null. Entries whose
- * view is gone are pruned on the way; the key goes when nothing is left.
- */
-function withSavedViewDisplay(design: CanopiFile, viewId: string, display: SavedViewDisplay | null): CanopiFile {
-  const viewIds = new Set((design.views ?? []).map((view) => view.id))
-  const all: Record<string, unknown> = {}
-  for (const [id, entry] of Object.entries(readExtra(design, SAVED_VIEW_DISPLAY_EXTRA_KEY) ?? {})) {
-    if (id !== viewId && viewIds.has(id)) all[id] = entry
-  }
-  if (display && viewIds.has(viewId)) all[viewId] = { labels: display.labels }
-  return withExtra(design, SAVED_VIEW_DISPLAY_EXTRA_KEY, Object.keys(all).length === 0 ? null : all)
-}
-
 /** What deleting a view removed, so Undo can put it back where it was. */
 export interface SavedViewDeletion {
   readonly view: SavedView
-  /** How the view showed plants, if recorded. */
-  readonly display: SavedViewDisplay | null
   readonly index: number
   /** Story steps that showed the view, in story order, with their positions. */
   readonly steps: readonly { readonly storyId: string; readonly step: StoryStep; readonly index: number }[]
 }
 
-/** Adds a view, with how it shows plants when given, as one edit. */
-export function addSavedView(view: SavedView, display: SavedViewDisplay | null = null): void {
+/** Adds a view as one edit. */
+export function addSavedView(view: SavedView): void {
   editCurrentDesign((design) => {
     const views = design.views ?? []
     if (views.some((existing) => existing.id === view.id)) return design
-    const added = { ...design, views: [...views, view] }
-    return display ? withSavedViewDisplay(added, view.id, display) : added
+    return { ...design, views: [...views, view] }
   })
 }
 
 /**
  * A view as stored JSON, with `null` fields left out: Desktop's loader writes
- * an absent optional field (a view's `ground_size_m`) as `null`, which reads
- * the same as a missing key.
+ * an absent optional field (a view's `labels`) as `null`, which reads the same
+ * as a missing key.
  */
 function savedViewJson(view: SavedView): string {
   return JSON.stringify(view, (_key, value: unknown) => (value === null ? undefined : value))
@@ -86,7 +38,7 @@ function savedViewJson(view: SavedView): string {
  * Every step that shows the view shows the new capture. The view is built from
  * its named fields, so nothing it carried from elsewhere is written back.
  */
-export function recaptureSavedView(id: string, capture: SavedView, display: SavedViewDisplay | null = null): void {
+export function recaptureSavedView(id: string, capture: SavedView): void {
   editCurrentDesign((design) => {
     const views = design.views ?? []
     const index = views.findIndex((view) => view.id === id)
@@ -100,14 +52,12 @@ export function recaptureSavedView(id: string, capture: SavedView, display: Save
       highlighted: capture.highlighted,
       title: current.title,
       ...(current.text === undefined ? {} : { text: current.text }),
+      ...((capture.labels ?? current.labels) == null ? {} : { labels: capture.labels ?? current.labels }),
     }
-    const sameCapture = savedViewJson(next) === savedViewJson(current)
-    const sameDisplay = display === null || readSavedViewDisplay(design, id)?.labels === display.labels
-    if (sameCapture && sameDisplay) return design
+    if (savedViewJson(next) === savedViewJson(current)) return design
     const nextViews = [...views]
     nextViews[index] = next
-    const recaptured = { ...design, views: nextViews }
-    return display ? withSavedViewDisplay(recaptured, id, display) : recaptured
+    return { ...design, views: nextViews }
   })
 }
 
@@ -144,12 +94,12 @@ export function deleteSavedView(id: string): SavedViewDeletion | null {
       })
       return steps.length === story.steps.length ? story : { ...story, steps }
     })
-    deletion = { view: views[index]!, display: readSavedViewDisplay(design, id), index, steps: removedSteps }
-    return withSavedViewDisplay({
+    deletion = { view: views[index]!, index, steps: removedSteps }
+    return {
       ...design,
       views: views.filter((view) => view.id !== id),
       stories: removedSteps.length === 0 ? stories : nextStories,
-    }, id, null)
+    }
   })
   return deletion
 }
@@ -181,8 +131,7 @@ export function restoreSavedView(deletion: SavedViewDeletion): StoryEditOutcome 
       }
       return { ...story, steps }
     })
-    const restored = { ...design, views: nextViews, stories: nextStories }
-    return deletion.display ? withSavedViewDisplay(restored, deletion.view.id, deletion.display) : restored
+    return { ...design, views: nextViews, stories: nextStories }
   })
   if (outcome !== 'applied') parkStepsAwaitingView(parked)
   return outcome

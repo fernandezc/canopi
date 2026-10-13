@@ -578,7 +578,11 @@
         "lon": 3.877281034,
         "lat": 43.611141448,
         "zoom": 19.88539,
-        "bearing": 0.0
+        "bearing": 0.0,
+        "ground_size_m": {
+          "width": 21.0418033,
+          "height": 21.0418033
+        }
       },
       "visible_layers": {
         "background": {
@@ -602,7 +606,8 @@
         "objects": []
       },
       "title": null,
-      "text": []
+      "text": [],
+      "labels": "names"
     }
   ],
   "stories": [
@@ -621,10 +626,5 @@
     }
   ],
   "created_at": "2026-09-29T20:28:17Z",
-  "updated_at": "2026-09-29T20:39:43.191Z",
-  "saved_view_display": {
-    "236e714f-0d6a-401d-a9e0-48dfefa449ce": {
-      "labels": "names"
-    }
-  }
+  "updated_at": "2026-09-29T20:39:43.191Z"
 }

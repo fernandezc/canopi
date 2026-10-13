@@ -32,7 +32,7 @@ function view(id: string, name: string): SavedView {
   return {
     id,
     name,
-    camera: { lon: TEST_GEO_ORIGIN.lon, lat: TEST_GEO_ORIGIN.lat, zoom: 19, bearing: 0 },
+    camera: { lon: TEST_GEO_ORIGIN.lon, lat: TEST_GEO_ORIGIN.lat, zoom: 19, bearing: 0, ground_size_m: { width: 20, height: 15 } },
     visible_layers: {
       background: { kind: 'satellite' },
       terrain: { contours: true, hillshade: false },

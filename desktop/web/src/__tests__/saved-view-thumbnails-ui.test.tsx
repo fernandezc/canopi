@@ -43,7 +43,7 @@ import { replaceCurrentDesignState } from './support/design-session-state'
 const VIEW: SavedView = {
   id: 'pond',
   name: 'Pond',
-  camera: { lon: 13.001, lat: 23.002, zoom: 17, bearing: 0 },
+  camera: { lon: 13.001, lat: 23.002, zoom: 17, bearing: 0, ground_size_m: { width: 20, height: 15 } },
   visible_layers: {
     background: { kind: 'none' },
     terrain: { contours: false, hillshade: false },

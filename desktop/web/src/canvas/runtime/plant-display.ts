@@ -1,3 +1,5 @@
+import type { PlantLabels } from '../../generated/contracts'
+import { SETTINGS_PLANT_LABELS } from '../../generated/settings'
 import { normalizeHexColor } from '../plant-colors'
 
 /**
@@ -6,7 +8,8 @@ import { normalizeHexColor } from '../plant-colors'
  * decides which colour, size, outline and label each plant is drawn with.
  */
 export type PlantColorMode = 'species' | 'stratum' | 'one-color'
-export type PlantLabelMode = 'none' | 'codes' | 'names'
+/** Plant labels: the one stored enum, shared by device settings, a Design's display and its saved views. */
+export type PlantLabelMode = PlantLabels
 /** The Design's stratum for a species, as Consortium assigns it. */
 export type PlantDisplayStratum = 'emergent' | 'high' | 'medium' | 'low'
 /** A stratum colour key: a stratum, or `none` for "No stratum yet". */
@@ -30,7 +33,7 @@ export interface PlantDisplay {
 }
 
 export const PLANT_COLOR_MODES: readonly PlantColorMode[] = ['species', 'stratum', 'one-color']
-export const PLANT_LABEL_MODES: readonly PlantLabelMode[] = ['none', 'codes', 'names']
+export const PLANT_LABEL_MODES: readonly PlantLabelMode[] = SETTINGS_PLANT_LABELS
 export const PLANT_DISPLAY_STRATA: readonly PlantDisplayStratum[] = ['emergent', 'high', 'medium', 'low']
 export const STRATUM_COLOR_KEYS: readonly StratumColorKey[] = [...PLANT_DISPLAY_STRATA, 'none']
 

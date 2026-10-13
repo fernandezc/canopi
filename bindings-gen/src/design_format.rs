@@ -207,11 +207,6 @@ pub(crate) fn render_canopi_design_format() -> Result<String, Box<dyn std::error
         "export const STORY_IMAGES_MAX_TOTAL_BYTES = {}\n",
         common_types::views::STORY_IMAGES_MAX_TOTAL_BYTES,
     )?;
-    file.push_str("export const OBSOLETE_CANOPI_ROOT_KEYS = [\n");
-    for key in common_types::design::OBSOLETE_CANOPI_ROOT_KEYS {
-        writeln!(file, "  {:?},", key)?;
-    }
-    file.push_str("] as const\n\n");
     file.push_str("export const CANOPI_DESIGN_INGESTION_ERROR_KINDS = [\n");
     for kind in common_types::design::CanopiDesignIngestionErrorKind::ALL {
         writeln!(file, "  {:?},", kind.as_str())?;

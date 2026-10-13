@@ -423,7 +423,7 @@ describe('LayerPanel', () => {
     }
 
     function withSiteData(entries: ReturnType<typeof entry>[], visible = true): void {
-      designSessionFixture.file = { ...currentDesign.value!, lidar: { schema_version: 1, visible, entries } } as CanopiFile
+      designSessionFixture.file = { ...currentDesign.value!, lidar: { visible, entries } } as CanopiFile
     }
 
     const threeEntries = () => [entry('a', 'Ground', true, 0), entry('b', 'Surface', true, 1), entry('c', 'Canopy', false, 2)]

@@ -1,8 +1,7 @@
 use common_types::design::{
     CURRENT_CANOPI_FILE_VERSION, CanopiDesignIngestionErrorKind, CanopiFile,
     DEFAULT_BUDGET_CURRENCY, DesignLoadFailure, DesignLoadFailureKind, Layer,
-    MISSING_CANOPI_FILE_VERSION, OBSOLETE_CANOPI_ROOT_KEYS, admit_design_identities_and_ranges,
-    validate_design_geometry,
+    MISSING_CANOPI_FILE_VERSION, admit_design_identities_and_ranges, validate_design_geometry,
 };
 use common_types::views::{validate_map_view, validate_views_and_stories};
 use std::fmt;
@@ -261,25 +260,16 @@ fn admit_current_design_value(
             "$.extra: reserved root field; unknown fields are stored at the root",
         ));
     }
-    if let Some(key) = OBSOLETE_CANOPI_ROOT_KEYS
-        .iter()
-        .find(|key| object.contains_key(**key))
-    {
-        return Err(CanopiDesignIngestionError::new(
-            CanopiDesignIngestionErrorKind::InvalidDocument,
-            format!("$.{key}: obsolete root field; Designs store lon/lat on each design object"),
-        ));
-    }
 
     value["version"] = serde_json::json!(CURRENT_CANOPI_FILE_VERSION);
-    let mut file: CanopiFile = serde_json::from_value(value).map_err(|error| {
+    let file: CanopiFile = serde_json::from_value(value).map_err(|error| {
         CanopiDesignIngestionError::new(
             CanopiDesignIngestionErrorKind::InvalidDocument,
             format!("$: {error}"),
         )
     })?;
     validate_design_geometry(&file)
-        .and_then(|()| admit_design_identities_and_ranges(&mut file))
+        .and_then(|()| admit_design_identities_and_ranges(&file))
         .and_then(|()| validate_views_and_stories(&file.views, &file.stories))
         .and_then(|()| validate_map_view(file.map_view.as_ref()))
         .map_err(|error| {
@@ -440,6 +430,19 @@ mod tests {
                 Err(error) => error,
             };
             assert_eq!(error.kind.as_str(), expected_kind, "{id}");
+            // serde reports a shape error at the root without its path; the
+            // corpus names that as `native_error_path` (canopi-cyqd shares
+            // the validators in 2.1).
+            let expected_path = case
+                .get("native_error_path")
+                .or_else(|| case.get("error_path"))
+                .and_then(|value| value.as_str())
+                .unwrap_or_else(|| panic!("{id}: every refusal case names its path"));
+            let path = error
+                .message
+                .split_once(": ")
+                .map_or(error.message.as_str(), |(path, _)| path);
+            assert_eq!(path, expected_path, "{id}: {}", error.message);
         }
     }
 
@@ -1024,7 +1027,10 @@ mod tests {
         value["views"] = serde_json::json!([{
             "id": "view-1",
             "name": "Berry hedges",
-            "camera": { "lon": 2.294_481_234_5, "lat": 48.858_370_123_4, "zoom": 19.25, "bearing": 0.0 },
+            "camera": {
+                "lon": 2.294_481_234_5, "lat": 48.858_370_123_4, "zoom": 19.25, "bearing": 0.0,
+                "ground_size_m": { "width": 312.5, "height": 187.5 }
+            },
             "visible_layers": {
                 "background": { "kind": "satellite" },
                 "terrain": { "contours": false, "hillshade": false },
@@ -1107,10 +1113,10 @@ mod tests {
                 lat: 48.858_370_123_4,
                 zoom: 19.25,
                 bearing: 30.5,
-                ground_size_m: Some(SavedViewGroundSize {
+                ground_size_m: SavedViewGroundSize {
                     width: 312.5,
                     height: 187.5,
-                }),
+                },
             })
         );
         assert!(
@@ -1130,6 +1136,7 @@ mod tests {
             ("zoom", serde_json::json!(27.5), "$.map_view: "),
             ("bearing", serde_json::json!(361.0), "$.map_view: "),
             ("lat", serde_json::json!(86.0), "$.map_view: "),
+            ("ground_size_m", serde_json::Value::Null, "$: "),
             (
                 "ground_size_m",
                 serde_json::json!({ "width": 0.0, "height": 187.5 }),

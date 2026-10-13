@@ -181,10 +181,10 @@ export function addCurrentViewAsStep(storyId: string): StoryStep | null {
     name: t('stories.stepViewName', { story: story.name, number }),
   })
   if (!capture) return null
-  addSavedView(capture.view, { labels: capture.labels })
+  addSavedView(capture)
   const step: StoryStep = {
     id: createUuid(),
-    view_id: capture.view.id,
+    view_id: capture.id,
     title: t('stories.defaultStepTitle', { number }),
     text: [],
     images: [],
@@ -203,7 +203,7 @@ export function useCurrentViewForStep(storyId: string, stepId: string): boolean 
   if (!step) return false
   const capture = captureCurrentView({ id: step.view_id, name: 'view' })
   if (!capture) return false
-  recaptureSavedView(step.view_id, capture.view, { labels: capture.labels })
+  recaptureSavedView(step.view_id, capture)
   return true
 }
 

@@ -51,7 +51,7 @@ describe('Web Layers', () => {
   })
 
   it('says how many terrain or height layers the Design keeps for Desktop, with no eye and no Site data button', () => {
-    mount({ schema_version: 1, visible: true, entries: [entry('a', 'Source', 0), entry('s', 'Derived', 1)] })
+    mount({ visible: true, entries: [entry('a', 'Source', 0), entry('s', 'Derived', 1)] })
     const row = container.querySelector('section[aria-label="Site data"]')!
     expect(row.textContent).toBe('Site data2 terrain or height layers in this Design · Needs Canopi Desktop')
     expect(row.querySelector('button')).toBeNull()
@@ -59,7 +59,7 @@ describe('Web Layers', () => {
   })
 
   it('uses the singular for one layer', () => {
-    mount({ schema_version: 1, visible: true, entries: [entry('a', 'Source', 0)] })
+    mount({ visible: true, entries: [entry('a', 'Source', 0)] })
     expect(container.querySelector('section[aria-label="Site data"]')?.textContent)
       .toContain('1 terrain or height layer in this Design · Needs Canopi Desktop')
   })

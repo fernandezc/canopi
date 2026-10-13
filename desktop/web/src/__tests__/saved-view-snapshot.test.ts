@@ -55,7 +55,11 @@ import { groundSizeShown } from './support/saved-view-frame'
 const VIEW: SavedView = {
   id: 'hedges',
   name: 'Hedges',
-  camera: { lon: TEST_GEO_ORIGIN.lon, lat: TEST_GEO_ORIGIN.lat, zoom: 19, bearing: 0 },
+  // Framed in a 400 × 300 window.
+  camera: {
+    lon: TEST_GEO_ORIGIN.lon, lat: TEST_GEO_ORIGIN.lat, zoom: 19, bearing: 0,
+    ground_size_m: groundSizeShown({ lat: TEST_GEO_ORIGIN.lat, zoom: 19 }, { width: 400, height: 300 }),
+  },
   visible_layers: {
     background: { kind: 'satellite' },
     terrain: { contours: false, hillshade: false },
@@ -124,8 +128,8 @@ describe('saved view snapshot request', () => {
       plantLabels: 'codes',
     })!
 
-    // A view saved without its framed area shows what the 400 × 300 workspace shows at its camera zoom: a 320 × 200
-    // image shows the same ground at two thirds of the size, limited by its height.
+    // The view framed what a 400 × 300 window shows: a 320 × 200 image shows the same ground at two thirds of the size,
+    // limited by its height.
     expect(request.camera.zoom).toBeCloseTo(19 + Math.log2(200 / 300), 9)
     expect(request.camera).toMatchObject({ lon: VIEW.camera.lon, lat: VIEW.camera.lat })
     expect(request).toMatchObject({ width: 320, height: 200, timeoutMs: VIEW_SNAPSHOT_DEFAULT_TIMEOUT_MS })
@@ -140,13 +144,11 @@ describe('saved view snapshot request', () => {
     expect(scene.scene.layers.map((layer) => [layer.name, layer.visible])).toEqual([['plants', true], ['zones', false]])
   })
 
-  it('keeps the view zoom when the workspace has no size and clamps to the map range', () => {
-    const surface = queries({ width: 0, height: 0 })
-    const context = { queries: surface, mapLayers: createDefaultMapLayers(), locale: 'en', plantLabels: 'names' as const }
-    expect(describeSavedViewSnapshot(VIEW, { width: 320, height: 200 }, context)!.camera.zoom).toBe(19)
-    const deep = { ...VIEW, camera: { ...VIEW.camera, zoom: 27 } }
-    const small = { ...context, queries: queries({ width: 100, height: 100 }) }
-    expect(describeSavedViewSnapshot(deep, { width: 1600, height: 1000 }, small)!.camera.zoom).toBe(27)
+  it('never zooms a larger image in past the view zoom, within the map range', () => {
+    const context = { queries: queries(), mapLayers: createDefaultMapLayers(), locale: 'en', plantLabels: 'names' as const }
+    expect(describeSavedViewSnapshot(VIEW, { width: 1600, height: 1000 }, context)!.camera.zoom).toBe(19)
+    const deep = { ...VIEW, camera: { ...VIEW.camera, zoom: 27, ground_size_m: groundSizeShown({ lat: VIEW.camera.lat, zoom: 27 }, { width: 400, height: 300 }) } }
+    expect(describeSavedViewSnapshot(deep, { width: 1600, height: 1000 }, context)!.camera.zoom).toBe(27)
   })
 
   it('refuses a scene while an edit owns it, and a Design without a map frame', () => {
@@ -227,14 +229,14 @@ describe('capturing a saved view', () => {
   it('draws the labels recorded with the view, else the Design’s current choice', async () => {
     replaceCurrentDesignState({
       ...design(),
-      extra: { plant_display: { labels: 'codes' }, saved_view_display: { hedges: { labels: 'none' } } },
+      extra: { plant_display: { labels: 'codes' } },
     }, null, 'Orchard')
     const surface = queries()
     const build = vi.spyOn(surface, 'captureViewScene')
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: surface }))
 
+    await captureSavedViewSnapshot({ ...VIEW, labels: 'none' }, VIEW_SNAPSHOT_THUMBNAIL)
     await captureSavedViewSnapshot(VIEW, VIEW_SNAPSHOT_THUMBNAIL)
-    await captureSavedViewSnapshot({ ...VIEW, id: 'older' }, VIEW_SNAPSHOT_THUMBNAIL)
 
     expect(build.mock.calls.map(([request]) => request.plantLabels)).toEqual(['none', 'codes'])
   })
