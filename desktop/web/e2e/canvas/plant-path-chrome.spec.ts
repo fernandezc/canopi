@@ -9,9 +9,9 @@
 // a 44 px target after a tap; the spacing field and the mode switch show whole and do once scrolled into view (the
 // card's text and fields scroll above its foot); with an invalid spacing the check button focuses the field, which
 // shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two
-// points; after a tap on a point, in its own tests per touch layout). On phones the card is the context bar's, in the
-// panel sheet, so its clearance is phone-chrome.spec.ts's; the invalid spacing and the touched points are checked here
-// on phones too. Both engines; offline, so the map notice shows. DOM assertions only, no baselines.
+// points; after a tap on a point, in its own tests per touch layout). On phones the tool is a row of the context bar,
+// in the panel sheet, so its clearance is phone-chrome.spec.ts's; the invalid spacing (the bar's status and the
+// options' field), the touched points and a spacing changed in the tool's options are checked here on phones. Both engines; offline, so the map notice shows. DOM assertions only, no baselines.
 // Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`, `[data-plant-row-mode]`,
 // `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles).
 import { fileURLToPath } from 'node:url'
@@ -68,6 +68,23 @@ const NEIGHBOURS: ReadonlyArray<readonly [string, string]> = [
 
 function card(page: Page): Locator {
   return page.locator('[data-tool-card]')
+}
+
+/** On a phone, the armed tool's options in the panel sheet (answer 30): Place plants' chooser, the row's fields. */
+function toolOptions(page: Page): Locator {
+  return page.locator('[data-sheet-panel="options"]')
+}
+
+/** On a phone, opens the armed tool's options from the bar's Options button, unless they show already. */
+async function openToolOptions(page: Page): Promise<void> {
+  if (await toolOptions(page).count() === 0) await page.locator('[data-tool-options-button]').tap()
+  await expect(toolOptions(page), 'the tool\'s options show').toBeVisible()
+}
+
+/** On a phone, closes the tool's options from Options, so the sheet rests at its peek again. */
+async function closeToolOptions(page: Page): Promise<void> {
+  await page.locator('[data-tool-options-button]').tap()
+  await expect(toolOptions(page), 'the tool\'s options close').toHaveCount(0)
 }
 
 async function openBase(page: Page, layout: Layout, locale: string): Promise<void> {
@@ -127,21 +144,31 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
 }
 
 /**
- * Places an Apple beside the tool card (Place plants, from the card's species list; rowSpots), clears the selection,
- * arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter, and adds two points beside it.
- * Returns the picked plant, the two points and a spot off their line.
+ * Places an Apple beside the tool card (Place plants, from the card's species list, or on a phone the tool's options;
+ * rowSpots), clears the selection, arms Plant a row, picks it, types the spacing (1 m unless given) and presses Enter
+ * (on a phone in the tool's options, closed again after), and adds two points beside it. Returns the picked plant, the
+ * two points and a spot off their line.
  */
 async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise<readonly [Point, Point, Point, Point | null]> {
+  const phone = isPhone(layout)
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  if (phone) await openToolOptions(page)
+  const apple = (phone ? toolOptions(page) : card(page)).getByRole('button', { name: /Malus domestica/ }).first()
   await expect(apple).toBeVisible()
-  const spots = await rowSpots(page, layout)
+  // On a phone the spots are found once the options close and the sheet rests at its peek again.
+  let spots = phone ? null : await rowSpots(page, layout)
   // The list scrolls inside the card, so the option is brought into view as a click would; then a covered button,
   // which would hold the click until the test times out, names what covers the card at once.
   await apple.scrollIntoViewIfNeeded()
   await expectHitAtCentre(apple, 'the card\'s species list')
   await apple.click()
+  if (phone) {
+    await expect(toolOptions(page), 'choosing a species closes the options').toHaveCount(0)
+    await nextFrames(page)
+    spots = await rowSpots(page, layout)
+  }
+  if (!spots) throw new Error('no spots for the row')
   await press(page, layout, spots[0])
   // Esc leaves Place plants, the next clears the placed Apple's selection, so its chip covers nothing.
   await mapHost(page).focus()
@@ -150,10 +177,16 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   await page.keyboard.press('w')
   await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
   await press(page, layout, spots[0])
-  const field = card(page).locator('[data-plant-spacing-interval-input]')
-  await expect(field, 'the pick focuses the spacing field').toBeFocused()
+  if (phone) {
+    // The field is the tool's options', which the pick leaves closed.
+    await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the tap picks the Apple').toBeVisible()
+    await openToolOptions(page)
+  }
+  const field = (phone ? toolOptions(page) : card(page)).locator('[data-plant-spacing-interval-input]')
+  await expect(field, 'the pick (on a phone, the options) focuses the spacing field').toBeFocused()
   await field.fill(spacing)
   await page.keyboard.press('Enter')
+  if (phone) await closeToolOptions(page)
   for (const point of [spots[1], spots[2]]) await press(page, layout, point)
   await nextFrames(page)
   return spots
@@ -288,23 +321,58 @@ for (const layout of LAYOUTS) {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
 
     // The pick's field takes an invalid spacing, the row grows below it, then the check button plants nothing and hands
-    // the field the focus: the field shows whole, so the press is seen to answer (and a phone's keyboard opens on it).
+    // the field the focus: the field shows whole, so the press is seen to answer (and a phone's keyboard opens on it). On
+    // a phone the bar's row says the spacing needs fixing, and the check button opens the tool's options on the field.
     test(`(canopi-f47t.54, P) the check button with an invalid spacing shows the focused field at ${size} (${locales.join(' ')})`, async ({ page }) => {
+      const phone = isPhone(layout)
       for (const locale of locales) {
         const where = `${layout.width}x${layout.height} ${locale}`
         await openBase(page, layout, locale)
         await drawTwoPoints(page, layout, '0')
-        const field = card(page).locator('[data-plant-spacing-interval-input]')
-        await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
+        const field = (phone ? toolOptions(page) : card(page)).locator('[data-plant-spacing-interval-input]')
+        if (phone) await expect(card(page).locator('[data-plant-row-invalid]'), `${where}: the bar says the spacing needs fixing`).toBeVisible()
+        else await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
         const finish = card(page).locator('[data-plant-row-finish]')
         const box = await boxOf(finish)
         await press(page, layout, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
         await expect(field, `${where}: the check button focuses the invalid field`).toBeFocused()
+        await expect(field, `${where}: the spacing is invalid`).toHaveAttribute('aria-invalid', 'true')
         await expect(finish, `${where}: nothing is planted`).toBeVisible()
         await nextFrames(page)
         await expectWhollyShown(field, `${where}: the focused field`)
         await expectHitAtCentre(field, `${where}: the focused field`)
       }
+    })
+  })
+}
+
+// On a phone a row is drawn on the map, its spacing changed in the tool's options (answer 30) and planted with the bar's
+// check button: the bar's count follows the new spacing, and the planted plants stay selected.
+for (const layout of LAYOUTS.filter(isPhone)) {
+  const size = `${layout.width}×${layout.height}`
+  test.describe(`${size} options`, () => {
+    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D4) a row's spacing changed in the tool's options is the one the bar's check button plants at ${size}`, async ({ page }) => {
+      await openBase(page, layout, 'en')
+      await drawTwoPoints(page, layout, '1')
+      const count = card(page).locator('[data-plant-spacing-generated-count]')
+      await expect(count, 'the bar counts the row at 1 m').toContainText('1 m')
+      const atOne = Number.parseInt((await count.textContent())!, 10)
+      await openToolOptions(page)
+      const field = toolOptions(page).locator('[data-plant-spacing-interval-input]')
+      await field.fill('2')
+      await page.keyboard.press('Enter')
+      await expect(mapHost(page), 'Enter gives the map its focus').toBeFocused()
+      await closeToolOptions(page)
+      await expect(count, 'the bar counts the row at 2 m').toContainText('2 m')
+      const atTwo = Number.parseInt((await count.textContent())!, 10)
+      expect(atTwo, `twice the spacing plants fewer (${atOne} at 1 m, ${atTwo} at 2 m)`).toBeLessThan(atOne)
+      await card(page).locator('[data-plant-row-finish]').tap()
+      await expect(card(page).locator('[data-plant-row-finish]'), 'the check button plants the row').toHaveCount(0)
+      await mapHost(page).focus()
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-selection-chip]'), 'the planted plants stay selected').toBeVisible()
     })
   })
 }

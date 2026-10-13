@@ -68,6 +68,17 @@ function tool(page: Page, name: string): Locator {
   return page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: new RegExp(`^${name}( \\(.\\))?$`) })
 }
 
+/** The armed tool's options in the panel sheet (answer 30). */
+function toolOptions(page: Page): Locator {
+  return page.locator('[data-sheet-panel="options"]')
+}
+
+/** Opens the armed tool's options from the bar's Options button, unless they show already. */
+async function openToolOptions(page: Page): Promise<void> {
+  if (await toolOptions(page).count() === 0) await page.locator('[data-tool-options-button]').tap()
+  await expect(toolOptions(page), 'the tool\'s options show').toBeVisible()
+}
+
 // Answer 17: on a phone, while a drawing tool holds a draft (Plant a row, Polygon, Profile line), the panel sheet drops to
 // its peek, so the draft is drawn on the map rather than under the sheet; arming a tool alone keeps the sheet, and a
 // sheet raised again during the draft stays where the user puts it.
@@ -82,9 +93,8 @@ test.describe('390×844 drafts and the sheet', () => {
     await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
     await expect(sheet(page), 'arming the tool keeps the sheet').toHaveAttribute('data-phone-sheet', 'half')
     await tap(page, APPLE)
-    await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
+    await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the tap picks the Apple').toBeVisible()
     await expect(sheet(page), 'the pick drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
-    await page.keyboard.press('Enter')
     await tap(page, ABOVE)
     await raiseSheet(page)
     await nextFrames(page)
@@ -133,8 +143,7 @@ test.describe('390×844 boundary events', () => {
     await mapHost(page).focus()
     await page.keyboard.press('w')
     await tap(page, APPLE)
-    await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
-    await page.keyboard.press('Enter')
+    await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the tap picks the Apple').toBeVisible()
     await tap(page, ABOVE)
     await tap(page, BESIDE)
     await tap(page, BESIDE)
@@ -387,15 +396,17 @@ async function mapSpot(page: Page, left = 0): Promise<Point> {
 }
 
 /**
- * Places an Apple in the middle of the visible map from Place plants' species list (the card is the bar's), then holds a
- * Plant a row draft from it with two more points left of it, each in the middle of the map as the bar grows.
+ * Places an Apple in the middle of the visible map from Place plants' species list (the tool's options, which close once
+ * it is chosen), then holds a Plant a row draft from it with two more points left of it, each in the middle of the map.
  */
 async function holdRowInBar(page: Page): Promise<void> {
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  await openToolOptions(page)
+  const apple = toolOptions(page).getByRole('button', { name: /Malus domestica/ }).first()
   await apple.scrollIntoViewIfNeeded()
   await apple.click()
+  await expect(toolOptions(page), 'choosing a species closes the options').toHaveCount(0)
   await nextFrames(page)
   const spot = await mapSpot(page)
   await tap(page, spot)
@@ -405,8 +416,7 @@ async function holdRowInBar(page: Page): Promise<void> {
   await page.keyboard.press('Escape')
   await page.keyboard.press('w')
   await tap(page, spot)
-  await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
-  await page.keyboard.press('Enter')
+  await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the tap picks the Apple').toBeVisible()
   await nextFrames(page)
   await tap(page, await mapSpot(page, 50))
   await nextFrames(page)
@@ -477,146 +487,138 @@ test.describe('390×844 row options in the sheet', () => {
   })
 })
 
-// On a phone Plant a row's card is the context bar (answers 18 and 22): the panel sheet's first row at peek, half and
-// full, held upright or on its side, its foot's strip spanning it with nothing running past it; its check button (a 44 px target), count and length, and once scrolled to its
-// spacing field and mode switch, take the tap at their centre (over an open panel on a phone on its side, the bar
-// scrolls to the check button too).
-for (const phone of PHONES) {
-  const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
-  test.describe(`${size} card in the bar`, () => {
-    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+// On a phone an armed tool is one touch row of the context bar (answer 30): its name, a short status, Plant a row's check
+// button and Options, so the bar is one touch row (with the map notice's row on top, offline) for every tool, a held row
+// and the selection, held upright or on its side, in en and de; it never scrolls or runs past its box, and its controls
+// are 44 px targets that take the tap. On the small phones the zoom column stands beside the sheet at its peek whatever
+// tool is armed.
+const BAR_SIZES = [...PHONES, { width: 375, height: 667 }] as const
+/** Place plants, Plant a row, Place a stamp, Polygon, Rectangle, Ellipse, Line, Note and Measure. */
+const TOOL_KEYS = ['p', 'w', 'k', 'z', 'r', 'e', 'l', 't', 'm'] as const
 
-    test(`(canopi-f47t.54, D) Plant a row's card is the sheet's first row and its controls take the tap at peek, half and full (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
-      await holdRowInBar(page)
-      for (const height of ['peek', 'half', 'full'] as const) {
-        if (height !== 'peek') {
-          await page.locator('[data-sheet-handle]').focus()
-          await page.keyboard.press('ArrowUp')
-        }
-        const where = `${size} ${height}`
-        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
-        await expect(card(page).locator('[data-plant-row-finish]'), `${where}: the row is still held`).toBeVisible()
-        await nextFrames(page)
-        expect(await card(page).evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the card is the bar's`).toBe(true)
-        expectBarDocked(await sheetParts(page), where)
-        // The foot's strip reaches the card's edges and no further, so nothing in the card scrolls sideways or past it.
-        const spill = await card(page).evaluate((element) => ({ x: element.scrollWidth - element.clientWidth, y: element.scrollHeight - element.clientHeight }))
-        expect(spill, `${where}: nothing runs past the card's box`).toEqual({ x: 0, y: 0 })
-        const foot = await boxOf(card(page).locator('[data-plant-row-finish]').locator('xpath=..'))
-        const cardBox = await boxOf(card(page))
-        expect(Math.abs(foot.x - cardBox.x) + Math.abs(foot.x + foot.width - cardBox.x - cardBox.width), `${where}: the foot spans the card`).toBeLessThanOrEqual(1)
-        const finish = card(page).locator('[data-plant-row-finish]')
-        // Offline over an open panel on a phone on its side the notice above the row's least card is more than the bar
-        // holds, and the bar scrolls (a finger's swipe on the card scrolls it, below).
-        await finish.scrollIntoViewIfNeeded()
-        await expectHitAtCentre(finish, `${where}: the check button`)
-        const finishBox = await boxOf(finish)
-        expect(Math.min(finishBox.width, finishBox.height), `${where}: the check button is a 44 px target`).toBeGreaterThanOrEqual(44)
-        await expectHitAtCentre(card(page).locator('[data-plant-spacing-generated-count]'), `${where}: the row's count`)
-        await expectHitAtCentre(card(page).locator('[data-plant-row-length]'), `${where}: the row's length`)
-        for (const control of [card(page).locator('[data-plant-spacing-interval-input]'), ...await card(page).locator('[data-plant-row-mode]').all()]) {
-          await control.scrollIntoViewIfNeeded()
-          await expectHitAtCentre(control, `${where}: ${await control.evaluate((element) => element.outerHTML.slice(0, 60))}`)
-        }
-        await expectHitAtCentre(finish, `${where}: the check button after a scroll`)
-      }
-    })
-  })
-}
-
-/** How far the context bar's content runs past its box: above 1 px the bar scrolls. */
-async function barOverflow(page: Page): Promise<number> {
-  return await page.locator('[data-phone-context-bar]').evaluate((bar) => bar.scrollHeight - bar.clientHeight)
-}
-
-/** A finger's swipe through CDP (Chromium) from `from` by `dy` px, in steps, then the frames that apply its scroll. */
-async function swipe(page: Page, from: Point, dy: number): Promise<void> {
-  const fingers = await Fingers.of(page)
-  await fingers.drag(from, { x: from.x, y: from.y + dy }, 12)
-  await page.waitForTimeout(150)
+async function expectOneTouchRow(page: Page, where: string): Promise<void> {
   await nextFrames(page)
+  const bar = page.locator('[data-phone-context-bar]')
+  const notice = bar.locator(':scope > [data-map-notice]')
+  const noticeHeight = await notice.count() > 0 && await notice.isVisible() ? (await boxOf(notice)).height : 0
+  const height = (await boxOf(bar)).height - noticeHeight
+  expect(height, `${where}: the bar is one touch row and its rule under the notice's row (${height} px)`).toBeGreaterThanOrEqual(44 - 0.5)
+  expect(height, `${where}: the bar is one touch row and its rule under the notice's row (${height} px)`).toBeLessThanOrEqual(45 + 0.5)
+  const spill = await bar.evaluate((element) => [element, ...element.querySelectorAll<HTMLElement>('[data-tool-card], [data-selection-chip]')]
+    .map((box) => ({ x: box.scrollWidth - box.clientWidth, y: box.scrollHeight - box.clientHeight }))
+    .filter((over) => over.x > 1 || over.y > 1))
+  expect(spill, `${where}: nothing in the bar scrolls or runs past its box`).toEqual([])
+  await expectBarControls(page, where)
 }
 
-// Over an open panel the bar holds its card whole, never a card taller than the bar whose lower part only a scroll from
-// code reaches: a row's card at its least height (a line of its fields above its foot) with its check button in view,
-// and Place plants' card shrunk to scroll inside itself, where a finger's swipe up the card brings its last control to
-// the tap. The basemap is hidden, so no map notice shares the bar. WebKit has no touch driver: there the swipe is left out.
-for (const phone of PHONES) {
+async function expectZoomAtPeek(page: Page, where: string): Promise<void> {
+  if ((await sheet(page).getAttribute('data-phone-sheet')) !== 'peek') {
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('Home')
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'peek')
+  }
+  await nextFrames(page)
+  const shown = await shownBoxes(page, '[data-zoom-group]')
+  expect(shown.length, `${where}: the zoom column shows at the sheet's peek`).toBe(1)
+  expect(overlap(shown[0]!, (await sheetParts(page)).sheet), `${where}: the zoom column clears the sheet`).toBe(false)
+}
+
+for (const phone of BAR_SIZES) {
   const size = `${phone.width}×${phone.height}`
   const portrait = phone.height > phone.width
-  test.describe(`${size} card over an open panel`, () => {
+  // The small upright phones, where D3's grown bar hid the column.
+  const zoomAtPeek = portrait && phone.height < 700
+  test.describe(`${size} one-row bar`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
-    test(`(canopi-f47t.54, D) over an open panel a row's card is whole in the bar and its check button takes the tap (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
-      await holdRowInBar(page)
-      for (const height of ['half', 'full'] as const) {
-        await page.locator('[data-sheet-handle]').focus()
-        await page.keyboard.press('ArrowUp')
-        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
-        await nextFrames(page)
-        const where = `${size} ${height}`
-        expect(await barOverflow(page), `${where}: the bar holds the row's card whole`).toBeLessThanOrEqual(1)
-        await expectHitAtCentre(card(page).locator('[data-plant-row-finish]'), `${where}: the check button, unscrolled`)
-      }
-    })
-
-    test(`(canopi-f47t.54, D) over an open panel Place plants' card scrolls inside the bar, and a swipe up it reaches the full catalog (${size})`, async ({ page, browserName }) => {
-      await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
-      await mapHost(page).focus()
-      await page.keyboard.press('p')
-      await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-stamp')
-      for (const height of ['half', 'full'] as const) {
-        await page.locator('[data-sheet-handle]').focus()
-        await page.keyboard.press('ArrowUp')
-        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
-        await nextFrames(page)
-        const where = `${size} ${height}`
-        expect(await barOverflow(page), `${where}: the bar holds Place plants' card whole`).toBeLessThanOrEqual(1)
-        if (browserName !== 'chromium') continue
-        const catalog = card(page).getByRole('button', { name: 'Open the full catalog' })
-        const cardBox = await boxOf(card(page))
-        const from = { x: cardBox.x + cardBox.width / 2, y: cardBox.y + cardBox.height - 8 }
-        for (let swipes = 0; swipes < 8; swipes += 1) await swipe(page, from, -Math.min(120, cardBox.height - 16))
-        await expectHitAtCentre(catalog, `${where}: Open the full catalog, after swipes up the card`)
-        for (let swipes = 0; swipes < 8; swipes += 1) await swipe(page, { x: from.x, y: cardBox.y + 8 }, Math.min(120, cardBox.height - 16))
-      }
-    })
+    for (const locale of ['en', 'de']) {
+      test(`(canopi-f47t.54, D4) every tool, a held row and the selection keep the bar one touch row, its controls take the tap${zoomAtPeek ? ' and the zoom column shows at peek' : ''} (${size} ${locale})`, async ({ page }) => {
+        const where = `${size} ${locale}`
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
+        for (const key of TOOL_KEYS) {
+          await mapHost(page).focus()
+          await page.keyboard.press(key)
+          await expect(card(page), `${where} ${key}: the tool's row is the bar's`).toHaveAttribute('data-placement', 'bar')
+          await expectOneTouchRow(page, `${where} ${key}`)
+          if (zoomAtPeek) await expectZoomAtPeek(page, `${where} ${key}`)
+        }
+        await holdRowInBar(page)
+        await expectOneTouchRow(page, `${where} a row held`)
+        if (zoomAtPeek) await expectZoomAtPeek(page, `${where} a row held`)
+        // The check button plants the row; its plants stay selected, shown under Select.
+        await card(page).locator('[data-plant-row-finish]').tap()
+        await mapHost(page).focus()
+        await page.keyboard.press('Escape')
+        await expect(page.locator('[data-selection-chip]'), `${where}: the planted plants are selected`).toBeVisible()
+        await expectOneTouchRow(page, `${where} the selection`)
+      })
+    }
   })
 }
 
-// Offline on a phone on its side, the map notice on top of a row's least card over an open panel is more than the bar
-// holds, so the bar scrolls: a finger's swipe on the card scrolls the bar (no scroller inside the card keeps it), up to
-// the check button and back down to the notice's Retry. Chromium only (CDP touch).
-for (const phone of PHONES.filter((each) => each.width > each.height)) {
-  const size = `${phone.width}×${phone.height}`
-  test.describe(`${size} notice and card over an open panel`, () => {
-    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+// Options (or a tap on the tool's name) shows the tool's options at half in place of the open panel, with no tab
+// selected: the tool's guidance, which the bar's row has no room for. Options again, a tab or the tool's disarming puts
+// the panel back as it was; the sheet resting at its peek closes both.
+test.describe('390×844 tool options', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
-    test(`(canopi-f47t.54, D) offline over an open panel a swipe on the row's card scrolls the bar to the check button and back to Retry (${size})`, async ({ page, browserName }) => {
-      test.skip(browserName !== 'chromium', 'a finger\'s swipe needs CDP touch, which WebKit lacks')
-      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: 'shortcut' })
-      await holdRowInBar(page)
-      await raiseSheet(page)
-      await nextFrames(page)
-      const bar = page.locator('[data-phone-context-bar]')
-      expect(await barOverflow(page), `${size}: the notice and the row's card are more than the bar holds`).toBeGreaterThan(1)
-      const barBox = await boxOf(bar)
-      const finish = card(page).locator('[data-plant-row-finish]')
-      // Up from the card at the bar's foot, then down from the card's top once the notice has scrolled away.
-      const low = { x: barBox.x + 12, y: barBox.y + barBox.height - 12 }
-      for (let swipes = 0; swipes < 4; swipes += 1) await swipe(page, low, -60)
-      expect(await bar.evaluate((element) => element.scrollTop), `${size}: the swipe on the card scrolled the bar`).toBeGreaterThan(0)
-      await expectHitAtCentre(finish, `${size}: the check button, after swipes up the card`)
-      const title = { x: barBox.x + barBox.width / 2, y: barBox.y + 16 }
-      for (let swipes = 0; swipes < 4; swipes += 1) await swipe(page, title, 60)
-      expect(await bar.evaluate((element) => element.scrollTop), `${size}: the swipe down the card scrolled the bar back`).toBe(0)
-      await expectHitAtCentre(page.locator('[data-map-notice]').getByRole('button'), `${size}: Retry, after swipes down the card`)
-    })
+  test('(canopi-f47t.54, D4) Options shows the tool\'s options in place of the open panel, and the panel comes back as it was', async ({ page }) => {
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
+    await raiseSheet(page)
+    const selected = page.locator('[data-sheet-tab][aria-selected="true"]')
+    const panel = page.locator('[data-phone-sheet] [role="tabpanel"]')
+    const before = await selected.getAttribute('data-panel')
+    await mapHost(page).focus()
+    await page.keyboard.press('z')
+    await expect(card(page)).toHaveAttribute('data-tool-card', 'polygon')
+    const expectPanelBack = async (why: string) => {
+      await expect(toolOptions(page), `${why}: the options close`).toHaveCount(0)
+      await expect(panel, `${why}: the panel comes back`).toBeVisible()
+      await expect(selected, `${why}: its tab is selected again`).toHaveAttribute('data-panel', before!)
+      await expect(sheet(page), `${why}: at its height`).toHaveAttribute('data-phone-sheet', 'half')
+    }
+
+    await page.locator('[data-tool-options-button]').tap()
+    await expect(toolOptions(page), 'Options shows the tool\'s options').toBeVisible()
+    await expect(toolOptions(page), 'the options hold the polygon\'s guidance').toContainText('Click to add corners')
+    await expect(page.locator('[data-tool-options-button]')).toHaveAttribute('aria-expanded', 'true')
+    await expect(panel, 'in place of the open panel').toHaveCount(0)
+    await expect(selected, 'no tab is selected').toHaveCount(0)
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+    await page.locator('[data-tool-options-button]').tap()
+    await expectPanelBack('Options again')
+
+    // A tap on the tool's name opens them too; disarming the tool closes them.
+    const name = await boxOf(card(page).locator('b').first())
+    await page.touchscreen.tap(name.x + name.width / 2, name.y + name.height / 2)
+    await expect(toolOptions(page), 'a tap on the tool\'s name shows its options').toBeVisible()
+    await mapHost(page).focus()
+    await page.keyboard.press('Escape')
+    await expect(card(page), 'Esc disarms the polygon').toHaveCount(0)
+    await expectPanelBack('the tool disarmed')
+
+    // A tab over the options shows its own panel.
+    await page.keyboard.press('z')
+    await page.locator('[data-tool-options-button]').tap()
+    const other = page.locator('[data-sheet-tab]:not([data-panel="' + before + '"])').first()
+    const otherPanel = await other.getAttribute('data-panel')
+    await other.tap()
+    await expect(toolOptions(page), 'a tab closes the options').toHaveCount(0)
+    await expect(selected, 'and selects its panel').toHaveAttribute('data-panel', otherPanel!)
+
+    // Raised to full the options stay; at the peek both close.
+    await page.locator('[data-tool-options-button]').tap()
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('ArrowUp')
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'full')
+    await expect(toolOptions(page), 'raised to full the options stay').toBeVisible()
+    await page.keyboard.press('Home')
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'peek')
+    await expect(toolOptions(page), 'at the peek the options close').toHaveCount(0)
+    await expect(panel, 'and the panel').toHaveCount(0)
   })
-}
+})
 
 // On a phone the selection is the context bar's one context under Select (answers 18, 23 and 26): once Plant a row plants,
 // its plants stay selected and the selection chip is the sheet's first row in place of the card, on one line (its text
@@ -795,11 +797,15 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
     const least = Math.min(page.viewportSize()!.height * OPEN_PANEL_SHARE, room)
     expect(panelBox.height, `${where}: the open panel keeps a quarter of the screen under the bar, or what the bar's least height leaves (${panelBox.height} of ${least} px)`).toBeGreaterThanOrEqual(least - 1)
   }
+  await expectBarControls(page, where)
+}
+
+/** Every control in the context bar is a 44 px target (ADR 0010) that takes the tap at its centre. */
+async function expectBarControls(page: Page, where: string): Promise<void> {
   const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
   for (const control of await controls.all()) {
     if (!await control.isVisible()) continue
     const name = `${(await control.getAttribute('aria-label')) ?? (await control.textContent()) ?? 'a control'} in the bar`
-    await control.scrollIntoViewIfNeeded()
     const box = await boxOf(control)
     expect(Math.min(box.width, box.height), `${where}: ${name} is a 44 px target (${box.width}x${box.height})`).toBeGreaterThanOrEqual(44 - 0.5)
     await expectHitAtCentre(control, `${where}: ${name}`)

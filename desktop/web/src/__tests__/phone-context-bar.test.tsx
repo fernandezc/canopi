@@ -7,6 +7,8 @@ import type { CanopiFile } from '../types/design'
 import type { ToolId } from '../canvas/runtime/interaction-types'
 import { locale } from '../app/settings/state'
 import { PhoneContextBar } from '../components/canvas/PhoneContextBar'
+import { ToolOptions } from '../components/canvas/ToolCard'
+import { phoneLayout, phoneToolOptions } from '../app/shell/phone-layout'
 import { PLANT_LABELS_CHIP_MS } from '../components/canvas/PlantLabelsChip'
 import { plantFinderMapMatches } from '../app/plant-finder/map-matches'
 import { setPlantLabels } from '../app/plant-display/actions'
@@ -18,6 +20,7 @@ import {
   IDLE_CANVAS_TOOL_GUIDANCE,
   setCanvasTool,
   setCanvasToolGuidance,
+  type CanvasPlantRowGuidance,
   type CanvasToolGuidance,
 } from '../canvas/session-state'
 import {
@@ -58,6 +61,8 @@ describe('Phone context bar', () => {
     container.remove()
     setCanvasTool('select')
     setCanvasToolGuidance(IDLE_CANVAS_TOOL_GUIDANCE)
+    phoneToolOptions.value = null
+    phoneLayout.value = null
     currentCanvasSelection.value = new Set()
     plantFinderMapMatches.value = null
     designSessionFixture.file = null
@@ -98,6 +103,47 @@ describe('Phone context bar', () => {
       expect(card()?.dataset.toolCard, tool).toBe(tool)
       expect(card()?.dataset.placement, `${tool}: the card is the bar's`).toBe('bar')
     }
+  })
+
+  it('shows a tool as one row: its name, a short status, the row\'s check button and Options, its fields in the options', async () => {
+    const PATH: CanvasPlantRowGuidance = {
+      phase: 'row', plantName: 'Apple', glyph: { symbol: 'berry', color: '#ab5268' }, interval: '2 m', intervalValid: true,
+      count: 7, density: 'normal', focusRequest: 1, points: 3, closed: false, mode: 'interval', countText: '',
+      countValid: true, length: '14 m', loopSpacing: null, touch: true,
+    }
+    const options = document.createElement('div')
+    document.body.append(options)
+    await act(() => { phoneLayout.value = 'portrait' })
+    await choose('polygon')
+    const shown = () => [...card()!.querySelectorAll('b, span, button')].filter((node) => node.children.length === 0
+      && node.getAttribute('role') !== 'tooltip' && !node.closest('[role="tooltip"]')).map((node) => node.textContent)
+    expect(shown()).toEqual(['Polygon zone', 'Click to add corners. Click the first corner, double-click or press Enter to finish.', 'Options'])
+    expect(card()!.querySelector('[data-tool-options-button]')?.getAttribute('aria-expanded')).toBe('false')
+
+    await choose('plant-spacing', { gesture: true, plantRow: PATH })
+    expect(card()!.querySelector('[data-plant-spacing-generated-count]')?.textContent).toBe('7 generated · 2 m')
+    expect(card()!.querySelector('[data-plant-row-finish]')?.getAttribute('aria-label')).toBe('Plant the row')
+    expect(card()!.querySelector('input'), 'no field in the bar').toBeNull()
+    // The name and the subject are announced; the count, which moves with the pointer, is not.
+    expect(card()!.querySelector('[role="status"]')?.textContent).toBe('Plant a row')
+
+    await act(() => { card()!.querySelector<HTMLButtonElement>('[data-tool-options-button]')!.click() })
+    expect(phoneToolOptions.value).toBe('half')
+    await act(() => render(<ToolOptions />, options))
+    expect(options.querySelector('[data-plant-spacing-interval-input]')).not.toBeNull()
+    expect(options.querySelectorAll('[data-plant-row-mode]')).toHaveLength(2)
+    expect(options.querySelector('[data-plant-row-length]')?.textContent).toBe('Length 14 m')
+    expect(options.textContent).toContain('tap to add points, double tap plants')
+    expect(options.querySelector('[aria-live="polite"]'), 'the options announce nothing').toBeNull()
+
+    // A spacing the row cannot plant with: the bar says so, and its check button opens the options.
+    await act(() => { phoneToolOptions.value = null })
+    await choose('plant-spacing', { gesture: true, plantRow: { ...PATH, interval: '0', intervalValid: false, count: null } })
+    expect(card()!.querySelector('[data-plant-row-invalid]')?.textContent).toBe('Check the spacing')
+    await act(() => { card()!.querySelector<HTMLButtonElement>('[data-plant-row-finish]')!.click() })
+    expect(phoneToolOptions.value).toBe('half')
+    render(null, options)
+    options.remove()
   })
 
   it('shows the selection under Select or Pan, on one line in the bar, and never with a tool\'s card', async () => {

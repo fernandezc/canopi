@@ -162,7 +162,8 @@
       "modeCount": "Plantas",
       "count": "Plantas na fileira",
       "loopSpacing": "Espaços iguais de",
-      "length": "Comprimento"
+      "length": "Comprimento",
+      "checkSpacing": "Verifique o espaçamento"
     },
     "contextMenu": {
       "ariaLabel": "Comandos de edição da tela",

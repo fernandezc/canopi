@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hook
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
 import { useEnglishFallbackNames } from '../../app/plant-finder/catalog-names'
-import { toolCardContent, type SavedStampSummary } from '../../app/tool-card/content'
+import { toolCardContent, type SavedStampSummary, type ToolCardContent } from '../../app/tool-card/content'
 import { modKeyName } from '../../app/shell-commands/shortcut-text'
 import { siteLocateOpen } from '../../app/site-onboarding/state'
 import { phoneLayout, phoneToolOptions } from '../../app/shell/phone-layout'
@@ -56,28 +56,29 @@ export interface StampChooserProps {
  * press or a right-click), Alt+click and Delete. The text and the fields
  * scroll above the foot, which stays in view. Holding a row the card registers
  * with the visible-map-area seam; where it still covers the picked plant or
- * a point, the user pans. On a phone the card is the context bar's
- * (`placement="bar"`, PhoneContextBar): the panel sheet's first row, which the
- * sheet's registration covers; there Select and Pan show no card.
+ * a point, the user pans. On a phone the tool is a row of the context bar
+ * instead (`placement="bar"`, PhoneToolRow).
  */
-export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
+export function ToolCard({ stampChooser, placement = 'map' }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
   readonly stampChooser?: FunctionComponent<StampChooserProps>
   /** Over the map beside the tool rail, or in the phone's context bar. */
   readonly placement?: 'map' | 'bar'
 }) {
+  return placement === 'bar' ? <PhoneToolRow /> : <MapToolCard stampChooser={stampChooser} />
+}
+
+/** What the card or the phone's tool row shows of the armed tool; null content shows none. */
+function useToolCard(phone: boolean) {
   const tool = currentCanvasTool.value
   const guidance = currentCanvasToolGuidance.value
   const source = readPlantStampSource()
   const savedStamp = readSavedStampSummary()
   const overview = currentCanvasQuerySurface.value?.view.mode.value === 'overview'
-  const [changingSpecies, setChangingSpecies] = useState(false)
   const species = usePlantStampSpeciesName(source)
-  const [choosingStamp, setChoosingStamp] = useState(false)
   const coarsePointer = useCoarsePointer()
-  const section = useRef<HTMLElement>(null)
   // On a phone Select and Pan leave the bar to the selection and the map (answer 23).
-  const content = siteLocateOpen.value || overview || (placement === 'bar' && (tool === 'select' || tool === 'hand'))
+  const content = siteLocateOpen.value || overview || (phone && (tool === 'select' || tool === 'hand'))
     ? null
     : toolCardContent({
         tool,
@@ -89,23 +90,26 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
         modKey: modKeyName(t),
         translate: t,
       })
-  const choosing = content?.tool === 'plant-stamp' && (source === null || changingSpecies)
-  const lead = content ? cardLead(content.tool, source, guidance) : null
-  // Each click on the map with no species chosen points to the chooser again.
-  const prompts = useRef(0)
-  const lastPrompt = useRef(false)
-  if (guidance.promptSpecies && !lastPrompt.current) prompts.current += 1
-  lastPrompt.current = guidance.promptSpecies
-
-  const stampChooser = StampChooser && content?.chooser?.kind === 'stamp' ? content.chooser : null
   const row = content?.tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
   // From its first point the row is a path the card can plant, switch and edit (U58).
   const rowPath = row && (row.points ?? 0) >= 2 ? row : null
-  // On a phone the row's fields are the sheet's tool options while those show (answer 30).
-  const optionsOpen = placement === 'bar' && phoneToolOptions.value !== null
+  return { tool, guidance, source, species, coarsePointer, content, row, rowPath }
+}
+
+function MapToolCard({ stampChooser: StampChooser }: { readonly stampChooser?: FunctionComponent<StampChooserProps> }) {
+  const { tool, guidance, source, species, coarsePointer, content, row, rowPath } = useToolCard(false)
+  const [changingSpecies, setChangingSpecies] = useState(false)
+  const [choosingStamp, setChoosingStamp] = useState(false)
+  const section = useRef<HTMLElement>(null)
+  const choosing = content?.tool === 'plant-stamp' && (source === null || changingSpecies)
+  const lead = content ? cardLead(content.tool, source, guidance) : null
+  // Each click on the map with no species chosen points to the chooser again.
+  const prompts = usePrompts(guidance.promptSpecies)
+
+  const stampChooser = StampChooser && content?.chooser?.kind === 'stamp' ? content.chooser : null
   // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
-  // covers the left edge. In the phone bar the sheet's registration covers it.
-  useMapOccluder(section, 'left', row !== null && placement === 'map')
+  // covers the left edge.
+  useMapOccluder(section, 'left', row !== null)
 
   useEffect(() => {
     if (tool !== 'plant-stamp') setChangingSpecies(false)
@@ -131,7 +135,7 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
       ref={section}
       className={content ? styles.card : styles.idle}
       data-tool-card={content?.tool}
-      data-placement={placement}
+      data-placement="map"
       data-row={row ? '' : undefined}
       data-touch={row && (coarsePointer || row.touch) ? '' : undefined}
       aria-label={content?.title}
@@ -156,24 +160,11 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
                 {lead && <CardLead lead={lead} />}
                 {content.title}
               </span>
-              {/* The subject takes its own line, so a long name never breaks the instruction. */}
-              {content.subject && (
-                <b className={styles.subject}>
-                  {content.tool === 'plant-stamp' && species?.englishFallback
-                    ? <SpeciesCommonName name={content.subject} englishFallback />
-                    : content.subject}
-                </b>
-              )}
-              {content.instruction && (
-                <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
-                  {content.instruction}
-                </span>
-              )}
-              <span className={styles.hints}>{content.hints}</span>
+              <CardText content={content} species={species} />
             </>
           )}
         </div>
-        {row && !optionsOpen && <RowFields row={row} />}
+        {row && <RowFields row={row} />}
       </div>
       {row && (content?.rowCount || rowPath) && (
         // The row's count and length, and the check button that plants that row: the card's foot, in view
@@ -185,20 +176,15 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
                 {content.rowCount.text}
               </span>
             )}
-            {rowPath?.length && (
-              <span className={styles.fact} aria-live="off" data-plant-row-length>
-                {t('canvas.plantSpacing.length')} <b>{rowPath.length}</b>
-              </span>
-            )}
+            {rowPath && <RowLength row={rowPath} />}
           </span>
-          {rowPath && <FinishButton />}
+          {rowPath && <FinishButton row={rowPath} />}
         </div>
       )}
-      {placement === 'bar' && row && <OptionsButton />}
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
-          focusRequest={prompts.current}
+          focusRequest={prompts}
           onChosen={closeChooser}
           onEscape={escapeSpeciesChooser}
         />
@@ -206,6 +192,130 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
       {StampChooser && stampChooser && choosingStamp && <StampChooser onChosen={closeChooser} onEscape={closeChooser} />}
     </section>
   )
+}
+
+/**
+ * On a phone the armed tool is one touch row of the context bar (answer 30, PhoneContextBar): its glyph and name and a
+ * short status (the chosen species, the row's count and spacing, or that its spacing needs fixing), then Plant a row's
+ * check button and Options, which raises the panel sheet to half with the tool's options (ToolOptions); a tap on the
+ * name or the status does too. The name and the status (the row's count aside, which moves with every pointer move)
+ * are the one polite live region, which stays mounted, so choosing a tool is announced. Select and Pan show no row.
+ */
+function PhoneToolRow() {
+  const { source, guidance, species, content, row, rowPath } = useToolCard(true)
+  const lead = content ? cardLead(content.tool, source, guidance) : null
+  const status = content && row ? rowStatus(row, content) : null
+  const subject = content?.subject ? <CardSubject content={content} species={species} /> : content?.instruction
+  return (
+    <section
+      className={content ? styles.card : styles.idle}
+      data-tool-card={content?.tool}
+      data-placement="bar"
+      aria-label={content?.title}
+    >
+      <div className={styles.barLabel} onClick={content ? toggleToolOptions : undefined}>
+        <span className={styles.barLive} role="status" aria-live="polite">
+          {content && (
+            <>
+              {lead && <CardLead lead={lead} />}
+              <b className={styles.barName}>{content.title}</b>
+              {!status && subject && <span className={styles.barStatus}>{subject}</span>}
+            </>
+          )}
+        </span>
+        {status && (
+          <span
+            className={`${styles.barStatus} ${styles.barRowStatus}`}
+            aria-live="off"
+            data-density={status.density}
+            {...(status.invalid ? { 'data-plant-row-invalid': '' } : { 'data-plant-spacing-generated-count': '' })}
+          >
+            {status.text}
+          </span>
+        )}
+      </div>
+      {rowPath && <FinishButton row={rowPath} />}
+      {content && (
+        <button
+          type="button"
+          className={styles.barOptions}
+          aria-expanded={phoneToolOptions.value !== null}
+          data-tool-options-button
+          onClick={toggleToolOptions}
+        >
+          {t('canvas.toolCard.options')}
+        </button>
+      )}
+    </section>
+  )
+}
+
+/** Opens the armed tool's options in the phone sheet at half, or closes them, giving the sheet back its panel. */
+function toggleToolOptions(): void {
+  phoneToolOptions.value = phoneToolOptions.peek() === null ? 'half' : null
+}
+
+/** Whether the row's spacing field (or count field, in Plants mode) holds what the row cannot plant with. */
+function spacingInvalid(row: CanvasPlantRowGuidance): boolean {
+  return row.mode === 'count' ? row.countValid === false : !row.intervalValid
+}
+
+/** The phone row's status for a picked plant: its spacing to fix, else the row's count and spacing once drawn. */
+function rowStatus(row: CanvasPlantRowGuidance, content: ToolCardContent): {
+  readonly text: string
+  readonly density: 'normal' | 'dense' | 'blocked'
+  readonly invalid: boolean
+} | null {
+  if (spacingInvalid(row)) return { text: t('canvas.plantSpacing.checkSpacing'), density: 'blocked', invalid: true }
+  if (!content.rowCount) return null
+  const text = row.mode === 'count' ? content.rowCount.text : `${content.rowCount.text} · ${row.interval}`
+  return { text, density: content.rowCount.density, invalid: false }
+}
+
+/** The card's subject (the species, the stamp), its instruction and its key hints, below its title. */
+function CardText({ content, species }: {
+  readonly content: ToolCardContent
+  readonly species: { readonly englishFallback: boolean } | null
+}) {
+  return (
+    <>
+      {/* The subject takes its own line, so a long name never breaks the instruction. */}
+      {content.subject && <b className={styles.subject}><CardSubject content={content} species={species} /></b>}
+      {content.instruction && (
+        <span className={content.subject ? `${styles.instruction} ${styles.afterSubject}` : styles.instruction}>
+          {content.instruction}
+        </span>
+      )}
+      <span className={styles.hints}>{content.hints}</span>
+    </>
+  )
+}
+
+function CardSubject({ content, species }: {
+  readonly content: ToolCardContent
+  readonly species: { readonly englishFallback: boolean } | null
+}) {
+  return content.tool === 'plant-stamp' && species?.englishFallback
+    ? <SpeciesCommonName name={content.subject!} englishFallback />
+    : <>{content.subject}</>
+}
+
+/** The row's length; it moves with every pointer move, so it is not announced. */
+function RowLength({ row }: { readonly row: CanvasPlantRowGuidance }) {
+  return row.length ? (
+    <span className={styles.fact} aria-live="off" data-plant-row-length>
+      {t('canvas.plantSpacing.length')} <b>{row.length}</b>
+    </span>
+  ) : null
+}
+
+/** Counts each rise of Place plants' "choose a species first" prompt: a click on the map with no species chosen. */
+function usePrompts(prompt: boolean): number {
+  const prompts = useRef(0)
+  const last = useRef(false)
+  if (prompt && !last.current) prompts.current += 1
+  last.current = prompt
+  return prompts.current
 }
 
 /**
@@ -262,29 +372,42 @@ function CardLead({ lead }: { readonly lead: Lead }) {
 }
 
 /**
- * On a phone, the armed tool's options in the panel sheet (answer 30), in place of the open panel: Plant a row's mode
- * switch and spacing field. Keys in them reach the row as from the card's (Enter keeps the spacing, Esc steps the row
- * back): the field handles its own.
+ * On a phone, the armed tool's options in the panel sheet (answer 30), in place of its open panel: the tool's guidance
+ * that the bar's one row has no room for (the subject, the instruction and the key hints, not announced: the bar's row
+ * is the live region), Plant a row's mode switch, spacing field and length, and Place plants' species chooser, which
+ * closes the options once a species is chosen. Keys in the fields reach the row as the card's do (Enter keeps the
+ * spacing, Esc steps the row back): the field handles its own.
  */
 export function ToolOptions() {
-  const guidance = currentCanvasToolGuidance.value
-  const row = currentCanvasTool.value === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
-  return row ? <div className={styles.toolOptions} data-tool-options><RowFields row={row} /></div> : null
-}
+  const { source, guidance, species, content, row, rowPath } = useToolCard(true)
+  const prompts = usePrompts(guidance.promptSpecies)
+  if (!content) return null
 
-/** The bar's Options button: raises the sheet to half with the tool's options, or puts the sheet back. */
-function OptionsButton() {
-  const open = phoneToolOptions.value !== null
+  function close(): void {
+    phoneToolOptions.value = null
+    focusOwner.focusMap()
+  }
+
   return (
-    <button
-      type="button"
-      className={styles.link}
-      aria-expanded={open}
-      data-tool-options-button
-      onClick={() => { phoneToolOptions.value = open ? null : 'half' }}
-    >
-      {t('canvas.toolCard.options')}
-    </button>
+    <div className={styles.toolOptions} data-tool-options={content.tool}>
+      <p className={styles.optionsText}>
+        <CardText content={content} species={species} />
+      </p>
+      {row && <RowFields row={row} />}
+      {rowPath && <RowLength row={rowPath} />}
+      {content.tool === 'plant-stamp' && (
+        <SpeciesChooser
+          autoFocus={false}
+          focusRequest={prompts}
+          onChosen={close}
+          onEscape={() => {
+            // With no species chosen the chooser is all Place plants holds, so Esc leaves the tool.
+            if (!source) armCanvasTool('select', { from: 'card' })
+            close()
+          }}
+        />
+      )}
+    </div>
   )
 }
 
@@ -334,9 +457,10 @@ function RowModeSwitch({ mode }: { readonly mode: 'interval' | 'count' }) {
 
 /**
  * The check button that plants the row; it gives the map its focus back, so Enter and Esc reach the row again. On phones
- * its glyph alone, so the foot keeps one line: an icon-only button, named by its label and its tooltip.
+ * its glyph alone, so the bar keeps one row: an icon-only button, named by its label and its tooltip; there the field is
+ * the tool's options', so a spacing the row cannot plant with opens them, and the field takes the focus it asks for.
  */
-function FinishButton() {
+function FinishButton({ row }: { readonly row: CanvasPlantRowGuidance }) {
   const path = currentCanvasToolCommandSurface.value?.plantRowPath
   const name = t('canvas.toolCard.pathFinish')
   const phone = phoneLayout.value !== null
@@ -349,6 +473,7 @@ function FinishButton() {
       onClick={() => {
         path?.finish()
         focusOwner.focusMap()
+        if (phone && spacingInvalid(row)) phoneToolOptions.value = 'half'
       }}
     >
       <ControlIcon name="check" />

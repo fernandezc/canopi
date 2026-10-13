@@ -49,19 +49,19 @@
   --tool-card-room-bottom: var(--map-framing-inset-bottom, 0px);
 }
 
-/* Phones: the card is the context bar's (PhoneContextBar), the panel sheet's first row, so it flows in the sheet with no
-   place of its own; at most 40 % of the screen's height (container units do not resolve in the sheet), so a row is drawn
-   above it. Where the sheet leaves the bar less (an open panel's share, the top bar) it gives way and scrolls inside
-   itself, so the bar holds it whole; a swipe it has no use for goes on to the bar, which scrolls only where the map
-   notice and a row's least card are more than it holds. */
+/* Phones: the tool is one touch row of the context bar (PhoneToolRow, answer 30), the panel sheet's first row, flowing
+   in the sheet with no place of its own: a touch target's height and its rule below, its text on one line. */
 .card[data-placement='bar'] {
   position: static;
-  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
   width: auto;
-  min-height: 0;
-  max-height: 40svh;
-  overscroll-behavior: auto;
-  padding: var(--space-3) var(--space-1) var(--space-2);
+  height: calc(var(--control-size-touch) + 1px);
+  max-height: none;
+  overflow: hidden;
+  padding: 0 0 0 var(--space-1);
   border: 0;
   border-bottom: 1px solid var(--color-border);
   border-radius: 0;
@@ -70,14 +70,84 @@
   backdrop-filter: none;
 }
 
-.card[data-placement='bar'] .body {
-  overscroll-behavior: auto;
+/* The glyph, the name and the status: a tap opens the tool's options, as Options does. The status gives way first. */
+.barLabel {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  height: 100%;
+  cursor: pointer;
 }
 
-/* A row's card keeps a line of its fields above its foot (three touch targets' height, and the room a focused field's
-   ring scrolls into), scrolling the rest above the foot: the open sheet leaves the bar that much (PhoneSheet's dock). */
-.card[data-placement='bar'][data-row] {
-  min-height: calc(var(--control-size-touch) * 3 + var(--space-2));
+.barLive {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.barName {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barStatus {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barLive .barStatus {
+  flex-basis: auto;
+}
+
+.barRowStatus {
+  font-variant-numeric: tabular-nums;
+}
+
+.barRowStatus[data-density="dense"] {
+  color: var(--color-accent-ink);
+  font-weight: 600;
+}
+
+.barRowStatus[data-density="blocked"] {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.barOptions {
+  flex: none;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-accent-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.barOptions[aria-expanded="true"] {
+  background: var(--color-accent-soft);
+}
+
+.barOptions:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 /* No card: the live region stays mounted but takes no room. */
@@ -281,12 +351,6 @@
   background: var(--color-surface);
 }
 
-/* In the context bar the strip reaches the bar card's own padding, no further, so nothing scrolls the card sideways. */
-.card[data-placement='bar'] .rowFoot[data-path] {
-  margin: var(--space-1) calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
-  padding: var(--space-2) var(--space-1);
-}
-
 .finish {
   /* The tooltip of the icon-only button on phones. */
   position: relative;
@@ -478,10 +542,32 @@
 
 /* On a phone, the armed tool's options in the panel sheet (ToolOptions), scrolling inside the sheet's panel. */
 .toolOptions {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
   min-height: 0;
-  padding: var(--space-1) var(--space-3) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.optionsText {
+  margin: 0;
+}
+
+.toolOptions .fieldRow {
+  margin-top: 0;
+}
+
+/* The chooser's list scrolls with the options, not inside a box of its own. */
+.toolOptions .chooser {
+  margin-top: 0;
+}
+
+.toolOptions .options {
+  max-height: none;
+  overflow: visible;
 }
 
 .toolOptions .fieldInput,

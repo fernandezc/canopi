@@ -162,7 +162,8 @@
       "modeCount": "Plantas",
       "count": "Plantas en la fila",
       "loopSpacing": "Huecos iguales de",
-      "length": "Longitud"
+      "length": "Longitud",
+      "checkSpacing": "Revisa el espaciado"
     },
     "contextMenu": {
       "ariaLabel": "Comandos de edición del lienzo",

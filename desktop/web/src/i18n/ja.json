@@ -162,7 +162,8 @@
       "modeCount": "株数",
       "count": "列の株数",
       "loopSpacing": "等間隔",
-      "length": "長さ"
+      "length": "長さ",
+      "checkSpacing": "間隔を確認してください"
     },
     "contextMenu": {
       "ariaLabel": "キャンバス編集コマンド",

@@ -162,7 +162,8 @@
       "modeCount": "Pflanzen",
       "count": "Pflanzen in der Reihe",
       "loopSpacing": "Gleiche Abstände von",
-      "length": "Länge"
+      "length": "Länge",
+      "checkSpacing": "Abstand prüfen"
     },
     "contextMenu": {
       "ariaLabel": "Bearbeitungsbefehle der Zeichenfläche",

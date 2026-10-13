@@ -162,7 +162,8 @@
       "modeCount": "Plantes",
       "count": "Plantes dans la rangée",
       "loopSpacing": "Écarts égaux de",
-      "length": "Longueur"
+      "length": "Longueur",
+      "checkSpacing": "Vérifiez l’espacement"
     },
     "contextMenu": {
       "ariaLabel": "Commandes d’édition du canevas",

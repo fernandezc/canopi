@@ -162,7 +162,8 @@
       "modeCount": "Растения",
       "count": "Растений в ряду",
       "loopSpacing": "Равные промежутки по",
-      "length": "Длина"
+      "length": "Длина",
+      "checkSpacing": "Проверьте интервал"
     },
     "contextMenu": {
       "ariaLabel": "Команды редактирования холста",

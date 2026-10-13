@@ -162,7 +162,8 @@
       "modeCount": "Planten",
       "count": "Planten in de rij",
       "loopSpacing": "Gelijke afstanden van",
-      "length": "Lengte"
+      "length": "Lengte",
+      "checkSpacing": "Controleer de afstand"
     },
     "contextMenu": {
       "ariaLabel": "Canvasbewerkingsopdrachten",

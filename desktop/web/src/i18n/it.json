@@ -162,7 +162,8 @@
       "modeCount": "Piante",
       "count": "Piante nel filare",
       "loopSpacing": "Spazi uguali di",
-      "length": "Lunghezza"
+      "length": "Lunghezza",
+      "checkSpacing": "Controlla la spaziatura"
     },
     "contextMenu": {
       "ariaLabel": "Comandi di modifica della tela",

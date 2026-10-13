@@ -162,7 +162,8 @@
       "modeCount": "Plants",
       "count": "Plants in the row",
       "loopSpacing": "Equal gaps of",
-      "length": "Length"
+      "length": "Length",
+      "checkSpacing": "Check the spacing"
     },
     "contextMenu": {
       "ariaLabel": "Canvas edit commands",

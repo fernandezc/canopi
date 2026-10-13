@@ -162,7 +162,8 @@
       "modeCount": "그루 수",
       "count": "줄의 그루 수",
       "loopSpacing": "같은 간격",
-      "length": "길이"
+      "length": "길이",
+      "checkSpacing": "간격을 확인하세요"
     },
     "contextMenu": {
       "ariaLabel": "캔버스 편집 명령",

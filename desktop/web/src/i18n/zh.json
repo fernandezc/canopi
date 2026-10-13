@@ -162,7 +162,8 @@
       "modeCount": "株数",
       "count": "这一行的株数",
       "loopSpacing": "等间距",
-      "length": "长度"
+      "length": "长度",
+      "checkSpacing": "请检查间距"
     },
     "contextMenu": {
       "ariaLabel": "画布编辑命令",
