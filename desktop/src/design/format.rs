@@ -440,6 +440,19 @@ mod tests {
                 Err(error) => error,
             };
             assert_eq!(error.kind.as_str(), expected_kind, "{id}");
+            // serde reports a shape error at the root without its path; the
+            // corpus names that as `native_error_path` (canopi-cyqd shares
+            // the validators in 2.1).
+            let expected_path = case
+                .get("native_error_path")
+                .or_else(|| case.get("error_path"))
+                .and_then(|value| value.as_str())
+                .unwrap_or_else(|| panic!("{id}: every refusal case names its path"));
+            let path = error
+                .message
+                .split_once(": ")
+                .map_or(error.message.as_str(), |(path, _)| path);
+            assert_eq!(path, expected_path, "{id}: {}", error.message);
         }
     }
 

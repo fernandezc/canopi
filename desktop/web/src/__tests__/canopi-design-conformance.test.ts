@@ -17,6 +17,8 @@ interface ConformanceCase {
   readonly input: unknown
   readonly accepted?: string
   readonly error_kind?: string
+  /** Where the refusal points: the message's path before its first ": ". */
+  readonly error_path?: string
 }
 
 interface ConformanceCorpus {
@@ -47,7 +49,7 @@ describe('shared Canopi Design conformance corpus', () => {
     })
   })
 
-  it.each(corpus.cases)('$id', ({ accepted, error_kind: errorKind, input }) => {
+  it.each(corpus.cases)('$id', ({ accepted, error_kind: errorKind, error_path: errorPath, input }) => {
     if (accepted) {
       const expected = corpus.accepted_documents[accepted]
       const decoded = decodeCanopiDesign(input)
@@ -62,6 +64,14 @@ describe('shared Canopi Design conformance corpus', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(CanopiDesignIngestionError)
       expect((error as CanopiDesignIngestionError).kind).toBe(errorKind)
+      expect(errorPath, 'every refusal case names its path').toBeDefined()
+      expect(pathOf((error as CanopiDesignIngestionError).message)).toBe(errorPath)
     }
   })
 })
+
+/** The path a refusal message starts with ("$.plants[1].id: duplicate id" gives "$.plants[1].id"). */
+function pathOf(message: string): string {
+  const end = message.indexOf(': ')
+  return end === -1 ? message : message.slice(0, end)
+}
