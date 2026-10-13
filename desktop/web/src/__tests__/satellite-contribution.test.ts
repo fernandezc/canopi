@@ -26,9 +26,9 @@ import {
   MAPLIBRE_SATELLITE_LAYER_ID,
   MAPLIBRE_SATELLITE_SOURCE_ID,
 } from '../maplibre/config'
+import { GOOGLE_SESSION_TILES } from '../maplibre/basemap-tile-auth'
 import {
   GOOGLE_KEYLESS_TILES,
-  GOOGLE_SESSION_TILES,
   type SatelliteDescriptor,
 } from '../maplibre/satellite-provider'
 import type { SatelliteState } from '../maplibre/satellite-provider-session'
@@ -169,7 +169,7 @@ describe('satellite contribution reconciliation', () => {
   it('withdraws the contribution for idle and unavailable states', () => {
     const states: SatelliteState[] = [
       { state: 'idle' },
-      { state: 'unavailable', reason: 'session-failed' },
+      { state: 'unavailable' },
     ]
     for (const state of states) {
       const { target, sources, layers } = recordingTarget()

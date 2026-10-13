@@ -73,8 +73,7 @@ export type SatelliteState =
    * The key was rejected, the connection failed or Google's answer was unusable. No cause: the map notice has one
    * sentence for all of them, and a cause text could carry the key.
    */
-  // TODO(canopi-k94s, merge): delete `reason` with satellite-contribution.test.ts:172's literal (file request).
-  | { readonly state: 'unavailable'; readonly reason?: string }
+  | { readonly state: 'unavailable' }
 
 /** The fixed retry/timeout policy the product contract settles. */
 export const PROVIDER_REQUEST_TIMEOUT_MS = 15_000

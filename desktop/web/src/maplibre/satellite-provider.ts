@@ -31,8 +31,6 @@ export interface SatelliteDescriptor {
   readonly official: boolean
 }
 
-// TODO(canopi-k94s, merge): drop this re-export once satellite-contribution.test.ts imports it from basemap-tile-auth.
-export { GOOGLE_SESSION_TILES }
 /** Google's public satellite tiles (`lyrs=s`), used while no device key is set. */
 export const GOOGLE_KEYLESS_TILES = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
 const GOOGLE_ATTRIBUTION = '&copy; Google'
