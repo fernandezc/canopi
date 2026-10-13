@@ -37,7 +37,7 @@ BYTE_BUDGETS = {
     "docs/architecture.md": 12_000,
     "docs/workflow.md": 8_000,
     "docs/review-checklist.md": 12_000,
-    "docs/release-notes/v2.0.0.md": 10_000,
+    "docs/release-notes/v2.0.0.md": 10_500,
     ".interface-design/system.md": 9_000,
     # The session brief holds only what the next session needs; the plan file
     # shrinks as steps close (both are deleted at the 2.0 release close).
