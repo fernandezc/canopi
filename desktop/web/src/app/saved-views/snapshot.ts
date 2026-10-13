@@ -9,6 +9,7 @@ import {
 } from '../../maplibre/view-snapshot-map'
 import type { SavedView } from '../../types/design'
 import { locale } from '../settings/state'
+import { readSatelliteConfig } from '../settings/satellite-config'
 import { mapLayers, type MapLayersState } from '../map-layers/state'
 import { backgroundPresentationOf, mapLayersOfView } from '../map-layers/background-presentation'
 import { currentPlantDisplay } from '../plant-display/state'
@@ -120,7 +121,7 @@ export async function captureSavedViewSnapshot(
     plantLabels: savedViewPresentedLabels(view),
   })
   if (!request) return null
-  owner ??= createViewSnapshotMap()
+  owner ??= createViewSnapshotMap({ readSatelliteConfig })
   return owner.capture(request)
 }
 

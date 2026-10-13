@@ -3,7 +3,8 @@ import {
   type SatelliteDescriptor,
   type SatelliteConfig,
 } from './satellite-provider'
-import type { BasemapTileAuth } from './basemap-tile-auth'
+import { googleSessionRequestUrl, googleViewportRequestUrl, type BasemapTileAuth } from './basemap-tile-auth'
+import { logMapError } from './redact-credentials'
 
 /**
  * One active Google satellite imagery generation.
@@ -68,7 +69,11 @@ export type SatelliteState =
        * logged as part of a provider state.
        */
     }
-  | { readonly state: 'unavailable'; readonly reason: string }
+  /**
+   * The key was rejected, the connection failed or Google's answer was unusable. No cause: the map notice has one
+   * sentence for all of them, and a cause text could carry the key.
+   */
+  | { readonly state: 'unavailable' }
 
 /** The fixed retry/timeout policy the product contract settles. */
 export const PROVIDER_REQUEST_TIMEOUT_MS = 15_000
@@ -92,18 +97,6 @@ interface GoogleSession {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-/**
- * Errors are sanitised before they can reach a console, a diagnostic sink or
- * the UI: a provider error must never carry the configured key back out.
- */
-export function sanitizeProviderReason(text: string, secret: string | null): string {
-  const trimmed = text.trim()
-  const withoutSecret = secret
-    ? trimmed.split(secret).join('[redacted]')
-    : trimmed
-  return withoutSecret.length > 0 ? withoutSecret : 'The provider request failed.'
 }
 
 export class SatelliteImageryProvider {
@@ -150,7 +143,7 @@ export class SatelliteImageryProvider {
      * provider that is already serving a live map, because `update()` re-reads
      * it, so no caller has to capture the key at map-creation time and go stale.
      */
-    private readonly config: () => SatelliteConfig,
+    readonly config: () => SatelliteConfig,
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) =>
       new Promise((resolve) => setTimeout(resolve, ms)),
@@ -318,19 +311,13 @@ export class SatelliteImageryProvider {
     }
     if (!this.isCurrent(generation)) return
     if (session === null) {
-      // An authentication failure requires user correction; it is reported as
-      // an actionable provider error and never downgraded to keyless tiles,
-      // because silently serving different imagery would misrepresent it.
+      // A rejected key or a lost connection is reported as unavailable and
+      // never downgraded to keyless tiles, because silently serving different
+      // imagery would misrepresent it.
       this.session = null
       this.credentials?.clear()
       this.viewportMetadata = null
-      this.publish({
-        state: 'unavailable',
-        reason: sanitizeProviderReason(
-          'Google Maps rejected the configured API key. Edit or clear the key to continue.',
-          key,
-        ),
-      })
+      this.publish({ state: 'unavailable' })
       return
     }
     this.session = session
@@ -432,13 +419,16 @@ export class SatelliteImageryProvider {
 
   /** One session request with the fixed retry policy, fenced by generation. */
   private async runSessionRequest(generation: number, key: string): Promise<GoogleSession | null> {
-    const url = `https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(key)}`
-    const response = await this.requestWithRetry(generation, url, {
+    const response = await this.requestWithRetry(generation, googleSessionRequestUrl(key), {
       method: 'POST',
       body: { mapType: 'satellite', language: this.sessionLocale(), region: this.sessionRegion() },
     })
     if (response === null) return null
-    if (!response.ok) return null
+    if (!response.ok) {
+      // The numeric status only: the request URL carries the key.
+      logMapError(`Satellite session request failed (HTTP ${response.status}).`)
+      return null
+    }
     const body = response.json
     if (!isRecord(body)) return null
     const sessionToken = body.session
@@ -476,14 +466,13 @@ export class SatelliteImageryProvider {
     if (!session || !key) return
     this.latestDesiredViewport = viewport
     this.viewportInFlight = { generation, viewport }
-    const url =
-      `https://tile.googleapis.com/v1/viewport?session=${encodeURIComponent(session.sessionToken)}` +
-      `&key=${encodeURIComponent(key)}` +
-      `&zoom=${viewport.zoom}&north=${viewport.north}&south=${viewport.south}` +
-      `&east=${viewport.east}&west=${viewport.west}`
     let response: SatelliteHttpResponse | null = null
     try {
-      response = await this.requestWithRetry(generation, url, { method: 'GET' })
+      response = await this.requestWithRetry(
+        generation,
+        googleViewportRequestUrl(session.sessionToken, key, viewport),
+        { method: 'GET' },
+      )
     } catch {
       response = null
     }
@@ -499,12 +488,12 @@ export class SatelliteImageryProvider {
     }
 
     if (!response || !response.ok) {
-      this.failViewportMetadata(generation, key, response)
+      this.failViewportMetadata(generation)
       return
     }
     const metadata = readViewportMetadata(response.json, viewport)
     if (metadata === null) {
-      this.failViewportMetadata(generation, key, response)
+      this.failViewportMetadata(generation)
       return
     }
     this.viewportMetadata = metadata
@@ -518,29 +507,17 @@ export class SatelliteImageryProvider {
    * Report viewport metadata that could not be established.
    *
    * Official imagery is not shown without usable viewport attribution and
-   * availability, so a failed metadata request is an unavailable provider with
-   * an actionable reason — not a ready provider with a stale credit line. The
+   * availability, so a failed metadata request is an unavailable provider —
+   * not a ready provider with a stale credit line. The
    * transport credential is cleared so stale tokens cannot authenticate tiles.
    * A later valid request may recover through the same bounded policy.
    */
-  private failViewportMetadata(
-    generation: number,
-    key: string,
-    response: SatelliteHttpResponse | null,
-  ): void {
+  private failViewportMetadata(generation: number): void {
     if (!this.isCurrent(generation)) return
     this.credentials?.clear()
     this.viewportMetadata = null
     this.clearRenewal()
-    this.publish({
-      state: 'unavailable',
-      reason: sanitizeProviderReason(
-        response && response.status !== 0
-          ? `Google Maps could not confirm the viewport for this layer (HTTP ${response.status}). Try again or choose another basemap.`
-          : 'Google Maps viewport metadata is unavailable. Try again or choose another basemap.',
-        key,
-      ),
-    })
+    this.publish({ state: 'unavailable' })
   }
 
   /**

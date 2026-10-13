@@ -300,6 +300,7 @@
       "mapStopped": "地图已停止绘制。您的设计不受影响。",
       "layerSkipped": "无法显示某个地图图层",
       "basemapFailed": "无法加载底图。请检查网络连接。",
+      "satelliteFailed": "无法加载卫星影像。请检查网络连接或设置中的 Google 密钥。",
       "retryMap": "重试",
       "satellite": "卫星",
       "design": "设计",

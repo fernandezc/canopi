@@ -4,7 +4,6 @@ import {
   PROVIDER_MAX_RETRIES,
   PROVIDER_REQUEST_TIMEOUT_MS,
   readSessionExpiryMs,
-  sanitizeProviderReason,
   type SatelliteHttp,
   type SatelliteHttpResponse,
   type SatelliteState,
@@ -124,9 +123,10 @@ describe('satellite provider session lifecycle', () => {
     provider.dispose()
   })
 
-  it('reports an authentication failure as actionable and never downgrades to keyless', async () => {
+  it('reports an authentication failure as unavailable, logs only its status and never downgrades to keyless', async () => {
     // A 403 is not retryable: sending the same bad key again cannot help.
     const { http, calls } = scriptedHttp([failure(403)])
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     const provider = new SatelliteImageryProvider(http, () => ({ googleMapsApiKey: 'fake-bad-key' }))
 
     provider.update(VIEWPORT)
@@ -134,12 +134,12 @@ describe('satellite provider session lifecycle', () => {
       if (provider.snapshot().state !== 'unavailable') throw new Error('not settled')
     })
 
-    const last = provider.snapshot()
-    if (last.state !== 'unavailable') throw new Error('expected unavailable')
-    expect(last.reason).toMatch(/key/i)
+    // The state carries no cause: the map notice has one sentence for a rejected key and a lost connection.
+    expect(provider.snapshot()).toEqual({ state: 'unavailable' })
     expect(calls).toHaveLength(1)
-    // The failure never substitutes keyless tiles, and the key is not echoed.
-    expect(JSON.stringify(last)).not.toContain('fake-bad-key')
+    // The log names the numeric status and nothing the request carried.
+    expect(logged.mock.calls).toEqual([['Satellite session request failed (HTTP 403).']])
+    logged.mockRestore()
     provider.dispose()
   })
 
@@ -265,15 +265,6 @@ describe('satellite provider session lifecycle', () => {
     })
     expect(calls[0]?.url).toContain('key=fake-key')
     provider.dispose()
-  })
-
-  it('redacts the configured key from any error text', () => {
-    expect(
-      sanitizeProviderReason('Request to tile.googleapis.com?key=SECRET failed', 'SECRET'),
-    ).toBe('Request to tile.googleapis.com?key=[redacted] failed')
-    expect(sanitizeProviderReason('   ', 'SECRET')).toBe('The provider request failed.')
-    // With no configured secret there is nothing to redact and no crash.
-    expect(sanitizeProviderReason('plain failure', null)).toBe('plain failure')
   })
 
   it('reads a session expiry as epoch seconds or as a relative lifetime, never as 1970', () => {

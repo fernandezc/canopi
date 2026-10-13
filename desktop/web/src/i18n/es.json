@@ -300,6 +300,7 @@
       "mapStopped": "El mapa dejó de dibujarse. Tu diseño está a salvo.",
       "layerSkipped": "No se pudo mostrar una capa del mapa",
       "basemapFailed": "No se pudo cargar el mapa base. Comprueba la conexión.",
+      "satelliteFailed": "No se pudieron cargar las imágenes de satélite. Comprueba la conexión o tu clave de Google en Ajustes.",
       "retryMap": "Reintentar",
       "satellite": "Satélite",
       "design": "Diseño",

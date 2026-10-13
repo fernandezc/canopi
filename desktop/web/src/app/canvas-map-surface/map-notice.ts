@@ -1,4 +1,6 @@
 import type { MapLibreCanvasSurfaceState } from '../../maplibre/canvas-surface-state'
+import { mapBackgroundOf } from '../map-layers/state'
+import { presentedMapLayers } from '../story-presentation/overrides'
 
 type MapNoticeTone = 'loading' | 'ready' | 'error'
 
@@ -60,11 +62,16 @@ function readMapFailure(mapSurface: MapLibreCanvasSurfaceState, t: (key: string)
 }
 
 /**
- * Below a map failure, by rank: a basemap that couldn't load, loading (the map or a basemap download, so a Retry
- * shows progress and cannot restart it), then a skipped layer or terrain.
+ * Below a map failure, by rank: a background that couldn't load (the Basemap, or Satellite while it is on, which hides
+ * the Basemap: the status is the one the map draws), loading (the map, a Basemap download or Satellite's Google
+ * session, so a Retry shows progress and cannot restart it), then a skipped layer or terrain.
  */
 function readMapNotice(mapSurface: MapLibreCanvasSurfaceState, t: (key: string) => string): MapNotice | null {
-  if (mapSurface.basemapStatus === 'failed') return { text: t('canvas.layers.basemapFailed'), tone: 'error', retry: true }
+  if (mapSurface.basemapStatus === 'failed') {
+    // One sentence for a rejected Google key and a lost connection: the provider keeps no cause (canopi-k94s).
+    const satellite = mapBackgroundOf(presentedMapLayers()) === 'satellite'
+    return { text: t(satellite ? 'canvas.layers.satelliteFailed' : 'canvas.layers.basemapFailed'), tone: 'error', retry: true }
+  }
   if (mapSurface.basemapStatus === 'loading') return { text: t('canvas.layers.basemapLoading'), tone: 'loading', retry: false }
   if (mapSurface.status !== 'ready') return { text: t('canvas.layers.basemapLoading'), tone: 'loading', retry: false }
   if (mapSurface.terrainStatus === 'error' || mapSurface.layerSkipped) {

@@ -1,4 +1,5 @@
 import { effect } from '@preact/signals'
+import type { SatelliteConfig } from './satellite-provider'
 import {
   SatelliteImageryProvider,
   type SatelliteState,
@@ -6,7 +7,6 @@ import {
 } from './satellite-provider-session'
 import { createBrowserSatelliteHttp } from './satellite-http.browser'
 import type { BasemapTileAuth } from './basemap-tile-auth'
-import { activeGoogleMapsApiKey, locale } from '../app/settings/state'
 import {
   reconcileSatelliteContribution,
   setSatelliteContributionVisibility,
@@ -44,14 +44,13 @@ interface MapStyleReadiness {
  * serving a live map: `update()` re-reads it, and no caller has to capture the
  * key at map-creation time and go stale.
  */
-export function createSatelliteImagery(tileAuth: BasemapTileAuth): SatelliteImageryProvider {
+export function createSatelliteImagery(
+  tileAuth: BasemapTileAuth,
+  readConfig: () => SatelliteConfig,
+): SatelliteImageryProvider {
   return new SatelliteImageryProvider(
     createBrowserSatelliteHttp(),
-    () => ({
-      // The saved key only while Settings › Map and imagery chooses it.
-      googleMapsApiKey: activeGoogleMapsApiKey.value,
-      locale: locale.value,
-    }),
+    readConfig,
     () => Date.now(),
     (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     tileAuth,
@@ -71,9 +70,9 @@ function installSatelliteConfigObserver(
 ): () => void {
   let mounted = false
   return effect(() => {
-    // Subscribe to every configuration identity input.
-    void activeGoogleMapsApiKey.value
-    void locale.value
+    // Subscribe to every configuration identity input: the provider's getter (readSatelliteConfig) reads the settings
+    // signals.
+    void provider.config()
     // The caller already applied the initial configuration; only later
     // configuration identity changes update the already mounted provider.
     if (!mounted) {
@@ -189,6 +188,11 @@ export interface SatelliteMountOptions {
     off(type: string, listener: () => void): void
   }
   readonly replaceSatelliteAttribution: (attribution: string) => void
+  /**
+   * Every state the provider publishes, from the one it holds at mount, at once and whether or not the style is ready:
+   * the background band derives the map notice's status from it.
+   */
+  readonly onState?: (state: SatelliteState) => void
 }
 
 export interface SatelliteMountHandle {
@@ -253,8 +257,12 @@ export function mountSatelliteLifecycle(options: SatelliteMountOptions): Satelli
   // Adopt whatever the provider already published, then start it from the
   // current configuration: no movement, settings or style-ready event is
   // required before the first provider generation.
+  options.onState?.(provider.snapshot())
   apply(provider.snapshot())
-  const unsubscribe = provider.subscribe(apply)
+  const unsubscribe = provider.subscribe((state) => {
+    options.onState?.(state)
+    apply(state)
+  })
   provider.update(options.readViewport())
   const disposeObserver = installSatelliteConfigObserver(provider, options.readViewport)
   const onMoveEnd = () => provider.updateViewport(options.readViewport())

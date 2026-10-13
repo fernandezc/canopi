@@ -2184,8 +2184,6 @@ const CANVAS_V2_POLICIES = [
       'src/utils/theme.ts',
       // Design write admission and dialogs still compose app/document-session (canopi-m4v0).
       'src/ipc/design.ts',
-      // Reads the Google key until canopi-k94s moves the key path.
-      'src/maplibre/satellite-bind.ts',
       ...TEST_SOURCE_PATTERNS,
     ],
     targets: ['src/app/**', 'src/components/**', 'src/web/**', 'src/commands/**', 'src/platform/**'],
@@ -2256,8 +2254,8 @@ const CANVAS_V2_POLICIES = [
   },
   {
     // An import rule, since the key's names are also property names. A namespace import ('*') reads every member, so
-    // it counts too. Readers: settings itself, the key field, the Layers presentation and satellite-bind.ts until
-    // canopi-k94s moves the key path. Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
+    // it counts too. Readers: settings itself (its readSatelliteConfig getter is how a map mount gets the key), the key
+    // field and the Layers presentation. Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
     // carries googleMapsApiKey to every caller of the mutation seam, which this rule cannot see.
     kind: 'forbid-imports',
     name: 'P46 the Google key has reviewed readers',
@@ -2266,11 +2264,24 @@ const CANVAS_V2_POLICIES = [
       'src/app/settings/**',
       'src/components/shared/SettingsGoogleKeyField.tsx',
       'src/app/canvas-layer-presentation/presentation.ts',
-      'src/maplibre/satellite-bind.ts',
       ...TEST_SOURCE_PATTERNS,
     ],
     targets: ['src/app/settings/state.ts', 'src/app/settings/projection.ts'],
     importedNames: ['googleMapsApiKey', 'activeGoogleMapsApiKey', 'snapshotSettingsProjection', '*'],
+  },
+  {
+    // S24: the URLs that carry the key or a session are built in basemap-tile-auth.ts (the only module naming a Google
+    // tile endpoint, map-error-redaction.test.ts) and used only by the Satellite provider.
+    kind: 'confine-symbols',
+    name: 'P46b only the Satellite provider builds the Google key URLs',
+    from: ['src/**'],
+    names: ['googleSessionRequestUrl', 'googleViewportRequestUrl', 'GOOGLE_SESSION_TILES'],
+    allowedFrom: [
+      'src/maplibre/basemap-tile-auth.ts',
+      'src/maplibre/satellite-provider.ts',
+      'src/maplibre/satellite-provider-session.ts',
+      ...TEST_SOURCE_PATTERNS,
+    ],
   },
   {
     // The document surface loads, replaces and destroys the canvas document; components read query and command
@@ -3673,6 +3684,7 @@ const P43 = '[P43 the input core stays camera-free and app-free]'
 const P44 = '[P44 settings and map-layer signals are written only by the projection]'
 const P45 = '[P45 only the presentation controller writes story overrides]'
 const P46 = '[P46 the Google key has reviewed readers]'
+const P46B = '[P46b only the Satellite provider builds the Google key URLs]'
 const P47 = '[P47 components never hold the canvas document lifecycle]'
 const P48 = '[P48 the tool host is the only canvas-menu opener]'
 const P49 = '[P49 only IPC transports invoke native commands]'
@@ -3729,7 +3741,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       plantedSource('src/i18n/index.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/utils/theme.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/ipc/design.ts', ["import { locale } from '../app/settings/state'"]),
-      plantedSource('src/maplibre/satellite-bind.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/utils/planted.test.ts', ["import { Chip } from '../components/shared/Chip'"]),
     ])
 
@@ -3903,7 +3914,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       plantedSource('src/app/canvas-layer-presentation/presentation.ts', [
         "import { googleMapsApiKey } from '../settings/state'",
       ]),
-      plantedSource('src/maplibre/satellite-bind.ts', ["import { activeGoogleMapsApiKey } from '../app/settings/state'"]),
       plantedSource('src/app/planted.test.ts', ["import { googleMapsApiKey } from './settings/state'"]),
     ])
 
@@ -3916,6 +3926,26 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       `${P46} src/app/dynamic.ts:2:87 imports src/app/settings/projection.ts via "./settings/projection" (dynamic)`,
       `${P46} src/app/dynamic.ts:3:23 imports src/app/settings/state.ts via "./settings/state" (dynamic)`,
       `${P46} src/app/dynamic.ts:4:40 imports src/app/settings/state.ts via "./settings/state" (dynamic)`,
+    ])
+  })
+
+  it('P46b confines the Google key URL builders to the Satellite provider and tests', () => {
+    const graph = createTypeScriptSourceGraph([
+      plantedSource('src/maplibre/basemap-tile-auth.ts', [
+        'export function googleSessionRequestUrl() {}',
+        'export function googleViewportRequestUrl() {}',
+        "export const GOOGLE_SESSION_TILES = ''",
+      ]),
+      plantedSource('src/maplibre/satellite-provider.ts', ["import { GOOGLE_SESSION_TILES } from './basemap-tile-auth'"]),
+      plantedSource('src/maplibre/satellite-provider-session.ts', [
+        "import { googleSessionRequestUrl, googleViewportRequestUrl } from './basemap-tile-auth'",
+      ]),
+      plantedSource('src/maplibre/planted.ts', ["import { googleSessionRequestUrl } from './basemap-tile-auth'"]),
+      plantedSource('src/__tests__/planted.test.ts', ["import { GOOGLE_SESSION_TILES } from '../maplibre/basemap-tile-auth'"]),
+    ])
+
+    expect(collectArchitecturePolicyViolations(graph, canvasV2Policies('P46b'))).toEqual([
+      `${P46B} src/maplibre/planted.ts contains confined symbol googleSessionRequestUrl; allowed sources: src/maplibre/basemap-tile-auth.ts, src/maplibre/satellite-provider.ts, src/maplibre/satellite-provider-session.ts, ${TEST_SOURCES}`,
     ])
   })
 

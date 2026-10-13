@@ -12,6 +12,8 @@
  * - With the user's device key it switches to the official Map Tiles API
  *   session tiles.
  */
+import { GOOGLE_SESSION_TILES } from './basemap-tile-auth'
+
 export interface SatelliteConfig {
   /** Device-local Google Maps API key. */
   readonly googleMapsApiKey?: string | null | undefined
@@ -29,14 +31,6 @@ export interface SatelliteDescriptor {
   readonly official: boolean
 }
 
-/**
- * The official Map Tiles API 2D tile path. This is the published,
- * **non-secret** template: the live session and the key are supplied per
- * request by the map's tile transport (`basemap-tile-auth.ts`), because a
- * descriptor carrying a credential could be persisted, exported or logged.
- */
-export const GOOGLE_SESSION_TILES =
-  'https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session={session}'
 /** Google's public satellite tiles (`lyrs=s`), used while no device key is set. */
 export const GOOGLE_KEYLESS_TILES = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
 const GOOGLE_ATTRIBUTION = '&copy; Google'

@@ -17,6 +17,7 @@ import { OPENFREEMAP_LAYER_PREFIX, OPENFREEMAP_SOURCE_PREFIX } from '../../mapli
 import { mapErrorResourceId } from '../../maplibre/map-error-owner'
 import { describeMapErrorEvent, logMapError, redactCredentials, redactError } from '../../maplibre/redact-credentials'
 import { UNAVAILABLE_MAPLIBRE_CANVAS_SURFACE_STATE } from '../../maplibre/canvas-surface-state'
+import { readSatelliteConfig } from '../settings/satellite-config'
 import {
   createWorkspaceMapLibreMap,
   type WorkspaceMapSnapshot,
@@ -324,6 +325,7 @@ export class WorkspaceMapControls implements WorkspaceActivationMapControls {
       map: map as unknown as MapBackgroundMap,
       maplibre: this.surface.maplibre,
       tileAuth: attempt.tileAuth,
+      readSatelliteConfig,
       lifetime,
       onError: (error) => this.logError('Map basemap style failed to load:', error),
       onBasemapStatus: (status) => attempt.contributions.setBasemapStatus(status),

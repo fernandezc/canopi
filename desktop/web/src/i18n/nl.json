@@ -300,6 +300,7 @@
       "mapStopped": "De kaart wordt niet meer getekend. Je ontwerp is veilig.",
       "layerSkipped": "Een kaartlaag kon niet worden weergegeven",
       "basemapFailed": "De basiskaart kon niet worden geladen. Controleer je verbinding.",
+      "satelliteFailed": "De satellietbeelden konden niet worden geladen. Controleer je verbinding of je Google-sleutel in Instellingen.",
       "retryMap": "Opnieuw proberen",
       "satellite": "Satelliet",
       "design": "Ontwerp",

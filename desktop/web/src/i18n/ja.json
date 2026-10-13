@@ -300,6 +300,7 @@
       "mapStopped": "地図の描画が停止しました。デザインは安全です。",
       "layerSkipped": "地図レイヤーを表示できませんでした",
       "basemapFailed": "ベースマップを読み込めませんでした。接続を確認してください。",
+      "satelliteFailed": "衛星写真を読み込めませんでした。接続または設定の Google キーを確認してください。",
       "retryMap": "再試行",
       "satellite": "衛星写真",
       "design": "デザイン",

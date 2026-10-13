@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import {
-  GOOGLE_KEYLESS_TILES,
-  GOOGLE_SESSION_TILES,
-  resolveSatelliteDescriptor,
-} from '../maplibre/satellite-provider'
+import { GOOGLE_SESSION_TILES } from '../maplibre/basemap-tile-auth'
+import { GOOGLE_KEYLESS_TILES, resolveSatelliteDescriptor } from '../maplibre/satellite-provider'
 
 describe('shared satellite descriptor resolution', () => {
   it('serves Google keylessly from its public tile endpoint until a key is configured', () => {

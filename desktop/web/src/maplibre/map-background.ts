@@ -1,3 +1,4 @@
+import { untracked } from '@preact/signals'
 import type { BasemapStyle } from '../generated/contracts'
 import {
   MAPLIBRE_BASEMAP_BACKGROUND_LAYER_ID,
@@ -18,7 +19,8 @@ import {
   type SatelliteMountHandle,
   type SatelliteMountOptions,
 } from './satellite-bind'
-import type { SatelliteViewport } from './satellite-provider-session'
+import type { SatelliteConfig } from './satellite-provider'
+import type { SatelliteState, SatelliteViewport } from './satellite-provider-session'
 
 /** The background band's inputs, read from the map layer store and settings. It holds no Google key: it is captured for saved-view thumbnails and compared between frames (P46 guards the key's readers). */
 export interface MapBackgroundPresentation {
@@ -79,20 +81,31 @@ export interface MapBackgroundOptions {
   readonly maplibre: unknown
   /** The map's credential owner, created with its request transform. */
   readonly tileAuth: BasemapTileAuth
+  /**
+   * The Satellite configuration (`readSatelliteConfig` in app/settings): the Google key and locale. Required, so no
+   * mount silently falls back to keyless imagery; never part of the presentation, which is captured and compared.
+   */
+  readonly readSatelliteConfig: () => SatelliteConfig
   readonly lifetime: {
     on(type: string, listener: (event?: unknown) => void): void
     off(type: string, listener: (event?: unknown) => void): void
   }
   readonly loadStyle?: (url: string) => Promise<VectorStyleDocument>
   readonly onError?: (error: unknown) => void
-  /** The Basemap's download status; hidden, also under Satellite, is `idle`. */
+  /**
+   * The background's download status for the map notice: Satellite's while it is on (`loading` while a Google session
+   * opens, `failed` while it can't load, until Retry), else the Basemap's (hidden is `idle`). Reported once per change.
+   */
   readonly onBasemapStatus?: (status: MapLibreBasemapStatus) => void
 }
 
 export interface MapBackgroundHandle {
   /** Applies the presentation when it differs from the last one; the same one again does nothing (no download). */
   update(presentation: MapBackgroundPresentation): void
-  /** Retry: applies the presentation, downloading a Basemap that couldn't load (its style or its resources) again. */
+  /**
+   * Retry: applies the presentation, downloading a Basemap that couldn't load (its style or its resources) again, and
+   * starting Satellite that couldn't load over (a new Google session).
+   */
   retry(presentation: MapBackgroundPresentation): void
   /**
    * Claims a map error about the Basemap's sprite or TileJSON (VectorBasemap.claimResourceError), which
@@ -124,11 +137,28 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
   const readiness = mapStyleReadiness(map, options.lifetime)
   const beforeLayerId = () => map.getLayersOrder().find((id) => !isMapBackgroundLayer(id)) ?? null
   const attribution = createAttributionOwner(options.maplibre, map)
+  // The one status owner: the Basemap's and Satellite's states, reported as one derived status (canopi-k94s).
+  let vectorStatus: MapLibreBasemapStatus = 'idle'
+  let satelliteState: SatelliteState['state'] = 'idle'
+  let reportedStatus: MapLibreBasemapStatus = 'idle'
+  // While apply() runs, the Basemap and Satellite pass through states the band never shows (the Basemap hidden under
+  // Satellite, Satellite not yet mounted): the status is reported once apply() is done.
+  let applying = false
+  const reportStatus = () => {
+    if (applying || disposed) return
+    const next = presentation?.satellite.visible ? satelliteStatus(satelliteState) : vectorStatus
+    if (next === reportedStatus) return
+    reportedStatus = next
+    options.onBasemapStatus?.(next)
+  }
   const vector = new VectorBasemap(map, {
     ...(options.loadStyle ? { loadStyle: options.loadStyle } : {}),
     beforeLayerId,
     ...(options.onError ? { onError: options.onError } : {}),
-    ...(options.onBasemapStatus ? { onStatus: options.onBasemapStatus } : {}),
+    onStatus: (status) => {
+      vectorStatus = status
+      reportStatus()
+    },
   })
   // MapLibre is idle only once the Basemap's sprite request has settled (VectorBasemap.claimResourceError).
   const onIdle = () => vector.noteMapIdle()
@@ -145,12 +175,22 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
   const releaseSatellite = () => {
     satellite?.dispose()
     satellite = null
+    satelliteState = 'idle'
     attribution.setSatelliteCredit('')
   }
 
   const apply = () => {
     if (disposed || !presentation) return
-    const current = presentation
+    applying = true
+    try {
+      applyPresentation(presentation)
+    } finally {
+      applying = false
+    }
+    reportStatus()
+  }
+
+  const applyPresentation = (current: MapBackgroundPresentation) => {
     vector.update({
       style: current.basemap.style,
       visible: current.basemap.visible && !current.satellite.visible,
@@ -163,7 +203,7 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
     }
     if (!satellite) {
       satellite = mountSatelliteLifecycle({
-        provider: createSatelliteImagery(options.tileAuth),
+        provider: createSatelliteImagery(options.tileAuth, options.readSatelliteConfig),
         map,
         readViewport: () => readViewport(map),
         styleReady: readiness,
@@ -171,6 +211,10 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
         afterApply: applySatelliteOpacity,
         replaceSatelliteAttribution: (credit) => attribution.setSatelliteCredit(credit),
         events: options.lifetime as SatelliteMountOptions['events'],
+        onState: (state) => {
+          satelliteState = state.state
+          reportStatus()
+        },
       })
       return
     }
@@ -202,14 +246,21 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
   return {
     // A surface may send the same presentation again whenever anything else it reads changes (the view, the visible map
     // area); only a change reaches the band, so a Basemap that failed to download stays failed until Retry (ADR 0004).
+    // Untracked: a surface may apply its presentation inside its own effect, and starting Satellite reads the Google key
+    // and the locale; only the band's settings observer (satellite-bind.ts) follows them.
     update(next) {
       if (disposed || (presentation && mapBackgroundPresentationsEqual(presentation, next))) return
-      show(next)
+      untracked(() => show(next))
     },
     retry(next) {
       if (disposed) return
-      vector.discardFailedResources()
-      show(next)
+      untracked(() => {
+        vector.discardFailedResources()
+        show(next)
+        // Satellite that couldn't load starts over with a new Google session. Imagery that is showing or loading is
+        // left alone: a saved-view capture retries on every frame and must not blank it.
+        if (satelliteState === 'unavailable') satellite?.update(readViewport(map))
+      })
     },
     claimMapError(event) {
       return !disposed && vector.claimResourceError(event)
@@ -234,6 +285,16 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
       vector.dispose()
       attribution.dispose()
     },
+  }
+}
+
+/** Satellite's provider state as the notice's status: unavailable is a failure Retry can clear. */
+function satelliteStatus(state: SatelliteState['state']): MapLibreBasemapStatus {
+  switch (state) {
+    case 'idle': return 'idle'
+    case 'loading': return 'loading'
+    case 'ready': return 'ok'
+    case 'unavailable': return 'failed'
   }
 }
 
