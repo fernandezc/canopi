@@ -439,7 +439,8 @@ for (const phone of PHONES) {
         expect(await card(page).evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the card is the bar's`).toBe(true)
         expectBarDocked(await sheetParts(page), where)
         const finish = card(page).locator('[data-plant-row-finish]')
-        // Over an open panel on a phone on its side the bar is shorter than the card's least height, and scrolls.
+        // Offline over an open panel on a phone on its side the notice above the row's least card is more than the bar
+        // holds, and the bar scrolls (a finger's swipe on the card scrolls it, below).
         await finish.scrollIntoViewIfNeeded()
         await expectHitAtCentre(finish, `${where}: the check button`)
         const finishBox = await boxOf(finish)
@@ -452,6 +453,98 @@ for (const phone of PHONES) {
         }
         await expectHitAtCentre(finish, `${where}: the check button after a scroll`)
       }
+    })
+  })
+}
+
+/** How far the context bar's content runs past its box: above 1 px the bar scrolls. */
+async function barOverflow(page: Page): Promise<number> {
+  return await page.locator('[data-phone-context-bar]').evaluate((bar) => bar.scrollHeight - bar.clientHeight)
+}
+
+/** A finger's swipe through CDP (Chromium) from `from` by `dy` px, in steps, then the frames that apply its scroll. */
+async function swipe(page: Page, from: Point, dy: number): Promise<void> {
+  const fingers = await Fingers.of(page)
+  await fingers.drag(from, { x: from.x, y: from.y + dy }, 12)
+  await page.waitForTimeout(150)
+  await nextFrames(page)
+}
+
+// Over an open panel the bar holds its card whole, never a card taller than the bar whose lower part only a scroll from
+// code reaches: a row's card at its least height (a line of its fields above its foot) with its check button in view,
+// and Place plants' card shrunk to scroll inside itself, where a finger's swipe up the card brings its last control to
+// the tap. The basemap is hidden, so no map notice shares the bar. WebKit has no touch driver: there the swipe is left out.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} card over an open panel`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) over an open panel a row's card is whole in the bar and its check button takes the tap (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+      await holdRowInBar(page)
+      for (const height of ['half', 'full'] as const) {
+        await page.locator('[data-sheet-handle]').focus()
+        await page.keyboard.press('ArrowUp')
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await nextFrames(page)
+        const where = `${size} ${height}`
+        expect(await barOverflow(page), `${where}: the bar holds the row's card whole`).toBeLessThanOrEqual(1)
+        await expectHitAtCentre(card(page).locator('[data-plant-row-finish]'), `${where}: the check button, unscrolled`)
+      }
+    })
+
+    test(`(canopi-f47t.54, D) over an open panel Place plants' card scrolls inside the bar, and a swipe up it reaches the full catalog (${size})`, async ({ page, browserName }) => {
+      await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+      await mapHost(page).focus()
+      await page.keyboard.press('p')
+      await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-stamp')
+      for (const height of ['half', 'full'] as const) {
+        await page.locator('[data-sheet-handle]').focus()
+        await page.keyboard.press('ArrowUp')
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await nextFrames(page)
+        const where = `${size} ${height}`
+        expect(await barOverflow(page), `${where}: the bar holds Place plants' card whole`).toBeLessThanOrEqual(1)
+        if (browserName !== 'chromium') continue
+        const catalog = card(page).getByRole('button', { name: 'Open the full catalog' })
+        const cardBox = await boxOf(card(page))
+        const from = { x: cardBox.x + cardBox.width / 2, y: cardBox.y + cardBox.height - 8 }
+        for (let swipes = 0; swipes < 8; swipes += 1) await swipe(page, from, -Math.min(120, cardBox.height - 16))
+        await expectHitAtCentre(catalog, `${where}: Open the full catalog, after swipes up the card`)
+        for (let swipes = 0; swipes < 8; swipes += 1) await swipe(page, { x: from.x, y: cardBox.y + 8 }, Math.min(120, cardBox.height - 16))
+      }
+    })
+  })
+}
+
+// Offline on a phone on its side, the map notice on top of a row's least card over an open panel is more than the bar
+// holds, so the bar scrolls: a finger's swipe on the card scrolls the bar (no scroller inside the card keeps it), up to
+// the check button and back down to the notice's Retry. Chromium only (CDP touch).
+for (const phone of PHONES.filter((each) => each.width > each.height)) {
+  const size = `${phone.width}×${phone.height}`
+  test.describe(`${size} notice and card over an open panel`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) offline over an open panel a swipe on the row's card scrolls the bar to the check button and back to Retry (${size})`, async ({ page, browserName }) => {
+      test.skip(browserName !== 'chromium', 'a finger\'s swipe needs CDP touch, which WebKit lacks')
+      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: 'shortcut' })
+      await holdRowInBar(page)
+      await raiseSheet(page)
+      await nextFrames(page)
+      const bar = page.locator('[data-phone-context-bar]')
+      expect(await barOverflow(page), `${size}: the notice and the row's card are more than the bar holds`).toBeGreaterThan(1)
+      const barBox = await boxOf(bar)
+      const finish = card(page).locator('[data-plant-row-finish]')
+      // Up from the card at the bar's foot, then down from the card's top once the notice has scrolled away.
+      const low = { x: barBox.x + 12, y: barBox.y + barBox.height - 12 }
+      for (let swipes = 0; swipes < 4; swipes += 1) await swipe(page, low, -60)
+      expect(await bar.evaluate((element) => element.scrollTop), `${size}: the swipe on the card scrolled the bar`).toBeGreaterThan(0)
+      await expectHitAtCentre(finish, `${size}: the check button, after swipes up the card`)
+      const title = { x: barBox.x + barBox.width / 2, y: barBox.y + 16 }
+      for (let swipes = 0; swipes < 4; swipes += 1) await swipe(page, title, 60)
+      expect(await bar.evaluate((element) => element.scrollTop), `${size}: the swipe down the card scrolled the bar back`).toBe(0)
+      await expectHitAtCentre(page.locator('[data-map-notice]').getByRole('button'), `${size}: Retry, after swipes down the card`)
     })
   })
 }
@@ -609,12 +702,14 @@ async function floatingOverMap(page: Page): Promise<string[]> {
 
 /** The share of the screen's height an open panel keeps under the context bar. */
 const OPEN_PANEL_SHARE = 0.25
+/** The bar's least height over an open panel: a row's card, three touch targets and a focus ring's room. */
+const BAR_LEAST_PX = 3 * 44 + 8
 
 /**
  * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map; the sheet, its context bar
- * included, stays below the top bar; an open panel keeps a quarter of the screen under the bar; and every control in
- * the bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled into view where the bar's card
- * scrolls).
+ * included, stays below the top bar; an open panel keeps a quarter of the screen under the bar, as far as the bar keeps
+ * its least height; and every control in the bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled
+ * into view where the bar's card scrolls).
  */
 async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   await nextFrames(page)
@@ -625,8 +720,11 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   const panel = page.locator('[data-phone-sheet] [role="tabpanel"]')
   if (await panel.count() > 0) {
     const panelBox = await boxOf(panel)
-    const least = page.viewportSize()!.height * OPEN_PANEL_SHARE
-    expect(panelBox.height, `${where}: the open panel keeps a quarter of the screen under the bar (${panelBox.height} of ${least} px)`).toBeGreaterThanOrEqual(least - 1)
+    const { bar, dock } = await sheetParts(page)
+    // What the sheet leaves the panel under a bar at its least height, below the handle and the tabs.
+    const room = panelBox.y + panelBox.height - bar.y - BAR_LEAST_PX - (panelBox.y - dock.y)
+    const least = Math.min(page.viewportSize()!.height * OPEN_PANEL_SHARE, room)
+    expect(panelBox.height, `${where}: the open panel keeps a quarter of the screen under the bar, or what the bar's least height leaves (${panelBox.height} of ${least} px)`).toBeGreaterThanOrEqual(least - 1)
   }
   const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
   for (const control of await controls.all()) {
@@ -658,7 +756,7 @@ async function expectStopsInOrder(page: Page, check: (height: string) => Promise
 
 // The tallest card the bar holds is Place plants' chooser, and the notice row goes on top of it offline: held upright or
 // on its side, down to an iPhone SE's 568x320, in en and de, the sheet stays below the top bar at its peek (the bar
-// scrolls instead), each step up raises it, an open panel keeps a quarter of the screen under the card, and the card's
+// scrolls instead), each step up raises it, an open panel keeps its share under the card, and the card's
 // and the notice's controls are 44 px targets that take the tap.
 for (const phone of [...PHONES, { width: 568, height: 320 }]) {
   const size = `${phone.width}×${phone.height}`

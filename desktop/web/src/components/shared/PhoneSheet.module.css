@@ -184,8 +184,8 @@
 
 /* The context bar: the sheet's first row (the header at full, the corner box's top at a landscape peek). It takes no
    room while empty; its content keeps its own height (a tool card at most 40 % of the screen's) and gives way only where
-   the sheet is too short for it, the handle, the tabs and an open panel's share: its card's text then scrolls above the
-   card's foot, and below the card's least height the bar itself scrolls. */
+   the sheet is too short for it, the handle, the tabs and an open panel's share: its card then scrolls inside itself,
+   and below the card's least height (with the map notice above it) the bar itself scrolls. */
 .bar {
   display: flex;
   flex: 0 1 auto;
@@ -215,9 +215,12 @@
   min-height: calc(var(--control-size-touch) * 2);
 }
 
-/* An open panel keeps a quarter of the screen's height (PhoneSheet's OPEN_PANEL_SHARE): the bar above gives way to it
-   and scrolls, and a portrait half sheet grows past half for it. During a drag the finger's height leads and the panel
-   gives way first. */
+/* An open panel keeps a quarter of the screen's height (PhoneSheet's OPEN_PANEL_SHARE), and a portrait half sheet grows
+   past half for it; but never the bar's least height (a row's card: three touch targets and a ring's room, ToolCard's),
+   which the open side sheet of a phone on its side, the shortest (the screen less the top bar, the inset, the safe area
+   and its two borders), would not leave. The bar above gives way to the rest: its card scrolls inside itself. During a
+   drag the finger's height leads and the panel gives way first. */
 .sheet:not([data-phone-sheet="peek"], [data-dragging]) .dock {
-  min-height: calc(var(--control-size-touch) * 2 + 25svh);
+  min-height: calc(var(--control-size-touch) * 2 + clamp(0px, 100svh - var(--chrome-rail-top) - var(--chrome-inset)
+    - env(safe-area-inset-bottom) - 2px - var(--control-size-touch) * 5 - var(--space-2), 25svh));
 }
