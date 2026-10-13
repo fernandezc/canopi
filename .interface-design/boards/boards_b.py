@@ -486,7 +486,6 @@ SCROLL_TO_SITE = ('class Component extends DCLogic {\n  componentDidMount() { co
 
 @board('WebPhoneLayers', w=390, h=844, title='Web Edition on a phone · Layers in the sheet at half height, scrolled to Background', group='web', script=SCROLL_TO_SITE)
 def web_phone_layers():
-    tabs = ''.join(f'<button type="button" role="tab" aria-selected="{"true" if t == "Layers" else "false"}" class="chip" style="min-height: 44px; flex-shrink: 0;">{t}</button>' for t in ['Layers', 'Plants', 'Catalog', 'More'])
     lst = layers_list(None, web=True, bg='Street map', touch=True, total=2, anchor=True)
     return f'''
 <div class="map"><img src="{blob("site-z18")}" alt="Map of the site" style="left: -445px; top: -80px; width: 1440px; height: 900px;"></div>
@@ -496,11 +495,11 @@ def web_phone_layers():
   {ib("undo", "Undo", size="touch")}{ib("search", "Search a place", size="touch")}
 </header>
 <div class="float" role="toolbar" aria-label="Tools" style="position: absolute; left: 8px; top: 72px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("select", "Select", True, "touch")}{ib("hand", "Pan", size="touch")}{ib("plant", "Place plants", size="touch")}{ib("polygon", "Polygon zone", size="touch")}{ib("more", "More tools", size="touch")}</div>
-<div class="float" role="group" aria-label="Zoom" style="position: absolute; right: 8px; top: 200px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("plus", "Zoom in", size="touch")}{ib("minus", "Zoom out", size="touch")}{ib("fit", "Fit to Design", size="touch")}{compass(0, size="touch")}</div>
+{phone_zoom(100)}
 <span class="attrib" style="position: absolute; right: 8px; bottom: 430px;">© OpenFreeMap</span>
 <section class="float" aria-label="Panels" style="position: absolute; left: 0; right: 0; bottom: 0; height: 422px; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; padding: 4px 10px 0; padding-bottom: env(safe-area-inset-bottom);">
   <button type="button" aria-label="Expand sheet" aria-expanded="false" style="align-self: center; width: 88px; height: 44px; margin: -10px 0 -10px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><span style="width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong);"></span></button>
-  <div role="tablist" aria-label="Panels" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px;">{tabs}</div>
+  {phone_tabs("Layers")}
   <div role="tabpanel" aria-label="Layers" class="scroll" style="flex: 1 1 0; min-height: 0; overflow-y: auto;">{lst}</div>
 </section>'''
 
@@ -509,8 +508,8 @@ def web_phone_layers():
 def web_phone():
     rows = ''.join(species_row(sy, c, cn, ln, k, n) for sy, c, cn, ln, k, n in [
         ('herb', '#428063', 'Menthe verte', 'Mentha spicata', 'MSP', '257'), ('berry', '#AB5268', 'Goji', 'Lycium barbarum', 'LBA', '232'),
-        ('herb', '#428063', 'Consoude officinale', 'Symphytum officinale', 'SOF2', '202'), ('herb', '#428063', 'Mélisse', 'Melissa officinalis', 'MOF', '148')])
-    tabs = ''.join(f'<button type="button" role="tab" aria-selected="{"true" if t == "Plants" else "false"}" class="chip" style="min-height: 44px; flex-shrink: 0;">{t}</button>' for t in ['Layers', 'Plants', 'Catalog', 'Calendar', 'More'])
+        ('herb', '#428063', 'Consoude officinale', 'Symphytum officinale', 'SOF2', '202')])
+    bar = phone_bar(f'<span style="flex: 1 1 auto; min-width: 0;"><b style="font-weight: 600;">3 plants</b> · Goji · 1.2 m apart</span>{btn("Clear", "ghost", extra=' style="min-height: 44px;"')}')
     return f'''
 <div class="map"><img src="{blob("orchard-sat")}" alt="Satellite view of the orchard" style="left: -445px; top: -80px; width: 1440px; height: 900px;"></div>
 <div style="position: absolute; inset: 0; overflow: hidden;"><img src="{blob("plants-site")}" alt="" style="position: absolute; left: -445px; top: -80px; width: 1440px; height: 900px;"></div>
@@ -519,12 +518,12 @@ def web_phone():
   {ib("undo", "Undo", size="touch")}{ib("search", "Search a place", size="touch")}
 </header>
 <div class="float" role="toolbar" aria-label="Tools" style="position: absolute; left: 8px; top: 72px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("select", "Select", True, "touch")}{ib("hand", "Pan", size="touch")}{ib("plant", "Place plants", size="touch")}{ib("polygon", "Polygon zone", size="touch")}{ib("more", "More tools", size="touch")}</div>
-<div class="float" role="group" aria-label="Zoom" style="position: absolute; right: 8px; top: 256px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("plus", "Zoom in", size="touch")}{ib("minus", "Zoom out", size="touch")}{ib("fit", "Fit to Design", size="touch")}{compass(0, size="touch")}</div>
-<span class="attrib" style="position: absolute; right: 8px; bottom: 400px;">© Google</span>
-<span class="float num" style="position: absolute; left: 8px; bottom: 404px; padding: 2px 8px; border-radius: 8px; font-size: 12.5px;">1:190</span>
-<section class="float" aria-label="Panels" style="position: absolute; left: 0; right: 0; bottom: 0; height: 392px; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; padding: 4px 10px 0; padding-bottom: env(safe-area-inset-bottom);">
-  <button type="button" aria-label="Expand sheet" aria-expanded="false" style="align-self: center; width: 88px; height: 44px; margin: -10px 0 -10px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><span style="width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong);"></span></button>
-  <div role="tablist" aria-label="Panels" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 8px;">{tabs}</div>
+{phone_zoom(80)}
+<span class="attrib" style="position: absolute; right: 8px; bottom: 452px;">© Google</span>
+<section class="float" aria-label="Panels" style="position: absolute; left: 0; right: 0; bottom: 0; height: 444px; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; padding: 4px 10px 0; padding-bottom: env(safe-area-inset-bottom);">
+  {bar}
+  <button type="button" aria-label="Expand sheet" aria-expanded="false" style="align-self: center; width: 88px; height: 44px; margin: -6px 0 -10px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><span style="width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong);"></span></button>
+  {phone_tabs("Plants")}
   <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 0 4px 6px;"><h2 class="disp" style="font-size: 18px;">Plants in this Design</h2><span class="count">2,201</span></div>
   {search("Search names or codes", touch=True)}
   <div style="display: flex; flex-direction: column; margin-top: 6px;">{rows}</div>

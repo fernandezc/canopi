@@ -79,3 +79,24 @@ def chrome(active_tool='select', panel=None, name=ORCHARD, status='Saved', kind=
 
 SWATCHES = [('#AB5268', 'Raspberry'), ('#805878', 'Plum'), ('#B06045', 'Brick'), ('#B07A32', 'Ochre'), ('#887044', 'Bark'), ('#70814B', 'Olive'),
             ('#428063', 'Sage'), ('#398379', 'Teal'), ('#507F9B', 'Slate blue'), ('#82629B', 'Lavender'), ('#27231D', 'Ink'), ('#8C8579', 'Stone')]
+
+
+def phone_zoom(top, bearing=0):
+    """The phone zoom column, the only chrome in the visible map: inspection lens, zoom, Fit, Show my location, compass."""
+    return (f'<div class="float" role="group" aria-label="Zoom" style="position: absolute; right: 8px; top: {top}px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">'
+            f'{ib("search", "Inspection lens", size="touch")}{ib("plus", "Zoom in", size="touch")}{ib("minus", "Zoom out", size="touch")}{ib("fit", "Fit to Design", size="touch")}'
+            f'{ib("target", "Show my location", size="touch")}<div class="rule" role="separator" style="margin: 2px 4px;"></div>{compass(bearing, size="touch")}</div>')
+
+
+def phone_tabs(active=None):
+    """The sheet's tab row: Layers, Plants and Catalog as tabs, the other panels under More."""
+    tabs = ''.join(f'<button type="button" role="tab" aria-selected="{"true" if t == active else "false"}" class="chip" style="min-height: 44px; flex-shrink: 0;">{t}</button>'
+                   for t in ['Layers', 'Plants', 'Catalog'])
+    more = f'<button type="button" class="chip" aria-haspopup="menu" style="min-height: 44px; flex-shrink: 0; margin-left: auto;">{icon("more")}More</button>'
+    return f'<div style="display: flex; gap: 4px; padding-bottom: 8px;"><div role="tablist" aria-label="Panels" style="display: flex; gap: 4px; overflow-x: auto;">{tabs}</div>{more}</div>'
+
+
+def phone_bar(inner, label='Selection'):
+    """The context bar: the sheet's first row, one 44 px row (the selection, the armed tool, a chip), above the handle."""
+    return (f'<div role="status" aria-label="{esc(label)}" style="min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 4px; '
+            f'border-bottom: 1px solid var(--line); font-size: 14px;">{inner}</div>')

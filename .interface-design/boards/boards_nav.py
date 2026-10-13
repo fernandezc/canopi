@@ -70,7 +70,6 @@ def navigation_settings():
 
 @board('NavigationPhone', w=390, h=844, title='Web Edition on a phone · the map turned, Fit and the compass in the zoom column', group='navigation')
 def navigation_phone():
-    tabs = ''.join(f'<button type="button" role="tab" aria-selected="false" class="chip" style="min-height: 44px; flex-shrink: 0;">{t}</button>' for t in ['Layers', 'Plants', 'Catalog', 'Calendar', 'More'])
     return f'''
 {turned_map(-445, -80)}
 <header class="float" style="position: absolute; left: 8px; right: 8px; top: 8px; height: 56px; display: flex; align-items: center; gap: 2px; padding: 0 4px;">
@@ -78,10 +77,9 @@ def navigation_phone():
   {ib("undo", "Undo", size="touch")}{ib("search", "Search a place", size="touch")}
 </header>
 <div class="float" role="toolbar" aria-label="Tools" style="position: absolute; left: 8px; top: 72px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("select", "Select", True, "touch")}{ib("hand", "Pan", size="touch")}{ib("plant", "Place plants", size="touch")}{ib("polygon", "Polygon zone", size="touch")}{ib("more", "More tools", size="touch")}</div>
-<div class="float" role="group" aria-label="Zoom" style="position: absolute; right: 8px; top: 280px; display: flex; flex-direction: column; gap: 2px; padding: 4px;">{ib("plus", "Zoom in", size="touch")}{ib("minus", "Zoom out", size="touch")}{ib("fit", "Fit to Design", size="touch")}<div class="rule" role="separator" style="margin: 2px 4px;"></div>{compass(BEARING, size="touch")}</div>
+{phone_zoom(255, BEARING)}
 <span class="attrib" style="position: absolute; right: 8px; bottom: 124px;">© Google</span>
-<span class="float num" style="position: absolute; left: 8px; bottom: 128px; padding: 2px 8px; border-radius: 8px; font-size: 12.5px;">1:100</span>
 <section class="float" aria-label="Panels" style="position: absolute; left: 0; right: 0; bottom: 0; height: 112px; border-radius: 18px 18px 0 0; display: flex; flex-direction: column; padding: 4px 10px 0; padding-bottom: env(safe-area-inset-bottom);">
   <button type="button" aria-label="Expand sheet" aria-expanded="false" style="align-self: center; width: 88px; height: 44px; margin: -10px 0 -6px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><span style="width: 40px; height: 5px; border-radius: 3px; background: var(--line-strong);"></span></button>
-  <div role="tablist" aria-label="Panels" style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 8px;">{tabs}</div>
+  {phone_tabs()}
 </section>'''
