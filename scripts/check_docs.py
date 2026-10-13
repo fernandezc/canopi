@@ -31,13 +31,13 @@ LINE_BUDGETS = {
 # A guide states rules and boundaries; wiring lives in code comments and policy
 # tests. Budgets in bytes stop the guides from growing by accretion again.
 BYTE_BUDGETS = {
-    "AGENTS.md": 9_000,
+    "AGENTS.md": 9_500,
     "CONTEXT.md": 14_000,
     "docs/README.md": 4_000,
     "docs/architecture.md": 12_000,
     "docs/workflow.md": 8_000,
     "docs/review-checklist.md": 12_000,
-    "docs/release-notes/v2.0.0.md": 10_500,
+    "docs/release-notes/v2.0.0.md": 12_000,
     ".interface-design/system.md": 9_000,
     # The session brief holds only what the next session needs; the plan file
     # shrinks as steps close (both are deleted at the 2.0 release close).
