@@ -408,7 +408,7 @@ def shortcuts():
     cols = ''.join(f'<section style="display: flex; flex-direction: column; gap: 2px;"><h3 class="lbl" style="padding: 0 0 6px;">{g}</h3>'
                    + ''.join(f'<div style="display: flex; justify-content: space-between; gap: 12px; min-height: 30px; align-items: center; border-bottom: 1px solid var(--line);"><span>{a}</span><span style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;">{"".join(kbd(x) for x in b.split(" · "))}</span></div>' for a, b in items)
                    + '</section>' for g, items in groups)
-    esc_order = ('<div class="card" style="padding: 10px 12px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45;"><b style="font-weight: 600; color: var(--ink);">Esc</b> does one thing at a time: close a menu or dialog, remove the last point of what you are drawing, return to Select, clear the selection.</div>')
+    esc_order = ('<div class="card" style="padding: 10px 12px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45;"><b style="font-weight: 600; color: var(--ink);">Esc</b> does one thing at a time: close a menu or dialog, step back in what you are drawing, return to Select, clear the selection.</div>')
     dlg = dialog('Keyboard shortcuts', f'<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 32px;">{cols}</div>{esc_order}',
                  f'<span class="small muted" style="flex: 1 1 auto;">Tool keys work anywhere except text fields. Shift N works even when single-key shortcuts are off. macOS shows ⌘ ⌥ ⇧.</span>{btn("Close")}', 900, extra=' max-height: 1110px;')
     dlg = dlg.replace('<div class="dbody">', '<div class="dbody scroll" style="overflow-y: auto; min-height: 0;">', 1)

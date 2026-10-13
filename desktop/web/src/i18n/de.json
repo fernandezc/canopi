@@ -1765,7 +1765,7 @@
   "shortcuts": {
     "title": "Tastenkürzel",
     "toolsHeading": "{{menu}} (überall außer in Textfeldern)",
-    "escape": "Esc tut eins nach dem anderen: Menü oder Dialog schließen, den letzten Punkt der Zeichnung entfernen, zu Auswählen zurück, Auswahl aufheben.",
+    "escape": "Esc tut eins nach dem anderen: Menü oder Dialog schließen, in der Zeichnung einen Schritt zurückgehen, zu Auswählen zurück, Auswahl aufheben.",
     "footnote": "Werkzeugtasten wirken überall außer in Textfeldern.",
     "workspaceHeading": "Karte und Arbeitsbereich",
     "nextRegion": "Nächster Teil: Titelleiste, Werkzeuge, Karte, Bereich",
@@ -1893,7 +1893,7 @@
     "intro": "Canopi zeichnet Ihr Design direkt auf die Karte. So fangen Sie an.",
     "site": "Finden Sie Ihr Gelände: Geben Sie oben im Suchfeld einen Ort oder Koordinaten ein ({{shortcut}}).",
     "zones": "Zeichnen Sie Beete, Obstgärten und Wege mit den Zonenwerkzeugen links.",
-    "plants": "{{placePlants}}: Wählen Sie eine Art und klicken Sie auf die Karte. {{plantRow}} wiederholt eine Pflanze entlang eines Pfads.",
+    "plants": "{{placePlants}}: Wählen Sie eine Art und klicken Sie auf die Karte. {{plantRow}} wiederholt eine Pflanze entlang der Punkte, die Sie setzen.",
     "menu": "Klicken Sie mit der rechten Maustaste auf etwas auf der Karte, um seine Befehle zu sehen. {{esc}} kehrt zu {{select}} zurück.",
     "plan": "Planen Sie Pflege, Kosten und Pflanzengemeinschaften in {{calendar}}, {{budget}} und {{consortium}}, in den Bereichen rechts.",
     "save": "Canopi speichert, während Sie arbeiten. {{file}} › {{export}} erstellt einen Pflanzplan (PDF) zum Drucken.",

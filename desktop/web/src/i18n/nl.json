@@ -1765,7 +1765,7 @@
   "shortcuts": {
     "title": "Sneltoetsen",
     "toolsHeading": "{{menu}} (overal behalve in tekstvelden)",
-    "escape": "Esc doet één ding tegelijk: een menu of dialoog sluiten, het laatste punt van je tekening verwijderen, terug naar Selecteren, de selectie wissen.",
+    "escape": "Esc doet één ding tegelijk: een menu of dialoog sluiten, een stap teruggaan in je tekening, terug naar Selecteren, de selectie wissen.",
     "footnote": "Gereedschapstoetsen werken overal behalve in tekstvelden.",
     "workspaceHeading": "Kaart en werkruimte",
     "nextRegion": "Volgend gebied: titelbalk, gereedschap, kaart, paneel",
@@ -1893,7 +1893,7 @@
     "intro": "Canopi tekent je ontwerp direct op de kaart. Zo begin je.",
     "site": "Zoek je terrein: typ een plaats of coördinaten in het zoekveld bovenaan ({{shortcut}}).",
     "zones": "Teken bedden, boomgaarden en paden met de zonegereedschappen links.",
-    "plants": "{{placePlants}}: kies een soort en klik op de kaart. {{plantRow}} herhaalt een plant langs een pad.",
+    "plants": "{{placePlants}}: kies een soort en klik op de kaart. {{plantRow}} herhaalt een plant langs de punten die je plaatst.",
     "menu": "Klik met de rechtermuisknop op iets op de kaart voor de opdrachten. {{esc}} gaat terug naar {{select}}.",
     "plan": "Plan verzorging, kosten en plantengemeenschappen in {{calendar}}, {{budget}} en {{consortium}}, via de panelen rechts.",
     "save": "Canopi slaat op terwijl je werkt. {{file}} › {{export}} maakt een plantplan (PDF) om af te drukken.",
