@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from scripts.check_docs import anchors, check_document, check_placement
+from scripts.check_docs import BYTE_BUDGETS, LINE_BUDGETS, PARAGRAPH_EXEMPT, ROOT, anchors, check_document, check_placement
 
 
 class DocumentationChecks(unittest.TestCase):
@@ -56,26 +56,26 @@ class DocumentationChecks(unittest.TestCase):
             plan.write_text("# Plan\n\nStatus: agreed\n" + "z" * 600 + "\n", encoding="utf-8")
             self.assertEqual(check_document(plan, root), [])
 
-    def test_plan_budgets(self):
+    def test_named_byte_budgets_and_the_legacy_plan_exemption(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            brief = root / "docs/plans/canvas-v2-implementation-prompt.md"
-            brief.parent.mkdir(parents=True)
-            brief.write_text("Status: in progress\n" + ("short line\n" * 1100), encoding="utf-8")
-            self.assertTrue(any("exceeds its 12000-byte budget" in e for e in check_document(brief, root)))
-            plan = root / "docs/plans/canvas-v2-plan.md"
-            plan.write_text("Status: in progress\n" + ("short line\n" * 11000), encoding="utf-8")
-            self.assertTrue(any("exceeds its 120000-byte budget" in e for e in check_document(plan, root)))
+            notes = root / "docs/release-notes/v2.0.0.md"
+            notes.parent.mkdir(parents=True)
+            notes.write_text("# 2.0\n" + ("short line\n" * 1100), encoding="utf-8")
+            self.assertTrue(any("exceeds its 12000-byte budget" in e for e in check_document(notes, root)))
             # The paragraph budget applies to plans, except the legacy files named in PARAGRAPH_EXEMPT.
             other = root / "docs/plans/hydrology.md"
+            other.parent.mkdir(parents=True)
             other.write_text("Status: agreed\n" + "z" * 601 + "\n", encoding="utf-8")
             self.assertEqual(check_document(other, root), ["docs/plans/hydrology.md:2: paragraph of 601 characters exceeds 600"])
-            brief.write_text("Status: in progress\n" + "z" * 601 + "\n", encoding="utf-8")
-            brief_errors = check_document(brief, root)
-            self.assertEqual(len(brief_errors), 1)
-            self.assertIn("paragraph of 601 characters", brief_errors[0])
-            plan.write_text("Status: in progress\n" + "z" * 900 + "\n", encoding="utf-8")
-            self.assertEqual(check_document(plan, root), [])
+            legacy = root / "docs/plans/onf-plugin-adaptation.md"
+            legacy.write_text("Status: in progress\n" + "z" * 900 + "\n", encoding="utf-8")
+            self.assertEqual(check_document(legacy, root), [])
+
+    def test_every_named_budget_and_exemption_exists(self):
+        # A deleted document takes its budget and exemption entries with it.
+        for name in list(LINE_BUDGETS) + list(BYTE_BUDGETS) + list(PARAGRAPH_EXEMPT):
+            self.assertTrue((ROOT / name).exists(), name)
 
     def test_superseded_adr_requires_existing_replacement(self):
         with TemporaryDirectory() as directory:
