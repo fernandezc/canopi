@@ -5,10 +5,9 @@
 // the last point through the host's constraint, its length then snapped, spec §2.3). The spec's `closesAt` may finish on
 // a press (Polygon: within 8 px of the first corner, a finger's within 22 px, Q5, tested on ToolPoint.free); the second
 // press of a double-click, Enter and the canvas menu's "Finish shape" (canFinish) finish a path of `minPoints` or more
-// through the spec's `finish`. A press on a placed point other than the first (within the closing radius) adds none,
-// and Alt+press on any placed point deletes it and the redo (answers 2, 4: the zone corners' rule while drawing, so a
-// draft never gets a duplicate corner). Hovers, and the drag after a press, move the rubber band and add nothing.
-// Backspace, Edit › Undo and Esc take the last point back onto a redo stack (transient history, no Scene Edit), and
+// through the spec's `finish`. Alt+press on a placed point (within the closing radius) deletes it and the redo, the
+// first included (answer 2: the zone corners' rule while drawing). Hovers, and the drag after a press, move the rubber
+// band and add nothing. Backspace, Edit › Undo and Esc take the last point back onto a redo stack (transient history, no Scene Edit), and
 // Ctrl+Shift+Z restores it; the Esc that takes the last point empties the draft and its redo, so the next Esc leaves the
 // tool, and an Esc on a redo-only history drops it and arms Select at once (A17); an interruption ('navigate') keeps
 // them while the draft has points and drops a redo-only history, as today; overview, a tool change or a document
@@ -116,9 +115,9 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
       drop()
       return
     }
-    const under = pointUnder(point)
     // Alt+press on a placed point deletes it, the first included: it never closes or finishes (answer 2).
-    if (under !== null && point.modifiers.subtractive) {
+    const under = point.modifiers.subtractive ? pointUnder(point) : null
+    if (under !== null) {
       deletePoint(under)
       return
     }
@@ -131,8 +130,7 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
     if (clickCount >= 2 && points.length === 0) return
     const next = point.snapped
     const last = points[points.length - 1]
-    // A press on a placed point other than the first, or on the last one's spot, adds none: the rubber band ends there.
-    if ((under !== null && under > 0) || (last && isSamePoint(last, next))) {
+    if (last && isSamePoint(last, next)) {
       active = next
       redraw()
       return
@@ -144,7 +142,7 @@ export function createVertexPathTool(spec: VertexPathSpec): CanvasTool {
     redraw()
   }
 
-  /** The placed point nearest a press within the closing radius on screen (a finger's on touch), else null. */
+  /** The placed point nearest an Alt+press within the closing radius on screen (a finger's on touch), else null. */
   function pointUnder(press: ToolPoint): number | null {
     const { view } = context()
     let nearest: number | null = null

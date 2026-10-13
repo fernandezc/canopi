@@ -224,14 +224,9 @@ describe('Polygon tool', () => {
     ])
   })
 
-  it('Alt+click on a placed corner deletes it, the first included; a click on a corner other than the first adds none (answers 2, 4)', () => {
+  it('Alt+click on a placed corner deletes it, the first included (answer 2)', () => {
     const h = harness()
     for (const at of [{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }]) h.click(at)
-
-    // A plain click within 8 px of a middle corner, or of the last, adds no duplicate.
-    h.click({ x: 96, y: 14 })
-    h.click({ x: 14, y: 96 })
-    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }])
 
     // Alt+click within 8 px deletes the corner, and the redo with it; nothing is committed.
     h.host.command({ kind: 'remove-last' })
@@ -253,12 +248,17 @@ describe('Polygon tool', () => {
     expect(h.store.persisted.zones.map((zone) => zone.points)).toEqual([[{ x: 100, y: 10 }, { x: 100, y: 100 }, { x: 10, y: 100 }]])
   })
 
-  it('a finger\'s tap within 22 px of a corner other than the first adds none', () => {
+  it('a plain click or a finger\'s tap near a placed corner other than the first adds a corner there', () => {
     const h = harness()
-    h.click({ x: 100, y: 100 }, { pointer: 'touch' })
-    h.click({ x: 200, y: 100 }, { pointer: 'touch' })
-    h.click({ x: 215, y: 112 }, { pointer: 'touch' })
-    expect(cornerMarkers(h)).toEqual([{ x: 100, y: 100 }, { x: 200, y: 100 }])
+    for (const at of [{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }]) h.click(at)
+    h.click({ x: 96, y: 14 })
+    expect(cornerMarkers(h)).toEqual([{ x: 10, y: 10 }, { x: 100, y: 10 }, { x: 100, y: 100 }, { x: 96, y: 14 }])
+
+    const touch = harness()
+    touch.click({ x: 100, y: 100 }, { pointer: 'touch' })
+    touch.click({ x: 200, y: 100 }, { pointer: 'touch' })
+    touch.click({ x: 215, y: 112 }, { pointer: 'touch' })
+    expect(cornerMarkers(touch)).toEqual([{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 215, y: 112 }])
   })
 
   it('a Shift corner keeps the new edge on 45° from the last corner', () => {

@@ -122,14 +122,12 @@ describe('Profile tool', () => {
     expect(finishProfile).not.toHaveBeenCalled()
   })
 
-  it('Alt+click on a placed point deletes it; a click on a point other than the first adds none (Polygon\'s rule)', () => {
+  it('Alt+click on a placed point deletes it (Polygon\'s rule)', () => {
     const { h, finishProfile } = harness()
     h.click({ x: 10, y: 10 })
     h.click({ x: 60, y: 10 })
     h.click({ x: 60, y: 50 })
 
-    h.click({ x: 63, y: 13 })
-    expect(vertices(h)).toEqual([{ x: 10, y: 10 }, { x: 60, y: 10 }, { x: 60, y: 50 }])
     h.click({ x: 57, y: 13 }, { mods: { alt: true } })
     expect(vertices(h)).toEqual([{ x: 10, y: 10 }, { x: 60, y: 50 }])
     expect(finishProfile).not.toHaveBeenCalled()

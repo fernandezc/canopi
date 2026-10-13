@@ -3,9 +3,8 @@
 // dot adds nothing and its double-click inserts a corner (guard), and a dot drag now inserts a corner where it is
 // released; right-click, a long press or Shift+F10 on a corner opens the point menu, Delete point only, which Delete and
 // Backspace pressed in it run and which Undo or a tool letter closes (stream D); in Polygon, Esc
-// removes the last point, steps back to nothing, then returns to Select, Ctrl+Shift+Z restores a removed point, a click
-// on a placed corner adds none and Alt+click deletes it. Both
-// engines unless a test says otherwise; the long press is Chromium-only (CDP touch). DOM assertions only, no baselines.
+// removes the last point, steps back to nothing, then returns to Select, Ctrl+Shift+Z restores a removed point, and
+// Alt+click on a placed corner deletes it. Both engines unless a test says otherwise; the long press is Chromium-only (CDP touch). DOM assertions only, no baselines.
 //
 // Profile's Esc (A17) has no browser test here: the Web build has no Profile (Desktop only, input-probe.spec.ts), so the
 // jsdom suite (canvas-interaction-e2e.profile.test.ts) and the native live check carry it.
@@ -291,16 +290,15 @@ test('(canopi-f47t.54, Z) Esc removes the last polygon point, steps back to noth
   await expect(undo(page), 'stepping back edits nothing').toBeDisabled()
 })
 
-test('(prepush, Z) while a polygon is drawn, a click on a placed corner adds none and Alt+click on one deletes it (answers 2, 4)', async ({ page }) => {
+test('(prepush, Z) while a polygon is drawn, Alt+click on a placed corner deletes it and adds none (answer 2)', async ({ page }) => {
   await openBase(page)
   await drawPolygon(page, NEW_POLYGON)
-  const [, second, third] = NEW_POLYGON
-  await page.mouse.click(second!.x + 3, second!.y + 3)
+  const [, , third] = NEW_POLYGON
   // page.mouse.click takes no modifiers: Alt is held on the keyboard.
   await page.keyboard.down('Alt')
   await page.mouse.click(third!.x - 3, third!.y - 3)
   await page.keyboard.up('Alt')
-  expect(await finishAndCountCorners(page), 'four corners, none added, one deleted').toBe(3)
+  expect(await finishAndCountCorners(page), 'four corners, one deleted').toBe(3)
   await undo(page).click()
   await expect(undo(page)).toBeDisabled()
 })
@@ -401,4 +399,3 @@ test('(canopi-f47t.54, Z) Shift+F10 on a focused zone corner opens the point men
   await page.keyboard.press('Shift+F10')
   await expectDeletePointOnly(page, 'Shift+F10 on a focused corner')
 })
-
