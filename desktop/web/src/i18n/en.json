@@ -300,6 +300,7 @@
       "mapStopped": "The map stopped drawing. Your Design is safe.",
       "layerSkipped": "A map layer couldn’t be shown",
       "basemapFailed": "Basemap couldn’t load. Check your connection.",
+      "satelliteFailed": "Satellite imagery couldn’t load. Check your connection or your Google key in Settings.",
       "retryMap": "Retry",
       "satellite": "Satellite",
       "design": "Design",

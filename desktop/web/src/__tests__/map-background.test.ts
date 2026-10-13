@@ -287,9 +287,10 @@ describe('map background band', () => {
     await settle()
     expect(statuses).toEqual(['loading', 'failed'])
 
+    // Satellite's free imagery is ready at once: its status replaces the Basemap's failure.
     background.update(presentation({ satelliteVisible: true }))
     await settle()
-    expect(statuses).toEqual(['loading', 'failed', 'idle'])
+    expect(statuses).toEqual(['loading', 'failed', 'ok'])
     background.dispose()
   })
 
@@ -320,6 +321,86 @@ describe('map background band', () => {
     expect(loadStyle).toHaveBeenCalledTimes(2)
     expect(statuses).toEqual(['loading', 'failed', 'loading', 'failed'])
     background.dispose()
+  })
+
+  describe('Satellite with a Google key (canopi-k94s)', () => {
+    const VIEWPORT_ANSWER = { copyright: 'Imagery ©2026 Google', maxZoomRects: [{ maxZoom: 21, north: 90, south: -90, east: 180, west: -180 }] }
+
+    /** The band with a status log, Satellite on the device key, and a Google that answers with `respond`. */
+    function mountKeyed(respond: (url: string) => Response) {
+      satelliteSource.value = 'google_key'
+      googleMapsApiKey.value = 'SECRET-KEY'
+      const requests: string[] = []
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        requests.push(url)
+        return respond(url)
+      }))
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+      const statuses: string[] = []
+      const map = createMap()
+      const background = mountMapBackground({
+        map,
+        maplibre: { AttributionControl: FakeControl },
+        tileAuth: new BasemapTileAuth(),
+        readSatelliteConfig,
+        lifetime: { on: () => {}, off: () => {} },
+        loadStyle: async () => STYLE,
+        onBasemapStatus: (status) => statuses.push(status),
+      })
+      return { map, background, statuses, requests }
+    }
+    const rejected = () => new Response('{}', { status: 403 })
+    const sessions = (url: string) => url.includes('createSession')
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } })
+    const google = (url: string) => sessions(url)
+      ? json({ session: 'S', expiry: '9999999999', tileWidth: 256 })
+      : json(VIEWPORT_ANSWER)
+
+    afterEach(() => { vi.restoreAllMocks() })
+
+    it('reports a rejected key as a failed background, loading first, and never the hidden Basemap\'s idle', async () => {
+      const { background, statuses } = mountKeyed(rejected)
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('failed'))
+      expect(statuses).toEqual(['loading', 'failed'])
+      background.dispose()
+    })
+
+    it('keeps the failure through an opacity change, which downloads nothing', async () => {
+      const { background, statuses, requests } = mountKeyed(rejected)
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('failed'))
+      const asked = requests.length
+      background.update({ ...presentation({ satelliteVisible: true }), satellite: { visible: true, opacity: 0.4 } })
+      await settle()
+      expect(statuses).toEqual(['loading', 'failed'])
+      expect(requests).toHaveLength(asked)
+      background.dispose()
+    })
+
+    it('Retry opens a new Google session and the imagery comes back', async () => {
+      let answer = rejected as (url: string) => Response
+      const { map, background, statuses, requests } = mountKeyed((url) => answer(url))
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('failed'))
+      answer = google
+      background.retry(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('ok'))
+      expect(statuses).toEqual(['loading', 'failed', 'loading', 'ok'])
+      expect(requests.filter(sessions)).toHaveLength(2)
+      expect(map.sources.has(MAPLIBRE_SATELLITE_SOURCE_ID)).toBe(true)
+      background.dispose()
+    })
+
+    it('gives the Basemap\'s status back when Satellite is turned off', async () => {
+      const { background, statuses } = mountKeyed(rejected)
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('failed'))
+      background.update(presentation())
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('ok'))
+      expect(statuses).toEqual(['loading', 'failed', 'loading', 'ok'])
+      background.dispose()
+    })
   })
 
   it('adds no remote source when every background row is hidden', async () => {

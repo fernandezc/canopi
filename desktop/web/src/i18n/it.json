@@ -300,6 +300,7 @@
       "mapStopped": "La mappa non viene più disegnata. Il tuo progetto è al sicuro.",
       "layerSkipped": "Impossibile mostrare un livello della mappa",
       "basemapFailed": "Impossibile caricare la mappa base. Controlla la connessione.",
+      "satelliteFailed": "Impossibile caricare le immagini satellitari. Controlla la connessione o la tua chiave Google nelle Impostazioni.",
       "retryMap": "Riprova",
       "satellite": "Satellite",
       "design": "Progetto",

@@ -188,6 +188,11 @@ export interface SatelliteMountOptions {
     off(type: string, listener: () => void): void
   }
   readonly replaceSatelliteAttribution: (attribution: string) => void
+  /**
+   * Every state the provider publishes, from the one it holds at mount, at once and whether or not the style is ready:
+   * the background band derives the map notice's status from it.
+   */
+  readonly onState?: (state: SatelliteState) => void
 }
 
 export interface SatelliteMountHandle {
@@ -252,8 +257,12 @@ export function mountSatelliteLifecycle(options: SatelliteMountOptions): Satelli
   // Adopt whatever the provider already published, then start it from the
   // current configuration: no movement, settings or style-ready event is
   // required before the first provider generation.
+  options.onState?.(provider.snapshot())
   apply(provider.snapshot())
-  const unsubscribe = provider.subscribe(apply)
+  const unsubscribe = provider.subscribe((state) => {
+    options.onState?.(state)
+    apply(state)
+  })
   provider.update(options.readViewport())
   const disposeObserver = installSatelliteConfigObserver(provider, options.readViewport)
   const onMoveEnd = () => provider.updateViewport(options.readViewport())

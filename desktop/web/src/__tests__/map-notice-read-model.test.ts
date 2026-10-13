@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { getMapNoticeReadModel } from '../app/canvas-map-surface/map-notice'
+import { createDefaultMapLayers, mapLayers } from '../app/map-layers/state'
 import type { MapLibreCanvasSurfaceState } from '../maplibre/canvas-surface-state'
 
 const READY_MAP_STATE: MapLibreCanvasSurfaceState = {
@@ -16,11 +17,16 @@ function translate(key: string): string {
     'canvas.layers.basemapLoading': 'Loading',
     'canvas.layers.layerSkipped': 'A map layer couldn’t be shown',
     'canvas.layers.basemapFailed': 'Basemap couldn’t load. Check your connection.',
+    'canvas.layers.satelliteFailed': 'Satellite imagery couldn’t load. Check your connection or your Google key in Settings.',
     'canvas.layers.mapStopped': 'The map stopped drawing. Your Design is safe.',
   }[key] ?? key
 }
 
 describe('Map Notice read model', () => {
+  afterEach(() => {
+    mapLayers.value = createDefaultMapLayers()
+  })
+
   it('reports loading while the basemap is not ready', () => {
     expect(getMapNoticeReadModel({
       hasDesign: true,
@@ -86,6 +92,31 @@ describe('Map Notice read model', () => {
       mapSurface: { ...failed, status: 'error' },
       t: translate,
     })).toMatchObject({ statusText: 'Map unavailable', retry: false })
+  })
+
+  // canopi-k94s: one sentence for a rejected key and a lost connection, with the Basemap's Retry.
+  it('names Satellite in a background failure while Satellite is on', () => {
+    const base = createDefaultMapLayers()
+    mapLayers.value = { ...base, satellite: { ...base.satellite, visible: true } }
+    expect(getMapNoticeReadModel({
+      hasDesign: true,
+      mapVisible: true,
+      mapSurface: { ...READY_MAP_STATE, basemapStatus: 'failed' },
+      t: translate,
+    })).toEqual({
+      visible: true,
+      mapSurfaceVisible: true,
+      tone: 'error',
+      statusText: 'Satellite imagery couldn’t load. Check your connection or your Google key in Settings.',
+      retry: true,
+    })
+    // While its Google session opens, Satellite shows the same loading notice as the Street map.
+    expect(getMapNoticeReadModel({
+      hasDesign: true,
+      mapVisible: true,
+      mapSurface: { ...READY_MAP_STATE, basemapStatus: 'loading' },
+      t: translate,
+    })).toMatchObject({ statusText: 'Loading', tone: 'loading', retry: false })
   })
 
   it('reports a basemap download in progress as loading, without Retry', () => {

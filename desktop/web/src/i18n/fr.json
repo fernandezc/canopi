@@ -300,6 +300,7 @@
       "mapStopped": "La carte ne s’affiche plus. Votre Design n’est pas touché.",
       "layerSkipped": "Un calque de la carte n’a pas pu être affiché",
       "basemapFailed": "Le fond de carte n’a pas pu être chargé. Vérifiez votre connexion.",
+      "satelliteFailed": "Les images satellite n’ont pas pu être chargées. Vérifiez votre connexion ou votre clé Google dans les Réglages.",
       "retryMap": "Réessayer",
       "satellite": "Satellite",
       "design": "Design",

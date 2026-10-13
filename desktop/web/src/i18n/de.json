@@ -300,6 +300,7 @@
       "mapStopped": "Die Karte wird nicht mehr gezeichnet. Ihr Design ist sicher.",
       "layerSkipped": "Eine Kartenebene konnte nicht angezeigt werden",
       "basemapFailed": "Die Basiskarte konnte nicht geladen werden. Prüfen Sie Ihre Verbindung.",
+      "satelliteFailed": "Die Satellitenbilder konnten nicht geladen werden. Prüfen Sie Ihre Verbindung oder Ihren Google-Schlüssel in den Einstellungen.",
       "retryMap": "Erneut versuchen",
       "satellite": "Satellit",
       "design": "Design",

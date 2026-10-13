@@ -300,6 +300,7 @@
       "mapStopped": "O mapa parou de ser desenhado. Seu design está seguro.",
       "layerSkipped": "Não foi possível mostrar uma camada do mapa",
       "basemapFailed": "Não foi possível carregar o mapa base. Verifique a conexão.",
+      "satelliteFailed": "Não foi possível carregar as imagens de satélite. Verifique a conexão ou sua chave do Google em Configurações.",
       "retryMap": "Tentar novamente",
       "satellite": "Satélite",
       "design": "Design",
