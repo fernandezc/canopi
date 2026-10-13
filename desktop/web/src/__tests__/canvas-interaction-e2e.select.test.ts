@@ -1475,9 +1475,9 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  it('offers Cut, Copy and Delete on the unlocked part of a mixed selection, and disables them for a structurally blocked one', () => {
+  it('offers Cut, Copy, Delete, Duplicate, stacking and Lock on the unlocked part of a mixed selection, not Group or Rotate, and disables them for a structurally blocked one', () => {
     let selectionModel: CanvasDesignObjectSelectionModel = {
-      editableTargets: [{ kind: 'plant' as const, id: 'editable-plant' }],
+      editableTargets: [{ kind: 'plant' as const, id: 'editable-plant' }, { kind: 'plant' as const, id: 'other-plant' }],
       lockedTargets: [{ kind: 'plant' as const, id: 'locked-plant' }],
       blockedTargets: [{
         target: { kind: 'plant' as const, id: 'locked-plant' },
@@ -1500,6 +1500,11 @@ describe('SceneInteractionSession', () => {
       contextMenuCommand(id).run()
     }
     openContextMenuFromKeyboard()
+    for (const id of ['duplicate', 'bring-to-front', 'send-to-back', 'lock'] as const) {
+      expect(contextMenuCommand(id).disabled, id).toBe(false)
+    }
+    // Group and Rotate… stay strict: two editable plants would group and turn, but not with a locked one selected.
+    for (const id of ['group', 'rotate'] as const) expect(contextMenuCommand(id).disabled, id).toBe(true)
     expect(contextMenuCommand('paste').disabled).toBe(false)
     expect(contextMenuCommand('unlock').disabled).toBe(false)
     expect(commands.copy).toHaveBeenCalledTimes(2)
