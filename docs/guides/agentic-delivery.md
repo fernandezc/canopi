@@ -58,11 +58,11 @@ A stored-format version (the LiDAR catalogue, the user DB, `.canopi`) bumps once
 
 ## Tracker
 
-Beads ([commands](../workflow.md)); read with `bd dep tree <id>` and `bd list --parent <id>` too. The main agent alone writes (`bd update <id> --claim --acceptance "…"`, `bd note`, `bd create … --deps discovered-from:<id>`, `bd close`), then `bd export -o .beads/issues.jsonl` in the integration worktree and commits it.
+Beads ([commands](../workflow.md)); read with `bd dep tree <id>` and `bd list --parent <id>` too. The main agent alone writes (`bd update <id> --claim --acceptance "…"`, `bd note`, `bd create … --deps discovered-from:<id>`, `bd close`), then `bd export -o .beads/issues.jsonl` in the integration worktree and commits it. A bug found after its step was pushed gets the label `escaped` (`bd create … -l escaped`); each retrospective counts them against the step that pushed it (`.rq-scratch/tools/retro-tokens.py steps`).
 
 ## Models
 
-Opus at high effort for design checks, complex code, bug reviews, verification and fixes; at medium effort for mechanical work and plan-conformance checks; Sonnet only for trivial checks; no other model. Weekly usage limits are not a reason to slow work; keep the efficiency habits.
+Opus at medium effort for every stage (2026-10-13); Sonnet only for trivial checks; no other model. Auto-compaction at 300K tokens. Weekly usage limits are not a reason to slow work; keep the efficiency habits.
 
 ## Tools
 
