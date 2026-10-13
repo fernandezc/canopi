@@ -142,7 +142,7 @@ function createController(file = makeFile()) {
     },
   })
 
-  return { controller, sceneStore, state }
+  return { controller, sceneStore, sceneEdits, state }
 }
 
 describe('scene runtime mutation controller', () => {
@@ -179,6 +179,28 @@ describe('scene runtime mutation controller', () => {
     const after = sceneStore.persisted
     expect(after.plants.find((entry) => entry.id === pastedPlants[1]!.id)!.position).toEqual(pastedPlants[1]!.position)
     expect(after.zones.find((entry) => entry.id === pastedZones[1]!.id)!.points).toEqual(pastedZones[1]!.points)
+  })
+
+  it('Cut (copy then delete, as the Edit command runs it) does nothing while an edit owns the Scene, and once settled copies before it deletes', () => {
+    const { controller, sceneStore, sceneEdits } = createController()
+    sceneStore.setSelection([{ kind: 'plant', id: 'plant-1' }])
+    const pending = sceneEdits.begin('move-selection')
+
+    controller.copy()
+    controller.deleteSelected()
+
+    pending.abort()
+    expect(sceneStore.persisted.plants.map((plant) => plant.id)).toEqual(['plant-1', 'plant-2'])
+    expect(controller.canPaste()).toBe(false)
+
+    controller.copy()
+    controller.deleteSelected()
+
+    expect(sceneStore.persisted.plants.map((plant) => plant.id)).toEqual(['plant-2'])
+    expect(sceneStore.session.selectedTargets).toEqual([])
+    controller.paste()
+    const pasted = sceneStore.persisted.plants.filter((plant) => plant.id !== 'plant-2')
+    expect(pasted.map((plant) => plant.canonicalName)).toEqual(['Malus domestica'])
   })
 
   it('locks only the typed selected Design Object when raw ids collide', () => {
