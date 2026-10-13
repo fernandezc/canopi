@@ -1,8 +1,7 @@
 use common_types::design::{
     CURRENT_CANOPI_FILE_VERSION, CanopiDesignIngestionErrorKind, CanopiFile,
     DEFAULT_BUDGET_CURRENCY, DesignLoadFailure, DesignLoadFailureKind, Layer,
-    MISSING_CANOPI_FILE_VERSION, admit_design_identities_and_ranges,
-    validate_design_geometry,
+    MISSING_CANOPI_FILE_VERSION, admit_design_identities_and_ranges, validate_design_geometry,
 };
 use common_types::views::{validate_map_view, validate_views_and_stories};
 use std::fmt;

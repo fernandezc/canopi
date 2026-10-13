@@ -1189,7 +1189,10 @@ mod tests {
             "$.plants[0].id: expected a non-empty id"
         );
         assert_eq!(
-            admitted(design_with(json!({ "measurement_guides": [guide(Some(""))] }))).unwrap_err(),
+            admitted(design_with(
+                json!({ "measurement_guides": [guide(Some(""))] })
+            ))
+            .unwrap_err(),
             "$.measurement_guides[0].id: expected a non-empty id"
         );
         assert_eq!(
