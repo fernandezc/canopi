@@ -105,7 +105,7 @@ Tool names are the `canvas.tools.*` keys and panel names the `panelRail.*` keys 
 
 ## Map navigation terms
 
-These arrive with Canvas v2 phases 1 and 2 ([ADR 0015](../adr/0015-rotating-map-and-canvas-controls.md)); they are proposals until those strings land, and each phase confirms them by hand. Turning the view always names the view or the map, so it never reads as the object command Rotate. Map orientation is a PDF setting and never shares a word with the paper Orientation.
+These came with Canvas v2 ([ADR 0015](../adr/0015-rotating-map-and-canvas-controls.md)); each row is the shipped string, and a locale change updates its row. Turning the view always names the view or the map, so it never reads as the object command Rotate. Map orientation is a PDF setting and never shares a word with the paper Orientation.
 
 | English | fr | es | pt | it | de |
 | --- | --- | --- | --- | --- | --- |
@@ -125,4 +125,4 @@ These arrive with Canvas v2 phases 1 and 2 ([ADR 0015](../adr/0015-rotating-map-
 | Map orientation | Kaartoriëntatie | Ориентация карты | 地图方向 | 地図の向き | 지도 방향 |
 | North up | Noorden boven | Север вверху | 北向上 | 北を上 | 북쪽 위 |
 | As on screen | Zoals op het scherm | Как на экране | 与屏幕一致 | 画面どおり | 화면과 같이 |
-| Pointing device | Aanwijsapparaat | Указывающее устройство | 指点设备 | ポインティングデバイス | 포인팅 장치 |
+| Pointing device | Aanwijsapparaat | Указывающее устройство | 指针设备 | ポインティングデバイス | 포인팅 장치 |
