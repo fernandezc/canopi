@@ -22,7 +22,7 @@ Read the [design system](../system.md) first. Boards: DesignSystem, DesignSystem
 - Dialogs: Literata 20 title, body 14.5, footer actions right-aligned and wrapping, a leading ghost action aligned with the text. Modal, focus-trapped, Esc closes and returns focus; nothing under the scrim takes a press, focus or key.
 - Saved views: Save current view… has Name (selected, default "View n") and an optional Title. Manage views… lists each view with its thumbnail (64 × 40), Go to, Rename in place (Enter keeps, Esc cancels only the rename) and Delete.
 - Notices: info (surface-alt), warning (amber), error (red, alert). Toasts are dark, carry Undo when it applies, and wait while hovered or focused.
-- Notices never cover controls. An app-wide notice (catalog missing or damaged, Data library refused, earlier data set aside (dismissible), a Web shell notice) takes its own row under the title bar.
+- Notices never cover controls. An app-wide notice (catalog missing or damaged, Data library refused, earlier data not opened (dismissible), a Web shell notice) takes its own row under the title bar.
 - Empty states say what goes here and give the action to start. Loading keeps the frame: inline "Searching…", row skeletons, progress bars. Errors say what happened, what is safe and the next step.
 
 ## Settings
@@ -52,11 +52,11 @@ Pages move on the preview (drag, or arrows on the focused page). No map backgrou
 
 ## Web on phones
 
-- Phone sizes: narrower than 640 px, or wider than tall, shorter than 480 px and narrower than 960 px. Wider windows keep the rails and dock (narrow rules from 640 to 760 px). Safe-area insets apply; inputs are 16 px.
+- Phone sizes: narrower than 640 px, or landscape, shorter than 480 px and narrower than 960 px. Wider windows keep the rails and dock (narrow rules from 640 to 760 px). Safe-area insets apply; inputs are 16 px.
 - Top bar: 8 px from the edges, below the notch, 52 px with 44 px buttons: Menu, the Design name over its save status (action in File), Undo, Search a place (a card over the bar; Ctrl K).
-- Tool strip (left): Select, Pan, Place plants, Polygon zone (44 px), then More tools (soft accent while it holds the active tool). Redo is in Edit; Grid and Snap in View.
-- Zoom: a column on the right, midway down the visible map ([canvas navigation](canvas-navigation.md#phones)), the inspection button first; the only floating chrome, hidden without room.
-- Sheet: across the bottom, at peek (bar, handle, tabs), half or full. The 44 px handle steps them (also arrows, PageUp/Down, Home, End). Tabs Layers, Plants, Catalog, More; the open tab's press rests it at peek. A draft's start drops it to peek.
+- Tool strip (left): Select, Pan, Place plants, Polygon zone (44 px), then More tools (soft accent when holding the active tool); a rail: the map frame starts right of it. Redo is in Edit; Grid and Snap in View.
+- Zoom: a column on the right, midway down the frame ([canvas navigation](canvas-navigation.md#phones)); the only chrome in the frame, hidden without room.
+- Sheet: across the bottom, at peek (bar, handle, tabs), half or full. The 44 px handle steps them (also arrows, PageUp/Down, Home, End). Tabs Layers, Plants, Catalog, More; the open tab's press rests it at peek. A new draft drops it to peek.
 - Context bar: the sheet's first row; one 44 px row, never scrolling (the map notice adds a row on top). One context: the overview notice, the armed tool (not Select or Pan), the selection, the highlight chip, the labels chip, else nothing.
 - Tool row: name, status, the row's check button, Options: the card's content in place of the open panel at half, closed by a tab, peek or disarming. Place plants with no species opens it.
 - Landscape: the sheet rests in the bottom right corner and opens along the right edge (half 360 px, full up to 560 px); the bar is its header.
