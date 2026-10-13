@@ -106,6 +106,8 @@
 /* A phone's context bar (PhoneContextBar): a status row on top of the panel sheet's first row, on the sheet's surface. */
 .basemapFeedback[data-layer="bar"] {
   position: static;
+  /* The bar's card gives way to it where the sheet is short; the notice keeps its lines. */
+  flex-shrink: 0;
   width: auto;
   max-width: none;
   padding: var(--space-2) 0;

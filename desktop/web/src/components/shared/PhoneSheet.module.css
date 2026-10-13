@@ -179,12 +179,15 @@
 
 /* The context bar: the sheet's first row (the header at full, the corner box's top at a landscape peek). It takes no
    room while empty; its content keeps its own height (a tool card at most 40 % of the screen's) and gives way only where
-   the sheet is too short for it and the handle and tabs, its card's text then scrolling above the card's foot. */
+   the sheet is too short for it and the handle and tabs: its card's text then scrolls above the card's foot, and below
+   the card's least height the bar itself scrolls. */
 .bar {
   display: flex;
   flex: 0 1 auto;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .bar:empty {

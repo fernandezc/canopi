@@ -1,9 +1,12 @@
-// The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18 and 22-26). The context bar
-// is the panel sheet's first row: it moves with peek, half, full and a finger drag, the sheet's registration covers it,
-// and it holds Plant a row's card or the selection, whose controls take the tap. When a drawing tool starts a draft the
-// panel sheet drops to its peek. After a tap, a mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3).
-// Both engines, touch, offline (so the map notice shows) unless the basemap is hidden. DOM assertions only, no
-// baselines.
+// The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18 and 22-26). The guard: at
+// 390x844, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
+// in the context bar takes the tap at its centre, idle, with the labels chip, with a row held at peek, half and full,
+// and with the planted row selected. The context bar is the panel sheet's first row: it moves with peek, half, full and
+// a finger drag, the sheet's registration covers it, and it holds the map notice on top of one context (Plant a row's
+// card, the selection, the labels chip). The inspection launcher is a button of the zoom column, which hides where the
+// visible map has no room for it. When a drawing tool starts a draft the panel sheet drops to its peek. After a tap, a
+// mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3). Both engines, touch, offline (so the map
+// notice shows) unless the basemap is hidden. DOM assertions only, no baselines.
 //
 // The base fixture at 390x844 with the basemap hidden: its opening camera puts the Apple inside the rectangle zone at
 // (114, 349) (touch.spec.ts).
@@ -566,5 +569,92 @@ for (const phone of PHONES) {
         expect(cardBox.y, `${where}: the card stands below the notice`).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height - 0.5)
       }
     })
+  })
+}
+
+/**
+ * Every shown element that floats over the visible map (absolutely or fixed placed, inside the map area, meeting the
+ * frame the visible-map-area seam leaves): the zoom column, the map itself (its canvas, handles and credits) and the map
+ * area's own full-bleed layers are not chrome floating over it.
+ */
+async function floatingOverMap(page: Page): Promise<string[]> {
+  return await page.evaluate(() => {
+    const area = document.querySelector<HTMLElement>('[style*="--map-inset-bottom"]')
+    if (!area) throw new Error('no map area publishes its insets')
+    const box = area.getBoundingClientRect()
+    const inset = (edge: string) => parseFloat(area.style.getPropertyValue(`--map-inset-${edge}`))
+    const frame = { top: box.top + inset('top'), right: box.right - inset('right'), bottom: box.bottom - inset('bottom'), left: box.left + inset('left') }
+    const found: string[] = []
+    for (const element of area.querySelectorAll<HTMLElement>('*')) {
+      if (element.closest('[data-zoom-group], [role="application"], [data-canvas-handle]')) continue
+      const style = getComputedStyle(element)
+      if (style.position !== 'absolute' && style.position !== 'fixed') continue
+      if (style.visibility === 'hidden' || style.display === 'none' || element.closest('[hidden]')) continue
+      const rect = element.getBoundingClientRect()
+      if (rect.width < 2 || rect.height < 2) continue
+      // The map area's own layers span the whole frame.
+      if (rect.left <= frame.left && rect.right >= frame.right && rect.top <= frame.top && rect.bottom >= frame.bottom) continue
+      const meets = rect.left < frame.right - 1 && rect.right > frame.left + 1 && rect.top < frame.bottom - 1 && rect.bottom > frame.top + 1
+      if (!meets) continue
+      const marks = [...element.attributes].filter((attribute) => attribute.name.startsWith('data-') || attribute.name === 'aria-label' || attribute.name === 'class')
+        .map((attribute) => `${attribute.name}=${attribute.value}`).join(' ')
+      found.push(`<${element.tagName.toLowerCase()} ${marks}> at ${Math.round(rect.left)},${Math.round(rect.top)} ${Math.round(rect.width)}x${Math.round(rect.height)}`)
+    }
+    return found
+  })
+}
+
+/** The guard of answers 18 and 22-26: nothing but the zoom column floats over the map, and every control in the context
+ *  bar takes the tap at its centre (scrolled into view where the bar's card scrolls). */
+async function expectPhoneChrome(page: Page, where: string): Promise<void> {
+  await nextFrames(page)
+  expect(await floatingOverMap(page), `${where}: nothing but the zoom column floats over the map`).toEqual([])
+  const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
+  for (const control of await controls.all()) {
+    if (!await control.isVisible()) continue
+    await control.scrollIntoViewIfNeeded()
+    await expectHitAtCentre(control, `${where}: ${(await control.getAttribute('aria-label')) ?? (await control.textContent()) ?? 'a control'} in the bar`)
+  }
+}
+
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} phone chrome guard`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    for (const locale of ['en', 'de']) {
+      test(`(canopi-f47t.54, D) nothing but the zoom column floats over the map and every control in the bar takes the tap (${size} ${locale})`, async ({ page }) => {
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        const where = `${size} ${locale}`
+        await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
+        await expectPhoneChrome(page, `${where} idle`)
+
+        await mapHost(page).focus()
+        await page.keyboard.press('Shift+L')
+        await expect(page.locator('[data-plant-labels-chip]'), `${where}: the labels chip shows`).toBeVisible()
+        await expectPhoneChrome(page, `${where} the labels chip`)
+
+        await holdRowInBar(page)
+        for (const height of ['peek', 'half', 'full'] as const) {
+          if (height !== 'peek') {
+            await page.locator('[data-sheet-handle]').focus()
+            await page.keyboard.press('ArrowUp')
+          }
+          await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+          await expectPhoneChrome(page, `${where} a row held, sheet at ${height}`)
+        }
+
+        // The check button plants the row; its plants stay selected, shown under Select at the sheet's peek.
+        await card(page).locator('[data-plant-row-finish]').click()
+        await page.locator('[data-sheet-handle]').focus()
+        await page.keyboard.press('Home')
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'peek')
+        await mapHost(page).focus()
+        await page.keyboard.press('Escape')
+        await expect(page.locator('[data-selection-chip]'), `${where}: the planted plants are selected`).toBeVisible()
+        await expectPhoneChrome(page, `${where} the selection`)
+      })
+    }
   })
 }

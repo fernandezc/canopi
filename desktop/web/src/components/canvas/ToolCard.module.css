@@ -67,6 +67,12 @@
   backdrop-filter: none;
 }
 
+/* In a short sheet a row's card keeps a line of its fields above its foot (three touch targets' height); below that the
+   bar scrolls. */
+.card[data-placement='bar'][data-row] {
+  min-height: calc(var(--control-size-touch) * 3);
+}
+
 /* No card: the live region stays mounted but takes no room. */
 .idle {
   position: absolute;
