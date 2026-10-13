@@ -665,6 +665,16 @@ test.describe('390×844 tool options', () => {
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
     await expect(selected, 'in place of the open panel').toHaveCount(0)
     await expectOptionsControls(page, 'the species chooser')
+    // A filter's choices open in a menu of their own over the page, outside the options: 44 px targets as well.
+    await toolOptions(page).locator('[aria-haspopup="listbox"]').first().tap()
+    const choices = page.getByRole('listbox', { name: 'Stratum' }).getByRole('option')
+    await expect(choices.first(), 'the Stratum filter opens its choices').toBeVisible()
+    for (const choice of await choices.all()) {
+      const box = await boxOf(choice)
+      expect(box.height, `the Stratum choice ${await choice.textContent()} is a 44 px target (${box.height})`).toBeGreaterThanOrEqual(44 - 0.5)
+    }
+    await choices.first().tap()
+    await expect(choices, 'All strata closes the menu').toHaveCount(0)
 
     // Rested at its peek, the sheet opens the chooser again at a tap on the map with no species chosen.
     await page.locator('[data-sheet-handle]').focus()
