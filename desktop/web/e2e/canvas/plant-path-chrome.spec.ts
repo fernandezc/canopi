@@ -91,8 +91,6 @@ async function openBase(page: Page, layout: Layout, locale: string): Promise<voi
   await openFixture(page, FIXTURE, {
     locale,
     settings: { snap_to_grid: false, tool_names_visible: layout.namedRail === true },
-    // The start screen's library covers its open button in the landscape phone layouts.
-    openWith: 'shortcut',
   })
   if (!layout.lensOpen) return
   const launcher = page.locator('[data-inspection-launcher]')

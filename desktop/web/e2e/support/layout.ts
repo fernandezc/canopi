@@ -2,7 +2,6 @@
 // fixture in a fresh browser with Web Edition settings, read boxes, test overlap and what a click at a centre reaches,
 // and read the visible map frame the visible-map-area seam publishes for the chips. DOM assertions only, no baselines.
 import type { Locator, Page } from '@playwright/test'
-import { pressMod } from './canvas'
 import { expect } from './offline'
 
 /** The Web Edition's settings record (web/browser-app-data.ts); its settings are merged over the defaults. */
@@ -26,9 +25,6 @@ export interface OpenOptions {
    * that reopens the Design from its Draft).
    */
   readonly keepOnReload?: boolean
-  /** Opens through the start screen's button (default), or its Mod+O shortcut where the start screen's library covers
-   *  the button (740x360). */
-  readonly openWith?: 'button' | 'shortcut'
 }
 
 /**
@@ -36,7 +32,7 @@ export interface OpenOptions {
  * take `locale` and the other options.
  */
 export async function openFixture(page: Page, fixture: string, options: OpenOptions = {}): Promise<void> {
-  const { locale = 'en', basemapHidden = false, settings = {}, keepOnReload = false, openWith = 'button' } = options
+  const { locale = 'en', basemapHidden = false, settings = {}, keepOnReload = false } = options
   const stored = { key: SETTINGS_KEY, values: { ...settings, locale, ...(basemapHidden ? { basemap_visible: false } : {}) } }
   const write = (record: typeof stored) => {
     localStorage.clear()
@@ -50,10 +46,8 @@ export async function openFixture(page: Page, fixture: string, options: OpenOpti
     await page.addInitScript(write, stored)
     await page.goto('')
   }
-  const open = openWith === 'button'
-    ? () => page.locator('[data-start-screen] button').filter({ hasText: /\.canopi/ }).first().click()
-    : () => pressMod(page, 'o')
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), open()])
+  const open = page.locator('[data-start-screen] button').filter({ hasText: /\.canopi/ }).first()
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), open.click()])
   await chooser.setFiles(fixture)
   await expect(mapHost(page)).toBeVisible()
   await expect(mapHost(page), 'the canvas has drawn the opened Design').not.toHaveAttribute('aria-busy')
