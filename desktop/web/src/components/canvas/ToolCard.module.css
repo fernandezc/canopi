@@ -570,7 +570,9 @@
   overflow: visible;
 }
 
-.toolOptions .fieldInput,
-.toolOptions .mode {
+/* The options are a phone's, as the bar is: each control is a 44 px target (ADR 0010), whichever part holds it (the
+   spacing field, the mode switch, the chooser's search, filters, species and catalog link). */
+.toolOptions :is(button, select, input:not([type="checkbox"], [type="radio"]), [role="button"]) {
+  min-width: var(--control-size-touch);
   min-height: var(--control-size-touch);
 }
