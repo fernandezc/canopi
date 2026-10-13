@@ -233,7 +233,7 @@ describe('phone layout', () => {
     await act(async () => { render(<WithOptions />, container) })
     const sheet = container.querySelector<HTMLElement>('[data-phone-sheet]')!
     const optionsShown = () => container.querySelector('[data-sheet-panel="options"] [data-tool-options-content]') !== null
-    const panelShown = (panel: SidePanel) => container.querySelector(`[role="tabpanel"] [data-panel-content="${panel}"]`) !== null
+    const panelShown = (panel: SidePanel) => container.querySelector(`[role="tabpanel"]:not([hidden]) [data-panel-content="${panel}"]`) !== null
     const more = async (label: string) => {
       await act(async () => { container.querySelector<HTMLButtonElement>('[data-sheet-more]')!.click() })
       const item = Array.from(document.querySelectorAll<HTMLElement>('[role^="menuitem"]')).find((node) => node.textContent === label)!
@@ -252,6 +252,7 @@ describe('phone layout', () => {
     // The same request with the catalog already open under the options, as when Place plants is armed from the catalog.
     await act(async () => { phoneToolOptions.value = 'half' })
     expect(optionsShown()).toBe(true)
+    expect(panelShown('plant-db'), 'the catalog waits hidden under them').toBe(false)
     await act(async () => { selectPanel('plant-db') })
     expect(optionsShown(), 'the catalog link closes the options over the open catalog').toBe(false)
     expect(panelShown('plant-db'), 'and shows it').toBe(true)
