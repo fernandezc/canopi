@@ -216,7 +216,7 @@ describe('Google official provider drives the live map', () => {
     mount.dispose()
   })
 
-  it('reports viewport metadata failure as an actionable unavailable state', async () => {
+  it('reports viewport metadata failure as unavailable', async () => {
     const { http } = googleHttp({ viewportOk: false })
     const tileAuth = new BasemapTileAuth()
     const provider = officialProvider(http, tileAuth)
@@ -226,13 +226,11 @@ describe('Google official provider drives the live map', () => {
     await vi.waitFor(() => expect(provider.snapshot().state).toBe('unavailable'))
     // Imagery is not shown with attribution that cannot be established.
     expect(map.sources.has(MAPLIBRE_SATELLITE_SOURCE_ID)).toBe(false)
-    const snapshot = provider.snapshot()
-    if (snapshot.state !== 'unavailable') throw new Error('expected unavailable')
-    expect(snapshot.reason).not.toContain(API_KEY)
+    expect(provider.snapshot()).toEqual({ state: 'unavailable' })
     mount.dispose()
   })
 
-  it('withdraws the contribution and sanitizes the reason when the key is rejected', async () => {
+  it('withdraws the contribution when the key is rejected', async () => {
     const { http } = googleHttp({ sessionOk: false })
     const tileAuth = new BasemapTileAuth()
     const key: { value: string | null } = { value: null }
@@ -246,10 +244,8 @@ describe('Google official provider drives the live map', () => {
     provider.update(VIEWPORT)
     await vi.waitFor(() => expect(provider.snapshot().state).toBe('unavailable'))
 
-    const snapshot = provider.snapshot()
-    if (snapshot.state !== 'unavailable') throw new Error('expected unavailable')
     // A rejected key must not silently downgrade to keyless imagery.
-    expect(snapshot.reason).not.toContain(API_KEY)
+    expect(provider.snapshot()).toEqual({ state: 'unavailable' })
     expect(map.sources.has(MAPLIBRE_SATELLITE_SOURCE_ID)).toBe(false)
     mount.dispose()
   })
