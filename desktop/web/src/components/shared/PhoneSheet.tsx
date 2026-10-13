@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
+import { useEffect, useId, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
@@ -60,8 +60,9 @@ interface SheetDrag {
  * full and a finger drag with no position of its own, and the sheet's one
  * registration covers it. The bar sits outside the dock's key region, so a key
  * from a control in it is the map's as a tool card's is. In landscape the sheet
- * registers the right edge whenever the bar shows, since the corner box then
- * stands taller than a bottom band.
+ * always covers the right edge, its corner box at peek included: with the bar
+ * it stands taller than a bottom band, and the zoom column then keeps the
+ * window's height beside it.
  */
 export function PhoneSheet({ layout, tabs, bar, children }: {
   readonly layout: PhoneLayout
@@ -77,8 +78,6 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
 }) {
   const sheet = useRef<HTMLElement>(null)
   const dock = useRef<HTMLDivElement>(null)
-  const barRow = useRef<HTMLDivElement>(null)
-  const barShown = useShown(barRow)
   // Set by a drag, so the click that ends it is not taken for a press.
   const dragged = useRef(false)
   const panelId = useId()
@@ -89,7 +88,7 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
   const open = sidePanels.some((command) => command.active)
   const height: PhoneSheetHeight = open && children ? phoneSheetOpenHeight.value : 'peek'
   // On its side the sheet rests in the bottom right corner and opens along the right edge.
-  useMapOccluder(sheet, portrait || (height === 'peek' && !barShown) ? 'bottom' : 'right')
+  useMapOccluder(sheet, portrait ? 'bottom' : 'right')
   // The tool strip ends above the sheet rather than behind it.
   useUnderRail(sheet, 'tool', portrait)
   useFocusRegion(dock, 'dock')
@@ -175,7 +174,7 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
       data-phone-sheet={height}
       data-orientation={layout}
     >
-      <div ref={barRow} className={styles.bar} data-phone-context-bar>{bar}</div>
+      <div className={styles.bar} data-phone-context-bar>{bar}</div>
       <div ref={dock} className={styles.dock} data-key-region={DOCK_KEY_REGION}>
         <button
           type="button"
@@ -257,36 +256,6 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
       </div>
     </section>
   )
-}
-
-/**
- * Whether the element takes any height, followed as its content changes. A change is taken on the next frame, never
- * inside the observer's delivery: the registration it changes moves chrome other observers watch, which WebKit reports
- * as a ResizeObserver loop (as `visible-map-area.ts` measures).
- */
-function useShown(ref: { readonly current: HTMLElement | null }): boolean {
-  const [shown, setShown] = useState(false)
-  useLayoutEffect(() => {
-    const element = ref.current
-    if (!element) return
-    const measure = () => setShown(element.offsetHeight > 0)
-    measure()
-    if (typeof ResizeObserver === 'undefined') return
-    let frame: number | null = null
-    const observer = new ResizeObserver(() => {
-      if (frame !== null) return
-      frame = requestAnimationFrame(() => {
-        frame = null
-        measure()
-      })
-    })
-    observer.observe(element)
-    return () => {
-      observer.disconnect()
-      if (frame !== null) cancelAnimationFrame(frame)
-    }
-  }, [ref])
-  return shown
 }
 
 function release(sheet: HTMLElement): void {

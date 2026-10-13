@@ -274,7 +274,7 @@ describe('phone layout', () => {
     render(null, host)
   })
 
-  it('covers the bottom edge of the visible map in portrait and at peek, the right edge when open on its side, and ends the tool strip above it', async () => {
+  it('covers the bottom edge of the visible map in portrait, the right edge on its side (its corner at peek too), and ends the tool strip above it', async () => {
     const boxes = new Map<Element, Box>()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const box = boxes.get(this)
@@ -311,9 +311,10 @@ describe('phone layout', () => {
     expect(visibleMapFrame.value).toMatchObject({ bottom: 0, right: 844 - 476 })
     expect(toolRailRoom.value).toBeNull()
 
-    // At peek it rests in the bottom right corner, over the bottom edge.
+    // At peek it rests in the bottom right corner, still over the right edge: its context bar can stand taller than a
+    // bottom band, and the zoom column keeps the window's height beside it.
     await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')!.click() })
-    expect(visibleMapFrame.value).toMatchObject({ bottom: 390 - 278, right: 0 })
+    expect(visibleMapFrame.value).toMatchObject({ bottom: 0, right: 844 - 476 })
 
     releaseStrip()
     releaseArea()
