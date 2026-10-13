@@ -5,6 +5,7 @@ import { createDefaultScenePersistedState, type ScenePlantEntity } from '../canv
 import { readFileSync } from 'node:fs'
 import { setCurrentCanvasSession } from '../canvas/session'
 import { DisplayLegend } from '../components/canvas/DisplayLegend'
+import { phoneLayout } from '../app/shell/phone-layout'
 import { createTestCanvasQuerySurface } from './support/canvas-query-surface'
 import { createTestCanvasRuntimeSurfaces } from './support/canvas-runtime-surfaces'
 
@@ -46,6 +47,21 @@ describe('DisplayLegend', () => {
     expect(container.querySelectorAll('[data-pinned-plant-name-entry]')).toHaveLength(1)
     expect(container.textContent).toContain('Pommier')
     expect(container.querySelector('[data-pinned-plant-name-count]')?.textContent).toBe('2')
+  })
+
+  it('is not shown on a phone, where the pinned names show on the map alone', async () => {
+    const scene = createDefaultScenePersistedState()
+    scene.plants = [plant({ id: 'plant-1', pinnedName: true, color: '#112233', symbol: 'tree' })]
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: createTestCanvasQuerySurface({ scene }) }))
+    try {
+      phoneLayout.value = 'landscape'
+      await act(async () => { render(<DisplayLegend />, container) })
+      expect(container.querySelector('[data-pinned-plant-name-legend]')).toBeNull()
+      await act(async () => { phoneLayout.value = null })
+      expect(container.querySelector('[data-pinned-plant-name-legend]')).not.toBeNull()
+    } finally {
+      phoneLayout.value = null
+    }
   })
 
   it('groups pinned names by localized name, effective symbol, and color', async () => {
