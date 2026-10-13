@@ -1,3 +1,5 @@
+import { useEffect } from 'preact/hooks'
+import { phoneToolOptions } from '../../app/shell/phone-layout'
 import { useMapSelectionSummary } from '../../app/map-selection/summary'
 import { currentCanvasQuerySurface, currentCanvasTool } from '../../canvas/session'
 import { OverviewNotice } from './CanvasOverview'
@@ -27,6 +29,10 @@ export function PhoneContextBar() {
   const card = !overview && tool !== 'select' && tool !== 'hand'
   const selection = !overview && !card && summary !== null
   const highlight = !overview && !card && !selection && plantsHighlighted()
+  // The tool's options close with the tool, and the sheet goes back to its panel as it was.
+  useEffect(() => {
+    phoneToolOptions.value = null
+  }, [tool])
   return (
     <>
       <BarMapNotice />

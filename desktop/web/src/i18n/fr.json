@@ -808,7 +808,8 @@
       "pathTouchInstruction": "touchez pour ajouter des points, un double toucher plante",
       "pathKeys": "Alt place un point anguleux · Maj garde des angles de 45° · {{mod}} désactive le magnétisme",
       "pathTouchHint": "Faites glisser un point pour le déplacer · faites glisser une pastille pour en ajouter un · appui long sur un point pour plus",
-      "pathFinish": "Planter la rangée"
+      "pathFinish": "Planter la rangée",
+      "options": "Options"
     },
     "placePreview": {
       "nearest": "{{distance}} de {{name}}",

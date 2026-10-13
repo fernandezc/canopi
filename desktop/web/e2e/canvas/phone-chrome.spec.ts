@@ -414,6 +414,69 @@ async function holdRowInBar(page: Page): Promise<void> {
   await expect(card(page).locator('[data-plant-row-finish]'), 'the row holds three points').toBeVisible()
 }
 
+// The tool's options (answer 30): on a phone a row's spacing field is the panel sheet's, in its dock key region, not a
+// card over the map. Its keys reach the row as the card's field did on the desktop (Enter keeps a valid spacing and
+// gives the map its focus, or keeps the field on an invalid one; Esc removes the last point and gives the map its
+// focus, the tool kept; Backspace edits the text), and the draft outlives the sheet resting at its peek and raised
+// again.
+test.describe('390×844 row options in the sheet', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test('(canopi-f47t.54, D4 probe) the spacing field in the sheet takes Enter, Esc and Backspace as on the desktop, and the draft outlives peek and half', async ({ page }) => {
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
+    await holdRowInBar(page)
+    const options = page.locator('[data-sheet-panel="options"]')
+    const field = options.locator('[data-plant-spacing-interval-input]')
+    const lastPoint = page.locator('[data-canvas-handle="point:draft:2"]')
+    const openOptions = async () => {
+      await page.locator('[data-tool-options-button]').tap()
+      await expect(sheet(page), 'Options raises the sheet to half').toHaveAttribute('data-phone-sheet', 'half')
+      await expect(field, 'the spacing field is the options\'').toBeVisible()
+    }
+    await openOptions()
+    expect(await field.evaluate((element) => element.closest('[data-key-region="dock"]') !== null
+      && element.closest('[data-phone-context-bar]') === null), 'the field is in the dock key region, not the bar').toBe(true)
+    await expect(page.locator('[data-plant-spacing-interval-input]'), 'one spacing field').toHaveCount(1)
+    await expect(lastPoint, 'the row holds three points').toHaveCount(1)
+
+    // Backspace edits the text and leaves the points.
+    await field.focus()
+    const typed = await field.inputValue()
+    await page.keyboard.press('End')
+    await page.keyboard.press('Backspace')
+    await expect(field, 'Backspace removes the last character').toHaveValue(typed.slice(0, -1))
+    await expect(lastPoint, 'Backspace in the field keeps the points').toHaveCount(1)
+
+    // Enter on an invalid spacing keeps the field; on a valid one the map takes the focus, the row still held.
+    await field.fill('0')
+    await page.keyboard.press('Enter')
+    await expect(field, 'Enter on an invalid spacing keeps the field focused').toBeFocused()
+    await expect(card(page).locator('[data-plant-row-finish]'), 'nothing is planted').toBeVisible()
+    await field.fill('2')
+    await page.keyboard.press('Enter')
+    await expect(mapHost(page), 'Enter on a valid spacing gives the map its focus').toBeFocused()
+    await expect(lastPoint, 'Enter in the field plants nothing').toHaveCount(1)
+
+    // Esc removes the last point and gives the map its focus; the tool stays.
+    await field.focus()
+    await page.keyboard.press('Escape')
+    await expect(lastPoint, 'Esc in the field removes the last point').toHaveCount(0)
+    await expect(mapHost(page), 'Esc in the field gives the map its focus').toBeFocused()
+    await expect(card(page), 'Esc in the field keeps the tool').toHaveAttribute('data-tool-card', 'plant-spacing')
+
+    // The sheet rests at its peek, then the options raise it again: the draft and its spacing are kept.
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('Home')
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'peek')
+    await expect(options, 'at the peek the options close').toHaveCount(0)
+    await expect(card(page).locator('[data-plant-row-finish]'), 'at the peek the row is still held').toBeVisible()
+    await openOptions()
+    await expect(field, 'the spacing is kept').toHaveValue('2 m')
+    await expect(page.locator('[data-canvas-handle="point:draft:1"]'), 'the row keeps its points').toHaveCount(1)
+    await expect(card(page).locator('[data-plant-row-finish]'), 'the row is still held').toBeVisible()
+  })
+})
+
 // On a phone Plant a row's card is the context bar (answers 18 and 22): the panel sheet's first row at peek, half and
 // full, held upright or on its side, its foot's strip spanning it with nothing running past it; its check button (a 44 px target), count and length, and once scrolled to its
 // spacing field and mode switch, take the tap at their centre (over an open panel on a phone on its side, the bar

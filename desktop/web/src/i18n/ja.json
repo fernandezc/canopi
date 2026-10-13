@@ -808,7 +808,8 @@
       "pathTouchInstruction": "タップで点を追加、ダブルタップで植える",
       "pathKeys": "Alt で鋭い点を置く · Shift で 45° に固定 · {{mod}} でスナップをオフ",
       "pathTouchHint": "点をドラッグして移動 · 印をドラッグして点を追加 · 点を長押しでその他",
-      "pathFinish": "列を植える"
+      "pathFinish": "列を植える",
+      "options": "オプション"
     },
     "placePreview": {
       "nearest": "{{name}} まで {{distance}}",

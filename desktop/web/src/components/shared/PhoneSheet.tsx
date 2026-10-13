@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
+  phoneToolOptions,
   snapPhoneSheet,
   stepPhoneSheet,
   type PhoneLayout,
@@ -71,7 +72,7 @@ interface SheetDrag {
  * it stands taller than a bottom band, and the zoom column then keeps the
  * window's height beside it.
  */
-export function PhoneSheet({ layout, tabs, bar, children }: {
+export function PhoneSheet({ layout, tabs, bar, options, children }: {
   readonly layout: PhoneLayout
   /**
    * The panel commands, in rail order; the first `PHONE_SHEET_TABS` show as
@@ -80,6 +81,8 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
   readonly tabs: readonly PanelRailCommand[]
   /** The context bar's content; the row takes no room while it renders nothing. */
   readonly bar?: ComponentChildren
+  /** The armed tool's options (ToolOptions), shown in place of the open panel while `phoneToolOptions` is set. */
+  readonly options?: ComponentChildren
   /** The open panel, when there is one. */
   readonly children?: ComponentChildren
 }) {
@@ -93,7 +96,9 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
   // Only side panels open the sheet; a primary view (Templates) just switches the map.
   const sidePanels = panels.filter((command) => isSidePanel(command.panel!))
   const open = sidePanels.some((command) => command.active)
-  const height: PhoneSheetHeight = open && children ? phoneSheetOpenHeight.value : 'peek'
+  // The tool's options stand in front of the open panel, which comes back as it was once they close.
+  const optionsHeight = options ? phoneToolOptions.value : null
+  const height: PhoneSheetHeight = optionsHeight ?? (open && children ? phoneSheetOpenHeight.value : 'peek')
   // On its side the sheet rests in the bottom right corner and opens along the right edge.
   useMapOccluder(sheet, portrait ? 'bottom' : 'right')
   // The tool strip ends above the sheet rather than behind it.
@@ -107,7 +112,12 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
 
   function moveTo(next: PhoneSheetHeight): void {
     if (next === 'peek') {
+      phoneToolOptions.value = null
       sidePanels.find((command) => command.active)?.action()
+      return
+    }
+    if (optionsHeight) {
+      phoneToolOptions.value = next
       return
     }
     phoneSheetOpenHeight.value = next
@@ -124,7 +134,7 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
       const box = element.getBoundingClientRect()
       const hostBox = host.getBoundingClientRect()
       // Peek is the sheet without its open panel: the bar, the handle, the tabs and the sheet's own edges.
-      const peek = box.height - (element.querySelector<HTMLElement>('[role="tabpanel"]')?.offsetHeight ?? 0)
+      const peek = box.height - (element.querySelector<HTMLElement>('[data-sheet-panel]')?.offsetHeight ?? 0)
       const full = box.bottom - hostBox.top - visibleMapFrame.peek().top - FULL_GAP_PX
       return {
         sheet: element,
@@ -194,7 +204,7 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
           className={styles.handle}
           aria-label={handleLabel}
           aria-expanded={height !== 'peek'}
-          aria-controls={open ? panelId : undefined}
+          aria-controls={optionsHeight || open ? panelId : undefined}
           aria-keyshortcuts="ArrowUp ArrowDown"
           data-owns-keys="arrows"
           data-sheet-handle
@@ -227,13 +237,18 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
                 data-sheet-tab
                 data-panel={command.panel}
                 data-command-id={command.id ?? command.commandId}
-                aria-selected={command.active ?? false}
-                aria-controls={command.active && open ? panelId : undefined}
+                aria-selected={!optionsHeight && (command.active ?? false)}
+                aria-controls={!optionsHeight && command.active && open ? panelId : undefined}
                 aria-disabled={command.disabled ? true : undefined}
                 tabIndex={index === focusIndex ? 0 : -1}
                 onClick={() => {
                   if (command.disabled) return
-                  // A second press on the open tab rests the sheet, as the rail closes the dock.
+                  // Over the tool's options a tab shows its panel; elsewhere a second press on the open tab rests the
+                  // sheet, as the rail closes the dock.
+                  if (optionsHeight) {
+                    phoneToolOptions.value = null
+                    if (command.active) return
+                  }
                   command.action()
                 }}
               >
@@ -262,9 +277,15 @@ export function PhoneSheet({ layout, tabs, bar, children }: {
           )}
         </div>
         {height !== 'peek' && (
-          <div id={panelId} className={styles.panel} role="tabpanel">
-            {children}
-          </div>
+          optionsHeight ? (
+            <div id={panelId} className={styles.panel} role="region" aria-label={t('canvas.toolCard.options')} data-sheet-panel="options">
+              {options}
+            </div>
+          ) : (
+            <div id={panelId} className={styles.panel} role="tabpanel" data-sheet-panel>
+              {children}
+            </div>
+          )
         )}
       </div>
     </section>

@@ -808,7 +808,8 @@
       "pathTouchInstruction": "轻点添加点，双击种植",
       "pathKeys": "Alt 放置尖角点 · Shift 保持 45° 角 · {{mod}} 关闭吸附",
       "pathTouchHint": "拖动点以移动 · 拖动标记以添加点 · 长按点查看更多",
-      "pathFinish": "种下这一行"
+      "pathFinish": "种下这一行",
+      "options": "选项"
     },
     "placePreview": {
       "nearest": "距 {{name}} {{distance}}",

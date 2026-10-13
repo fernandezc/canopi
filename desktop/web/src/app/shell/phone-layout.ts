@@ -26,6 +26,11 @@ const SHEET_HEIGHTS: readonly PhoneSheetHeight[] = ['peek', 'half', 'full']
 export const phoneLayout = signal<PhoneLayout | null>(null)
 /** The height the sheet opens to while a panel is open; with no panel it rests at peek. */
 export const phoneSheetOpenHeight = signal<Exclude<PhoneSheetHeight, 'peek'>>('half')
+/**
+ * The armed tool's options in the panel sheet (answer 30): the height they show at in place of the open panel, or null
+ * while they are closed. Closing them gives the sheet back to its panel and height as they were.
+ */
+export const phoneToolOptions = signal<Exclude<PhoneSheetHeight, 'peek'> | null>(null)
 
 /** Pure: the phone layout for a viewport of this size, or null for everything else. */
 export function classifyPhoneLayout(width: number, height: number): PhoneLayout | null {

@@ -475,3 +475,16 @@
   height: 24px;
   color: var(--color-text-secondary);
 }
+
+/* On a phone, the armed tool's options in the panel sheet (ToolOptions), scrolling inside the sheet's panel. */
+.toolOptions {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-1) var(--space-3) var(--space-3);
+  overflow-y: auto;
+}
+
+.toolOptions .fieldInput,
+.toolOptions .mode {
+  min-height: var(--control-size-touch);
+}

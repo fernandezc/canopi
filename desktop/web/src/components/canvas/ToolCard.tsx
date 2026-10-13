@@ -6,7 +6,7 @@ import { useEnglishFallbackNames } from '../../app/plant-finder/catalog-names'
 import { toolCardContent, type SavedStampSummary } from '../../app/tool-card/content'
 import { modKeyName } from '../../app/shell-commands/shortcut-text'
 import { siteLocateOpen } from '../../app/site-onboarding/state'
-import { phoneLayout } from '../../app/shell/phone-layout'
+import { phoneLayout, phoneToolOptions } from '../../app/shell/phone-layout'
 import { readPlantStampSource, type PlantStampSource } from '../../canvas/plant-stamp-source'
 import { speciesPlacementAppearance } from '../../canvas/runtime/species-key'
 import type { PlantSymbolId } from '../../canvas/runtime/scene'
@@ -101,7 +101,8 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
   const row = content?.tool === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
   // From its first point the row is a path the card can plant, switch and edit (U58).
   const rowPath = row && (row.points ?? 0) >= 2 ? row : null
-  const rowMode = row?.mode ?? 'interval'
+  // On a phone the row's fields are the sheet's tool options while those show (answer 30).
+  const optionsOpen = placement === 'bar' && phoneToolOptions.value !== null
   // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
   // covers the left edge. In the phone bar the sheet's registration covers it.
   useMapOccluder(section, 'left', row !== null && placement === 'map')
@@ -172,21 +173,7 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
             </>
           )}
         </div>
-        {row && (
-          // Plant a row's fields, outside the live region; one container from the pick on, so the field stays mounted
-          // (and focused) as points come and go.
-          <div className={styles.fieldRow}>
-            {(rowPath || rowMode === 'count') && <RowModeSwitch mode={rowMode} />}
-            {rowMode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
-            {rowMode === 'count' && <SpacingField row={row} kind="count" switched />}
-            {/* A loop's rounded gap beside the spacing it rounds; it moves with the points, so it is not announced. */}
-            {rowPath?.loopSpacing && (
-              <span className={styles.fact} aria-live="off">
-                {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
-              </span>
-            )}
-          </div>
-        )}
+        {row && !optionsOpen && <RowFields row={row} />}
       </div>
       {row && (content?.rowCount || rowPath) && (
         // The row's count and length, and the check button that plants that row: the card's foot, in view
@@ -207,6 +194,7 @@ export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
           {rowPath && <FinishButton />}
         </div>
       )}
+      {placement === 'bar' && row && <OptionsButton />}
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
@@ -270,6 +258,56 @@ function CardLead({ lead }: { readonly lead: Lead }) {
     <span className={styles.lead} aria-hidden="true" data-tool-card-lead="species" style={{ color: lead.color }}>
       <PlantSymbolGlyph symbol={lead.symbol} size={22} />
     </span>
+  )
+}
+
+/**
+ * On a phone, the armed tool's options in the panel sheet (answer 30), in place of the open panel: Plant a row's mode
+ * switch and spacing field. Keys in them reach the row as from the card's (Enter keeps the spacing, Esc steps the row
+ * back): the field handles its own.
+ */
+export function ToolOptions() {
+  const guidance = currentCanvasToolGuidance.value
+  const row = currentCanvasTool.value === 'plant-spacing' && guidance.plantRow?.phase === 'row' ? guidance.plantRow : null
+  return row ? <div className={styles.toolOptions} data-tool-options><RowFields row={row} /></div> : null
+}
+
+/** The bar's Options button: raises the sheet to half with the tool's options, or puts the sheet back. */
+function OptionsButton() {
+  const open = phoneToolOptions.value !== null
+  return (
+    <button
+      type="button"
+      className={styles.link}
+      aria-expanded={open}
+      data-tool-options-button
+      onClick={() => { phoneToolOptions.value = open ? null : 'half' }}
+    >
+      {t('canvas.toolCard.options')}
+    </button>
+  )
+}
+
+/**
+ * Plant a row's fields, outside the live region: from its first point a mode switch, then the spacing (or count) field
+ * and a loop's rounded gap. One container from the pick on, so the field stays mounted (and focused) as points come and
+ * go.
+ */
+function RowFields({ row }: { readonly row: CanvasPlantRowGuidance }) {
+  const rowPath = (row.points ?? 0) >= 2 ? row : null
+  const mode = row.mode ?? 'interval'
+  return (
+    <div className={styles.fieldRow}>
+      {(rowPath || mode === 'count') && <RowModeSwitch mode={mode} />}
+      {mode === 'interval' && <SpacingField row={row} kind="interval" switched={rowPath !== null} />}
+      {mode === 'count' && <SpacingField row={row} kind="count" switched />}
+      {/* A loop's rounded gap beside the spacing it rounds; it moves with the points, so it is not announced. */}
+      {rowPath?.loopSpacing && (
+        <span className={styles.fact} aria-live="off">
+          {t('canvas.plantSpacing.loopSpacing')} <b data-plant-row-loop-spacing>{rowPath.loopSpacing}</b>
+        </span>
+      )}
+    </div>
   )
 }
 

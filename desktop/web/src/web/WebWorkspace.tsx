@@ -15,6 +15,7 @@ import {
 import { lazy } from 'preact/compat'
 import type { PanelRailCommand } from '../components/shared/PanelRail'
 import { PhoneContextBar } from '../components/canvas/PhoneContextBar'
+import { ToolOptions } from '../components/canvas/ToolCard'
 import { designSessionStore } from '../app/document-session/store'
 
 const WorldMapPanel = lazy(async () => {
@@ -61,6 +62,7 @@ export function WebWorkspace({
       responsive
       phoneTabs={phoneTabs}
       phoneBar={<WebPhoneBar />}
+      phoneOptions={<ToolOptions />}
     />
   )
 }

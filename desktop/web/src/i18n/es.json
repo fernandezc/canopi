@@ -808,7 +808,8 @@
       "pathTouchInstruction": "toca para añadir puntos, un doble toque planta",
       "pathKeys": "Alt coloca un punto en esquina · Mayús mantiene ángulos de 45° · {{mod}} desactiva el ajuste",
       "pathTouchHint": "Arrastra un punto para moverlo · arrastra una marca para añadir uno · mantén pulsado un punto para más",
-      "pathFinish": "Plantar la fila"
+      "pathFinish": "Plantar la fila",
+      "options": "Opciones"
     },
     "placePreview": {
       "nearest": "{{distance}} hasta {{name}}",

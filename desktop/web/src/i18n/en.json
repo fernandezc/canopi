@@ -808,7 +808,8 @@
       "pathTouchInstruction": "tap to add points, double tap plants",
       "pathKeys": "Alt adds a sharp point · Shift keeps 45° angles · {{mod}} turns off snapping",
       "pathTouchHint": "Drag a point to move it · drag a dot to add one · long press a point for more",
-      "pathFinish": "Plant the row"
+      "pathFinish": "Plant the row",
+      "options": "Options"
     },
     "placePreview": {
       "nearest": "{{distance}} to {{name}}",

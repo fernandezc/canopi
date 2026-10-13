@@ -808,7 +808,8 @@
       "pathTouchInstruction": "tocca per aggiungere punti, un doppio tocco pianta",
       "pathKeys": "Alt mette un punto ad angolo vivo · Maiusc mantiene angoli di 45° · {{mod}} disattiva l’aggancio",
       "pathTouchHint": "Trascina un punto per spostarlo · trascina un indicatore per aggiungerne uno · tieni premuto un punto per altro",
-      "pathFinish": "Pianta il filare"
+      "pathFinish": "Pianta il filare",
+      "options": "Opzioni"
     },
     "placePreview": {
       "nearest": "{{distance}} da {{name}}",
