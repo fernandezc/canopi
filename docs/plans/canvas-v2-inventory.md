@@ -132,7 +132,7 @@ Phase 2 cleared the last row (INV-TEST-09); each later phase's plan section name
 
 ## 12. Open items for the plan
 
-1. **Tauri `dragDropEnabled`** stays at its default (`desktop/tauri.conf.json`), so native file-path drops keep working (R4). Whether Windows lets HTML5 panel drops reach the map is not checked by hand (U9, U20): canopi-f47t.6.2 stays open as a known unverified item; if a Windows user reports them blocked, a separate bead rebuilds panel drags on pointer events.
+1. **Tauri `dragDropEnabled`** is off (`desktop/tauri.conf.json`; user, 2026-10-13, canopi-f47t.6.2): on Windows native file drops block HTML5 drags inside the page, and nothing reads native drops. A future file-drop import reads dropped files through HTML5 or turns it back on with pointer-based panel drags.
 
 ## 13. Retired rows
 

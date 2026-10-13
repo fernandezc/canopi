@@ -14,3 +14,13 @@ describe('Tauri CSP', () => {
     expect(csp['child-src']).toContain('blob:')
   })
 })
+
+describe('Tauri window', () => {
+  // Windows' WebView2 drops HTML5 drags inside the page while native file drops are on, so dragging a plant from the
+  // catalog or Favorites onto the map would fail there (canopi-f47t.6.2; user, 2026-10-13). Nothing reads native drops.
+  it('turns native file drops off so HTML5 drags reach the map on Windows', () => {
+    const config = JSON.parse(tauriConfigText)
+
+    expect(config.app.windows.map((window: { dragDropEnabled?: boolean }) => window.dragDropEnabled)).toEqual([false])
+  })
+})
