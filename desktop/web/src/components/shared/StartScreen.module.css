@@ -347,9 +347,11 @@
   outline-offset: 2px;
 }
 
+/* One page that scrolls: each row is as tall as its content, so the library never lies over the intro. */
 @media (max-width: 760px) {
   .start {
     grid-template-columns: 1fr;
+    grid-auto-rows: max-content;
     overflow-y: auto;
   }
 
