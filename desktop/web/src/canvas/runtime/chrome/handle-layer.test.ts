@@ -3,6 +3,7 @@ import { createTestView, type TestView } from '../../../__tests__/support/test-v
 import type { ToolHandleId } from '../interaction-types'
 import type { ToolHandle } from '../tools/draft'
 import type { ScreenInsets, ViewFrameSource } from '../view/types'
+import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 import { createHandleLayer, type HandleLayer } from './handle-layer'
 import { expectScreenPx } from '../../../__tests__/support/camera-tolerance'
 
@@ -135,6 +136,9 @@ describe('the handle layer', () => {
     expect(rotate.style.cursor).toBe('grabbing')
     expect(readout.textContent).toBe('+15°')
     expect(readout.style.display).toBe('inline-flex')
+    // The readout is a canvas chip like the measure chips: Source Sans 3, whose digits are tabular (probe P-E1).
+    expect(readout.style.fontFamily.replace(/"/g, "'")).toBe(CANVAS_CHROME_FONT_FAMILY)
+    expect(readout.style.fontWeight).toBe('600')
     expect(handle('vertex:zone-1:2')!.dataset.canvasHandleActive).toBeUndefined()
 
     handles.setHandles([ROTATE, VERTEX], null)

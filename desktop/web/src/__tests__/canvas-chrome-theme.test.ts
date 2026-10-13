@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { CANVAS_CHROME_FONT_FAMILY, CANVAS_CHROME_MONO_FONT_FAMILY } from '../canvas/chrome-fonts'
+import { CANVAS_CHROME_FONT_FAMILY } from '../canvas/chrome-fonts'
 import { createTextEntryHost } from '../canvas/runtime/chrome/text-entry-host'
 import { createTestView } from './support/test-view'
 
@@ -59,11 +59,6 @@ describe('canvas chrome fonts', () => {
   it('mirrors the bundled --font-sans stack so Pixi and Canvas2D text match the DOM chrome', () => {
     expect(CANVAS_CHROME_FONT_FAMILY.startsWith("'Source Sans 3'")).toBe(true)
     expect(CANVAS_CHROME_FONT_FAMILY).toBe(LIGHT_TOKENS.get('--font-sans'))
-  })
-
-  it('mirrors the bundled --font-mono stack so Pixi measure chips match the DOM chips', () => {
-    expect(CANVAS_CHROME_MONO_FONT_FAMILY.startsWith("'IBM Plex Mono'")).toBe(true)
-    expect(CANVAS_CHROME_MONO_FONT_FAMILY).toBe(LIGHT_TOKENS.get('--font-mono'))
   })
 
   it('keeps the Inter font out of every canvas and map drawing module', () => {

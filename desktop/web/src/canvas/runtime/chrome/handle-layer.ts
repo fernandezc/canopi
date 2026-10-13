@@ -13,6 +13,7 @@
 // the DOM input source's, which reads data-canvas-handle (input/dom-input-source.ts); the layer listens only on
 // its own elements (P6).
 
+import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 import { runCanvasRuntimeCleanups } from '../cleanup'
 import type { ToolHandleId } from '../interaction-types'
 import type { ToolHandle } from '../tools/draft'
@@ -261,7 +262,7 @@ function createReadout(): HTMLElement {
     boxShadow: 'var(--shadow-sm)',
     boxSizing: 'border-box',
     color: 'var(--color-text)',
-    fontFamily: 'var(--font-mono)',
+    fontFamily: CANVAS_CHROME_FONT_FAMILY,
     fontSize: 'var(--text-xs)',
     fontWeight: '600',
     lineHeight: '1.2',

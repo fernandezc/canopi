@@ -1,4 +1,4 @@
-import { CANVAS_CHROME_FONT_FAMILY, CANVAS_CHROME_MONO_FONT_FAMILY } from '../chrome-fonts'
+import { CANVAS_CHROME_FONT_FAMILY } from '../chrome-fonts'
 import { getCanvasColor, isThemeManagedZoneFill, markCanvasPaintChanged } from '../theme-refresh'
 import { contrastRatio } from '../plant-colors'
 import { getCanvasPlantDisplay } from './plant-display'
@@ -150,8 +150,8 @@ function draftLabelFontSizePx(): number {
 
 /**
  * The chip each label tone names (canvas v2 spec §1.4, label tones), with
- * today's padding: measurements are centred mono chips on the muted surface
- * (today's (a4c86d39) zone-measurement-overlay.ts), hints bottom-centre sans chips on the surface
+ * today's padding, all in the chrome's Source Sans 3: measurements are centred chips on the muted surface
+ * (today's (a4c86d39) zone-measurement-overlay.ts), the area at 600 and edges and dimensions at 400, hints bottom-centre chips on the surface
  * (today's (a4c86d39) plant-placement-preview.ts), Plant a row's length in the
  * primary colour (today's (a4c86d39) plant-spacing-overlay.ts).
  */
@@ -169,7 +169,7 @@ export function getDraftLabelVisual(tone: DraftLabelTone): DraftLabelVisual {
     return {
       ...chip,
       placement: 'centre',
-      fontFamily: CANVAS_CHROME_MONO_FONT_FAMILY,
+      fontFamily: CANVAS_CHROME_FONT_FAMILY,
       fontWeight: tone === 'measure' ? '600' : '400',
       lineHeightPx: fontSizePx * 1.2,
       paddingPx: { x: 5, y: 2 },

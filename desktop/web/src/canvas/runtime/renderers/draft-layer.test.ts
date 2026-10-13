@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import '../../../__tests__/support/camera-tolerance'
 
 import { createTestRendererView, createTestSceneRendererSnapshot } from '../../../__tests__/support/scene-renderer-snapshot'
-import { CANVAS_CHROME_FONT_FAMILY, CANVAS_CHROME_MONO_FONT_FAMILY } from '../../chrome-fonts'
+import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 import { getCanvasColor } from '../../theme-refresh'
 import { getAnnotationPresentation } from '../annotation-layout'
 import { buildPlantPresentationEntries, resolvePlantDisplayColor } from '../plant-presentation'
@@ -476,8 +476,8 @@ describe('draft layer', () => {
 
       const size = getDraftLabelVisual('measure').fontSizePx
       expect(load.mock.calls).toEqual([
-        [`600 ${size}px ${CANVAS_CHROME_MONO_FONT_FAMILY}`],
-        [`400 ${size}px ${CANVAS_CHROME_MONO_FONT_FAMILY}`],
+        [`600 ${size}px ${CANVAS_CHROME_FONT_FAMILY}`],
+        [`400 ${size}px ${CANVAS_CHROME_FONT_FAMILY}`],
       ])
       const before = layer.billboardDraftRoot.children[0]
       finishLoad()
@@ -534,8 +534,8 @@ describe('draft layer', () => {
 
   it('each label tone draws its chip style', () => {
     const cases = [
-      { tone: 'measure', font: CANVAS_CHROME_MONO_FONT_FAMILY, weight: '600', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
-      { tone: 'measure-quiet', font: CANVAS_CHROME_MONO_FONT_FAMILY, weight: '400', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
+      { tone: 'measure', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
+      { tone: 'measure-quiet', font: CANVAS_CHROME_FONT_FAMILY, weight: '400', lineHeight: 15, text: 'chip-text', background: 'chip-surface-muted', placement: 'centre', padding: { x: 5, y: 2 } },
       { tone: 'hint', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 20, text: 'chip-text', background: 'chip-surface', placement: 'above', padding: { x: 6, y: 2 } },
       { tone: 'hint-primary', font: CANVAS_CHROME_FONT_FAMILY, weight: '600', lineHeight: 20, text: 'chip-primary', background: 'chip-surface', placement: 'above', padding: { x: 8, y: 4 } },
     ] as const
