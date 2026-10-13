@@ -808,7 +808,7 @@
       "pathInstruction": "clique para adicionar pontos, Enter planta",
       "pathTouchInstruction": "toque para adicionar pontos, um toque duplo planta",
       "pathKeys": "Alt coloca um ponto em canto vivo · Shift mantém ângulos de 45° · {{mod}} desativa o ajuste",
-      "pathTouchHint": "Arraste um ponto para movê-lo · arraste uma marca para adicionar um · mantenha um ponto pressionado para mais",
+      "pathTouchHint": "Arraste um ponto para movê-lo · arraste uma marca para adicionar um · mantenha um ponto pressionado para mais opções",
       "pathFinish": "Plantar a fileira",
       "options": "Opções"
     },

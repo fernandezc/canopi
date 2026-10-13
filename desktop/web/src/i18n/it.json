@@ -734,7 +734,7 @@
       "clear": "Annulla la selezione",
       "rename": "Rinomina…",
       "sameSpeciesShort": "Stessa specie",
-      "clearShort": "Annulla"
+      "clearShort": "Deseleziona"
     },
     "viewChip": "Vista",
     "map": {
@@ -808,7 +808,7 @@
       "pathInstruction": "fai clic per aggiungere punti, Invio pianta",
       "pathTouchInstruction": "tocca per aggiungere punti, un doppio tocco pianta",
       "pathKeys": "Alt mette un punto ad angolo vivo · Maiusc mantiene angoli di 45° · {{mod}} disattiva l’aggancio",
-      "pathTouchHint": "Trascina un punto per spostarlo · trascina un indicatore per aggiungerne uno · tieni premuto un punto per altro",
+      "pathTouchHint": "Trascina un punto per spostarlo · trascina un indicatore per aggiungerne uno · tieni premuto un punto per altre opzioni",
       "pathFinish": "Pianta il filare",
       "options": "Opzioni"
     },

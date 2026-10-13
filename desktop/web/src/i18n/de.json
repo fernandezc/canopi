@@ -807,7 +807,7 @@
       "escRemoveCorner": "Esc oder Rücktaste entfernt die letzte Ecke",
       "pathInstruction": "klicken Sie, um Punkte hinzuzufügen, Eingabe pflanzt",
       "pathTouchInstruction": "tippen Sie, um Punkte hinzuzufügen, Doppeltippen pflanzt",
-      "pathKeys": "Alt setzt einen spitzen Punkt · Umschalt hält 45°-Winkel · {{mod}} schaltet das Einrasten aus",
+      "pathKeys": "Alt setzt einen scharfen Eckpunkt · Umschalt hält 45°-Winkel · {{mod}} schaltet das Einrasten aus",
       "pathTouchHint": "Punkt ziehen verschiebt ihn · Markierung ziehen fügt einen hinzu · langes Drücken auf einen Punkt zeigt mehr",
       "pathFinish": "Reihe pflanzen",
       "options": "Optionen"
