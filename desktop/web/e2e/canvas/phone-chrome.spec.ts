@@ -415,7 +415,7 @@ async function holdRowInBar(page: Page): Promise<void> {
 }
 
 // On a phone Plant a row's card is the context bar (answers 18 and 22): the panel sheet's first row at peek, half and
-// full, held upright or on its side; its check button (a 44 px target), count and length, and once scrolled to its
+// full, held upright or on its side, its foot's strip spanning it with nothing running past it; its check button (a 44 px target), count and length, and once scrolled to its
 // spacing field and mode switch, take the tap at their centre (over an open panel on a phone on its side, the bar
 // scrolls to the check button too).
 for (const phone of PHONES) {
@@ -438,6 +438,12 @@ for (const phone of PHONES) {
         await nextFrames(page)
         expect(await card(page).evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the card is the bar's`).toBe(true)
         expectBarDocked(await sheetParts(page), where)
+        // The foot's strip reaches the card's edges and no further, so nothing in the card scrolls sideways or past it.
+        const spill = await card(page).evaluate((element) => ({ x: element.scrollWidth - element.clientWidth, y: element.scrollHeight - element.clientHeight }))
+        expect(spill, `${where}: nothing runs past the card's box`).toEqual({ x: 0, y: 0 })
+        const foot = await boxOf(card(page).locator('[data-plant-row-finish]').locator('xpath=..'))
+        const cardBox = await boxOf(card(page))
+        expect(Math.abs(foot.x - cardBox.x) + Math.abs(foot.x + foot.width - cardBox.x - cardBox.width), `${where}: the foot spans the card`).toBeLessThanOrEqual(1)
         const finish = card(page).locator('[data-plant-row-finish]')
         // Offline over an open panel on a phone on its side the notice above the row's least card is more than the bar
         // holds, and the bar scrolls (a finger's swipe on the card scrolls it, below).

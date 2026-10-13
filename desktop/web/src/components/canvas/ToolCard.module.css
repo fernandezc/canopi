@@ -281,6 +281,12 @@
   background: var(--color-surface);
 }
 
+/* In the context bar the strip reaches the bar card's own padding, no further, so nothing scrolls the card sideways. */
+.card[data-placement='bar'] .rowFoot[data-path] {
+  margin: var(--space-1) calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
+  padding: var(--space-2) var(--space-1);
+}
+
 .finish {
   /* The tooltip of the icon-only button on phones. */
   position: relative;
