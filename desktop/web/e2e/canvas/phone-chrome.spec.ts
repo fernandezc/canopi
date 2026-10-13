@@ -5,7 +5,8 @@
 // Both engines, touch, offline (so the map notice shows) unless the basemap is hidden. DOM assertions only, no
 // baselines.
 //
-// The base fixture at 390x844: its opening camera puts the Apple inside the rectangle zone at (114, 349) (touch.spec.ts).
+// The base fixture at 390x844 with the basemap hidden: its opening camera puts the Apple inside the rectangle zone at
+// (114, 349) (touch.spec.ts).
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { pressMod } from '../support/canvas'
@@ -71,7 +72,7 @@ test.describe('390×844 drafts and the sheet', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
   test('(canopi-f47t.54, H) the half sheet drops to its peek when Plant a row picks its plant, and stays raised when raised again', async ({ page }) => {
-    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
     await raiseSheet(page)
     await mapHost(page).focus()
     await page.keyboard.press('w')
@@ -88,7 +89,7 @@ test.describe('390×844 drafts and the sheet', () => {
   })
 
   test('(canopi-f47t.54, H) the half sheet drops to its peek at a polygon\'s first corner', async ({ page }) => {
-    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
     await raiseSheet(page)
     await tool(page, 'Polygon zone').tap()
     await expect(tool(page, 'Polygon zone')).toHaveAttribute('aria-pressed', 'true')
@@ -97,8 +98,6 @@ test.describe('390×844 drafts and the sheet', () => {
     await expect(sheet(page), 'the first corner drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
   })
 })
-
-const LANDSCAPES = [{ width: 740, height: 360 }, { width: 844, height: 390 }] as const
 
 /** Every shown box matching `selector`. */
 async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
@@ -109,44 +108,6 @@ async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
     return shown ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null
   }))
   return boxes.filter((box): box is Box => box !== null && box.width > 0 && box.height > 0)
-}
-
-// Answer 17: the phone zoom column is placed from the visible map, not registered with it, so the map notice's room
-// ends left of the column; held on its side with the Plant a row card on the left, the notice's Retry is never under the
-// zoom group, with the sheet at its peek or its side sheet at half.
-for (const layout of LANDSCAPES) {
-  const size = `${layout.width}×${layout.height}`
-  test.describe(`${size} notice`, () => {
-    test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: true })
-
-    test(`(canopi-f47t.54, H) with a row held, the map notice and its Retry clear the zoom group, sheet at peek or half (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: 'shortcut' })
-      await holdRowInBar(page)
-      for (const height of ['peek', 'half'] as const) {
-        if (height === 'half') await raiseSheet(page)
-        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
-        await expect(card(page).locator('[data-plant-row-finish]'), `${size} ${height}: the row is still held`).toBeVisible()
-        await nextFrames(page)
-        const notice = page.locator('[data-map-notice]')
-        await expect(notice, `${size} ${height}: offline, the map notice shows`).toBeVisible()
-        const noticeBox = await boxOf(notice)
-        const retry = notice.locator('button')
-        const retryBox = await boxOf(retry)
-        const zoom = await shownBoxes(page, '[data-zoom-group]')
-        expect(zoom.length, `${size} ${height}: the zoom group shows`).toBeGreaterThan(0)
-        for (const box of zoom) {
-          expect(overlap(noticeBox, box), `${size} ${height}: the map notice clears the zoom group`).toBe(false)
-          expect(overlap(retryBox, box), `${size} ${height}: Retry is not under the zoom group`).toBe(false)
-        }
-        for (const [name, selector] of [['the tool card', '[data-tool-card]'], ['the panel sheet', '[data-phone-sheet]']] as const) {
-          for (const box of await shownBoxes(page, selector)) {
-            expect(overlap(noticeBox, box), `${size} ${height}: the map notice clears ${name}`).toBe(false)
-          }
-        }
-        await expectHitAtCentre(retry, `${size} ${height}: the map notice's Retry`)
-      }
-    })
-  })
 }
 
 /** The shown row handles' sizes, rounded: points and dots, or points only. */
@@ -165,7 +126,7 @@ test.describe('390×844 boundary events', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
   test('(canopi-94o3, H) a mouse-typed pointerleave after a tap keeps the row\'s handles 44 px targets; a mouse move makes the points 20 px', async ({ page }) => {
-    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
     await mapHost(page).focus()
     await page.keyboard.press('w')
     await tap(page, APPLE)
@@ -570,6 +531,38 @@ for (const phone of PHONES) {
       await expect(page.locator('[data-top-chip-slot]'), `${size}: no top chip slot`).toHaveCount(0)
       await nextFrames(page)
       expectBarDocked(await sheetParts(page), size)
+    })
+  })
+}
+
+// On a phone the map notice is a status row on top of the context bar (answer 24), shown alone or with whatever the bar
+// holds (here Plant a row's card), in the panel sheet: Retry takes the tap at its centre, at peek and half.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} notice in the bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) offline, the map notice is the bar's top row, alone or above the card, and Retry takes the tap (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+      const notice = page.locator('[data-map-notice]')
+      const expectNoticeOnTop = async (where: string) => {
+        await expect(notice, `${where}: offline, the map notice shows`).toBeVisible()
+        expect(await notice.evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar') && element.parentElement.firstElementChild === element), `${where}: the notice is the bar's first row`).toBe(true)
+        await nextFrames(page)
+        expectBarDocked(await sheetParts(page), where)
+        await expectHitAtCentre(notice.getByRole('button'), `${where}: Retry`)
+      }
+      await expectNoticeOnTop(`${size} alone`)
+      await holdRowInBar(page)
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        const where = `${size} ${height} with a row held`
+        await expectNoticeOnTop(where)
+        const noticeBox = await boxOf(notice)
+        const cardBox = await boxOf(card(page))
+        expect(cardBox.y, `${where}: the card stands below the notice`).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height - 0.5)
+      }
     })
   })
 }

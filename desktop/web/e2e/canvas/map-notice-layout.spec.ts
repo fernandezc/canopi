@@ -7,8 +7,8 @@
 // below the sentence, which keeps the notice's width and takes at most three lines, never a tower. The notice is
 // status chrome on the seam, registered with frames: false: with everything selected the selection chip sits above it,
 // but it never moves the camera's framing, so a Design opened while the notice shows opens in the same frame as one
-// opened with the basemap hidden, when no notice shows. On phones too the selection chip stands above it, and the zoom
-// column stays where the framing frame puts it. Both engines; no baselines.
+// opened with the basemap hidden, when no notice shows. On phones it is the context bar's top row, in the panel sheet
+// (phone-chrome.spec.ts). Both engines; no baselines.
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { pressMod } from '../support/canvas'
@@ -148,48 +148,9 @@ test.describe('700x500 bottom sheet closing', () => {
   })
 })
 
-for (const [name, viewport] of [
-  ['phone portrait', { width: 390, height: 844 }],
-  ['phone landscape', { width: 844, height: 390 }],
-] as const) {
-  test.describe(name, () => {
-    test.use({ viewport, hasTouch: true })
-
-    test('Retry takes the tap at its centre and the notice clears the zoom column and the panel sheet', async ({ page }) => {
-      await openBaseFixture(page)
-      const { notice, retry } = await expectNoticeWithRetry(page)
-      await expectRetryHit(retry)
-      const noticeBox = await boxOf(notice)
-      for (const [chromeName, chrome] of [
-        ['the zoom column', page.getByRole('group', { name: 'Zoom' })],
-        ['the panel sheet', page.getByRole('region', { name: 'Panels' })],
-      ] as const) {
-        await expect(chrome).toBeVisible()
-        expect(overlap(noticeBox, await boxOf(chrome)), `the notice clears ${chromeName}`).toBe(false)
-      }
-    })
-
-    test('with a selection, the selection chip stands above the notice and Retry still takes the tap', async ({ page }) => {
-      await openBaseFixture(page)
-      const { notice, retry } = await expectNoticeWithRetry(page)
-      await selectAll(page)
-      const selection = page.locator('[data-selection-chip]')
-      await expect(selection).toBeVisible()
-      await nextFrames(page)
-      await expectRetryHit(retry)
-      const noticeBox = await boxOf(notice)
-      expect(overlap(noticeBox, await boxOf(selection)), 'the notice clears the selection chip').toBe(false)
-      expect((await chipFrame(page)).bottom, 'the chips\' visible map frame ends above the notice').toBeLessThanOrEqual(Math.ceil(noticeBox.y))
-    })
-  })
-}
-
-/**
- * The zoom group's buttons once Show my location has joined it: zoom out, the scale, zoom in, Fit, Show my location and
- * the compass; the phone column has no scale and leads with the inspection lens's launcher.
- */
+/** The zoom group's buttons once Show my location has joined it: zoom out, the scale, zoom in, Fit, Show my location and
+ *  the compass. */
 const ZOOM_GROUP_BUTTONS = 6
-const PHONE_ZOOM_COLUMN_BUTTONS = 6
 
 /** Opens the base fixture in a fresh browser with `locale`, and with `basemapHidden` no notice. */
 async function openBaseFixture(page: Page, options: { locale?: string, basemapHidden?: boolean } = {}): Promise<void> {
@@ -201,8 +162,7 @@ async function expectNoticeWithRetry(page: Page): Promise<{ notice: Locator, ret
   const retry = notice.getByRole('button')
   await expect(retry).toBeVisible()
   // The Zoom group, Show my location included, has laid out, and the seam has placed the chrome around it.
-  const phone = await page.locator('[data-zoom-group="phone"]').count() > 0
-  await expect(page.locator('[data-zoom-group] button')).toHaveCount(phone ? PHONE_ZOOM_COLUMN_BUTTONS : ZOOM_GROUP_BUTTONS)
+  await expect(page.locator('[data-zoom-group] button')).toHaveCount(ZOOM_GROUP_BUTTONS)
   await nextFrames(page)
   return { notice, retry }
 }

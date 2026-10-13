@@ -103,11 +103,18 @@
   pointer-events: none;
 }
 
-/* Phones: the zoom column stands on the right of the visible map, placed from it rather than registered with the seam
-   (ZoomControls.module.css `.phone`, whose right edge this repeats), so the notice's room ends left of the column; held
-   upright or on its side, with the Plant a row card or a panel sheet narrowing the map, Retry never lies under it. */
-:global([data-phone-layout]) .basemapFeedback {
-  --map-notice-room-right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + var(--zoom-group-width, 0px) + var(--space-2));
+/* A phone's context bar (PhoneContextBar): a status row on top of the panel sheet's first row, on the sheet's surface. */
+.basemapFeedback[data-layer="bar"] {
+  position: static;
+  width: auto;
+  max-width: none;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 /* In the story presenter, which places the notice clear of its bar and card (StoryPresenter.module.css). */

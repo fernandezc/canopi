@@ -34,10 +34,10 @@ const TABLET: Layout = {
 
 const PHONE: Layout = {
   viewport: { width: 390, height: 844 },
-  // Above the selection chip, which on a phone stands over the map notice (y 586 to 658 with an Apple selected): at
-  // y 600 the tap that should clear the selection pressed the chip's "Select all of this species".
+  // Above the panel sheet, whose context bar holds the map notice and, with an Apple selected, the selection chip.
   ground: { x: 195, y: 530 },
-  apple: { x: 114, y: 349 },
+  // Offline, the map notice is the sheet's first row, which the opening camera frames above.
+  apple: { x: 114, y: 330 },
 }
 
 const RECT_ZONE_CHIP = 'Rectangle zone · 112 m² · 44 m'
