@@ -226,13 +226,13 @@ const plain = (text: string, marks: { bold?: boolean; italic?: boolean; link?: s
 /** The map a gallery story view was framed in: what a 1280 × 800 window shows at its zoom. */
 const STORY_VIEW_SCREEN = { width: 1280, height: 800 }
 
-function storyView(id: string, name: string, origin: { lon: number; lat: number }, offset: [number, number], zoom: number, species: string[], background: SavedView['visible_layers']['background'] = { kind: 'none' }): SavedView {
+function storyView(id: string, name: string, origin: { lon: number; lat: number }, offset: [number, number], zoom: number, species: string[], background: SavedView['visible_layers']['background'] = { kind: 'none' }, bearing = 0): SavedView {
   const lat = origin.lat + offset[1]
   const pixelsPerMetre = mapZoomToStageScale(zoom, lat)
   return {
     id, name,
     camera: {
-      lon: origin.lon + offset[0], lat, zoom, bearing: 0,
+      lon: origin.lon + offset[0], lat, zoom, bearing,
       ground_size_m: { width: STORY_VIEW_SCREEN.width / pixelsPerMetre, height: STORY_VIEW_SCREEN.height / pixelsPerMetre },
     },
     visible_layers: {
@@ -251,7 +251,8 @@ function storyView(id: string, name: string, origin: { lon: number; lat: number 
 function storyFixture(origin: { lon: number; lat: number }, long: boolean): { views: SavedView[]; stories: Story[] } {
   const views = [
     storyView('view-site', 'The site', origin, [0.00008, -0.00003], 21.2, []),
-    storyView('view-rows', 'Rows and strata', origin, [0.00005, -0.00002], 22, []),
+    // Turned 30° clockwise from north: the story presented at a bearing (plan section 4, phase 1's gallery entries).
+    storyView('view-rows', 'Rows and strata', origin, [0.00005, -0.00002], 22, [], { kind: 'none' }, 30),
     // Satellite shows as "Satellite" in the step's tags; offline, its snapshot waits and reads without tiles.
     storyView('view-hedges', 'Berry hedges', origin, [0.00013, -0.00004], 23, ['Fragaria vesca'], { kind: 'satellite' }),
     storyView('view-year-one', 'Year one planting', origin, [0.00002, -0.00002], 22.5, ['Malus domestica']),
