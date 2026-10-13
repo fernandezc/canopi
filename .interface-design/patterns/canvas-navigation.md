@@ -8,7 +8,7 @@ Read the [design system](../system.md) first. Decisions: [ADR 0015](../../docs/a
 - Right-drag, middle-drag and Space + drag pan in every tool. A right or middle press during a drawing, move or band drag is ignored; the wheel and keys stay live; Space must be held before the press. A still right-click (under 3 px) opens the canvas menu on release; a right-drag never opens it. On a Mac, Control-click is a right-click and Control-drag pans.
 - Pointing device (Settings › Canvas): Mouse, the wheel zooms about the pointer and Shift + wheel pans; Trackpad, two fingers pan. Pinch and Ctrl + wheel always zoom. The wheel and a pinch zoom continuously; the zoom buttons and + / − change zoom by one step. On Linux a trackpad pinch does not reach the map; F1 says to use Ctrl + scroll.
 - Touch: one finger edits, acting when it lifts; two fingers pan, pinch and turn the view and never change the selection; press and hold opens the menu, which stays open after the lift. Handles are 44 px targets after a touch, 20 px after a mouse or pen.
-- Pan tool (H) is for pens without a barrel button and one-finger use: a left drag pans. Not on the main rail: View and Tools, the palette and the phone tool strip. While it is armed no rail button is pressed and its tool card says "Drag to move the map" with the Esc line.
+- Pan tool (H) is for pens without a barrel button and one-finger use: a left drag pans. Not on the main rail: View and Tools, the palette and the phone tool strip. Armed, it presses no rail button and its card says "Drag to move the map" with the Esc line.
 
 ## Turning the map
 
@@ -53,4 +53,4 @@ Map orientation, a segmented North up (default) / As on screen, sits under Plant
 
 ## Phones
 
-The zoom column holds zoom in, zoom out, Fit to Design, Show my location (Web) and the compass as 44 px buttons, without the scale; a short landscape canvas packs them between the top bar and the sheet. The phone View menu has Reset north. The tool strip keeps Pan. Two-finger twist turns the view; nothing on a phone turns it by accident.
+The zoom column holds the inspection launcher, zoom in, zoom out, Fit to Design, Show my location and the compass (44 px, no scale); a short landscape canvas packs them between top bar and sheet; without room the column hides. The phone View menu has Reset north. The tool strip keeps Pan. Two-finger twist turns the view; nothing on a phone turns it by accident.
