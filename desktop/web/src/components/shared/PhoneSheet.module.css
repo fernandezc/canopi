@@ -176,3 +176,25 @@
 .sheet[data-orientation="landscape"] .handle {
   cursor: pointer;
 }
+
+/* The context bar: the sheet's first row (the header at full, the corner box's
+   top at a landscape peek). It takes no room while empty, and its body scrolls
+   past 40 % of the screen's height (container units do not resolve here). */
+.bar {
+  flex-shrink: 0;
+  max-height: 40svh;
+  overflow-y: auto;
+}
+
+.bar:empty {
+  display: none;
+}
+
+/* The dock key region under the bar: the handle, the tabs and the open panel. */
+.dock {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}

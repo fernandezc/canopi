@@ -12,7 +12,8 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
-import type { Point } from '../support/fingers'
+import { pressMod } from '../support/canvas'
+import { Fingers, type Point } from '../support/fingers'
 import { boxOf, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap, type Box } from '../support/layout'
 import { expect, test } from '../support/offline'
 
@@ -341,3 +342,221 @@ test.describe('390×844 boundary events', () => {
     await expect.poll(async () => (await rowHandleSizes(page, '[data-canvas-handle^="point:"]')).every((size) => size === 20), 'a mouse move makes the points 20 px').toBe(true)
   })
 })
+
+// The phone context bar (canopi-f47t.54, stream D, answers 18 and 22): the bar is the panel sheet's first row, so it
+// moves with peek, half, full and a finger drag with no position formula of its own, and the sheet's one registration
+// with the visible-map-area seam covers it. A fixed bar (a field and a button) is put into the sheet's bar row; the
+// basemap is hidden so no map notice registers. Landscape sheets have no drag (their handle steps); WebKit has no touch
+// driver, so there the drag is a mouse's (the handle takes pointer events of either kind).
+const PHONES = [
+  { width: 390, height: 844 },
+  { width: 360, height: 560 },
+  { width: 740, height: 360 },
+  { width: 844, height: 390 },
+] as const
+/** The fixed bar's height: a tool card's two rows. */
+const BAR_PX = 88
+
+async function putFixedBar(page: Page): Promise<Locator> {
+  await page.locator('[data-phone-context-bar]').evaluate((row, height) => {
+    const bar = document.createElement('div')
+    bar.dataset.fixedBar = ''
+    bar.style.cssText = `display:flex;align-items:center;gap:8px;height:${height}px;box-sizing:border-box`
+    bar.dataset.presses = '0'
+    bar.addEventListener('pointerdown', () => { bar.dataset.presses = String(Number(bar.dataset.presses) + 1) })
+    const field = document.createElement('input')
+    field.setAttribute('aria-label', 'Fixed field')
+    field.style.cssText = 'flex:1;min-width:0;height:44px'
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.textContent = 'Fixed'
+    button.style.cssText = 'flex:1;height:44px'
+    bar.append(field, button)
+    row.append(bar)
+  }, BAR_PX)
+  const bar = page.locator('[data-fixed-bar]')
+  await expect(bar).toBeVisible()
+  expect((await boxOf(bar)).height).toBe(BAR_PX)
+  return bar
+}
+
+/** The sheet, its bar row and its dock region (the handle, the tabs and the panel), as page boxes. */
+async function sheetParts(page: Page): Promise<{ sheet: Box, bar: Box, dock: Box }> {
+  return await page.locator('[data-phone-sheet]').evaluate((section) => {
+    const box = (element: Element | null) => {
+      if (!element) throw new Error('a part of the sheet is missing')
+      const rect = element.getBoundingClientRect()
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+    }
+    return {
+      sheet: box(section),
+      bar: box(section.querySelector('[data-phone-context-bar]')),
+      dock: box(section.querySelector('[data-key-region="dock"]')),
+    }
+  })
+}
+
+/** The bar is the sheet's first row: its top at the sheet's top border, its bottom at the dock region's top. */
+function expectBarDocked(parts: { sheet: Box, bar: Box, dock: Box }, where: string): void {
+  expect(Math.abs(parts.bar.y - parts.sheet.y), `${where}: the bar's top is at the sheet's top (${parts.bar.y} vs ${parts.sheet.y})`).toBeLessThanOrEqual(1)
+  const barBottom = parts.bar.y + parts.bar.height
+  expect(Math.abs(barBottom - parts.dock.y), `${where}: the bar's bottom is at the sheet's content top (${barBottom} vs ${parts.dock.y})`).toBeLessThanOrEqual(1)
+}
+
+/** The seam's insets on the map area, chips' and framing, against the sheet's cover of its edge. */
+async function expectInsetsCoverSheet(page: Page, portrait: boolean, where: string): Promise<void> {
+  const { sheet } = await sheetParts(page)
+  const insets = await page.evaluate(() => {
+    const area = document.querySelector<HTMLElement>('[style*="--map-inset-bottom"]')
+    if (!area) throw new Error('no map area publishes its insets')
+    const box = area.getBoundingClientRect()
+    const read = (name: string) => parseFloat(area.style.getPropertyValue(name))
+    return {
+      area: { right: box.right, bottom: box.bottom },
+      chips: { bottom: read('--map-inset-bottom'), right: read('--map-inset-right') },
+      framing: { bottom: read('--map-framing-inset-bottom'), right: read('--map-framing-inset-right') },
+    }
+  })
+  const edge = portrait ? 'bottom' : 'right'
+  const cover = portrait ? insets.area.bottom - sheet.y : insets.area.right - sheet.x
+  for (const kind of ['chips', 'framing'] as const) {
+    expect(Math.abs(insets[kind][edge] - cover), `${where}: the ${kind} inset on the ${edge} (${insets[kind][edge]}) is the sheet's cover (${cover})`).toBeLessThanOrEqual(1)
+  }
+}
+
+/**
+ * The zoom column, placed from the framing frame, clears the bar wherever the frame is as tall as the column. A shorter
+ * frame (360x560 with the sheet at half) is answer 25's: the column hides there, as at full.
+ */
+async function expectZoomClearOfBar(page: Page, bar: Locator, where: string): Promise<void> {
+  const barBox = await boxOf(bar)
+  const frame = await framingEdges(page)
+  for (const zoom of await shownBoxes(page, '[data-zoom-group]')) {
+    if (zoom.height > frame.bottom - frame.top) {
+      test.info().annotations.push({ type: 'zoom column taller than its frame', description: `${where}: ${zoom.height} px in ${frame.bottom - frame.top} px` })
+      continue
+    }
+    expect(overlap(zoom, barBox), `${where}: the zoom column clears the bar`).toBe(false)
+  }
+}
+
+async function expectBarTakesTap(page: Page, bar: Locator, where: string): Promise<void> {
+  await expectHitAtCentre(bar, `${where}: the bar`)
+  const box = await boxOf(bar)
+  const before = Number(await bar.getAttribute('data-presses'))
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(bar, `${where}: a tap at the bar's centre lands on the bar`).toHaveAttribute('data-presses', String(before + 1))
+}
+
+/** Every animation frame while `act` runs, the bar's place in the sheet; returns the frames sampled. */
+async function sampleDuringDrag(page: Page, act: () => Promise<void>): Promise<{ sheet: Box, bar: Box, dock: Box }[]> {
+  await page.evaluate(() => {
+    const samples: unknown[] = []
+    ;(window as unknown as { barSamples: unknown[] }).barSamples = samples
+    const section = document.querySelector('[data-phone-sheet]')!
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect()
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+    }
+    const sample = () => {
+      if (!(window as unknown as { barSamples?: unknown[] }).barSamples) return
+      samples.push({
+        sheet: box(section),
+        bar: box(section.querySelector('[data-phone-context-bar]')!),
+        dock: box(section.querySelector('[data-key-region="dock"]')!),
+      })
+      requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  })
+  await act()
+  return await page.evaluate(() => {
+    const holder = window as unknown as { barSamples?: { sheet: Box, bar: Box, dock: Box }[] }
+    const samples = holder.barSamples ?? []
+    delete holder.barSamples
+    return samples
+  })
+}
+
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} context bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) a bar in the sheet's first row moves with peek, half and full, is covered by the sheet's registration, clears the zoom column and takes taps (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      const bar = await putFixedBar(page)
+      for (const height of ['peek', 'half', 'full'] as const) {
+        if (height !== 'peek') {
+          await page.locator('[data-sheet-handle]').focus()
+          await page.keyboard.press('ArrowUp')
+        }
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await nextFrames(page)
+        await nextFrames(page)
+        const where = `${size} ${height}`
+        expectBarDocked(await sheetParts(page), where)
+        await expectInsetsCoverSheet(page, portrait, where)
+        await expectZoomClearOfBar(page, bar, where)
+        await expectBarTakesTap(page, bar, where)
+      }
+    })
+
+    test(`(canopi-f47t.54, D) a key from a control in the bar is not the dock's: Select all from the bar selects on the map, from a sheet tab it does not (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      const bar = await putFixedBar(page)
+      expect(await bar.evaluate((element) => element.closest('[data-key-region="dock"]') === null), 'the bar is outside the dock key region').toBe(true)
+      await page.locator('[data-sheet-tab]').first().focus()
+      await pressMod(page, 'a')
+      await nextFrames(page)
+      await expect(page.locator('[data-selection-chip]'), 'from a sheet tab, Select all is left to the page').toHaveCount(0)
+      await bar.getByRole('button', { name: 'Fixed' }).focus()
+      await pressMod(page, 'a')
+      await expect(page.locator('[data-selection-chip]'), 'from a button in the bar, Select all selects on the map').toHaveCount(1)
+    })
+
+    if (portrait) {
+      test(`(canopi-f47t.54, D) during a drag of the handle the bar stays the sheet's first row on every frame, and the drag's peek stop keeps the bar (${size})`, async ({ page, browserName }) => {
+        await openFixture(page, FIXTURE, { basemapHidden: true })
+        await putFixedBar(page)
+        const peek = await sheetParts(page)
+        const handle = await boxOf(page.locator('[data-sheet-handle]'))
+        const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 }
+        const up = { x: from.x, y: from.y - phone.height * 0.4 }
+        const down = { x: from.x, y: phone.height - 2 }
+        const drag = async (path: readonly Point[]) => {
+          if (browserName === 'chromium') {
+            const fingers = await Fingers.of(page)
+            await fingers.start(0, from)
+            for (const at of path) {
+              await fingers.move({ 0: at })
+              await nextFrames(page)
+            }
+            await fingers.end(0)
+          } else {
+            await page.mouse.move(from.x, from.y)
+            await page.mouse.down()
+            for (const at of path) {
+              await page.mouse.move(at.x, at.y)
+              await nextFrames(page)
+            }
+            await page.mouse.up()
+          }
+        }
+        const steps = (start: Point, to: Point, count: number) => Array.from({ length: count }, (_, step) => ({
+          x: start.x + (to.x - start.x) * ((step + 1) / count),
+          y: start.y + (to.y - start.y) * ((step + 1) / count),
+        }))
+        // Up 40 % of the screen, then down to the bottom edge, in one press: the drag clamps at its peek stop.
+        const samples = await sampleDuringDrag(page, () => drag([...steps(from, up, 12), ...steps(up, down, 16)]))
+        expect(samples.length, 'frames were sampled during the drag').toBeGreaterThan(10)
+        const dragged = samples.filter((parts) => Math.abs(parts.sheet.height - peek.sheet.height) > 4)
+        expect(dragged.length, 'the sheet followed the finger').toBeGreaterThan(3)
+        samples.forEach((parts, index) => expectBarDocked(parts, `${size} drag frame ${index}`))
+        const lowest = Math.min(...samples.map((parts) => parts.sheet.height))
+        expect(lowest, `the drag's peek stop keeps the bar and the tabs (${lowest} vs the peek's ${peek.sheet.height})`).toBeGreaterThanOrEqual(peek.sheet.height - 1)
+      })
+    }
+  })
+}

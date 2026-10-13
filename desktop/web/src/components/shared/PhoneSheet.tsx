@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useId, useRef } from 'preact/hooks'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
@@ -54,19 +54,31 @@ interface SheetDrag {
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
  * draft, it stays.
+ *
+ * Its first row is the context bar (answers 18 and 22): what the map's context
+ * shows on a phone. Being part of the sheet, the bar moves with peek, half,
+ * full and a finger drag with no position of its own, and the sheet's one
+ * registration covers it. The bar sits outside the dock's key region, so a key
+ * from a control in it is the map's as a tool card's is. In landscape the sheet
+ * registers the right edge whenever the bar shows, since the corner box then
+ * stands taller than a bottom band.
  */
-export function PhoneSheet({ layout, tabs, children }: {
+export function PhoneSheet({ layout, tabs, bar, children }: {
   readonly layout: PhoneLayout
   /**
    * The panel commands, in rail order; the first `PHONE_SHEET_TABS` show as
    * tabs and the rest wait in More under their full names.
    */
   readonly tabs: readonly PanelRailCommand[]
+  /** The context bar's content; the row takes no room while it renders nothing. */
+  readonly bar?: ComponentChildren
   /** The open panel, when there is one. */
   readonly children?: ComponentChildren
 }) {
   const sheet = useRef<HTMLElement>(null)
-  const handle = useRef<HTMLButtonElement>(null)
+  const dock = useRef<HTMLDivElement>(null)
+  const barRow = useRef<HTMLDivElement>(null)
+  const barShown = useShown(barRow)
   // Set by a drag, so the click that ends it is not taken for a press.
   const dragged = useRef(false)
   const panelId = useId()
@@ -77,10 +89,10 @@ export function PhoneSheet({ layout, tabs, children }: {
   const open = sidePanels.some((command) => command.active)
   const height: PhoneSheetHeight = open && children ? phoneSheetOpenHeight.value : 'peek'
   // On its side the sheet rests in the bottom right corner and opens along the right edge.
-  useMapOccluder(sheet, portrait || height === 'peek' ? 'bottom' : 'right')
+  useMapOccluder(sheet, portrait || (height === 'peek' && !barShown) ? 'bottom' : 'right')
   // The tool strip ends above the sheet rather than behind it.
   useUnderRail(sheet, 'tool', portrait)
-  useFocusRegion(sheet, 'dock')
+  useFocusRegion(dock, 'dock')
   // The tool's gesture flag is its held draft (a picked plant, a placed point); it is read from the tool's guidance.
   const drafting = DRAWING_TOOLS.has(currentCanvasTool.value) && currentCanvasToolGuidance.value.gesture
   useEffect(() => {
@@ -105,7 +117,8 @@ export function PhoneSheet({ layout, tabs, children }: {
       if (!portrait || !element || !(host instanceof HTMLElement)) return null
       const box = element.getBoundingClientRect()
       const hostBox = host.getBoundingClientRect()
-      const peek = (handle.current?.offsetHeight ?? 0) + (element.querySelector<HTMLElement>('[role="tablist"]')?.offsetHeight ?? 0)
+      // Peek is the sheet without its open panel: the bar, the handle, the tabs and the sheet's own edges.
+      const peek = box.height - (element.querySelector<HTMLElement>('[role="tabpanel"]')?.offsetHeight ?? 0)
       return {
         sheet: element,
         startY: event.clientY,
@@ -161,88 +174,119 @@ export function PhoneSheet({ layout, tabs, children }: {
       aria-label={t('panelRail.label')}
       data-phone-sheet={height}
       data-orientation={layout}
-      data-key-region={DOCK_KEY_REGION}
     >
-      <button
-        ref={handle}
-        type="button"
-        className={styles.handle}
-        aria-label={handleLabel}
-        aria-expanded={height !== 'peek'}
-        aria-controls={open ? panelId : undefined}
-        aria-keyshortcuts="ArrowUp ArrowDown"
-        data-owns-keys="arrows"
-        data-sheet-handle
-        onPointerDown={onPointerDown}
-        onClick={() => {
-          if (dragged.current) {
+      <div ref={barRow} className={styles.bar} data-phone-context-bar>{bar}</div>
+      <div ref={dock} className={styles.dock} data-key-region={DOCK_KEY_REGION}>
+        <button
+          type="button"
+          className={styles.handle}
+          aria-label={handleLabel}
+          aria-expanded={height !== 'peek'}
+          aria-controls={open ? panelId : undefined}
+          aria-keyshortcuts="ArrowUp ArrowDown"
+          data-owns-keys="arrows"
+          data-sheet-handle
+          onPointerDown={onPointerDown}
+          onClick={() => {
+            if (dragged.current) {
+              dragged.current = false
+              return
+            }
+            moveTo(cyclePhoneSheet(height))
+          }}
+          onKeyDown={(event) => {
             dragged.current = false
-            return
-          }
-          moveTo(cyclePhoneSheet(height))
-        }}
-        onKeyDown={(event) => {
-          dragged.current = false
-          const next = stepPhoneSheet(height, event.key)
-          if (!next) return
-          event.preventDefault()
-          if (next !== height) moveTo(next)
-        }}
-      >
-        <span className={styles.grip} aria-hidden="true" />
-      </button>
-      <div className={styles.tabRow}>
-        <div className={styles.tabs} role="tablist" aria-label={t('panelRail.label')} onKeyDown={onTabKeyDown}>
-          {shown.map((command, index) => (
-            <button
-              key={command.panel}
-              type="button"
-              role="tab"
-              className={styles.tab}
-              data-sheet-tab
-              data-panel={command.panel}
-              data-command-id={command.id ?? command.commandId}
-              aria-selected={command.active ?? false}
-              aria-controls={command.active && open ? panelId : undefined}
-              aria-disabled={command.disabled ? true : undefined}
-              tabIndex={index === focusIndex ? 0 : -1}
-              onClick={() => {
-                if (command.disabled) return
-                // A second press on the open tab rests the sheet, as the rail closes the dock.
-                command.action()
+            const next = stepPhoneSheet(height, event.key)
+            if (!next) return
+            event.preventDefault()
+            if (next !== height) moveTo(next)
+          }}
+        >
+          <span className={styles.grip} aria-hidden="true" />
+        </button>
+        <div className={styles.tabRow}>
+          <div className={styles.tabs} role="tablist" aria-label={t('panelRail.label')} onKeyDown={onTabKeyDown}>
+            {shown.map((command, index) => (
+              <button
+                key={command.panel}
+                type="button"
+                role="tab"
+                className={styles.tab}
+                data-sheet-tab
+                data-panel={command.panel}
+                data-command-id={command.id ?? command.commandId}
+                aria-selected={command.active ?? false}
+                aria-controls={command.active && open ? panelId : undefined}
+                aria-disabled={command.disabled ? true : undefined}
+                tabIndex={index === focusIndex ? 0 : -1}
+                onClick={() => {
+                  if (command.disabled) return
+                  // A second press on the open tab rests the sheet, as the rail closes the dock.
+                  command.action()
+                }}
+              >
+                <span className={styles.tabLabel}>{t(`webPhone.tabs.${command.panel}`)}</span>
+              </button>
+            ))}
+          </div>
+          {folded.length > 0 && (
+            <ActionMenu
+              label={t('panelRail.more')}
+              triggerClassName={styles.tab}
+              iconSize={20}
+              triggerLabel={<span className={styles.tabLabel}>{t('webPhone.more')}</span>}
+              triggerData={{
+                'data-sheet-more': '',
+                'data-holds-active': folded.some((command) => command.active) ? '' : undefined,
               }}
-            >
-              <span className={styles.tabLabel}>{t(`webPhone.tabs.${command.panel}`)}</span>
-            </button>
-          ))}
+              items={folded.map((command) => ({
+                id: command.id ?? command.commandId,
+                label: command.label,
+                checked: command.active ?? false,
+                disabled: command.disabled,
+                run: () => command.action(),
+              }))}
+            />
+          )}
         </div>
-        {folded.length > 0 && (
-          <ActionMenu
-            label={t('panelRail.more')}
-            triggerClassName={styles.tab}
-            iconSize={20}
-            triggerLabel={<span className={styles.tabLabel}>{t('webPhone.more')}</span>}
-            triggerData={{
-              'data-sheet-more': '',
-              'data-holds-active': folded.some((command) => command.active) ? '' : undefined,
-            }}
-            items={folded.map((command) => ({
-              id: command.id ?? command.commandId,
-              label: command.label,
-              checked: command.active ?? false,
-              disabled: command.disabled,
-              run: () => command.action(),
-            }))}
-          />
+        {height !== 'peek' && (
+          <div id={panelId} className={styles.panel} role="tabpanel">
+            {children}
+          </div>
         )}
       </div>
-      {height !== 'peek' && (
-        <div id={panelId} className={styles.panel} role="tabpanel">
-          {children}
-        </div>
-      )}
     </section>
   )
+}
+
+/**
+ * Whether the element takes any height, followed as its content changes. A change is taken on the next frame, never
+ * inside the observer's delivery: the registration it changes moves chrome other observers watch, which WebKit reports
+ * as a ResizeObserver loop (as `visible-map-area.ts` measures).
+ */
+function useShown(ref: { readonly current: HTMLElement | null }): boolean {
+  const [shown, setShown] = useState(false)
+  useLayoutEffect(() => {
+    const element = ref.current
+    if (!element) return
+    const measure = () => setShown(element.offsetHeight > 0)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    let frame: number | null = null
+    const observer = new ResizeObserver(() => {
+      if (frame !== null) return
+      frame = requestAnimationFrame(() => {
+        frame = null
+        measure()
+      })
+    })
+    observer.observe(element)
+    return () => {
+      observer.disconnect()
+      if (frame !== null) cancelAnimationFrame(frame)
+    }
+  }, [ref])
+  return shown
 }
 
 function release(sheet: HTMLElement): void {

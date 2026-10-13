@@ -377,7 +377,10 @@ describe('phone layout', () => {
     await act(async () => { phoneLayout.value = 'portrait' })
     expect(container.querySelector('[role="separator"][aria-orientation="vertical"]')).toBeNull()
     expect(container.querySelector('[data-phone-sheet="half"] [role="tabpanel"] [data-layers-panel]')).not.toBeNull()
-    expect(container.querySelector('[data-phone-sheet]')?.matches('[data-key-region="dock"]')).toBe(true)
+    // In the sheet the dock region holds the handle, the tabs and the panel; the context bar above them is not in it.
+    expect(container.querySelector('[data-phone-sheet] [role="tabpanel"]')?.closest('[data-key-region="dock"]')).not.toBeNull()
+    expect(container.querySelector('[data-phone-sheet] [data-sheet-handle]')?.closest('[data-key-region="dock"]')).not.toBeNull()
+    expect(container.querySelector('[data-phone-sheet] [data-phone-context-bar]')?.closest('[data-key-region="dock"]')).toBeNull()
 
     await act(async () => { phoneLayout.value = 'landscape' })
     expect(container.querySelector('[data-phone-sheet]')?.getAttribute('data-orientation')).toBe('landscape')
