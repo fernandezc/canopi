@@ -800,16 +800,10 @@ async function floatingOverMap(page: Page): Promise<string[]> {
   })
 }
 
-/** The share of the screen's height an open panel keeps under the context bar. */
-const OPEN_PANEL_SHARE = 0.25
-/** The bar's least height over an open panel: a row's card, three touch targets and a focus ring's room. */
-const BAR_LEAST_PX = 3 * 44 + 8
-
 /**
- * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map; the sheet, its context bar
- * included, stays below the top bar; an open panel keeps a quarter of the screen under the bar, as far as the bar keeps
- * its least height; and every control in the bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled
- * into view where the bar's card scrolls).
+ * The guard of answers 18, 22-26 and 30: nothing but the zoom column floats over the map; the sheet, its context bar
+ * included, stays below the top bar; and every control in the bar is a 44 px target (ADR 0010) that takes the tap at its
+ * centre.
  */
 async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   await nextFrames(page)
@@ -817,15 +811,6 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   const titleBar = await boxOf(page.locator('[data-workspace-title-bar]'))
   const { sheet: sheetBox } = await sheetParts(page)
   expect(sheetBox.y, `${where}: the sheet's top (${sheetBox.y}) is below the top bar (${titleBar.y + titleBar.height})`).toBeGreaterThanOrEqual(titleBar.y + titleBar.height)
-  const panel = page.locator('[data-phone-sheet] [role="tabpanel"]')
-  if (await panel.count() > 0) {
-    const panelBox = await boxOf(panel)
-    const { bar, dock } = await sheetParts(page)
-    // What the sheet leaves the panel under a bar at its least height, below the handle and the tabs.
-    const room = panelBox.y + panelBox.height - bar.y - BAR_LEAST_PX - (panelBox.y - dock.y)
-    const least = Math.min(page.viewportSize()!.height * OPEN_PANEL_SHARE, room)
-    expect(panelBox.height, `${where}: the open panel keeps a quarter of the screen under the bar, or what the bar's least height leaves (${panelBox.height} of ${least} px)`).toBeGreaterThanOrEqual(least - 1)
-  }
   await expectBarControls(page, where)
 }
 
@@ -842,8 +827,8 @@ async function expectBarControls(page: Page, where: string): Promise<void> {
 }
 
 /** Raises the sheet from its peek a step at a time from its handle, runs `check` at each stop, and expects each step up
- *  to raise it (a portrait half sheet grows past half for its panel, and stops a touch target short of full; a landscape
- *  peek stays below the top bar, and its half and full sheets differ in width). */
+ *  to raise it; upright the half sheet is half its workspace (a landscape peek stays below the top bar, and its half and
+ *  full sheets differ in width). */
 async function expectStopsInOrder(page: Page, check: (height: string) => Promise<void>): Promise<void> {
   const heights: number[] = []
   for (const height of ['peek', 'half', 'full'] as const) {
@@ -859,14 +844,27 @@ async function expectStopsInOrder(page: Page, check: (height: string) => Promise
   expect(heights[2]!, `raising the sheet to full never lowers it (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThanOrEqual(heights[1]! - 0.5)
   const viewport = page.viewportSize()!
   if (viewport.height > viewport.width) {
-    expect(heights[2]! - heights[1]!, `upright, raising the sheet to full raises it a touch target at least (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThanOrEqual(44 - 0.5)
+    expect(heights[2]! - heights[1]!, `upright, raising the sheet to full raises it (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThan(0)
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('ArrowDown')
+    await expectHalfOfWorkspace(page, 'the half sheet')
   }
 }
 
-// The tallest card the bar holds is Place plants' chooser, and the notice row goes on top of it offline: held upright or
-// on its side, down to an iPhone SE's 568x320, in en and de, the sheet stays below the top bar at its peek (the bar
-// scrolls instead), each step up raises it, an open panel keeps its share under the card, and the card's
-// and the notice's controls are 44 px targets that take the tap.
+/** Upright, the half sheet is half its workspace (the sheet's positioned parent). */
+async function expectHalfOfWorkspace(page: Page, what: string): Promise<void> {
+  await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+  const { height, host } = await sheet(page).evaluate((element) => ({
+    height: element.getBoundingClientRect().height,
+    host: (element as HTMLElement).offsetParent!.getBoundingClientRect().height,
+  }))
+  expect(Math.abs(height - host / 2), `${what} is half its ${host} px workspace (${height} px)`).toBeLessThanOrEqual(1)
+}
+
+// With Place plants armed and the notice on top of the bar offline, held upright or on its side, down to an iPhone SE's
+// 568x320, in en and de: the sheet stays below the top bar, each step up raises it, the bar keeps one touch row at every
+// stop and its controls take the tap, and upright the half sheet is half the workspace, with a panel open or the tool's
+// options (answer 30).
 for (const phone of [...PHONES, { width: 568, height: 320 }]) {
   const size = `${phone.width}×${phone.height}`
   const portrait = phone.height > phone.width
@@ -874,7 +872,7 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     for (const locale of ['en', 'de']) {
-      test(`(canopi-f47t.54, D) offline with Place plants armed, the sheet keeps below the top bar, rises at each step and leaves the open panel its share (${size} ${locale})`, async ({ page }) => {
+      test(`(canopi-f47t.54, D4) offline with Place plants armed, the sheet keeps below the top bar, rises at each step, keeps a one-row bar and is half the workspace at half (${size} ${locale})`, async ({ page }) => {
         await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
         const where = `${size} ${locale}`
         await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
@@ -885,7 +883,16 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
         await expect(toolOptions(page), `${where}: Place plants opens its chooser`).toBeVisible()
         await page.locator('[data-sheet-handle]').focus()
         await page.keyboard.press('Home')
-        await expectStopsInOrder(page, (height) => expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`))
+        await expectStopsInOrder(page, async (height) => {
+          await expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`)
+          await expectOneTouchRow(page, `${where} Place plants, sheet at ${height}`)
+        })
+        await page.locator('[data-sheet-handle]').focus()
+        await page.keyboard.press('Home')
+        await page.locator('[data-tool-options-button]').tap()
+        await expect(toolOptions(page), `${where}: Options shows the chooser`).toBeVisible()
+        await expectOneTouchRow(page, `${where} the chooser open`)
+        if (portrait) await expectHalfOfWorkspace(page, `${where}: the chooser's half sheet`)
       })
     }
   })

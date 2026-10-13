@@ -28,10 +28,6 @@ export const PHONE_SHEET_TABS = 3
 const DRAG_SLOP_PX = 6
 /** The gap between the top bar and a full sheet, as `--chrome-rail-top` leaves it. */
 const FULL_GAP_PX = 8
-/** The least height an open panel keeps under the context bar, as a share of the host's: the open `.dock`'s 25svh. */
-const OPEN_PANEL_SHARE = 0.25
-/** How far short of full an upright half sheet stops, so a step up from it always raises the sheet: a touch target. */
-const HALF_BELOW_FULL_PX = 44
 /** The tools that draw a draft point by point: while one holds a draft, the sheet drops to its peek (answer 17). */
 const DRAWING_TOOLS: ReadonlySet<ToolId> = new Set(['plant-spacing', 'polygon', 'profile'])
 
@@ -58,15 +54,17 @@ interface SheetDrag {
  * area, so fitting, chips and cards keep above it. When a drawing tool starts
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
- * draft, it stays. An open panel keeps a quarter of the screen's height under
- * the context bar, which gives way above it: half is half the workspace, or
- * taller where the bar would leave the panel less, and upright it stops a
- * touch target short of full, so each step up raises the sheet.
+ * draft, it stays. The armed tool's options (answer 30) show in place of the
+ * open panel while `phoneToolOptions` holds their height: a press on a tab
+ * shows its panel instead, and closing them gives the sheet back its panel and
+ * height as they were.
  *
- * Its first row is the context bar (answers 18 and 22): what the map's context
- * shows on a phone. Being part of the sheet, the bar moves with peek, half,
- * full and a finger drag with no position of its own, and the sheet's one
- * registration covers it. The bar sits outside the dock's key region, so a key
+ * Its first row is the context bar (answers 18, 22 and 30): what the map's
+ * context shows on a phone, one touch row (and the map notice's row) that never
+ * scrolls or grows, so peek is predictable and half is half the workspace.
+ * Being part of the sheet, the bar moves with peek, half, full and a finger
+ * drag with no position of its own, and the sheet's one registration covers
+ * it. The bar sits outside the dock's key region, so a key
  * from a control in it is the map's as a tool card's is. In landscape the sheet
  * always covers the right edge, its corner box at peek included: with the bar
  * it stands taller than a bottom band, and the zoom column then keeps the
@@ -135,19 +133,13 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
       const hostBox = host.getBoundingClientRect()
       // Peek is the sheet without its open panel: the bar, the handle, the tabs and the sheet's own edges.
       const peek = box.height - (element.querySelector<HTMLElement>('[data-sheet-panel]')?.offsetHeight ?? 0)
-      const full = box.bottom - hostBox.top - visibleMapFrame.peek().top - FULL_GAP_PX
       return {
         sheet: element,
         startY: event.clientY,
         startSize: box.height,
         startTime: event.timeStamp,
-        // Full rests just below the top bar, which the visible map frame measures; half is half the host, or the peek
-        // with the open panel's least height where that is taller, a touch target short of full at most.
-        stops: {
-          peek,
-          half: Math.min(full - HALF_BELOW_FULL_PX, Math.max(hostBox.height / 2, peek + hostBox.height * OPEN_PANEL_SHARE)),
-          full,
-        },
+        // Full rests just below the top bar, which the visible map frame measures.
+        stops: { peek, half: hostBox.height / 2, full: box.bottom - hostBox.top - visibleMapFrame.peek().top - FULL_GAP_PX },
         size: box.height,
       }
     },
