@@ -1,6 +1,7 @@
 /* The phone panel sheet (board WebPhone). Portrait: across the bottom edge,
-   resting at its handle and tabs (peek), half the workspace, or up to the top
-   bar (full). Landscape: a side sheet at the right, below the top bar. */
+   resting at its context bar, handle and tabs (peek), half the workspace, or up
+   to the top bar (full); never above the top bar. Landscape: a side sheet at
+   the right, below the top bar. */
 .sheet {
   position: absolute;
   right: 0;
@@ -10,6 +11,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  max-height: calc(100% - var(--chrome-rail-top));
   padding: 0 calc(var(--space-2) + env(safe-area-inset-right)) calc(var(--space-1) + env(safe-area-inset-bottom)) calc(var(--space-2) + env(safe-area-inset-left));
   border: 1px solid var(--color-border);
   border-bottom: 0;
@@ -149,14 +151,16 @@
   font-size: var(--text-touch);
 }
 
-/* Landscape: a side sheet on the right. At peek its handle and tabs rest in the
-   bottom right corner; half and full open it from below the top bar to the
+/* Landscape: a side sheet on the right. At peek its context bar, handle and
+   tabs rest in the bottom right corner, at most up to the top bar (the bar
+   scrolls past that); half and full open it from below the top bar to the
    bottom edge, full wider. */
 .sheet[data-orientation="landscape"] {
   top: auto;
   right: calc(var(--chrome-inset) + env(safe-area-inset-right));
   bottom: calc(var(--chrome-inset) + env(safe-area-inset-bottom));
   left: auto;
+  max-height: calc(100% - var(--chrome-rail-top) - var(--chrome-inset) - env(safe-area-inset-bottom));
   width: min(360px, 46%);
   padding: 0 var(--space-2);
   border-bottom: 1px solid var(--color-border);

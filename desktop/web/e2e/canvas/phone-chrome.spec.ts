@@ -605,12 +605,16 @@ async function floatingOverMap(page: Page): Promise<string[]> {
 }
 
 /**
- * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map, and every control in the context
- * bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled into view where the bar's card scrolls).
+ * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map; the sheet, its context bar
+ * included, stays below the top bar; and every control in the context bar is a 44 px target (ADR 0010) that takes the
+ * tap at its centre (scrolled into view where the bar's card scrolls).
  */
 async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   await nextFrames(page)
   expect(await floatingOverMap(page), `${where}: nothing but the zoom column floats over the map`).toEqual([])
+  const titleBar = await boxOf(page.locator('[data-workspace-title-bar]'))
+  const { sheet: sheetBox } = await sheetParts(page)
+  expect(sheetBox.y, `${where}: the sheet's top (${sheetBox.y}) is below the top bar (${titleBar.y + titleBar.height})`).toBeGreaterThanOrEqual(titleBar.y + titleBar.height)
   const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
   for (const control of await controls.all()) {
     if (!await control.isVisible()) continue
@@ -620,6 +624,36 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
     expect(Math.min(box.width, box.height), `${where}: ${name} is a 44 px target (${box.width}x${box.height})`).toBeGreaterThanOrEqual(44 - 0.5)
     await expectHitAtCentre(control, `${where}: ${name}`)
   }
+}
+
+// The tallest card the bar holds is Place plants' chooser, and the notice row goes on top of it offline: held upright or
+// on its side, down to an iPhone SE's 568x320, in en and de, the sheet stays below the top bar at its peek (the bar
+// scrolls instead), and the card's and the notice's controls are 44 px targets that take the tap at peek, half and full.
+for (const phone of [...PHONES, { width: 568, height: 320 }]) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} Place plants in the bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    for (const locale of ['en', 'de']) {
+      test(`(canopi-f47t.54, D) offline with Place plants armed, the sheet keeps below the top bar (${size} ${locale})`, async ({ page }) => {
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        const where = `${size} ${locale}`
+        await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
+        await mapHost(page).focus()
+        await page.keyboard.press('p')
+        await expect(card(page), `${where}: Place plants' card is the bar's`).toHaveAttribute('data-tool-card', 'plant-stamp')
+        for (const height of ['peek', 'half', 'full'] as const) {
+          if (height !== 'peek') {
+            await page.locator('[data-sheet-handle]').focus()
+            await page.keyboard.press('ArrowUp')
+          }
+          await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+          await expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`)
+        }
+      })
+    }
+  })
 }
 
 for (const phone of PHONES) {
