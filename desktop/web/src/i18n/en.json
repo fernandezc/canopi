@@ -1765,7 +1765,7 @@
   "shortcuts": {
     "title": "Keyboard shortcuts",
     "toolsHeading": "{{menu}} (anywhere except text fields)",
-    "escape": "Esc does one thing at a time: close a menu or dialog, cancel what you are drawing, return to Select, clear the selection.",
+    "escape": "Esc does one thing at a time: close a menu or dialog, remove the last point of what you are drawing, return to Select, clear the selection.",
     "footnote": "Tool keys work anywhere except text fields.",
     "workspaceHeading": "Map and workspace",
     "nextRegion": "Next area: title bar, tools, map, panel",
@@ -1893,7 +1893,7 @@
     "intro": "Canopi draws your Design right on the map. Here is how to start.",
     "site": "Find your site: type a place or coordinates in the search field at the top ({{shortcut}}).",
     "zones": "Draw beds, orchards and paths with the zone tools on the left.",
-    "plants": "{{placePlants}}: choose a species, then click the map. {{plantRow}} repeats a plant along a line.",
+    "plants": "{{placePlants}}: choose a species, then click the map. {{plantRow}} repeats a plant along a path.",
     "menu": "Right-click anything on the map for its commands. {{esc}} goes back to {{select}}.",
     "plan": "Plan care, costs and plant associations in {{calendar}}, {{budget}} and {{consortium}}, from the panels on the right.",
     "save": "Canopi saves as you work. {{file}} › {{export}} makes a planting plan (PDF) to print.",
