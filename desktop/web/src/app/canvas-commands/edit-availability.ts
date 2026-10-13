@@ -6,9 +6,9 @@ import type { CanvasEditAction } from './index'
  * module may not import the runtime's types, which reach the species IPC.
  */
 export interface CanvasEditSelectionAvailability {
-  /** Cut, Copy and Delete: only editable objects, nothing locked or blocked. */
+  /** Cut, Copy and Delete: on the unlocked part of the selection, nothing structurally blocked (U59). */
   readonly copy: boolean
-  /** Duplicate, Bring to front, Send to back and Lock. */
+  /** Duplicate, Bring to front, Send to back and Lock, on the same terms. */
   readonly edit: boolean
   readonly group: boolean
   readonly ungroup: boolean

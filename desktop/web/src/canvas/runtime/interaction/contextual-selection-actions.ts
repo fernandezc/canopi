@@ -7,10 +7,14 @@ import { isRotatableSelection } from '../scene-runtime/selection-rotation'
  * here so every entry point agrees with the runtime's own admission.
  */
 export interface SelectionCommandAvailability {
-  /** Cut, Copy and Delete: only editable objects, nothing locked or blocked. */
+  /**
+   * Cut, Copy and Delete: some editable object and no structural blocker. On a selection mixing locked and unlocked
+   * objects they act on the unlocked part and silently leave the locked ones (U59).
+   */
   readonly copy: boolean
-  /** Duplicate, Bring to front, Send to back and Lock. */
+  /** Duplicate, Bring to front, Send to back and Lock, on the same terms as `copy` (Lock then locks the rest). */
   readonly edit: boolean
+  /** Group…: every selected object editable, none locked or blocked. */
   readonly group: boolean
   readonly ungroup: boolean
   /** Rotate…: what the rotation handle turns (never a locked object or a lone plant). */
@@ -32,9 +36,11 @@ export function selectionCommandAvailability(
   const editable = selection.editableTargets.length > 0
   const unblocked = selection.blockedTargets.length === 0
   const { plantIds, allPinned } = selection.plantNamePinning
+  // The runtime acts on the editable targets only (scene-runtime/mutations.ts), so a locked object is left as it is.
+  const editsUnlockedPart = editable && !structurallyBlocked
   return {
-    copy: editable && !locked && unblocked,
-    edit: editable && !locked && !structurallyBlocked,
+    copy: editsUnlockedPart,
+    edit: editsUnlockedPart,
     group: unblocked
       && selection.editableTargets.length >= 2
       && !selection.editableTargets.some((target) => target.kind === 'measurement-guide'),

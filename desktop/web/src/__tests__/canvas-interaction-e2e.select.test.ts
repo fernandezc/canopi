@@ -1475,7 +1475,7 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  it('keeps Cut, Copy and Delete disabled for mixed editable and locked or blocked selections', () => {
+  it('offers Cut, Copy and Delete on the unlocked part of a mixed selection, and disables them for a structurally blocked one', () => {
     let selectionModel: CanvasDesignObjectSelectionModel = {
       editableTargets: [{ kind: 'plant' as const, id: 'editable-plant' }],
       lockedTargets: [{ kind: 'plant' as const, id: 'locked-plant' }],
@@ -1493,15 +1493,17 @@ describe('SceneInteractionSession', () => {
       selectionCommands: commands,
     }))
 
-    openContextMenuFromKeyboard()
+    // U59 (U55 overturned): the commands run, and the runtime leaves the locked plant (mutations.test.ts).
     for (const id of ['cut', 'copy', 'delete'] as const) {
-      expect(contextMenuCommand(id).disabled).toBe(true)
+      openContextMenuFromKeyboard()
+      expect(contextMenuCommand(id).disabled, id).toBe(false)
       contextMenuCommand(id).run()
     }
+    openContextMenuFromKeyboard()
     expect(contextMenuCommand('paste').disabled).toBe(false)
     expect(contextMenuCommand('unlock').disabled).toBe(false)
-    expect(commands.copy).not.toHaveBeenCalled()
-    expect(commands.deleteSelected).not.toHaveBeenCalled()
+    expect(commands.copy).toHaveBeenCalledTimes(2)
+    expect(commands.deleteSelected).toHaveBeenCalledTimes(2)
 
     selectionModel = {
       ...selectionModel,
