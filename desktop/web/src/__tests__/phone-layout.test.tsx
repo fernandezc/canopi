@@ -1,4 +1,5 @@
 import { render } from 'preact'
+import { useState } from 'preact/hooks'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -267,6 +268,37 @@ describe('phone layout', () => {
     expect(sidePanel.value).toBe('budget')
     expect(optionsShown()).toBe(false)
     expect(panelShown('budget')).toBe(true)
+  })
+
+  it('gives the sheet back its panel as it was, its own state included, once the tool\'s options close', async () => {
+    function Searchable() {
+      const [search, setSearch] = useState('')
+      return <input data-panel-search value={search} onInput={(event) => setSearch(event.currentTarget.value)} />
+    }
+    function WithOptions() {
+      return (
+        <PhoneSheet layout="portrait" tabs={tabs()} options={<p data-tool-options-content />}>
+          {sidePanel.value ? <Searchable /> : null}
+        </PhoneSheet>
+      )
+    }
+    await act(async () => { render(<WithOptions />, container) })
+    await act(async () => { selectPanel('plant-db') })
+    const search = container.querySelector<HTMLInputElement>('[data-panel-search]')!
+    await act(async () => {
+      search.value = 'pear'
+      search.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    await act(async () => { phoneToolOptions.value = 'half' })
+    const panel = container.querySelector<HTMLElement>('[role="tabpanel"]')
+    expect(container.querySelector('[data-sheet-panel="options"] [data-tool-options-content]'), 'the options show').not.toBeNull()
+    expect(panel?.hidden ?? true, 'the panel is out of sight under them').toBe(true)
+
+    await act(async () => { phoneToolOptions.value = null })
+    expect(container.querySelector('[data-sheet-panel="options"]')).toBeNull()
+    expect(container.querySelector<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(false)
+    expect(container.querySelector<HTMLInputElement>('[data-panel-search]')?.value, 'the panel kept its search').toBe('pear')
   })
 
   it('moves focus between the tabs with the arrow keys', async () => {

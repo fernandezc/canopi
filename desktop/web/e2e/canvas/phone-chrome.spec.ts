@@ -588,15 +588,18 @@ test.describe('390×844 tool options', () => {
       await expect(sheet(page), `${why}: at its height`).toHaveAttribute('data-phone-sheet', 'half')
     }
 
+    // A mark on the panel's content: still there once the options close, the panel was kept, not built again, so its own state survives.
+    await panel.locator(':scope > *').first().evaluate((node) => { (node as HTMLElement).dataset.e2eKept = '' })
     await page.locator('[data-tool-options-button]').tap()
     await expect(toolOptions(page), 'Options shows the tool\'s options').toBeVisible()
     await expect(toolOptions(page), 'the options hold the polygon\'s guidance').toContainText('Click to add corners')
     await expect(page.locator('[data-tool-options-button]')).toHaveAttribute('aria-expanded', 'true')
-    await expect(panel, 'in place of the open panel').toHaveCount(0)
+    await expect(panel, 'in place of the open panel').toBeHidden()
     await expect(selected, 'no tab is selected').toHaveCount(0)
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
     await page.locator('[data-tool-options-button]').tap()
     await expectPanelBack('Options again')
+    await expect(panel.locator('[data-e2e-kept]'), 'the panel came back as it was, not built again').toHaveCount(1)
 
     // A tap on the tool's name opens them too; disarming the tool closes them.
     const name = await boxOf(card(page).locator('b').first())

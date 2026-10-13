@@ -207,3 +207,8 @@
   min-width: 0;
   min-height: calc(var(--control-size-touch) * 2);
 }
+
+/* The open panel waits under the tool's options, mounted but out of sight. */
+.panel[hidden] {
+  display: none;
+}

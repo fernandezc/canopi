@@ -55,7 +55,7 @@ interface SheetDrag {
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
  * draft, it stays. The armed tool's options (answer 30) show in place of the
- * open panel while `phoneToolOptions` holds their height: a panel opened by any
+ * open panel, which stays mounted under them, while `phoneToolOptions` holds their height: a panel opened by any
  * route (a tab, More, the chooser's catalog link, a shortcut) shows in front of
  * them, since `selectPanel` closes them even for the panel already open; a
  * press on the open panel's tab or More item shows it, and closing them gives
@@ -91,6 +91,7 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
   // Set by a drag, so the click that ends it is not taken for a press.
   const dragged = useRef(false)
   const panelId = useId()
+  const optionsId = useId()
   const portrait = layout === 'portrait'
   const panels = tabs.filter((command) => command.panel)
   // Only side panels open the sheet; a primary view (Templates) just switches the map.
@@ -135,7 +136,7 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
       const box = element.getBoundingClientRect()
       const hostBox = host.getBoundingClientRect()
       // Peek is the sheet without its open panel: the bar, the handle, the tabs and the sheet's own edges.
-      const peek = box.height - (element.querySelector<HTMLElement>('[data-sheet-panel]')?.offsetHeight ?? 0)
+      const peek = box.height - (element.querySelector<HTMLElement>('[data-sheet-panel]:not([hidden])')?.offsetHeight ?? 0)
       return {
         sheet: element,
         startY: event.clientY,
@@ -210,7 +211,7 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
           className={styles.handle}
           aria-label={handleLabel}
           aria-expanded={height !== 'peek'}
-          aria-controls={optionsHeight || open ? panelId : undefined}
+          aria-controls={optionsHeight ? optionsId : open ? panelId : undefined}
           aria-keyshortcuts="ArrowUp ArrowDown"
           data-owns-keys="arrows"
           data-sheet-handle
@@ -273,16 +274,16 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
             />
           )}
         </div>
-        {height !== 'peek' && (
-          optionsHeight ? (
-            <div id={panelId} className={styles.panel} role="region" aria-label={t('canvas.toolCard.options')} data-sheet-panel="options">
-              {options}
-            </div>
-          ) : (
-            <div id={panelId} className={styles.panel} role="tabpanel" data-sheet-panel>
-              {children}
-            </div>
-          )
+        {optionsHeight && (
+          <div id={optionsId} className={styles.panel} role="region" aria-label={t('canvas.toolCard.options')} data-sheet-panel="options">
+            {options}
+          </div>
+        )}
+        {/* Kept mounted under the options, so the panel's own state (a search, an opened species) is there when they close. */}
+        {open && children && (
+          <div id={panelId} className={styles.panel} role="tabpanel" hidden={optionsHeight !== null} data-sheet-panel>
+            {children}
+          </div>
         )}
       </div>
     </section>
