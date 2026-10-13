@@ -177,7 +177,9 @@ test('the title bar shows what the start screen shows until the hidden Design sh
 
 // canopi-23p2: in a New Design's overview the Start card, its found-place chip and the top-centre chip slot share one row
 // (SiteOnboarding), so the overview notice never covers the card, and every chip stays on screen and clear of the panels.
+// On a phone (360x740) the overview notice is the context bar's, in the panel sheet, and the canvas has no top chip slot.
 for (const size of [{ width: 360, height: 740 }, { width: 768, height: 800 }, { width: 1400, height: 900 }]) {
+  const phone = size.width < 640
   test(`a New Design's top chips sit beside the Start card, on screen and clear of the panels, at ${size.width}x${size.height}`, async ({ page }) => {
     await page.setViewportSize(size)
     await page.goto('')
@@ -203,11 +205,13 @@ for (const size of [{ width: 360, height: 740 }, { width: 768, height: 800 }, { 
         rail: box('nav[aria-label="Web Edition panels"]'),
         foundInRow: found?.parentElement?.hasAttribute('data-start-row') ?? false,
         slotInRow: slot?.parentElement?.hasAttribute('data-start-row') ?? false,
+        noticeInBar: document.querySelector('[data-overview-notice]')?.closest('[data-phone-context-bar]') != null,
         foundInSlot: slot?.contains(found ?? null) ?? false,
       }
     })
     expect(rects.foundInRow, 'the found-place chip is a child of the Start row').toBe(true)
-    expect(rects.slotInRow, 'the top-centre slot is a child of the Start row').toBe(true)
+    expect(rects.slotInRow, phone ? 'a phone has no top-centre slot' : 'the top-centre slot is a child of the Start row').toBe(!phone)
+    expect(rects.noticeInBar, phone ? 'the overview notice is the context bar\'s' : 'no context bar').toBe(phone)
     expect(rects.foundInSlot, 'the found-place chip is beside the slot, not in it').toBe(false)
     const { viewport, notice, found, card, rail } = rects
     for (const [name, chip] of [['overview notice', notice], ['found-place chip', found]] as const) {
