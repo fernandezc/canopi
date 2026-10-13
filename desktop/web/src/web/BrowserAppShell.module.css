@@ -133,8 +133,8 @@
 }
 
 /* A full panel sheet leaves no map: the chrome placed from the visible map
-   frame (zoom, inspection, the labels chip) steps aside instead of slipping
+   frame (the zoom column, the labels chip) steps aside instead of slipping
    behind the top bar. */
-.shell[data-phone-layout]:has([data-phone-sheet="full"]) :is([data-zoom-group], [data-inspection-launcher], [data-plant-labels-chip]) {
+.shell[data-phone-layout]:has([data-phone-sheet="full"]) :is([data-zoom-group], [data-plant-labels-chip]) {
   visibility: hidden;
 }

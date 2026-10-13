@@ -17,6 +17,7 @@ import { ButtonTooltip } from '../shared/ButtonTooltip'
 import { ControlIcon, type ControlIconName } from '../shared/ControlIcon'
 import { useMapOccluder, usePublishedWidth, useUnderRail } from '../shared/useMapChrome'
 import { Compass } from './Compass'
+import { InspectionLauncher } from './InspectionLens'
 import styles from './ZoomControls.module.css'
 
 const VIEW_ACTION_ICONS: Readonly<Record<string, ControlIconName>> = {
@@ -30,8 +31,9 @@ const VIEW_ACTION_ICONS: Readonly<Record<string, ControlIconName>> = {
  * a ratio (a menu of common scales), zoom in, Fit to Design and, after a
  * divider, the edition's Show my location (Web) and the compass (always
  * shown). The map attribution pill sits just left of it. On a phone it is a
- * column on the right above the panel sheet: zoom in, zoom out, Fit to Design,
- * Show my location and the compass, with 44 px targets and no ratio (phones
+ * column on the right above the panel sheet: the inspection lens's launcher,
+ * zoom in, zoom out, Fit to Design, Show my location and the compass, the only
+ * chrome floating over a phone's map, with 44 px targets and no ratio (phones
  * have no scale readout); it is placed from the visible map frame, so it
  * covers no edge. Show my location and the compass are buttons of the group:
  * the group's layer and map registration cover them.
@@ -63,6 +65,7 @@ export function ZoomControls({ viewActions, myLocation: MyLocation }: {
   if (phone) {
     return (
       <div ref={group} className={`${styles.group} ${styles.phone}`} role="group" aria-label={t('canvas.grid.zoom')} data-zoom-group="phone">
+        <InspectionLauncher className={styles.button} />
         <ZoomButton command={zoomIn} disabled={zoomIn.disabled || atMaximum} />
         <ZoomButton command={zoomOut} disabled={zoomOut.disabled || atMinimum} />
         <ZoomButton command={fit} disabled={fit.disabled} />

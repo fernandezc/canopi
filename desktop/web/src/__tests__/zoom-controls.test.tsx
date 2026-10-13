@@ -8,6 +8,7 @@ import { setCurrentCanvasSession } from '../canvas/session'
 import type { ViewReadSurface } from '../canvas/runtime/view/read-surface'
 import { createViewReadSurface } from '../canvas/runtime/view/frame-source'
 import { createSessionPlane } from '../canvas/session-plane'
+import { InspectionLens } from '../components/canvas/InspectionLens'
 import { ZoomControls } from '../components/canvas/ZoomControls'
 import { MyLocationButton, MyLocationButtonView } from '../components/canvas/MyLocationButton'
 import { myLocation, type MyLocationMode } from '../app/my-location/session'
@@ -42,7 +43,7 @@ describe('ZoomControls', () => {
     phoneLayout.value = null
   })
 
-  it('stands as a column of zoom in, zoom out, Fit and the compass on a phone, with no ratio, covering no edge of the map', async () => {
+  it('stands as a column of the inspection lens, zoom in, zoom out, Fit and the compass on a phone, with no ratio, covering no edge of the map', async () => {
     const zoomToFit = vi.fn()
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
       queries: { ...createTestCanvasQuerySurface(), view: view() },
@@ -60,7 +61,7 @@ describe('ZoomControls', () => {
     const group = container.querySelector<HTMLElement>('[data-zoom-group]')!
     expect(group.dataset.zoomGroup).toBe('phone')
     expect([...group.querySelectorAll('button')].map((element) => element.getAttribute('aria-label'))).toEqual([
-      'Zoom in', 'Zoom out', 'Fit to Design', 'Reset north',
+      'Inspection lens', 'Zoom in', 'Zoom out', 'Fit to Design', 'Reset north',
     ])
     expect(container.querySelector('[role="img"]')).toBeNull()
     // Fit is the desktop group's Fit to Design (and Home): the same command.
@@ -73,6 +74,31 @@ describe('ZoomControls', () => {
     release()
     area.remove()
     vi.restoreAllMocks()
+  })
+
+  it('on a phone opens the inspection lens from its column, hiding the button while the lens is open and focusing it after', async () => {
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: { ...createTestCanvasQuerySurface(), view: view() } }))
+    phoneLayout.value = 'portrait'
+    const host = document.createElement('div')
+    await act(async () => {
+      render(<>
+        <ZoomControls viewActions={workspaceCanvasCommandProjection.value.viewActions} />
+        <InspectionLens canvasRef={{ current: host }} />
+      </>, container)
+    })
+    // The lens floats no launcher of its own on a phone: the column's is the one.
+    const launchers = container.querySelectorAll<HTMLButtonElement>('[data-inspection-launcher]')
+    expect(launchers).toHaveLength(1)
+    const launcher = launchers[0]!
+    expect(launcher.closest('[data-zoom-group="phone"]')).not.toBeNull()
+    await act(async () => launcher.click())
+    expect(launcher.hidden).toBe(true)
+    expect(launcher.getAttribute('aria-expanded')).toBe('true')
+    const panel = container.querySelector<HTMLElement>(`#${launcher.getAttribute('aria-controls')}`)
+    expect(panel).not.toBeNull()
+    await act(async () => panel!.querySelector<HTMLButtonElement>('button[aria-label="Close inspection lens"]')!.click())
+    expect(launcher.hidden).toBe(false)
+    expect(document.activeElement).toBe(launcher)
   })
 
   const mount = async () => {
@@ -284,7 +310,7 @@ describe('ZoomControls', () => {
       await mountWithLocation()
       expect(labels()).toEqual(['Zoom out', 'Map scale 1:190. Choose a scale', 'Zoom in', 'Fit to Design', 'Show my location', 'Reset north'])
       await act(async () => { phoneLayout.value = 'landscape' })
-      expect(labels()).toEqual(['Zoom in', 'Zoom out', 'Fit to Design', 'Show my location', 'Reset north'])
+      expect(labels()).toEqual(['Inspection lens', 'Zoom in', 'Zoom out', 'Fit to Design', 'Show my location', 'Reset north'])
     })
 
     it.each([

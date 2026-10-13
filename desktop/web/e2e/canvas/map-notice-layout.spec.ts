@@ -186,10 +186,10 @@ for (const [name, viewport] of [
 
 /**
  * The zoom group's buttons once Show my location has joined it: zoom out, the scale, zoom in, Fit, Show my location and
- * the compass; the phone column has no scale.
+ * the compass; the phone column has no scale and leads with the inspection lens's launcher.
  */
 const ZOOM_GROUP_BUTTONS = 6
-const PHONE_ZOOM_COLUMN_BUTTONS = 5
+const PHONE_ZOOM_COLUMN_BUTTONS = 6
 
 /** Opens the base fixture in a fresh browser with `locale`, and with `basemapHidden` no notice. */
 async function openBaseFixture(page: Page, options: { locale?: string, basemapHidden?: boolean } = {}): Promise<void> {

@@ -523,3 +523,31 @@ for (const phone of PHONES) {
     }
   })
 }
+
+// On a phone the inspection lens's launcher is a button of the zoom column (answer 25): with it the column still stands
+// between the top bar and the sheet at its peek, held upright or on its side, and a tap opens the lens.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} lens launcher`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) the inspection launcher is a button of the zoom column, which fits beside the sheet, and a tap opens the lens (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { openWith: portrait ? 'button' : 'shortcut' })
+      const column = page.locator('[data-zoom-group]')
+      const launcher = column.locator('[data-inspection-launcher]')
+      await expect(launcher, `${size}: the launcher is in the zoom column`).toBeVisible()
+      await expect(page.locator('[data-inspection-launcher]'), `${size}: no other launcher floats`).toHaveCount(1)
+      await nextFrames(page)
+      const columnBox = await boxOf(column)
+      const titleBar = await boxOf(page.locator('[data-workspace-title-bar]'))
+      expect(columnBox.y, `${size}: the column starts below the top bar`).toBeGreaterThanOrEqual(titleBar.y + titleBar.height)
+      expect(overlap(columnBox, (await sheetParts(page)).sheet), `${size}: the column clears the sheet`).toBe(false)
+      await expectHitAtCentre(launcher, `${size}: the launcher`)
+      const box = await boxOf(launcher)
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+      await expect(launcher, `${size}: the launcher hides while the lens is open`).toBeHidden()
+      await expect(page.locator(`#${await launcher.getAttribute('aria-controls')}`), `${size}: the tap opens the lens`).toBeVisible()
+    })
+  })
+}

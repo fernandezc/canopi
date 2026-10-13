@@ -106,12 +106,9 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
   const maxHeight = await card(page).evaluate((element) => Number.parseFloat(getComputedStyle(element).maxHeight))
   const obstacles: Box[] = [{ ...cardBox, height: Number.isFinite(maxHeight) ? maxHeight : frame.bottom - cardBox.y }]
   for (const [, selector] of NEIGHBOURS) obstacles.push(...await shownBoxes(page, selector))
-  // On a phone the zoom column and the inspection launcher beside it are placed midway down the visible map, which moves
-  // as the card in the panel sheet grows and shrinks (Place plants' species list, then the row's fields): their whole
-  // column is kept clear.
-  const column = await shownBoxes(page, '[data-zoom-group="phone"]')
-  const placed = column.length > 0 ? [...column, ...await shownBoxes(page, '[data-inspection-launcher]')] : []
-  for (const box of placed) obstacles.push({ ...box, y: frame.top, height: frame.bottom - frame.top })
+  // On a phone the zoom column is placed midway down the visible map, which moves as the card in the panel sheet grows
+  // and shrinks (Place plants' species list, then the row's fields): its whole column is kept clear.
+  for (const box of await shownBoxes(page, '[data-zoom-group="phone"]')) obstacles.push({ ...box, y: frame.top, height: frame.bottom - frame.top })
   const reach = (layout.touch ? TOUCH_TARGET_PX : 20) / 2 + 4
   const gap = layout.touch ? 60 : 40
   const clear = (at: Point) => at.x - reach >= frame.left && at.x + reach <= frame.right && at.y - reach >= frame.top
