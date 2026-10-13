@@ -1,6 +1,7 @@
 import { signal, batch, effect } from "@preact/signals";
 import { currentDesign } from "../document-session/store";
 import { DEFAULT_SETTINGS } from "../../generated/settings";
+import { phoneToolOptions } from "./phone-layout";
 
 export type Panel = "plant-db" | "canvas" | "favorites" | "templates" | "design-notebook" | "species-key" | "layers" | "site-data" | "calendar" | "budget" | "consortium" | "stories";
 
@@ -30,9 +31,13 @@ effect(() => {
 // the responsive first-use default.
 export const sidePanelWidth = signal<number | null>(DEFAULT_SETTINGS.side_panel_width);
 
-/** Select a panel without applying the command-layer toggle behavior. */
+/**
+ * Select a panel without applying the command-layer toggle behavior. Every route that shows a panel comes here, so on a
+ * phone it also closes the tool's options, which would cover the panel in the sheet, even when it is already open.
+ */
 export function selectPanel(panel: Panel): void {
   batch(() => {
+    phoneToolOptions.value = null;
     if (isSidePanel(panel)) {
       sidePanel.value = panel;
       activePanel.value = "canvas";

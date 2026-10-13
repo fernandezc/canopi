@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks'
+import { useEffect, useId, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
@@ -57,8 +57,9 @@ interface SheetDrag {
  * draft, it stays. The armed tool's options (answer 30) show in place of the
  * open panel while `phoneToolOptions` holds their height: a panel opened by any
  * route (a tab, More, the chooser's catalog link, a shortcut) shows in front of
- * them, a press on the open panel's tab or More item shows it, and closing them
- * gives the sheet back its panel and height as they were.
+ * them, since `selectPanel` closes them even for the panel already open; a
+ * press on the open panel's tab or More item shows it, and closing them gives
+ * the sheet back its panel and height as they were.
  *
  * Its first row is the context bar (answers 18, 22 and 30): what the map's
  * context shows on a phone, one touch row (and the map notice's row) that never
@@ -109,10 +110,6 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
   useEffect(() => {
     if (drafting) moveTo('peek')
   }, [drafting])
-  // Before paint, so the options never cover a panel just opened.
-  useLayoutEffect(() => {
-    if (openPanel) phoneToolOptions.value = null
-  }, [openPanel])
 
   function moveTo(next: PhoneSheetHeight): void {
     if (next === 'peek') {

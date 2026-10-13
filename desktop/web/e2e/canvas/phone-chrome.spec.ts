@@ -695,6 +695,12 @@ test.describe('390×844 tool options', () => {
     await toolOptions(page).getByRole('button', { name: 'Open the full catalog' }).tap()
     await expect(toolOptions(page), 'the catalog link closes the options').toHaveCount(0)
     await expect(page.locator('[data-phone-sheet] [role="tabpanel"]').getByRole('region', { name: 'Plant catalog' }), 'and shows the catalog').toBeVisible()
+    // With the catalog already open under the options, the link still shows it.
+    await page.locator('[data-tool-options-button]').tap()
+    await expect(toolOptions(page), 'Options covers the open catalog').toBeVisible()
+    await toolOptions(page).getByRole('button', { name: 'Open the full catalog' }).tap()
+    await expect(toolOptions(page), 'the catalog link closes the options over the open catalog').toHaveCount(0)
+    await expect(page.locator('[data-phone-sheet] [role="tabpanel"]').getByRole('region', { name: 'Plant catalog' }), 'and shows it').toBeVisible()
   })
 })
 

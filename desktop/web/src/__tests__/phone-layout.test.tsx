@@ -248,6 +248,13 @@ describe('phone layout', () => {
     expect(sheet.dataset.phoneSheet).toBe('half')
     expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Catalog')
 
+    // The same request with the catalog already open under the options, as when Place plants is armed from the catalog.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    expect(optionsShown()).toBe(true)
+    await act(async () => { selectPanel('plant-db') })
+    expect(optionsShown(), 'the catalog link closes the options over the open catalog').toBe(false)
+    expect(panelShown('plant-db'), 'and shows it').toBe(true)
+
     // A folded panel from More.
     await act(async () => { phoneToolOptions.value = 'half' })
     await more('budget')
