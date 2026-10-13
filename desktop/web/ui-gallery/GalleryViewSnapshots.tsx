@@ -9,6 +9,7 @@ import {
 } from '../src/app/saved-views'
 import { composeSavedView } from '../src/app/saved-views/model'
 import { mapLayers, type MapLayersState } from '../src/app/map-layers/state'
+import { readSatelliteConfig } from '../src/app/settings/satellite-config'
 import { locale } from '../src/app/settings/state'
 import { currentCanvasQuerySurface } from '../src/canvas/session'
 import { geographicViewOfCamera } from '../src/canvas/session-plane'
@@ -61,7 +62,7 @@ export function GalleryViewSnapshots({ ready, tiles }: { readonly ready: boolean
       if (views.length > 0) {
         // The same captures on a map whose drawing buffer is preserved, to
         // compare their cost with reading inside the frame's task.
-        const preserving = createViewSnapshotMap({ preserveDrawingBuffer: true })
+        const preserving = createViewSnapshotMap({ readSatelliteConfig, preserveDrawingBuffer: true })
         try {
           for (const view of views.filter((entry) => entry.id !== SHORT_TIMEOUT_VIEW)) {
             push(await capture(view.name, 'preserve-buffer', () => {
