@@ -32,6 +32,10 @@ The words every locale uses for Canopi's core terms. A term keeps one translatio
 | layer | calque | capa | camada | livello | Ebene |
 | saved view | vue enregistrée | vista guardada | visualização salva | vista salvata | gespeicherte Ansicht |
 | story | récit | relato | história | racconto | Geschichte |
+| point (a bend point of a path drawn with Plant a row, or a zone corner) | point | punto | ponto | punto | Punkt |
+| Delete point | Supprimer le point | Eliminar punto | Excluir ponto | Elimina punto | Punkt löschen |
+| Sharp corner | Coin vif | Esquina viva | Canto vivo | Angolo vivo | Scharfe Ecke |
+| Smooth corner | Coin arrondi | Esquina suave | Canto suave | Angolo arrotondato | Runde Ecke |
 
 | English | nl | ru | zh | ja | ko |
 | --- | --- | --- | --- | --- | --- |
@@ -50,6 +54,10 @@ The words every locale uses for Canopi's core terms. A term keeps one translatio
 | layer | laag | слой | 图层 | レイヤー | 레이어 |
 | saved view | opgeslagen weergave | сохранённый вид | 已保存的视图 | 保存したビュー | 저장한 보기 |
 | story | verhaal | история | 故事 | ストーリー | 이야기 |
+| point | punt | точка | 点 | 点 | 점 |
+| Delete point | Punt verwijderen | Удалить точку | 删除点 | 点を削除 | 점 삭제 |
+| Sharp corner | Scherpe hoek | Острый угол | 尖角 | 鋭い角 | 뾰족한 꼭짓점 |
+| Smooth corner | Vloeiende hoek | Плавный угол | 平滑角 | 滑らかな角 | 부드러운 꼭짓점 |
 
 ## Tool and panel names
 
