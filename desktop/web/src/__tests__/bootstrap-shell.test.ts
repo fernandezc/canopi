@@ -189,6 +189,67 @@ describe("settings platform bootstrap", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(mocks.showBrowserShellNotice).not.toHaveBeenCalled();
+    expect(mocks.restoreLatestDraft).toHaveBeenCalledOnce();
+  });
+
+  it("still saves continuously when restoring the newest Draft fails", async () => {
+    const error = new Error("storage unavailable");
+    mocks.restoreLatestDraft.mockImplementation(() => {
+      throw error;
+    });
+    const logError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { bootstrapPlatform } = await import("../platform/browser");
+
+    bootstrapPlatform();
+
+    expect(logError).toHaveBeenCalledWith("Failed to restore the latest Design Draft:", error);
+    expect(mocks.installContinuousSave).toHaveBeenCalledOnce();
+  });
+
+  it("does not report a Browser settings failure from a replaced bootstrap", async () => {
+    let rejectFirstLoad!: (error: unknown) => void;
+    const firstReady = new Promise<void>((_resolve, reject) => {
+      rejectFirstLoad = reject;
+    });
+    mocks.installSettingsProjection
+      .mockReturnValueOnce({ ready: firstReady, dispose: mocks.disposeSettings })
+      .mockReturnValueOnce({ ready: Promise.resolve(), dispose: mocks.disposeSettings });
+    const logError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { bootstrapPlatform } = await import("../platform/browser");
+
+    bootstrapPlatform();
+    bootstrapPlatform();
+    rejectFirstLoad(new Error("obsolete settings load"));
+    await Promise.resolve();
+
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it("replaces the Desktop shell lifecycle while preserving the close guard", async () => {
+    const { bootstrapPlatform } = await import("../platform/desktop");
+    const { installKeyRouter } = await import("../app/keyboard/key-router");
+
+    bootstrapPlatform();
+    bootstrapPlatform();
+
+    // The one Desktop key router: replaced with the rest of the platform lifetime.
+    expect(mocks.installDesktopKeyRouter).toHaveBeenCalledTimes(2);
+    expect(mocks.installDesktopKeyRouter).toHaveBeenLastCalledWith(installKeyRouter, expect.objectContaining({ target: window }));
+    expect(mocks.disposeKeyRouter).toHaveBeenCalledOnce();
+
+    expect(mocks.installSettingsProjection).toHaveBeenCalledTimes(2);
+    expect(mocks.installSettingsProjection).toHaveBeenNthCalledWith(
+      1,
+      mocks.desktopSettingsAdapter,
+    );
+    expect(mocks.registerCloseGuard).toHaveBeenCalledTimes(2);
+    expect(mocks.disposeCloseGuard).toHaveBeenCalledOnce();
+    expect(mocks.installPlaceSearchSession).toHaveBeenCalledTimes(2);
+    expect(mocks.disposePlaceSearchSession).toHaveBeenCalledOnce();
+    expect(mocks.installToolRailLearning).toHaveBeenCalledTimes(2);
+    expect(mocks.disposeToolRailLearning).toHaveBeenCalledOnce();
+    expect(mocks.disposeSettings).toHaveBeenCalledOnce();
+    expect(mocks.disposeTheme).toHaveBeenCalledOnce();
   });
 
   it("boots shell services and delegates settings lifecycle", async () => {
