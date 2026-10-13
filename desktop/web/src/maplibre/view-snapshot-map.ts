@@ -10,6 +10,7 @@ import { BasemapTileAuth } from './basemap-tile-auth'
 import { createMapLibreCameraDriver, type MapLibreCameraDriverMap } from './camera-driver'
 import { createMapLibreEmptyStyle, MAPLIBRE_MAP_MAX_ZOOM } from './config'
 import { loadMapLibreModule, type MapLibreMapConstructorOptions } from './loader'
+import type { SatelliteConfig } from './satellite-provider'
 import {
   mountMapBackground,
   type MapBackgroundHandle,
@@ -122,6 +123,8 @@ interface ViewSnapshotMapLibre {
 }
 
 export interface ViewSnapshotMapOptions {
+  /** The Satellite configuration the background band reads (`readSatelliteConfig`); required, like the band's. */
+  readonly readSatelliteConfig: () => SatelliteConfig
   readonly loadMapLibre?: () => Promise<ViewSnapshotMapLibre>
   readonly mountBackground?: (options: MapBackgroundOptions) => MapBackgroundHandle
   readonly createSceneLayer?: (options: SharedMapSceneLayerOptions) => SharedMapSceneLayer
@@ -181,7 +184,7 @@ class ViewSnapshotAbortError extends Error {
   }
 }
 
-export function createViewSnapshotMap(options: ViewSnapshotMapOptions = {}): ViewSnapshotMap {
+export function createViewSnapshotMap(options: ViewSnapshotMapOptions): ViewSnapshotMap {
   const loadMapLibre = options.loadMapLibre ?? (loadMapLibreModule as () => Promise<ViewSnapshotMapLibre>)
   const mountBackground = options.mountBackground ?? mountMapBackground
   const createSceneLayer = options.createSceneLayer ?? createSharedMapSceneLayer
@@ -312,6 +315,7 @@ export function createViewSnapshotMap(options: ViewSnapshotMapOptions = {}): Vie
         map: map as unknown as MapBackgroundMap,
         maplibre,
         tileAuth,
+        readSatelliteConfig: options.readSatelliteConfig,
         lifetime: map,
       })
       const context = map.getCanvas().getContext('webgl2')

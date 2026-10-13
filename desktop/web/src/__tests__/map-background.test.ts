@@ -2,6 +2,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { effect, signal } from '@preact/signals'
 import { googleMapsApiKey, satelliteSource } from '../app/settings/state'
+import { readSatelliteConfig } from '../app/settings/satellite-config'
 import { MAPLIBRE_SATELLITE_LAYER_ID, MAPLIBRE_SATELLITE_SOURCE_ID } from '../maplibre/config'
 import { BasemapTileAuth } from '../maplibre/basemap-tile-auth'
 import { mountMapBackground, type MapBackgroundMap, type MapBackgroundPresentation } from '../maplibre/map-background'
@@ -91,6 +92,7 @@ function mount(map = createMap()) {
     map,
     maplibre: { AttributionControl: FakeControl },
     tileAuth: new BasemapTileAuth(),
+    readSatelliteConfig,
     lifetime: { on: () => {}, off: () => {} },
     loadStyle: async () => STYLE,
   })
@@ -276,6 +278,7 @@ describe('map background band', () => {
       map: createMap(),
       maplibre: { AttributionControl: FakeControl },
       tileAuth: new BasemapTileAuth(),
+      readSatelliteConfig,
       lifetime: { on: () => {}, off: () => {} },
       loadStyle: async () => { throw new Error('Basemap style request failed (503).') },
       onBasemapStatus: (status) => statuses.push(status),
@@ -299,6 +302,7 @@ describe('map background band', () => {
       map: createMap(),
       maplibre: { AttributionControl: FakeControl },
       tileAuth: new BasemapTileAuth(),
+      readSatelliteConfig,
       lifetime: { on: () => {}, off: () => {} },
       loadStyle,
       onBasemapStatus: (status) => statuses.push(status),

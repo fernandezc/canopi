@@ -150,7 +150,7 @@ export class SatelliteImageryProvider {
      * provider that is already serving a live map, because `update()` re-reads
      * it, so no caller has to capture the key at map-creation time and go stale.
      */
-    private readonly config: () => SatelliteConfig,
+    readonly config: () => SatelliteConfig,
     private readonly now: () => number = () => Date.now(),
     private readonly sleep: (ms: number) => Promise<void> = (ms) =>
       new Promise((resolve) => setTimeout(resolve, ms)),

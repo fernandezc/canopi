@@ -197,6 +197,7 @@ function createFakeBackground(options: MapBackgroundOptions) {
 
 function createOwner(overrides: Partial<ViewSnapshotMapOptions> = {}) {
   return createViewSnapshotMap({
+    readSatelliteConfig: () => ({ googleMapsApiKey: null, locale: 'en' }),
     loadMapLibre: async () => ({ Map: FakeMap as unknown as new (options: MapLibreMapConstructorOptions) => unknown }),
     mountBackground: createFakeBackground,
     createSceneLayer: createFakeLayer,

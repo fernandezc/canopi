@@ -19,6 +19,7 @@ import {
   type SatelliteMountHandle,
   type SatelliteMountOptions,
 } from './satellite-bind'
+import type { SatelliteConfig } from './satellite-provider'
 import type { SatelliteViewport } from './satellite-provider-session'
 
 /** The background band's inputs, read from the map layer store and settings. It holds no Google key: it is captured for saved-view thumbnails and compared between frames (P46 guards the key's readers). */
@@ -80,6 +81,11 @@ export interface MapBackgroundOptions {
   readonly maplibre: unknown
   /** The map's credential owner, created with its request transform. */
   readonly tileAuth: BasemapTileAuth
+  /**
+   * The Satellite configuration (`readSatelliteConfig` in app/settings): the Google key and locale. Required, so no
+   * mount silently falls back to keyless imagery; never part of the presentation, which is captured and compared.
+   */
+  readonly readSatelliteConfig: () => SatelliteConfig
   readonly lifetime: {
     on(type: string, listener: (event?: unknown) => void): void
     off(type: string, listener: (event?: unknown) => void): void
@@ -164,7 +170,7 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
     }
     if (!satellite) {
       satellite = mountSatelliteLifecycle({
-        provider: createSatelliteImagery(options.tileAuth),
+        provider: createSatelliteImagery(options.tileAuth, options.readSatelliteConfig),
         map,
         readViewport: () => readViewport(map),
         styleReady: readiness,

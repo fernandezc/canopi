@@ -1,4 +1,5 @@
 import { effect } from '@preact/signals'
+import type { SatelliteConfig } from './satellite-provider'
 import {
   SatelliteImageryProvider,
   type SatelliteState,
@@ -6,7 +7,6 @@ import {
 } from './satellite-provider-session'
 import { createBrowserSatelliteHttp } from './satellite-http.browser'
 import type { BasemapTileAuth } from './basemap-tile-auth'
-import { activeGoogleMapsApiKey, locale } from '../app/settings/state'
 import {
   reconcileSatelliteContribution,
   setSatelliteContributionVisibility,
@@ -44,14 +44,13 @@ interface MapStyleReadiness {
  * serving a live map: `update()` re-reads it, and no caller has to capture the
  * key at map-creation time and go stale.
  */
-export function createSatelliteImagery(tileAuth: BasemapTileAuth): SatelliteImageryProvider {
+export function createSatelliteImagery(
+  tileAuth: BasemapTileAuth,
+  readConfig: () => SatelliteConfig,
+): SatelliteImageryProvider {
   return new SatelliteImageryProvider(
     createBrowserSatelliteHttp(),
-    () => ({
-      // The saved key only while Settings › Map and imagery chooses it.
-      googleMapsApiKey: activeGoogleMapsApiKey.value,
-      locale: locale.value,
-    }),
+    readConfig,
     () => Date.now(),
     (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     tileAuth,
@@ -71,9 +70,9 @@ function installSatelliteConfigObserver(
 ): () => void {
   let mounted = false
   return effect(() => {
-    // Subscribe to every configuration identity input.
-    void activeGoogleMapsApiKey.value
-    void locale.value
+    // Subscribe to every configuration identity input: the provider's getter (readSatelliteConfig) reads the settings
+    // signals.
+    void provider.config()
     // The caller already applied the initial configuration; only later
     // configuration identity changes update the already mounted provider.
     if (!mounted) {

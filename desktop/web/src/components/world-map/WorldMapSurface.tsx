@@ -12,6 +12,7 @@ import {
 import { effect } from '@preact/signals'
 import { readWorkspaceBackgroundPresentation } from '../../app/canvas-map-surface/workspace-activation-snapshot'
 import { mountMapBackground, type MapBackgroundMap } from '../../maplibre/map-background'
+import { readSatelliteConfig } from '../../app/settings/satellite-config'
 import { BasemapTileAuth } from '../../maplibre/basemap-tile-auth'
 import styles from './WorldMapSurface.module.css'
 
@@ -55,6 +56,7 @@ export function WorldMapSurface({
           map: context.map as unknown as MapBackgroundMap,
           maplibre: context.maplibre,
           tileAuth,
+          readSatelliteConfig,
           lifetime: context.lifetime,
         })
         const stopBackground = effect(() => background.update(readWorkspaceBackgroundPresentation()))

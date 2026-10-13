@@ -13,6 +13,7 @@ import {
 } from '../maplibre/satellite-contribution'
 import { MAPLIBRE_SATELLITE_LAYER_ID, MAPLIBRE_SATELLITE_SOURCE_ID } from '../maplibre/config'
 import { BasemapTileAuth } from '../maplibre/basemap-tile-auth'
+import { readSatelliteConfig } from '../app/settings/satellite-config'
 import { createSatelliteImagery, mountSatelliteLifecycle } from '../maplibre/satellite-bind'
 import { GOOGLE_SESSION_TILES, type SatelliteDescriptor } from '../maplibre/satellite-provider'
 
@@ -561,7 +562,7 @@ describe('provider lifecycle regressions after 26eca68a', () => {
     }
     const teardown = mountSatelliteLifecycle({
       ...MOUNT_DEFAULTS,
-      provider: createSatelliteImagery(new BasemapTileAuth()),
+      provider: createSatelliteImagery(new BasemapTileAuth(), readSatelliteConfig),
       map,
       readViewport: () => ({ west: -10, south: -10, east: 10, north: 10, zoom: 2 }),
     })
@@ -592,7 +593,7 @@ describe('provider lifecycle regressions after 26eca68a', () => {
     const credits: string[] = []
     const mount = mountSatelliteLifecycle({
       ...MOUNT_DEFAULTS,
-      provider: createSatelliteImagery(new BasemapTileAuth()),
+      provider: createSatelliteImagery(new BasemapTileAuth(), readSatelliteConfig),
       map,
       readViewport: () => ({ west: -10, south: -10, east: 10, north: 10, zoom: 2 }),
       replaceSatelliteAttribution: (credit: string) => credits.push(credit),
@@ -654,7 +655,7 @@ describe('provider lifecycle regressions after 26eca68a', () => {
     const credits: string[] = []
     const mount = mountSatelliteLifecycle({
       ...MOUNT_DEFAULTS,
-      provider: createSatelliteImagery(new BasemapTileAuth()),
+      provider: createSatelliteImagery(new BasemapTileAuth(), readSatelliteConfig),
       map,
       readViewport: () => {
         readCount += 1

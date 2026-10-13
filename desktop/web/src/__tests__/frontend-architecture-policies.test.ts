@@ -2184,8 +2184,6 @@ const CANVAS_V2_POLICIES = [
       'src/utils/theme.ts',
       // Design write admission and dialogs still compose app/document-session (canopi-m4v0).
       'src/ipc/design.ts',
-      // Reads the Google key until canopi-k94s moves the key path.
-      'src/maplibre/satellite-bind.ts',
       ...TEST_SOURCE_PATTERNS,
     ],
     targets: ['src/app/**', 'src/components/**', 'src/web/**', 'src/commands/**', 'src/platform/**'],
@@ -2256,8 +2254,8 @@ const CANVAS_V2_POLICIES = [
   },
   {
     // An import rule, since the key's names are also property names. A namespace import ('*') reads every member, so
-    // it counts too. Readers: settings itself, the key field, the Layers presentation and satellite-bind.ts until
-    // canopi-k94s moves the key path. Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
+    // it counts too. Readers: settings itself (its readSatelliteConfig getter is how a map mount gets the key), the key
+    // field and the Layers presentation. Residual risk (canopi-f47t.52.21): mutateSettingsProjection's draft
     // carries googleMapsApiKey to every caller of the mutation seam, which this rule cannot see.
     kind: 'forbid-imports',
     name: 'P46 the Google key has reviewed readers',
@@ -2266,7 +2264,6 @@ const CANVAS_V2_POLICIES = [
       'src/app/settings/**',
       'src/components/shared/SettingsGoogleKeyField.tsx',
       'src/app/canvas-layer-presentation/presentation.ts',
-      'src/maplibre/satellite-bind.ts',
       ...TEST_SOURCE_PATTERNS,
     ],
     targets: ['src/app/settings/state.ts', 'src/app/settings/projection.ts'],
@@ -3729,7 +3726,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       plantedSource('src/i18n/index.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/utils/theme.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/ipc/design.ts', ["import { locale } from '../app/settings/state'"]),
-      plantedSource('src/maplibre/satellite-bind.ts', ["import { locale } from '../app/settings/state'"]),
       plantedSource('src/utils/planted.test.ts', ["import { Chip } from '../components/shared/Chip'"]),
     ])
 
@@ -3903,7 +3899,6 @@ describe('2.0 guard policies (canopi-f47t.52.17)', () => {
       plantedSource('src/app/canvas-layer-presentation/presentation.ts', [
         "import { googleMapsApiKey } from '../settings/state'",
       ]),
-      plantedSource('src/maplibre/satellite-bind.ts', ["import { activeGoogleMapsApiKey } from '../app/settings/state'"]),
       plantedSource('src/app/planted.test.ts', ["import { googleMapsApiKey } from './settings/state'"]),
     ])
 
