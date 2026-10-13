@@ -255,7 +255,7 @@ describe('SceneInteractionSession', () => {
     it('reports a polygon draft as a gesture until it is cancelled', () => {
       const { session, latest } = guidedSession()
       session.setTool('polygon')
-      expect(latest()).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, promptSpecies: false, plantRow: null })
+      expect(latest()).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, speciesPrompts: 0, plantRow: null })
 
       events.pointerDown({ x: 10, y: 10 })
       events.pointerUp({ x: 10, y: 10 })
@@ -333,7 +333,7 @@ describe('SceneInteractionSession', () => {
 
       session.dispose()
 
-      expect(latest()).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, promptSpecies: false, plantRow: null })
+      expect(latest()).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, speciesPrompts: 0, plantRow: null })
     })
   })
 })

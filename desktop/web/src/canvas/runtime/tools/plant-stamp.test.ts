@@ -98,17 +98,19 @@ describe('Place plants tool', () => {
     expect(h.history.canUndo.value).toBe(false)
   })
 
-  it('a press with no species places nothing and asks for one until a species arrives', () => {
+  it('a press with no species places nothing and asks for one, each press again, until a species arrives', () => {
     const h = stampHarness(null)
-    expect(h.record.guidance.at(-1)?.promptSpecies).toBe(false)
+    expect(h.record.guidance.at(-1)?.speciesPrompts).toBe(0)
 
     h.click({ x: 40, y: 40 })
 
     expect(h.store.persisted.plants).toHaveLength(0)
-    expect(h.record.guidance.at(-1)?.promptSpecies).toBe(true)
+    expect(h.record.guidance.at(-1)?.speciesPrompts).toBe(1)
+    h.click({ x: 40, y: 40 })
+    expect(h.record.guidance.at(-1)?.speciesPrompts, 'each press asks again').toBe(2)
 
     h.host.sourceChanged({ kind: 'species', species: APPLE })
-    expect(h.record.guidance.at(-1)?.promptSpecies).toBe(false)
+    expect(h.record.guidance.at(-1)?.speciesPrompts).toBe(0)
     h.click({ x: 40, y: 40 })
     expect(h.store.persisted.plants).toHaveLength(1)
   })
@@ -119,13 +121,13 @@ describe('Place plants tool', () => {
     // Place plants here, from the menu: the host snaps the point (5 m grid at 4 px/m).
     expect(h.host.command({ kind: 'place-at', world: { x: 13.25, y: 16.75 } })).toBe('handled')
     expect(h.store.persisted.plants).toHaveLength(0)
-    expect(h.record.guidance.at(-1)?.promptSpecies).toBe(true)
+    expect(h.record.guidance.at(-1)?.speciesPrompts).toBe(1)
 
     h.host.sourceChanged({ kind: 'species', species: APPLE })
 
     expect(h.store.persisted.plants.map((plant) => plant.position)).toEqual([{ x: 15, y: 15 }])
     expect(h.store.session.selectedTargets).toEqual([{ kind: 'plant', id: h.store.persisted.plants[0]!.id }])
-    expect(h.record.guidance.at(-1)?.promptSpecies).toBe(false)
+    expect(h.record.guidance.at(-1)?.speciesPrompts).toBe(0)
 
     // The pick is spent: another species places nothing more.
     h.host.sourceChanged({ kind: 'species', species: { ...APPLE, canonical_name: 'Pyrus communis' } })

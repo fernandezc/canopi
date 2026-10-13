@@ -86,6 +86,19 @@ async function expectOptionsControls(page: Page, where: string): Promise<void> {
   }
 }
 
+/** Every control in the tool's options is a 44 px target (ADR 0010), as the bar's are; the options scroll, so only the
+ *  size is measured. */
+async function expectOptionsControls(page: Page, where: string): Promise<void> {
+  const controls = toolOptions(page).locator('button, select, input:not([type="checkbox"], [type="radio"]), [role="button"]')
+  expect(await controls.count(), `${where}: the options hold controls`).toBeGreaterThan(0)
+  for (const control of await controls.all()) {
+    if (!await control.isVisible()) continue
+    const name = (await control.getAttribute('aria-label')) ?? (await control.textContent()) ?? 'a control'
+    const box = await boxOf(control)
+    expect(Math.min(box.width, box.height), `${where}: ${name} is a 44 px target (${box.width}x${box.height})`).toBeGreaterThanOrEqual(44 - 0.5)
+  }
+}
+
 // Answer 17: on a phone, while a drawing tool holds a draft (Plant a row, Polygon, Profile line), the panel sheet drops to
 // its peek, so the draft is drawn on the map rather than under the sheet; arming a tool alone keeps the sheet, and a
 // sheet raised again during the draft stays where the user puts it.
@@ -639,6 +652,7 @@ test.describe('390×844 tool options', () => {
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
     await expect(selected, 'in place of the open panel').toHaveCount(0)
     await expectOptionsControls(page, 'the species chooser')
+    await expectOptionsControls(page, 'the species chooser')
 
     // Rested at its peek, the sheet opens the chooser again at a tap on the map with no species chosen.
     await page.locator('[data-sheet-handle]').focus()
@@ -647,6 +661,12 @@ test.describe('390×844 tool options', () => {
     await tap(page, ABOVE)
     await expect(apple, 'a tap on the map with no species opens the chooser again').toBeVisible()
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+    // Each tap does, not only the first.
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('Home')
+    await expect(toolOptions(page)).toHaveCount(0)
+    await tap(page, ABOVE)
+    await expect(apple, 'a second tap with no species opens the chooser again').toBeVisible()
     await apple.click()
     await expect(toolOptions(page), 'choosing a species closes the chooser').toHaveCount(0)
     await expect(sheet(page), 'the sheet goes back to its peek').toHaveAttribute('data-phone-sheet', 'peek')

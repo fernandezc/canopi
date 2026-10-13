@@ -312,7 +312,7 @@ describe('Place plants species chooser', () => {
   })
 
   it('points to the chooser when the map is clicked with no species chosen', async () => {
-    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, promptSpecies: true }))
+    await act(() => setCanvasToolGuidance({ ...IDLE_CANVAS_TOOL_GUIDANCE, speciesPrompts: 1 }))
 
     expect(container.querySelector('[role="status"]')!.textContent).toContain('Choose a species first, then click the map')
     expect(document.activeElement).toBe(container.querySelector('input[type="search"]'))

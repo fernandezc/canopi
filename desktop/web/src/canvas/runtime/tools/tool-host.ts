@@ -581,7 +581,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       gesture: toolGuidance?.gesture ?? hasActiveSceneEdit(),
       stamp: toolGuidance?.stamp ?? null,
       stampRotationDeg: toolGuidance?.stampRotationDeg ?? null,
-      promptSpecies: toolGuidance?.promptSpecies ?? false,
+      speciesPrompts: toolGuidance?.speciesPrompts ?? 0,
       plantRow: toolGuidance?.plantRow ?? null,
     }
     const key = JSON.stringify(guidance)

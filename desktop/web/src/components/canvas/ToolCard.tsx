@@ -100,8 +100,6 @@ export function ToolCard({ stampChooser: StampChooser }: {
   const section = useRef<HTMLElement>(null)
   const choosing = content?.tool === 'plant-stamp' && (source === null || changingSpecies)
   const lead = content ? cardLead(content.tool, source, guidance) : null
-  // Each click on the map with no species chosen points to the chooser again.
-  const prompts = usePrompts(guidance.promptSpecies)
 
   const stampChooser = StampChooser && content?.chooser?.kind === 'stamp' ? content.chooser : null
   // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
@@ -181,7 +179,7 @@ export function ToolCard({ stampChooser: StampChooser }: {
       {choosing && (
         <SpeciesChooser
           autoFocus={changingSpecies}
-          focusRequest={prompts}
+          focusRequest={guidance.speciesPrompts}
           onChosen={closeChooser}
           onEscape={escapeSpeciesChooser}
         />
@@ -306,15 +304,6 @@ function RowLength({ row }: { readonly row: CanvasPlantRowGuidance }) {
   ) : null
 }
 
-/** Counts each rise of Place plants' "choose a species first" prompt: a click on the map with no species chosen. */
-function usePrompts(prompt: boolean): number {
-  const prompts = useRef(0)
-  const last = useRef(false)
-  if (prompt && !last.current) prompts.current += 1
-  last.current = prompt
-  return prompts.current
-}
-
 /**
  * The chosen species as the card names it: its name in the interface language, else
  * its English catalog name marked "(en)" (from the runtime for Design species, from
@@ -377,7 +366,6 @@ function CardLead({ lead }: { readonly lead: Lead }) {
  */
 export function ToolOptions() {
   const { source, guidance, species, content, row, rowPath } = useToolCard(true)
-  const prompts = usePrompts(guidance.promptSpecies)
   if (!content) return null
 
   function close(): void {
@@ -395,7 +383,7 @@ export function ToolOptions() {
       {content.tool === 'plant-stamp' && (
         <SpeciesChooser
           autoFocus={false}
-          focusRequest={prompts}
+          focusRequest={guidance.speciesPrompts}
           onChosen={close}
           onEscape={() => {
             // With no species chosen the chooser is all Place plants holds, so Esc leaves the tool.

@@ -1397,13 +1397,13 @@ describe('SceneInteractionSession', () => {
       })
       const session = createTestSession(deps)
       session.setTool('plant-stamp')
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
 
       events.pointerDown({ x: 40, y: 40 })
       events.pointerUp({ x: 40, y: 40 })
 
       expect(store.persisted.plants).toHaveLength(0)
-      expect(published.at(-1)?.promptSpecies).toBe(true)
+      expect(published.at(-1)?.speciesPrompts).toBe(1)
 
       selectPlantStampSource({ canonical_name: 'Malus domestica', common_name: 'Apple', stratum: null, width_max_m: 6 })
       // The pick reaches Place plants through the session's read model after a microtask (spec §1.4).
@@ -1412,7 +1412,7 @@ describe('SceneInteractionSession', () => {
       events.pointerUp({ x: 40, y: 40 })
 
       expect(store.persisted.plants).toHaveLength(1)
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
       session.dispose()
     })
   })
@@ -1436,7 +1436,7 @@ describe('SceneInteractionSession', () => {
 
       expect(tools.at(-1)).toBe('plant-stamp')
       expect(store.persisted.plants).toHaveLength(0)
-      expect(published.at(-1)?.promptSpecies).toBe(true)
+      expect(published.at(-1)?.speciesPrompts).toBe(1)
 
       selectPlantStampSource(APPLE)
       await Promise.resolve()
@@ -1444,7 +1444,7 @@ describe('SceneInteractionSession', () => {
       expect(store.persisted.plants).toHaveLength(1)
       expect(store.persisted.plants[0]).toMatchObject({ canonicalName: 'Malus domestica', position: { x: 120, y: 80 } })
       expect(store.session.selectedTargets).toEqual([plantTarget(store.persisted.plants[0]!.id)])
-      expect(published.at(-1)?.promptSpecies).toBe(false)
+      expect(published.at(-1)?.speciesPrompts).toBe(0)
 
       // The pick is spent: choosing another species places nothing more.
       selectPlantStampSource({ ...APPLE, canonical_name: 'Pyrus communis' })

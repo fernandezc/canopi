@@ -66,7 +66,7 @@ describe('Pan tool', () => {
     h.click({ x: 100, y: 100 })
 
     expect(h.chrome.cursor).toBe('grab')
-    expect(h.record.guidance.at(-1)).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, promptSpecies: false, plantRow: null })
+    expect(h.record.guidance.at(-1)).toEqual({ gesture: false, stamp: null, stampRotationDeg: null, speciesPrompts: 0, plantRow: null })
     expect(gestures).toEqual(['hover', 'press', 'tap'])
     // A hover passes: the plant's hover restyle and tooltip run as under Select.
     expect(h.record.hovers).toContainEqual({ kind: 'plant', id: 'apple' })

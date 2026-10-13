@@ -155,8 +155,11 @@ describe('Phone context bar', () => {
     expect(phoneToolOptions.value, 'another tool closes them').toBeNull()
     await choose('plant-stamp')
     await act(() => { phoneToolOptions.value = null })
-    await choose('plant-stamp', { promptSpecies: true })
+    await choose('plant-stamp', { speciesPrompts: 1 })
     expect(phoneToolOptions.value, 'a tap on the map with no species opens them again').toBe('half')
+    await act(() => { phoneToolOptions.value = null })
+    await choose('plant-stamp', { speciesPrompts: 2 })
+    expect(phoneToolOptions.value, 'and each tap after it').toBe('half')
     await choose('select')
     expect(phoneToolOptions.value).toBeNull()
 
