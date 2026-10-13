@@ -67,11 +67,11 @@
   backdrop-filter: none;
 }
 
-/* A row's card gives way first: it keeps a line of its fields above its foot (three touch targets' height), scrolling
-   the rest above the foot, and below that the bar scrolls. */
+/* A row's card gives way first: it keeps a line of its fields above its foot (three touch targets' height, and the room
+   a focused field's ring scrolls into), scrolling the rest above the foot, and below that the bar scrolls. */
 .card[data-placement='bar'][data-row] {
   flex-shrink: 1;
-  min-height: calc(var(--control-size-touch) * 3);
+  min-height: calc(var(--control-size-touch) * 3 + var(--space-2));
 }
 
 /* No card: the live region stays mounted but takes no room. */
