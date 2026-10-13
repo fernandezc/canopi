@@ -106,3 +106,31 @@ for (const size of SIZES) {
     })
   })
 }
+
+test.describe('1280×800', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('(canopi-u85o) opening a Draft keeps the start screen\'s layout until the Design shows', async ({ page }) => {
+    // The Design's chrome is laid out, transparent, while its first scene is drawn; it frames the camera but takes no room
+    // from the start screen covering the wait (visible-map-area's `--map-clear-*`), so the library does not shift.
+    await openWithDrafts(page)
+    await page.evaluate(() => {
+      const samples: string[] = []
+      ;(window as unknown as { __clearSamples: string[] }).__clearSamples = samples
+      const sample = () => {
+        const start = document.querySelector('[data-start-screen]')
+        if (!start) return
+        const style = getComputedStyle(start)
+        samples.push(['top', 'right', 'bottom', 'left'].map((edge) => style.getPropertyValue(`--map-clear-${edge}`).trim()).join(' '))
+        requestAnimationFrame(sample)
+      }
+      sample()
+    })
+    await startScreen(page).locator('[data-design-drafts] li').first().getByRole('button').first().click()
+    await expect(startScreen(page)).toHaveCount(0)
+    await expect(page.getByRole('toolbar', { name: 'Tools' })).toBeVisible()
+    const samples = await page.evaluate(() => (window as unknown as { __clearSamples: string[] }).__clearSamples)
+    expect(samples.length, 'frames were sampled while the Design opened').toBeGreaterThan(1)
+    expect(new Set(samples), `the start screen's clearance per frame: ${JSON.stringify(samples)}`).toEqual(new Set([samples[0]]))
+  })
+})

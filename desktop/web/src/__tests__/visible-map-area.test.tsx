@@ -193,6 +193,43 @@ describe('visible map area', () => {
     expect(area.style.getPropertyValue('--map-clear-bottom'), 'released with the map area').toBe('')
   })
 
+  it('leaves an open Design\'s chrome out of the clearance while it waits to show, so the start screen keeps its layout', () => {
+    // A Design opened from the start screen: until its first scene is drawn the map area is marked data-design-hidden, the
+    // start screen stays up, and the Design's chrome is laid out but transparent. That chrome (the canvas chrome inside the
+    // map area, the Desktop panel rail marked data-design-chrome outside it) frames the camera, yet takes no room from the
+    // start screen, whose library would otherwise shift beside chrome nobody sees.
+    const area = element(WINDOW)
+    const releaseArea = registerMapArea(area)
+    const releaseTitle = registerMapOccluder(element(TITLE_BAR))
+    const clear = (edge: string) => area.style.getPropertyValue(`--map-clear-${edge}`)
+    area.setAttribute('data-design-hidden', '')
+    const rail = element(PANEL_RAIL)
+    rail.setAttribute('data-design-chrome', '')
+    const releaseRail = registerRail('panel', rail)
+    const zoom = document.createElement('div')
+    area.appendChild(zoom)
+    boxes.set(zoom, ZOOM_GROUP)
+    const releaseZoom = registerMapOccluder(zoom, 'bottom')
+    try {
+      expect(area.style.getPropertyValue('--map-inset-right'), 'the waiting rail frames the camera').toBe('64px')
+      expect(area.style.getPropertyValue('--map-inset-bottom'), 'the waiting zoom group frames the camera').toBe('56px')
+      expect(clear('right'), 'the waiting rail takes no width from the start screen').toBe('0px')
+      expect(clear('bottom'), 'the waiting zoom group takes no room from its end').toBe('0px')
+      expect(clear('top'), 'shown chrome keeps its clearance').toBe('60px')
+
+      // Shown, the Design's chrome is room at its edges again.
+      area.removeAttribute('data-design-hidden')
+      refreshVisibleMapArea()
+      expect(clear('right')).toBe('64px')
+      expect(clear('bottom')).toBe('56px')
+    } finally {
+      releaseZoom()
+      releaseRail()
+      releaseTitle()
+      releaseArea()
+    }
+  })
+
   it('keeps bottom chrome as room at the bottom of a scrolled page', () => {
     const area = element(WINDOW)
     const releaseArea = registerMapArea(area)

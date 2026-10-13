@@ -23,7 +23,11 @@ import { currentCanvasViewportCommandSurface } from '../../canvas/session'
  * chrome (the start screen) keeps clear of it through `--map-clear-*`: chrome
  * whose top stands in the map's lower half (the landscape panel sheet's corner
  * box at its peek) is room at the bottom, where the page's end scrolls above
- * it, and other chrome is room at its own edge.
+ * it, and other chrome is room at its own edge. An open Design's chrome waiting
+ * to show (the map area marked `data-design-hidden`: chrome inside the map area,
+ * and `data-design-chrome` outside it) frames the camera but keeps no room from
+ * the page: the start screen covers that wait, and its layout must not shift
+ * beside chrome nobody sees.
  */
 export interface VisibleMapFrame {
   /** The map area's size, in CSS pixels. */
@@ -191,7 +195,7 @@ let stopCameraSync: (() => void) | null = null
 function recompute(): void {
   if (!area) return
   const map = area.getBoundingClientRect()
-  const measure = () => [...occluders].map(([element, { side, frames }]) => ({ rect: element.getBoundingClientRect(), side, frames }))
+  const measure = () => [...occluders].map(([element, { side, frames }]) => ({ element, rect: element.getBoundingClientRect(), side, frames }))
   let boxes = measure()
   const framing = measureVisibleMapFrame(map, boxes.filter(({ frames }) => frames))
   let framingMoved = false
@@ -208,7 +212,10 @@ function recompute(): void {
   const folded = map.width > 0 && measureBottomBandRoom(map, boxes) < MAP_ATTRIBUTION_MIN_ROOM_PX
   if (mapAttributionFolded.peek() !== folded) mapAttributionFolded.value = folded
   for (const edge of INSET_PROPERTIES) area.style.setProperty(`--map-inset-${edge}`, `${next[edge]}px`)
-  const clearance = measureScrollClearance(map, boxes)
+  const page = area
+  const clearance = measureScrollClearance(map, page.hasAttribute('data-design-hidden')
+    ? boxes.filter(({ element }) => !page.contains(element) && !element.closest('[data-design-chrome]'))
+    : boxes)
   for (const edge of INSET_PROPERTIES) area.style.setProperty(`--map-clear-${edge}`, `${clearance[edge]}px`)
   for (const kind of ['tool', 'panel'] as const) {
     const room = measureRailRoom(
