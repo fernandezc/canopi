@@ -2,7 +2,7 @@
 // plant along a path", amendment A2, A16, A17): under Select, Alt+click deletes a corner (guard), a click on a midpoint
 // dot adds nothing and its double-click inserts a corner (guard), and a dot drag now inserts a corner where it is
 // released; right-click, a long press or Shift+F10 on a corner opens the point menu, Delete point only, which Delete and
-// Backspace pressed in it run and which Undo or a tool letter closes (stream D2, finish items F5 and F6); in Polygon, Esc
+// Backspace pressed in it run and which Undo or a tool letter closes (stream D); in Polygon, Esc
 // removes the last point, steps back to nothing, then returns to Select, and Ctrl+Shift+Z restores a removed point. Both
 // engines unless a test says otherwise; the long press is Chromium-only (CDP touch). DOM assertions only, no baselines.
 //
@@ -334,8 +334,8 @@ test.describe('long press', () => {
   })
 })
 
-// F6: the canvas menu's keys are its entries' shortcuts on what it names; a point menu names a corner.
-test('(canopi-f47t.54, D2) Delete and Backspace in a corner\'s point menu delete that corner, never the zone; refused at three corners, the menu stays', async ({ page }) => {
+// The canvas menu's keys are its entries' shortcuts on what it names; a point menu names a corner.
+test('(canopi-f47t.54, D) Delete and Backspace in a corner\'s point menu delete that corner, never the zone; refused at three corners, the menu stays', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
   for (const [key, left] of [['Delete', POLYGON_CORNERS - 1], ['Backspace', POLYGON_CORNERS - 2]] as const) {
@@ -358,8 +358,8 @@ test('(canopi-f47t.54, D2) Delete and Backspace in a corner\'s point menu delete
   await expect(selectionChip(page), 'the zone stays').toHaveText(/^Polygon zone/)
 })
 
-// F5: the point menu names its corner by index; once the corners or the tool change, it closes.
-test('(canopi-f47t.54, D2) a corner\'s point menu closes on Undo and on a tool letter pressed in it', async ({ page }) => {
+// The point menu names its corner by index; once the corners or the tool change, it closes.
+test('(canopi-f47t.54, D) a corner\'s point menu closes on Undo and on a tool letter pressed in it', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
   await (await firstCorner(page)).click({ modifiers: ['Alt'] })

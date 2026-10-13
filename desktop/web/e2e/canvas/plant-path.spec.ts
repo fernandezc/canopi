@@ -4,7 +4,7 @@
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
 // makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point, and a
 // right-click or long press on a point opens its menu (the card offers no point buttons: decision 16), where Delete and
-// Backspace delete that point and Ctrl+Z closes it (stream D2, finish items F5 and F6). A drag from the plant still plants a straight row (guard). Both engines unless a
+// Backspace delete that point and Ctrl+Z closes it (stream D). A drag from the plant still plants a straight row (guard). Both engines unless a
 // test says otherwise; WebKit has taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no
 // baselines; the path engine's positions are compared bit for bit between Node and each browser, so these tests read
 // exact positions.
@@ -414,8 +414,8 @@ test('(canopi-f47t.54, P) right-click and long press on a point while drawing op
   await expectNothingPlanted(page, 'opening the menus plants nothing')
 })
 
-// F6: in a point's menu, Delete and Backspace are its Delete point: never the last point or the last-touched one.
-test('(canopi-f47t.54, D2) Delete and Backspace in a point\'s menu while drawing delete that point and close the menu', async ({ page }) => {
+// In a point's menu, Delete and Backspace are its Delete point: never the last point or the last-touched one.
+test('(canopi-f47t.54, D) Delete and Backspace in a point\'s menu while drawing delete that point and close the menu', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)
@@ -433,8 +433,8 @@ test('(canopi-f47t.54, D2) Delete and Backspace in a point\'s menu while drawing
   await expectNothingPlanted(page, 'the keys plant nothing')
 })
 
-// F5: the point menu names its point by index; once the draft's points change, it closes.
-test('(canopi-f47t.54, D2) Ctrl+Z with a point\'s menu open while drawing takes the last point back and closes the menu', async ({ page }) => {
+// The point menu names its point by index; once the draft's points change, it closes.
+test('(canopi-f47t.54, D) Ctrl+Z with a point\'s menu open while drawing takes the last point back and closes the menu', async ({ page }) => {
   await openBase(page)
   await pickApple(page)
   for (const at of [P1, P2, P3]) await click(page, at)

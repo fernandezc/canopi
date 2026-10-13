@@ -72,7 +72,7 @@ function OpenCanvasContextMenu({ request, profileLine }: {
 }
 
 /**
- * While a point menu is open, Delete and Backspace are its Delete point (F6): they close the menu with focus given back
+ * While a point menu is open, Delete and Backspace are its Delete point (A16): they close the menu with focus given back
  * and delete the point, as choosing the entry does (ActionMenu.activate), or do nothing while Delete point is refused.
  * A pushed key scope, so the keymap's selection deletion never runs from the menu.
  */

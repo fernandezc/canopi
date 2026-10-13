@@ -362,7 +362,7 @@ function shortcutOf(
 /**
  * The keys a point menu (A16) takes for its Delete point while it is open: Delete's (Delete, Backspace). The canvas
  * menu's keys are its entries' shortcuts on what it names (Delete on the selection's menu deletes the selection), and a
- * point menu names a point, so they delete that point, never the selection (F6; components/canvas/CanvasContextMenu).
+ * point menu names a point, so they delete that point, never the selection (components/canvas/CanvasContextMenu).
  */
 export function deletePointShortcuts(): readonly string[] {
   return editDefinition('delete').shortcuts ?? []

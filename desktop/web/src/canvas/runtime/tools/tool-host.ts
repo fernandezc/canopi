@@ -1245,7 +1245,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   /**
    * The menu names its point by index (`vertex:<zone>:<i>`, `point:draft:<i>`): it names the same point only while the
    * armed tool, the Scene, the selection and the tool's points are those it opened on. Any edit, undo and redo included,
-   * a selection change, a tool change or a draft point added, moved or removed can give the index to another point (F5).
+   * a selection change, a tool change or a draft point added, moved or removed can give the index to another point.
    */
   function pointMenuCurrent(menu: OpenPointMenu): boolean {
     return activeTool === menu.tool

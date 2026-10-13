@@ -775,7 +775,7 @@ describe('SceneInteractionSession', () => {
     return container.querySelector<HTMLElement>(`[data-canvas-handle="point:draft:${index}"]`)!
   }
 
-  // F5: the point menu names its point by index; once the draft's points change, that index may be another point's.
+  // The point menu names its point by index; once the draft's points change, that index may be another point's.
   it('Plant a row: an open point menu closes when the draft\'s points or the tool change, and its stale Delete point removes nothing (A16)', () => {
     const { session, points } = drawRow()
     events.pointerDown({ x: 140, y: 80 }, { button: 2, target: draftPoint(2) })
@@ -798,7 +798,7 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  // F6: in the point menu, Delete and Backspace are its Delete point, as the canvas menu's keys are its entries' shortcuts
+  // In the point menu, Delete and Backspace are its Delete point, as the canvas menu's keys are its entries' shortcuts
   // on what it names: never the last point, the last-touched one or the selection. Through the app's own menu.
   it('Plant a row: Delete or Backspace in the point menu deletes the menu\'s point and closes it (A16)', () => {
     const menu = appContextMenu()

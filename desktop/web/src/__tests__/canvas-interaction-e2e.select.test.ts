@@ -2948,7 +2948,7 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  // F6: the canvas menu's keys are its entries' shortcuts on what it names (Delete on the selection's menu deletes the
+  // The canvas menu's keys are its entries' shortcuts on what it names (Delete on the selection's menu deletes the
   // selection); on a point menu, which names a point, Delete and Backspace are Delete point, never the zone's deletion.
   // Through the app's own menu, which holds focus as it does in the workspace.
   it('Delete or Backspace in a point menu deletes its corner, never the zone; on a triangle the menu stays and nothing goes (A16)', () => {
@@ -2997,7 +2997,7 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  // F5: a point menu names its point by index; once the corners, the selection or the tool change, that index may be
+  // A point menu names its point by index; once the corners, the selection or the tool change, that index may be
   // another corner's, so the menu closes and an entry chosen from it anyway removes nothing.
   it('an open point menu closes when the Scene, the selection or the tool changes, and its stale Delete point removes nothing (A16)', () => {
     const square = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 120, y: 120 }, { x: 20, y: 120 }]

@@ -73,7 +73,7 @@ export interface ContextMenuPort {
     readonly pointActions?: readonly CanvasContextMenuPointAction[]   // the point menu (A16): these entries only, after Finish shape
   }): void
   /** `restoreFocus`: focus held outside the map (in the menu) goes back to the menu's opener or the map, as the menu's
-   *  Esc gives it back; the host closes a stale point menu so (F5). */
+   *  Esc gives it back; the host closes a stale point menu so. */
   close(options?: { readonly restoreFocus?: boolean }): void
   readonly isOpen: () => boolean
 }
