@@ -119,6 +119,18 @@ async function expectOneEditThenUndo(page: Page, what: string): Promise<void> {
   await expect(undo(page), `${what}: no edit before it`).toBeDisabled()
 }
 
+/**
+ * What a placing tool's gesture selected, by the selection chip. On a phone the armed tool's card holds the context bar,
+ * so Esc first returns to Select, which keeps the selection and shows its chip there.
+ */
+async function expectPlacedSelection(page: Page, layout: Layout, text: string | RegExp, what: string): Promise<void> {
+  if (layout === PHONE) {
+    await page.keyboard.press('Escape')
+    await expect(tool(page, 'Select')).toHaveAttribute('aria-pressed', 'true')
+  }
+  await expect(selectionChip(page), what).toHaveText(text)
+}
+
 /** The new zone's corners, shown once Esc returns to Select with the zone still selected. */
 async function expectPolygonCorners(page: Page, count: number): Promise<void> {
   await page.keyboard.press('Escape')
@@ -166,15 +178,17 @@ test.describe('Chromium touch', () => {
       const { ground } = layout
 
       await fingers.tap(ground)
-      await expect(selectionChip(page), 'a still tap places one plant').toHaveText('Apple')
+      await expectPlacedSelection(page, layout, 'Apple', 'a still tap places one plant')
       await expectOneEditThenUndo(page, 'a still tap')
+      if (layout === PHONE) await armApple(page)
 
       await fingers.tap(ground, { path: [{ x: ground.x + 3, y: ground.y + 2 }, { x: ground.x + 6, y: ground.y }] })
-      await expect(selectionChip(page), 'a 6 px rolling tap places one plant').toHaveText('Apple')
+      await expectPlacedSelection(page, layout, 'Apple', 'a 6 px rolling tap places one plant')
       await expectOneEditThenUndo(page, 'a rolling tap')
+      if (layout === PHONE) await armApple(page)
 
       await fingers.tap(ground, { path: [4, 8, 12].map((dx) => ({ x: ground.x + dx, y: ground.y })) })
-      await expect(selectionChip(page), 'a 12 px slide places one plant').toHaveText('Apple')
+      await expectPlacedSelection(page, layout, 'Apple', 'a 12 px slide places one plant')
       await expectOneEditThenUndo(page, 'a sliding tap')
     })
 
@@ -209,7 +223,7 @@ test.describe('Chromium touch', () => {
       const { ground } = layout
       await fingers.drag({ x: ground.x - 60, y: ground.y - 40 }, { x: ground.x + 60, y: ground.y + 40 })
 
-      await expect(selectionChip(page), 'the drag drew a rectangle').toHaveText(/^Rectangle zone/)
+      await expectPlacedSelection(page, layout, /^Rectangle zone/, 'the drag drew a rectangle')
       await expectOneEditThenUndo(page, 'the rectangle')
       expect(await page.evaluate(() => window.scrollY), 'the page does not scroll').toBe(0)
     })
