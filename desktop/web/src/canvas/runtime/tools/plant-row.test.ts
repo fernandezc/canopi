@@ -849,21 +849,42 @@ describe('Plant a row along a path', () => {
     expect(added(h)).toEqual([])
   })
 
-  it('a Design undo or redo that removes the picked plant returns to picking at once', () => {
-    const { h } = pathHarness()
-    h.click({ x: 20, y: 30 })
-    h.click({ x: 100, y: 30 })
-    expect(row(h)).toMatchObject({ phase: 'row', points: 2 })
+  it('a picked plant that can no longer repeat or has moved ends the draft at once, with "source missed"', () => {
+    const blockers: Record<string, (draft: { plants: ScenePlantEntity[]; layers: { name: string; visible: boolean; locked: boolean }[]; groups: unknown[] }) => void> = {
+      'the plants layer locked': (draft) => {
+        draft.layers = draft.layers.map((layer) => (layer.name === 'plants' ? { ...layer, locked: true } : layer))
+      },
+      'the plants layer hidden': (draft) => {
+        draft.layers = draft.layers.map((layer) => (layer.name === 'plants' ? { ...layer, visible: false } : layer))
+      },
+      'the plant locked': (draft) => {
+        draft.plants = draft.plants.map((plant) => ({ ...plant, locked: true }))
+      },
+      'the plant deleted': (draft) => {
+        draft.plants = []
+      },
+      'the plant grouped': (draft) => {
+        draft.groups = [{ kind: 'group', id: 'group-1', locked: false, name: 'Row', members: [{ kind: 'plant', id: 'source' }] }]
+      },
+      'the plant moved': (draft) => {
+        draft.plants = draft.plants.map((plant) => ({ ...plant, position: { x: plant.position.x + 1, y: plant.position.y } }))
+      },
+    }
+    for (const [name, block] of Object.entries(blockers)) {
+      const { h } = pathHarness()
+      h.click({ x: 20, y: 30 })
+      h.click({ x: 100, y: 30 })
+      expect(row(h), name).toMatchObject({ phase: 'row', points: 2 })
 
-    h.store.updatePersisted((draft) => {
-      draft.plants = []
-    })
-    h.host.sceneChanged()
+      h.store.updatePersisted((draft) => block(draft as never))
+      h.host.sceneChanged()
 
-    expect(row(h).phase).toBe('missed')
-    expect(h.renderer.lastDraft()).toBeNull()
-    expect(h.chrome.handles).toEqual([])
-    expect(h.host.transientHistory.canUndo()).toBe(false)
+      expect(row(h).phase, name).toBe('missed')
+      expect(h.renderer.lastDraft(), name).toBeNull()
+      expect(h.chrome.handles, name).toEqual([])
+      expect(h.host.transientHistory.canUndo(), name).toBe(false)
+      expect(added(h), name).toEqual([])
+    }
   })
 
   it('counts and draws only the row the finish plants once no pointer hovers the map: after a finger, an edit or the pointer leaving', () => {

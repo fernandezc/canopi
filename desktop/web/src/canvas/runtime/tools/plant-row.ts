@@ -15,7 +15,8 @@
 // Backspace and Ctrl+Z step back one point onto the draft's redo stack (a loop opens first), Ctrl+Shift+Z restores it.
 // While a plant is picked Ctrl+Z, Ctrl+Shift+Z and Backspace never reach the Design: with nothing to step they do
 // nothing, and only Esc drops the picked plant; with none picked Esc lets the chain's tool layer leave (A17). A picked
-// plant that leaves the Scene (a Design undo or redo) drops the draft at once.
+// plant that can no longer repeat (deleted, moved, locked, hidden or grouped, or its layer locked or hidden) ends the
+// draft at once with "source missed".
 // The row's plants repeat the source at the card's spacing: every N m (Settings keeps the interval) or N plants, the
 // picked one counted. Shift turns the next point to 45° steps against the screen from the last one (the host's
 // constraint; none while a point drags, U36), Ctrl or Cmd turns snapping off (noSnap), and the host clamps the pointer to
@@ -335,13 +336,16 @@ export function createPlantRowTool(): CanvasTool {
     straightPress = true
   }
 
+  /** The picked plant can still repeat: there, where it was picked, not locked, hidden or grouped. */
   function canUseSource(candidate: PlantRowSource): boolean {
     const persisted = context().scene.persisted
     const target = { kind: 'plant', id: candidate.sourceId } as const
     if (isSceneDesignObjectLocked(persisted, target)) return false
     const layer = persisted.layers.find((entry) => entry.name === 'plants')
     if (layer?.visible === false || layer?.locked === true) return false
-    if (!persisted.plants.some((plant) => plant.id === candidate.sourceId)) return false
+    const plant = persisted.plants.find((entry) => entry.id === candidate.sourceId)
+    const picked = candidate.plant.position
+    if (!plant || plant.position.x !== picked.x || plant.position.y !== picked.y) return false
     return !persisted.groups.some((group) => group.members.some((member) => isSceneObjectGroupMemberTarget(member, target)))
   }
 
@@ -784,8 +788,8 @@ export function createPlantRowTool(): CanvasTool {
       }
     },
     sceneChanged() {
-      // The picked plant went (a Design undo or redo, say): the draft goes with it at once.
-      if (source && ctx && !ctx.scene.persisted.plants.some((plant) => plant.id === source!.sourceId)) {
+      // The picked plant can no longer repeat (the Layers panel locked or hid its layer, say): the draft ends at once.
+      if (source && ctx && !canUseSource(source)) {
         clear()
         showSourcePicking('source-missed')
       }
