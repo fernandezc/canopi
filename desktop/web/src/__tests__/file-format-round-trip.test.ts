@@ -127,7 +127,6 @@ describe('file format round-trip', () => {
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
     })
-    expect(serialized).not.toHaveProperty('spatial_frame')
   })
 
   it('round-trips a serialized current-version Design through JSON and the Design decoder', () => {

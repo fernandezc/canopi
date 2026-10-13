@@ -1,7 +1,7 @@
 use common_types::design::{
     CURRENT_CANOPI_FILE_VERSION, CanopiDesignIngestionErrorKind, CanopiFile,
     DEFAULT_BUDGET_CURRENCY, DesignLoadFailure, DesignLoadFailureKind, Layer,
-    MISSING_CANOPI_FILE_VERSION, OBSOLETE_CANOPI_ROOT_KEYS, admit_design_identities_and_ranges,
+    MISSING_CANOPI_FILE_VERSION, admit_design_identities_and_ranges,
     validate_design_geometry,
 };
 use common_types::views::{validate_map_view, validate_views_and_stories};
@@ -259,15 +259,6 @@ fn admit_current_design_value(
         return Err(CanopiDesignIngestionError::new(
             CanopiDesignIngestionErrorKind::InvalidDocument,
             "$.extra: reserved root field; unknown fields are stored at the root",
-        ));
-    }
-    if let Some(key) = OBSOLETE_CANOPI_ROOT_KEYS
-        .iter()
-        .find(|key| object.contains_key(**key))
-    {
-        return Err(CanopiDesignIngestionError::new(
-            CanopiDesignIngestionErrorKind::InvalidDocument,
-            format!("$.{key}: obsolete root field; Designs store lon/lat on each design object"),
         ));
     }
 

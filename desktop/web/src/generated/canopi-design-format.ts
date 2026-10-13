@@ -13,12 +13,6 @@ export const STORY_IMAGE_DATA_TYPES = ["image/png","image/jpeg","image/webp","im
 export const STORY_IMAGE_MAX_BYTES = 1048576
 export const STORY_IMAGES_MAX_TOTAL_BYTES = 10485760
 
-export const OBSOLETE_CANOPI_ROOT_KEYS = [
-  "location",
-  "north_bearing_deg",
-  "spatial_frame",
-] as const
-
 export const CANOPI_DESIGN_INGESTION_ERROR_KINDS = [
   "invalid_version",
   "unsupported_version",

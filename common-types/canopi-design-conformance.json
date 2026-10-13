@@ -439,6 +439,41 @@
       "created_at": "2026-09-25T00:00:00.000Z",
       "updated_at": "2026-09-25T00:00:00.000Z",
       "extra": {}
+    },
+    "earlier-root-keys-as-unknown": {
+      "version": 9,
+      "name": "Conformance Garden",
+      "description": null,
+      "plant_species_colors": {},
+      "plant_species_symbols": {},
+      "plant_species_codes": {},
+      "layers": [],
+      "plants": [],
+      "zones": [],
+      "annotations": [],
+      "measurement_guides": [],
+      "consortiums": [],
+      "groups": [],
+      "timeline": [],
+      "budget": [],
+      "budget_currency": "EUR",
+      "views": [],
+      "stories": [],
+      "created_at": "2026-09-25T00:00:00.000Z",
+      "updated_at": "2026-09-25T00:00:00.000Z",
+      "extra": {
+        "location": null,
+        "north_bearing_deg": 0.0,
+        "spatial_frame": {
+          "anchor_longitude_deg": 13.0,
+          "anchor_latitude_deg": 23.0,
+          "north_bearing_deg": 0.0,
+          "placement_status": "provisional",
+          "location_metadata": {
+            "altitude_m": null
+          }
+        }
+      }
     }
   },
   "cases": [
@@ -846,6 +881,36 @@
         }
       },
       "accepted": "lidar-display"
+    },
+    {
+      "id": "accept-earlier-root-keys-as-unknown-fields",
+      "input": {
+        "version": 9,
+        "name": "Conformance Garden",
+        "plant_species_colors": {},
+        "layers": [],
+        "plants": [],
+        "zones": [],
+        "annotations": [],
+        "consortiums": [],
+        "groups": [],
+        "timeline": [],
+        "budget": [],
+        "created_at": "2026-09-25T00:00:00.000Z",
+        "updated_at": "2026-09-25T00:00:00.000Z",
+        "location": null,
+        "north_bearing_deg": 0.0,
+        "spatial_frame": {
+          "anchor_longitude_deg": 13.0,
+          "anchor_latitude_deg": 23.0,
+          "north_bearing_deg": 0.0,
+          "placement_status": "provisional",
+          "location_metadata": {
+            "altitude_m": null
+          }
+        }
+      },
+      "accepted": "earlier-root-keys-as-unknown"
     },
     {
       "id": "reject-v7-preview-as-older-version",
@@ -1276,56 +1341,6 @@
       "error_path": "$.version"
     },
     {
-      "id": "reject-obsolete-root-spatial-frame",
-      "input": {
-        "version": 9,
-        "name": "Anchored",
-        "plant_species_colors": {},
-        "layers": [],
-        "plants": [],
-        "zones": [],
-        "annotations": [],
-        "consortiums": [],
-        "groups": [],
-        "timeline": [],
-        "budget": [],
-        "created_at": "2026-09-25T00:00:00.000Z",
-        "updated_at": "2026-09-25T00:00:00.000Z",
-        "spatial_frame": {
-          "anchor_longitude_deg": 13.0,
-          "anchor_latitude_deg": 23.0,
-          "north_bearing_deg": 0.0,
-          "placement_status": "provisional",
-          "location_metadata": {
-            "altitude_m": null
-          }
-        }
-      },
-      "error_kind": "invalid_document",
-      "error_path": "$.spatial_frame"
-    },
-    {
-      "id": "reject-obsolete-root-location",
-      "input": {
-        "version": 9,
-        "name": "Located",
-        "plant_species_colors": {},
-        "layers": [],
-        "plants": [],
-        "zones": [],
-        "annotations": [],
-        "consortiums": [],
-        "groups": [],
-        "timeline": [],
-        "budget": [],
-        "created_at": "2026-09-25T00:00:00.000Z",
-        "updated_at": "2026-09-25T00:00:00.000Z",
-        "location": null
-      },
-      "error_kind": "invalid_document",
-      "error_path": "$.location"
-    },
-    {
       "id": "reject-root-extra",
       "input": {
         "version": 9,
@@ -1347,27 +1362,6 @@
       },
       "error_kind": "invalid_document",
       "error_path": "$.extra"
-    },
-    {
-      "id": "reject-obsolete-root-north-bearing",
-      "input": {
-        "version": 9,
-        "name": "Bearing",
-        "plant_species_colors": {},
-        "layers": [],
-        "plants": [],
-        "zones": [],
-        "annotations": [],
-        "consortiums": [],
-        "groups": [],
-        "timeline": [],
-        "budget": [],
-        "created_at": "2026-09-25T00:00:00.000Z",
-        "updated_at": "2026-09-25T00:00:00.000Z",
-        "north_bearing_deg": 0.0
-      },
-      "error_kind": "invalid_document",
-      "error_path": "$.north_bearing_deg"
     },
     {
       "id": "reject-local-metre-position",

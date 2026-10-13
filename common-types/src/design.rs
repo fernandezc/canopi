@@ -9,9 +9,6 @@ pub const CURRENT_CANOPI_FILE_VERSION: u32 = 9;
 pub const MISSING_CANOPI_FILE_VERSION: u32 = 1;
 pub const FUTURE_CANOPI_FILE_VERSION_POLICY: &str = "reject";
 pub const WEB_MERCATOR_MAX_LATITUDE_DEG: f64 = 85.051_128_779_806_6;
-/// Root keys of earlier formats. A current-version document carrying one is
-/// malformed and is rejected instead of being preserved as an unknown field.
-pub const OBSOLETE_CANOPI_ROOT_KEYS: &[&str] = &["location", "north_bearing_deg", "spatial_frame"];
 
 fn deserialize_json_u32<'de, D>(deserializer: D) -> Result<u32, D::Error>
 where

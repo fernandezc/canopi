@@ -153,12 +153,9 @@ describe('Canopi Design decoder', () => {
     expectKind(() => decodeCanopiDesign(currentDesign({ map_view: { ...mapView, zoom: 27.5 } })), 'invalid_document')
   })
 
-  it.each(['location', 'north_bearing_deg', 'spatial_frame'])('rejects obsolete root authority %s', (key) => {
-    const input = currentDesign({ [key]: null })
-    expect(() => decodeCanopiDesign(input)).toThrow(
-      `$.${key}: obsolete root field; Designs store lon/lat on each design object`,
-    )
-    expectKind(() => decodeCanopiDesign(input), 'invalid_document')
+  it.each(['location', 'north_bearing_deg', 'spatial_frame'])('keeps an earlier root field %s as unknown data in a current Design', (key) => {
+    // Canopi 2.0 positions are lon/lat on each object; the 1.x root fields are no longer refused, only carried.
+    expect(decodeCanopiDesign(currentDesign({ [key]: null })).extra).toEqual({ [key]: null })
   })
 
   it.each([

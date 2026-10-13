@@ -211,7 +211,6 @@ describe('document format contract', () => {
 
     expect(saved.name).toBe('Metadata name')
     expect(saved.description).toBe('Document-owned description')
-    expect(saved).not.toHaveProperty('spatial_frame')
     // `extra` is all the document's: a key left in a development file stays as unknown extra (ADR 0011).
     expect(saved.extra).toEqual(document.extra)
   })
@@ -454,7 +453,6 @@ describe('document format contract', () => {
 
     expect(saved.name).toBe('Saved document')
     expect(saved.description).toBe('Document description')
-    expect(saved).not.toHaveProperty('spatial_frame')
     expect(saved.created_at).toBe(document.created_at)
     expect(saved.updated_at).toBe(canvas.updated_at)
     expect(saved.consortiums).toEqual(document.consortiums)
