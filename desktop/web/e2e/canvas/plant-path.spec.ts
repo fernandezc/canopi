@@ -433,6 +433,22 @@ test('(canopi-f47t.54, D2) Delete and Backspace in a point\'s menu while drawing
   await expectNothingPlanted(page, 'the keys plant nothing')
 })
 
+// F5: the point menu names its point by index; once the draft's points change, it closes.
+test('(canopi-f47t.54, D2) Ctrl+Z with a point\'s menu open while drawing takes the last point back and closes the menu', async ({ page }) => {
+  await openBase(page)
+  await pickApple(page)
+  for (const at of [P1, P2, P3]) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
+  const second = await pointAt(page, 2)
+  await page.mouse.click(second.x, second.y, { button: 'right' })
+  await expect(menuEntries(page), 'the point menu').toHaveCount(3)
+  await pressMod(page, 'z')
+  await expect(page.getByRole('menu'), 'Ctrl+Z closes the point menu').toHaveCount(0)
+  await expect.poll(() => pointCount(page), 'Ctrl+Z takes the last point back').toBe(3)
+  await expect(mapHost(page), 'focus goes back to the map').toBeFocused()
+  await expectNothingPlanted(page, 'nothing is planted')
+})
+
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {
   await openBase(page)
   await armRow(page)

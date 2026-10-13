@@ -358,6 +358,27 @@ test('(canopi-f47t.54, D2) Delete and Backspace in a corner\'s point menu delete
   await expect(selectionChip(page), 'the zone stays').toHaveText(/^Polygon zone/)
 })
 
+// F5: the point menu names its corner by index; once the corners or the tool change, it closes.
+test('(canopi-f47t.54, D2) a corner\'s point menu closes on Undo and on a tool letter pressed in it', async ({ page }) => {
+  await openBase(page)
+  await selectPolygon(page)
+  await (await firstCorner(page)).click({ modifiers: ['Alt'] })
+  await expect.poll(() => corners(page), 'Alt+click deletes a corner: an edit to undo').toBe(POLYGON_CORNERS - 1)
+  await (await firstCorner(page)).click({ button: 'right' })
+  await expectDeletePointOnly(page, 'a right-click on a corner')
+  await pressMod(page, 'z')
+  await expect(page.getByRole('menu'), 'Undo closes the point menu').toHaveCount(0)
+  await expect.poll(() => corners(page), 'Undo brings the corner back').toBe(POLYGON_CORNERS)
+  await expect(mapHost(page), 'focus goes back to the map').toBeFocused()
+
+  await (await firstCorner(page)).click({ button: 'right' })
+  await expectDeletePointOnly(page, 'a right-click on a corner')
+  await page.keyboard.press('w')
+  await expect(page.getByRole('menu'), 'a tool letter closes the point menu').toHaveCount(0)
+  await expect(page.locator('[data-tool-card]'), 'the letter arms Plant a row').toHaveAttribute('data-tool-card', 'plant-spacing')
+  await expect(undo(page), 'nothing is deleted').toBeDisabled()
+})
+
 test('(canopi-f47t.54, Z) Shift+F10 on a focused zone corner opens the point menu', async ({ page }) => {
   await openBase(page)
   await selectPolygon(page)
