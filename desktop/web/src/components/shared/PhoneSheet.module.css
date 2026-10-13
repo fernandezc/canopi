@@ -194,6 +194,12 @@
   display: none;
 }
 
+/* On a phone the bar is its controls' only home, so each is a 44 px target (ADR 0010), whichever chip or card holds it. */
+.bar :is(button, select, input:not([type="checkbox"], [type="radio"]), [role="button"]) {
+  min-width: var(--control-size-touch);
+  min-height: var(--control-size-touch);
+}
+
 /* The dock key region under the bar: the handle and the tabs, which it always keeps, and the open panel, which takes
    the rest. */
 .dock {

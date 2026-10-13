@@ -604,16 +604,21 @@ async function floatingOverMap(page: Page): Promise<string[]> {
   })
 }
 
-/** The guard of answers 18 and 22-26: nothing but the zoom column floats over the map, and every control in the context
- *  bar takes the tap at its centre (scrolled into view where the bar's card scrolls). */
+/**
+ * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map, and every control in the context
+ * bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled into view where the bar's card scrolls).
+ */
 async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   await nextFrames(page)
   expect(await floatingOverMap(page), `${where}: nothing but the zoom column floats over the map`).toEqual([])
   const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
   for (const control of await controls.all()) {
     if (!await control.isVisible()) continue
+    const name = `${(await control.getAttribute('aria-label')) ?? (await control.textContent()) ?? 'a control'} in the bar`
     await control.scrollIntoViewIfNeeded()
-    await expectHitAtCentre(control, `${where}: ${(await control.getAttribute('aria-label')) ?? (await control.textContent()) ?? 'a control'} in the bar`)
+    const box = await boxOf(control)
+    expect(Math.min(box.width, box.height), `${where}: ${name} is a 44 px target (${box.width}x${box.height})`).toBeGreaterThanOrEqual(44 - 0.5)
+    await expectHitAtCentre(control, `${where}: ${name}`)
   }
 }
 
