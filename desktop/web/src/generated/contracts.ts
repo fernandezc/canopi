@@ -685,7 +685,7 @@ export type PanelTarget = { kind: "placed_plant"; plant_id: string } | { kind: "
 export type ParamValue = { Number: number } | { Integer: number } | { Boolean: boolean } | { Choice: string };
 
 export type PlacedPlant = {
-	id?: string,
+	id: string,
 	locked: boolean,
 	canonical_name: string,
 	common_name: string | null,

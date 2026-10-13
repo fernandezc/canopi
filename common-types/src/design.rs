@@ -323,7 +323,6 @@ pub struct Layer {
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct PlacedPlant {
-    #[serde(default)]
     pub id: String,
     #[cfg_attr(feature = "design-schema", schemars(default))]
     pub locked: bool,
