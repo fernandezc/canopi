@@ -1178,7 +1178,7 @@ export type DraftFill = { readonly token: 'draft-fill' | 'selection-fill' | 'war
 export interface DraftPresentation { readonly shapes: readonly DraftShape[] }
 
 export interface ToolHandle {
-  readonly id: ToolHandleId              // unique across objects: 'rotate', 'vertex:<zone id>:<index>', 'rect-corner:<id>:ne', 'guide-end:<id>:a', 'edge-mid:<zone id>:<index>'; U58: 'point:<owner>:<i>', 'dot:<owner>:<i>' (point-editor/layout.ts: row points and dots, zone dots from S)
+  readonly id: ToolHandleId              // unique across objects: 'rotate', 'vertex:<zone id>:<index>', 'rect-corner:<id>:ne', 'guide-end:<id>:a', 'edge-mid:<zone id>:<index>'; U58: 'point:<owner>:<i>', 'dot:<owner>:<i>' (point-editor/layout.ts: row points and dots, zone dots from Z)
   readonly anchor: WorldPoint
   readonly offsetPx?: ScreenPoint        // rotate handle: centred 28 px above the selection's projected hull; 48 px while the selected polygon shows midpoint dots, so it clears a dotted edge's chip (U38, canopi-f47t.29)
   readonly hitRadiusPx: number           // 10 for mouse and pen; 22 after a touch (44 px target, ADR 0010): the kind that last pressed or hovered (U41)
