@@ -1,5 +1,4 @@
-/* The start screen fills the window under the floating title bar. Each column ends above the chrome the
-   visible-map-area seam registers at the bottom (the phone's panel sheet), through `--map-inset-bottom`. */
+/* The start screen fills the window under the floating title bar. */
 .start {
   position: absolute;
   inset: 0;
@@ -16,7 +15,7 @@
   gap: var(--space-4);
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-5) var(--space-12) calc(var(--space-8) + var(--map-inset-bottom, 0px));
+  padding: var(--space-5) var(--space-12) var(--space-8);
   border-right: 1px solid var(--color-border);
   background: var(--color-surface-alt);
 }
@@ -26,6 +25,14 @@
 .library::before {
   content: '';
   flex: 0 0 calc(var(--chrome-rail-top) - var(--space-8));
+}
+
+/* Room for the chrome the visible-map-area seam registers at the bottom (the phone's panel sheet): the start screen
+   is mounted in the registered map area, so it reads `--map-inset-bottom` and each column ends above that chrome. */
+.intro::after,
+.library::after {
+  content: '';
+  flex: 0 0 var(--map-inset-bottom, 0px);
 }
 
 .brand {
@@ -140,7 +147,7 @@
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-5) var(--space-12) calc(var(--space-8) + var(--map-inset-bottom, 0px));
+  padding: var(--space-5) var(--space-12) var(--space-8);
 }
 
 .search {
@@ -363,12 +370,12 @@
     padding-left: var(--space-4);
   }
 
-  .library::before {
+  .library::before,
+  .intro::after {
     display: none;
   }
 
   .intro {
-    padding-bottom: var(--space-8);
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
