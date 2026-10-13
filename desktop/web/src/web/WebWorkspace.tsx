@@ -65,8 +65,8 @@ export function WebWorkspace({
   )
 }
 
-/** The phone's context bar while a Design is open; the start screen has none. */
-function WebPhoneBar() {
+/** The phone's context bar while a Design is open; the start screen has none. The UI gallery's Web workspace mounts it too. */
+export function WebPhoneBar() {
   return designSessionStore.currentDesign.value === null ? null : <PhoneContextBar />
 }
 

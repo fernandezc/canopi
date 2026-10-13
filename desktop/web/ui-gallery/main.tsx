@@ -61,6 +61,7 @@ import type { InputPlatform } from '../src/canvas/runtime/input/platform'
 import { WelcomeScreen } from '../src/components/shared/WelcomeScreen'
 import { DegradedBanner } from '../src/components/shared/DegradedBanner'
 import { BrowserAppShell } from '../src/web/BrowserAppShell'
+import { WebPhoneBar } from '../src/web/WebWorkspace'
 import {
   WorkspaceComposition,
   WorkspaceDialogs,
@@ -179,6 +180,7 @@ function Gallery() {
             surfaces={workspaceSurfaces}
             responsive
             phoneTabs={galleryPhoneTabs()}
+            phoneBar={<WebPhoneBar />}
           />
         </GalleryWebFrame>
       ) : (
