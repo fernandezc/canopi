@@ -33,30 +33,10 @@ export type Story = Contracts.Story
 export type StoryStep = Contracts.StoryStep
 export type StoryImage = Contracts.StoryImage
 
-export interface PlacedPlant extends Omit<Contracts.PlacedPlant, 'id' | 'color' | 'symbol' | 'pinned_name'> {
-  id: string
-  color: string | null
-  symbol?: string | null
-  pinned_name?: boolean
-}
+export type PlacedPlant = Contracts.PlacedPlant
 
-export interface CanopiFile extends Omit<
-  Contracts.CanopiFile,
-  'annotations' | 'measurement_guides' | 'consortiums' | 'groups' | 'timeline' | 'budget' | 'plants' | 'plant_species_symbols'
-> {
-  plant_species_symbols?: Record<string, string>
-  annotations: Annotation[]
-  measurement_guides?: MeasurementGuide[]
-  consortiums: Consortium[]
-  groups: ObjectGroup[]
-  timeline: TimelineAction[]
-  budget: BudgetItem[]
-  plants: PlacedPlant[]
-  extra?: Record<string, unknown>
-}
+/** A Design in memory: the file's fields, with unknown root fields under `extra`. */
+export type CanopiFile = Contracts.CanopiFile & { extra?: Record<string, unknown> }
 
 /** A Design read from a file, with the fingerprint its next save must find. */
-export interface LoadedDesign {
-  file: CanopiFile
-  fingerprint: string
-}
+export type LoadedDesign = Contracts.LoadedDesign

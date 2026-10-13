@@ -1193,14 +1193,12 @@ export const CANOPI_FILE_SCHEMA = {
   "additionalProperties": true,
   "properties": {
     "annotations": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/Annotation"
       },
       "type": "array"
     },
     "budget": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/BudgetItem"
       },
@@ -1211,7 +1209,6 @@ export const CANOPI_FILE_SCHEMA = {
       "type": "string"
     },
     "consortiums": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/Consortium"
       },
@@ -1228,7 +1225,6 @@ export const CANOPI_FILE_SCHEMA = {
       ]
     },
     "groups": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/ObjectGroup"
       },
@@ -1304,7 +1300,6 @@ export const CANOPI_FILE_SCHEMA = {
       "type": "array"
     },
     "timeline": {
-      "default": [],
       "items": {
         "$ref": "#/$defs/TimelineAction"
       },
@@ -1339,6 +1334,11 @@ export const CANOPI_FILE_SCHEMA = {
     "layers",
     "plants",
     "zones",
+    "annotations",
+    "consortiums",
+    "groups",
+    "timeline",
+    "budget",
     "created_at",
     "updated_at"
   ],

@@ -264,17 +264,12 @@ pub struct CanopiFile {
     pub layers: Vec<Layer>,
     pub plants: Vec<PlacedPlant>,
     pub zones: Vec<Zone>,
-    #[serde(default)]
     pub annotations: Vec<Annotation>,
     #[serde(default)]
     pub measurement_guides: Vec<MeasurementGuide>,
-    #[serde(default)]
     pub consortiums: Vec<Consortium>,
-    #[serde(default)]
     pub groups: Vec<ObjectGroup>,
-    #[serde(default)]
     pub timeline: Vec<TimelineAction>,
-    #[serde(default)]
     pub budget: Vec<BudgetItem>,
     #[serde(default = "default_budget_currency")]
     pub budget_currency: String,
@@ -329,7 +324,7 @@ pub struct PlacedPlant {
     pub canonical_name: String,
     #[cfg_attr(feature = "design-schema", schemars(default))]
     pub common_name: Option<String>,
-    #[serde(default)]
+    #[cfg_attr(feature = "design-schema", schemars(default))]
     pub color: Option<String>,
     #[serde(default)]
     pub symbol: Option<String>,
@@ -355,7 +350,6 @@ struct PlacedPlantInput {
     locked: bool,
     canonical_name: String,
     common_name: Option<String>,
-    #[serde(default)]
     color: Option<String>,
     #[serde(default)]
     symbol: Option<String>,
@@ -989,6 +983,11 @@ mod tests {
             "layers": [],
             "plants": plants,
             "zones": [],
+            "annotations": [],
+            "consortiums": [],
+            "groups": [],
+            "timeline": [],
+            "budget": [],
             "created_at": "2026-09-25T00:00:00.000Z",
             "updated_at": "2026-09-25T00:00:00.000Z"
         }))
@@ -1049,6 +1048,11 @@ mod tests {
                 "position": { "x": 1.0, "y": 2.0 }
             }],
             "zones": [],
+            "annotations": [],
+            "consortiums": [],
+            "groups": [],
+            "timeline": [],
+            "budget": [],
             "created_at": "2026-09-25T00:00:00.000Z",
             "updated_at": "2026-09-25T00:00:00.000Z"
         }));
@@ -1148,6 +1152,11 @@ mod tests {
             "layers": [],
             "plants": [],
             "zones": [],
+            "annotations": [],
+            "consortiums": [],
+            "groups": [],
+            "timeline": [],
+            "budget": [],
             "created_at": "2026-09-28T00:00:00.000Z",
             "updated_at": "2026-09-28T00:00:00.000Z"
         });
@@ -1213,6 +1222,18 @@ mod tests {
         .expect("explicit ids are admitted as they are");
         assert_eq!(file.plants[0].id, "plant-2");
         assert_eq!(file.measurement_guides[0].id, "guide-1");
+    }
+
+    #[test]
+    fn a_design_missing_a_list_canopi_always_writes_is_refused() {
+        let complete = design_with(json!({}));
+        admitted(complete.clone()).expect("a Design with every written list loads");
+        for key in ["annotations", "consortiums", "groups", "timeline", "budget"] {
+            let mut value = complete.clone();
+            value.as_object_mut().expect("object").remove(key);
+            let error = admitted(value).expect_err(key);
+            assert!(error.contains(&format!("missing field `{key}`")), "{error}");
+        }
     }
 
     #[test]
@@ -1332,6 +1353,11 @@ mod tests {
             "layers": [],
             "plants": [],
             "zones": [zone],
+            "annotations": [],
+            "consortiums": [],
+            "groups": [],
+            "timeline": [],
+            "budget": [],
             "created_at": "2026-09-27T00:00:00.000Z",
             "updated_at": "2026-09-27T00:00:00.000Z"
         }))
@@ -1379,6 +1405,10 @@ mod tests {
                 "zone_type": "rect",
                 "points": []
             }],
+            "annotations": [],
+            "consortiums": [],
+            "timeline": [],
+            "budget": [],
             "groups": [{
                 "id": "legacy",
                 "member_ids": ["plant-1", "zone-1"]
