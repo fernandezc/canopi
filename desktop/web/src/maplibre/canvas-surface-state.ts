@@ -1,8 +1,8 @@
 type MapLibreCanvasSurfaceStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 /**
- * The OpenFreeMap Basemap: `loading` while a style downloads, `failed` from a failed download until a new one
- * starts, it is hidden or Satellite is chosen.
+ * The background band's download status (maplibre/map-background.ts): Satellite's while it is on, else the
+ * OpenFreeMap Basemap's; `failed` until Retry, a new download, or the row is hidden.
  */
 export type MapLibreBasemapStatus = 'idle' | 'loading' | 'ok' | 'failed'
 
