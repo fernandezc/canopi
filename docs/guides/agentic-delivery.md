@@ -66,7 +66,7 @@ Opus at medium effort for every stage (2026-10-13); Sonnet only for trivial chec
 
 ## Tools
 
-In `.rq-scratch/tools/` (a local git repo; commit tool edits there): `mkwt.sh`, `quiet-gates.sh` with `gate-classify.py`, `live-instance.sh`, `ci-watch.sh`, `journal.py <run> [--full LABEL]`, `wf-usage.py <run>...` (cost per stage), `imgdiff.py`, `x11-dialog.py`.
+In `.rq-scratch/tools/` (a local git repo; commit tool edits there): `mkwt.sh`, `quiet-gates.sh` with `gate-classify.py`, `live-instance.sh`, `ci-watch.sh`, `journal.py <run> [--full LABEL]`, `wf-usage.py <run>...` (cost per stage), `imgdiff.py`, `x11-dialog.py`, `near-zero-coverage.py <worktree>` (at each release close, after the coverage run that sets the floors: every production file under 20 % lines kept with its reason, or tested).
 
 ## Workflows and measured cost
 
