@@ -168,6 +168,17 @@ describe('Phone context bar', () => {
     expect(phoneToolOptions.value, 'with a species chosen Place plants places at once').toBeNull()
   })
 
+  it('closes the tool\'s options in overview, where the bar shows its notice and has no Options', async () => {
+    await choose('polygon')
+    await act(() => { phoneToolOptions.value = 'half' })
+    await act(() => queries.setPlacement({ x: 0, y: 0, scale: 0.01 }))
+    expect(phoneToolOptions.value, 'zoomed out to the overview').toBeNull()
+    await choose('plant-stamp')
+    expect(phoneToolOptions.value, 'Place plants armed in overview keeps them closed').toBeNull()
+    await act(() => queries.setPlacement({ x: 0, y: 0, scale: 10 }))
+    expect(phoneToolOptions.value, 'out of the overview, Place plants with no species is its chooser again').toBe('half')
+  })
+
   it('closes the tool\'s options when the bar goes, as the Design closes', async () => {
     await choose('plant-stamp')
     expect(phoneToolOptions.value).toBe('half')

@@ -24,8 +24,9 @@ import styles from './PhoneContextBar.module.css'
  * "Where is your site?" or a story is shown.
  *
  * The bar owns when the tool's options open and close by themselves (answer 30): Place plants with no species chosen
- * is its chooser, so arming it, or each tap on the map that asks for a species first, opens them at half; another tool,
- * and the bar going with the Design, closes them, which gives the sheet back its panel as it was.
+ * is its chooser, so arming it (or coming back to it from the overview), or each tap on the map that asks for a species
+ * first, opens them at half; another tool, the overview and the bar going with the Design close them, which gives the
+ * sheet back its panel as it was.
  */
 export function PhoneContextBar() {
   const tool = currentCanvasTool.value
@@ -35,9 +36,10 @@ export function PhoneContextBar() {
   const selection = !overview && !card && summary !== null
   const highlight = !overview && !card && !selection && plantsHighlighted()
   const speciesPrompts = currentCanvasToolGuidance.value.speciesPrompts
+  // The overview has no tool's row, so no Options to close them with.
   useEffect(() => {
-    phoneToolOptions.value = tool === 'plant-stamp' && readPlantStampSource() === null ? 'half' : null
-  }, [tool])
+    phoneToolOptions.value = card && tool === 'plant-stamp' && readPlantStampSource() === null ? 'half' : null
+  }, [tool, card])
   useEffect(() => {
     if (speciesPrompts > 0) phoneToolOptions.value = 'half'
   }, [speciesPrompts])

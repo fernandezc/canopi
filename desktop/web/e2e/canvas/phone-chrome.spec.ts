@@ -627,6 +627,28 @@ test.describe('390×844 tool options', () => {
     await expect(panel, 'and the panel').toHaveCount(0)
   })
 
+  test('(canopi-f47t.54, D4) in overview the tool\'s options close with its Options button, and the panel comes back', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'the pinch is multi-touch through CDP, Chromium-only')
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
+    await raiseSheet(page)
+    const selected = page.locator('[data-sheet-tab][aria-selected="true"]')
+    const before = await selected.getAttribute('data-panel')
+    await mapHost(page).focus()
+    await page.keyboard.press('z')
+    await page.locator('[data-tool-options-button]').tap()
+    await expect(toolOptions(page)).toBeVisible()
+    // Pinches in the visible map, between the tool rail and the zoom column, until the overview.
+    const fingers = await Fingers.of(page)
+    await expect(async () => {
+      await fingers.pair({ x: 195, y: 250 }, 100, { endRadius: 8 })
+      await expect(page.locator('[data-overview-notice]')).toBeVisible({ timeout: 500 })
+    }, 'pinched out to the overview').toPass({ timeout: 20_000 })
+    await expect(page.locator('[data-tool-options-button]'), 'the bar shows the overview notice').toHaveCount(0)
+    await expect(toolOptions(page), 'the options close with it').toHaveCount(0)
+    await expect(selected, 'the panel comes back').toHaveAttribute('data-panel', before!)
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+  })
+
   test('(canopi-f47t.54, D4) Place plants with no species opens its chooser at half; choosing one puts the panel back, and a tap with none chosen opens it again', async ({ page }) => {
     await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
     await raiseSheet(page)
