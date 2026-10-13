@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hook
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
 import { useEnglishFallbackNames } from '../../app/plant-finder/catalog-names'
-import { toolCardContent, type SavedStampSummary, type ToolCardContent } from '../../app/tool-card/content'
+import { toolCardContent, type SavedStampSummary } from '../../app/tool-card/content'
 import { modKeyName } from '../../app/shell-commands/shortcut-text'
 import { siteLocateOpen } from '../../app/site-onboarding/state'
 import { phoneLayout, phoneToolOptions } from '../../app/shell/phone-layout'
@@ -39,34 +39,8 @@ export interface StampChooserProps {
   onEscape(): void
 }
 
-/**
- * The tool card, top left beside the tool rail: the tool's name, the live
- * instruction (naming the chosen species or stamp) and quiet key hints that
- * end with what Esc does now. Select shows its name and one quiet line of
- * modifiers, Pan what a drag does. It hides in overview and while "Where is your site?" shows. The text is one polite live region that
- * stays mounted, so choosing a tool is announced. Place plants carries the
- * species chooser while no species is chosen, or after Change species; Place a
- * stamp opens its saved stamps with Change stamp; Plant a row carries its
- * spacing field below the text and the row's count at the card's foot (both
- * outside the live region) once a plant is picked, and from its first point
- * (U58) an [Interval | Plants] switch with the count field in Plants mode
- * and a loop's rounded gap beside the field, and in the foot the row's length
- * and the check button that plants the row (a 44 px target after a finger).
- * Points are edited where they are, never from the card: their menu (a long
- * press or a right-click), Alt+click and Delete. The text and the fields
- * scroll above the foot, which stays in view. Holding a row the card registers
- * with the visible-map-area seam; where it still covers the picked plant or
- * a point, the user pans. On a phone the tool is a row of the context bar
- * instead (`placement="bar"`, PhoneToolRow).
- */
-export function ToolCard({ stampChooser, placement = 'map' }: {
-  /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
-  readonly stampChooser?: FunctionComponent<StampChooserProps>
-  /** Over the map beside the tool rail, or in the phone's context bar. */
-  readonly placement?: 'map' | 'bar'
-}) {
-  return placement === 'bar' ? <PhoneToolRow /> : <MapToolCard stampChooser={stampChooser} />
-}
+/** What the card says of the armed tool. */
+type ToolCardContent = NonNullable<ReturnType<typeof toolCardContent>>
 
 /** What the card or the phone's tool row shows of the armed tool; null content shows none. */
 function useToolCard(phone: boolean) {
@@ -96,7 +70,30 @@ function useToolCard(phone: boolean) {
   return { tool, guidance, source, species, coarsePointer, content, row, rowPath }
 }
 
-function MapToolCard({ stampChooser: StampChooser }: { readonly stampChooser?: FunctionComponent<StampChooserProps> }) {
+/**
+ * The tool card, top left beside the tool rail: the tool's name, the live
+ * instruction (naming the chosen species or stamp) and quiet key hints that
+ * end with what Esc does now. Select shows its name and one quiet line of
+ * modifiers, Pan what a drag does. It hides in overview and while "Where is your site?" shows. The text is one polite live region that
+ * stays mounted, so choosing a tool is announced. Place plants carries the
+ * species chooser while no species is chosen, or after Change species; Place a
+ * stamp opens its saved stamps with Change stamp; Plant a row carries its
+ * spacing field below the text and the row's count at the card's foot (both
+ * outside the live region) once a plant is picked, and from its first point
+ * (U58) an [Interval | Plants] switch with the count field in Plants mode
+ * and a loop's rounded gap beside the field, and in the foot the row's length
+ * and the check button that plants the row (a 44 px target after a finger).
+ * Points are edited where they are, never from the card: their menu (a long
+ * press or a right-click), Alt+click and Delete. The text and the fields
+ * scroll above the foot, which stays in view. Holding a row the card registers
+ * with the visible-map-area seam; where it still covers the picked plant or
+ * a point, the user pans. On a phone the tool is a row of the context bar
+ * instead (PhoneToolRow).
+ */
+export function ToolCard({ stampChooser: StampChooser }: {
+  /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
+  readonly stampChooser?: FunctionComponent<StampChooserProps>
+}) {
   const { tool, guidance, source, species, coarsePointer, content, row, rowPath } = useToolCard(false)
   const [changingSpecies, setChangingSpecies] = useState(false)
   const [choosingStamp, setChoosingStamp] = useState(false)
@@ -201,7 +198,7 @@ function MapToolCard({ stampChooser: StampChooser }: { readonly stampChooser?: F
  * name or the status does too. The name and the status (the row's count aside, which moves with every pointer move)
  * are the one polite live region, which stays mounted, so choosing a tool is announced. Select and Pan show no row.
  */
-function PhoneToolRow() {
+export function PhoneToolRow() {
   const { source, guidance, species, content, row, rowPath } = useToolCard(true)
   const lead = content ? cardLead(content.tool, source, guidance) : null
   const status = content && row ? rowStatus(row, content) : null

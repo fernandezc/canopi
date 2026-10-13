@@ -20,7 +20,7 @@ import {
 import { setCurrentCanvasSession } from '../canvas/session'
 import { SidePanelDock } from '../components/shared/SidePanelDock'
 import { InspectionLens } from '../components/canvas/InspectionLens'
-import { ToolCard } from '../components/canvas/ToolCard'
+import { PhoneToolRow, ToolCard } from '../components/canvas/ToolCard'
 import {
   IDLE_CANVAS_TOOL_GUIDANCE,
   setCanvasTool,
@@ -407,7 +407,7 @@ describe('visible map area', () => {
       count: 5, density: 'normal', focusRequest: 0, points: 2, mode: 'interval', length: '10 m',
     }
     try {
-      await act(async () => render(<ToolCard placement={placement} />, container))
+      await act(async () => render(placement === 'map' ? <ToolCard /> : <PhoneToolRow />, container))
       // The Select card, which every Design opens with, leaves the framing to the rails (a phone shows none).
       expect(container.querySelector('[data-tool-card="select"]') !== null).toBe(placement === 'map')
       expect(visibleMapFrame.value[edge]).toBe(0)

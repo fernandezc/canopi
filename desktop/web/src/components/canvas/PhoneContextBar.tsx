@@ -8,7 +8,7 @@ import { BarMapNotice } from './MapNotice'
 import { PlantLabelsChip } from './PlantLabelsChip'
 import { SelectionChip } from './SelectionChip'
 import { plantsHighlighted, SpeciesFocusChip } from './SpeciesFocusChip'
-import { ToolCard } from './ToolCard'
+import { PhoneToolRow } from './ToolCard'
 import styles from './PhoneContextBar.module.css'
 
 /**
@@ -46,7 +46,7 @@ export function PhoneContextBar() {
     <>
       <BarMapNotice />
       {overview && <div className={styles.row}><OverviewNotice /></div>}
-      <ToolCard placement="bar" />
+      <PhoneToolRow />
       {!card && <SelectionChip placement="bar" />}
       {highlight && <div className={styles.row}><SpeciesFocusChip /></div>}
       <div className={styles.row}><PlantLabelsChip hidden={overview || card || selection || highlight} /></div>
