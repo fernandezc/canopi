@@ -16,12 +16,12 @@ import styles from './PhoneContextBar.module.css'
  * row (PhoneSheet `bar`), so it moves with the sheet and the sheet's one registration with the visible-map-area seam
  * covers it; on a phone nothing else floats over the map but the zoom column. The map notice, with its Retry, is a
  * status row on top of the bar, shown with whatever it holds (answer 24). It shows one context, never two, the first
- * that holds: in overview its notice; the armed tool's card (any tool but Select and Pan); the selection (the selection
- * chip, one line); the highlighted plants (the highlight chip); the labels chip's few seconds after the labels change;
- * else nothing. The card stays mounted under Select and Pan, showing nothing, so its live region announces the next
- * tool, and the labels chip stays mounted, so its window runs while another context shows. Phones are the Web
- * Edition's; the edition renders the bar only while a Design is open, and the sheet steps aside while "Where is your
- * site?" or a story is shown.
+ * that holds: in overview its notice; the armed tool's row (any tool but Select and Pan; one touch row, answer 30); the
+ * selection (the selection chip, one line); the highlighted plants (the highlight chip); the labels chip's few seconds
+ * after the labels change; else nothing. The tool's row stays mounted under Select and Pan, showing nothing, so its live
+ * region announces the next tool, and the labels chip stays mounted, so its window runs while another context shows.
+ * Phones are the Web Edition's; the edition renders the bar only while a Design is open, and the sheet steps aside while
+ * "Where is your site?" or a story is shown.
  *
  * The bar owns when the tool's options open and close by themselves (answer 30): Place plants with no species chosen
  * is its chooser, so arming it, or a tap on the map that asks for a species first, opens them at half; another tool,
