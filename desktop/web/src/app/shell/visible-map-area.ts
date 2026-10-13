@@ -164,7 +164,7 @@ export function leftChromeCrowdsMap(frame: VisibleMapFrame, leftChromeEdgePx: nu
  * whose top stands in the map's lower half covers the bottom edge: the page's end scrolls above it, so it takes no
  * width from every row.
  */
-export function measureScrollClearance(map: DOMRect, occluders: Iterable<MapOccluderBox>): VisibleMapFrame {
+function measureScrollClearance(map: DOMRect, occluders: Iterable<MapOccluderBox>): VisibleMapFrame {
   const middle = map.top + map.height / 2
   return measureVisibleMapFrame(map, [...occluders].map(({ rect, side }) => ({
     rect,
