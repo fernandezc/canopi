@@ -35,4 +35,4 @@ Thirteen key listeners (shell shortcuts, Web canvas shortcuts, focus regions, th
 - Policy tests keep one owner of window key listeners and one arming path; `app/keyboard/` imports no commands, platform, Web or component code. One focus mover and one Esc for one thing are held by behaviour tests (the focus owner, arming and Start card tests, the Esc fixtures), not by regexes whose allowlists would grow with every dialog (2026-10-01).
 - canopi-28w8's focus part lands through `FocusOwner`; its state and chrome parts ship first on their own.
 - The PDF page editor's arrows keep moving the page content as a drag does, through its own element handler; only its large step moves to Ctrl/Cmd (user, 2026-10-02).
-- Details: `docs/plans/canvas-v2-spec.md` at commit `bd78820e` (deleted at the 2.0 release close).
+- Details: `docs/plans/canvas-v2-spec.md`, deleted at the 2.0 release close; `git log -1 --diff-filter=D -- docs/plans/canvas-v2-spec.md` names the deleting commit, whose parent holds it.

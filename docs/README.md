@@ -9,7 +9,7 @@ Every document answers one of four questions. Start with the narrowest one for y
 | Where is this area's boundary? | one guide per area in [`guides/`](guides/) (see below) |
 | What changed for users? | [`release-notes/`](release-notes/), the in-app Getting started |
 
-Also: [`workflow.md`](workflow.md) for bead commands and triage labels; [`review-checklist.md`](review-checklist.md) for what to try before a release; [`plans/`](plans/) for agreed but unbuilt work (the canvas v2 plan, spec, inventory and implementation prompt behind ADRs [0015](adr/0015-rotating-map-and-canvas-controls.md) to [0020](adr/0020-focus-and-keyboard-ownership.md) were deleted at the 2.0 release close; commit `bd78820e` is the last that holds them); [`CONTEXT.md`](../CONTEXT.md) for product vocabulary.
+Also: [`workflow.md`](workflow.md) for bead commands and triage labels; [`review-checklist.md`](review-checklist.md) for what to try before a release; [`plans/`](plans/) for agreed but unbuilt work (the canvas v2 plan, spec, inventory and implementation prompt behind ADRs [0015](adr/0015-rotating-map-and-canvas-controls.md) to [0020](adr/0020-focus-and-keyboard-ownership.md) were deleted at the 2.0 release close; `git log -1 --diff-filter=D -- docs/plans/canvas-v2-plan.md` names the deleting commit, whose parent holds them); [`CONTEXT.md`](../CONTEXT.md) for product vocabulary.
 
 ## Guides
 

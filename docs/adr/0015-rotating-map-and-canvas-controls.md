@@ -48,4 +48,4 @@ The canvas was north-up and left-drag panned in some modes but selected in other
 
 - Moved bindings: Shift+arrows no longer nudge; N no longer cycles labels; Shift+right-drag no longer opens the menu; Mac Ctrl+click no longer toggles selection.
 - Stored data: `.canopi` gains the optional `map_view` (the view a Design was saved with, a saved-view camera; additive, version 9, 2026-10-04); settings `LastView.bearing` (2026-10-03) and `snap_to_guides` go, and ruler guides (`extra.guides`) are no longer read or written (2026-10-05, U33). Print Areas gain no angle; PDF setups stay in memory only, so the layout angle is not stored (2026-10-01).
-- Phases, strings and tests are in `docs/plans/canvas-v2-plan.md` and `docs/plans/canvas-v2-spec.md` at commit `bd78820e` (deleted at the 2.0 release close).
+- Phases, strings and tests are in `docs/plans/canvas-v2-plan.md` and `docs/plans/canvas-v2-spec.md` (deleted at the 2.0 release close; `git log -1 --diff-filter=D -- docs/plans/canvas-v2-spec.md` names the deleting commit, whose parent holds them).
