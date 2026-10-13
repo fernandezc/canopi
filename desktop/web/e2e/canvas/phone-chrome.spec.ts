@@ -1005,6 +1005,53 @@ for (const phone of PHONES) {
   })
 }
 
+// The map credits never sit under the zoom column (release close, DR16; U18's bottom band is retired). Offline the
+// Basemap style never installs and the map shows no credits, so its style is answered in the page with inline credits
+// and no sprite; the credits then show at the map's bottom right, on the zoom column's side, at the sheet's peek and half.
+const BASEMAP_CREDITS = '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a>'
+  + ' Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+/**
+ * Sizes where the credits sit under the zoom column today (found by this test, both engines): at 360x740 with the sheet
+ * at half, the compact credits' (i) button (y 336-362) under the column's foot (y 77-361); at 740x360 at the peek, the
+ * credits' line (x 75-384, y 332-352) under the column (x 334-384, y 75-345). Expected to fail until the column or the
+ * credits leave room for each other (owner: main, to file under canopi-f47t.58).
+ */
+const CREDITS_UNDER_COLUMN = new Set(['360×740', '740×360'])
+
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const known = CREDITS_UNDER_COLUMN.has(size)
+  test.describe(`${size} map credits`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(release close, DR16) the map credits and the zoom column never cover each other (${size})${known ? ' (expected to fail: owner main, canopi-f47t.58 follow-up)' : ''}`, async ({ page }) => {
+      test.fail(known, 'the credits sit under the zoom column at this size (owner main, canopi-f47t.58 follow-up)')
+      await page.route('https://tiles.openfreemap.org/styles/**', (route) => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          version: 8,
+          sources: { openmaptiles: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: BASEMAP_CREDITS } },
+          layers: [{ id: 'water', type: 'fill', source: 'openmaptiles', paint: { 'fill-color': '#a0c8f0' } }],
+        }),
+      }))
+      await openFixture(page, FIXTURE)
+      const credits = mapHost(page).locator('.maplibregl-ctrl-attrib')
+      await expect(credits, `${size}: the Basemap's credits show`).toBeVisible()
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect.poll(async () => {
+          await nextFrames(page)
+          const shown = await shownBoxes(page, '.maplibregl-ctrl-attrib')
+          const column = await shownBoxes(page, '[data-zoom-group]')
+          return shown.flatMap((box) => column.filter((other) => overlap(box, other))).length
+        }, `${size}, sheet at ${height}: the credits share no pixel with the zoom column`).toBe(0)
+      }
+    })
+  })
+}
+
 // A tablet is not a phone: the desktop card stays, and its chooser takes the focus at the first tap with no species only,
 // so a later tap leaves the on-screen keyboard closed.
 test.describe('1024×768 tablet', () => {
