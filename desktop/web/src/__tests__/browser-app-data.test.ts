@@ -283,6 +283,22 @@ describe('browser app data store', () => {
       expect(storage.values.get(V1_KEY)).toBe(v1)
     })
 
+    // Probe P-D2 (release close, stream D): Chromium and WebKit throw a
+    // QuotaExceededError DOMException for every write at the quota, the notice
+    // marker included, and leave existing keys as they were.
+    it('tells again and leaves the 1.x document untouched while the browser is full', () => {
+      const storage = memoryStorage()
+      const v1 = JSON.stringify({ settings: { locale: 'fr' } })
+      storage.values.set(V1_KEY, v1)
+      storage.rejectWrite = () => new DOMException('The quota has been exceeded.', 'QuotaExceededError')
+      const store = createBrowserAppDataStore({ storage })
+      const before = new Map(storage.values)
+
+      expect(store.setAsideDataFromBefore2_0(NOW)).toMatchObject({ keptInPlace: true })
+      expect(store.setAsideDataFromBefore2_0('2026-10-03T12:00:00.000Z')).toMatchObject({ keptInPlace: true })
+      expect(storage.values).toEqual(before)
+    })
+
     it('does not claim earlier data stays in place when browser storage cannot be read', () => {
       const storage = memoryStorage()
       storage.forbiddenReadKeys.add(V1_KEY)
@@ -445,6 +461,8 @@ interface MemoryStorage extends BrowserStorageAdapter {
   maxWriteLength: number | null
   maxTotalLength: number | null
   onRejectedWrite: ((key: string, value: string) => void) | null
+  /** Every write throws what this returns, as a full browser storage does. */
+  rejectWrite: (() => unknown) | null
   reads: string[]
   writes: string[]
   values: Map<string, string>
@@ -460,6 +478,7 @@ function memoryStorage(): MemoryStorage {
     maxWriteLength: null,
     maxTotalLength: null,
     onRejectedWrite: null,
+    rejectWrite: null,
     reads: [],
     writes: [],
     values,
@@ -470,6 +489,7 @@ function memoryStorage(): MemoryStorage {
     },
     setItem(key, value) {
       this.writes.push(key)
+      if (this.rejectWrite) throw this.rejectWrite()
       const nextTotalLength = totalStoredLength(this) - (values.get(key)?.length ?? 0) + value.length
       const rejected = (
         this.failWrites
