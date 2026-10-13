@@ -73,12 +73,6 @@ function toolOptions(page: Page): Locator {
   return page.locator('[data-sheet-panel="options"]')
 }
 
-/** Opens the armed tool's options from the bar's Options button, unless they show already. */
-async function openToolOptions(page: Page): Promise<void> {
-  if (await toolOptions(page).count() === 0) await page.locator('[data-tool-options-button]').tap()
-  await expect(toolOptions(page), 'the tool\'s options show').toBeVisible()
-}
-
 // Answer 17: on a phone, while a drawing tool holds a draft (Plant a row, Polygon, Profile line), the panel sheet drops to
 // its peek, so the draft is drawn on the map rather than under the sheet; arming a tool alone keeps the sheet, and a
 // sheet raised again during the draft stays where the user puts it.
@@ -402,8 +396,9 @@ async function mapSpot(page: Page, left = 0): Promise<Point> {
 async function holdRowInBar(page: Page): Promise<void> {
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  await openToolOptions(page)
+  // With no species chosen, arming Place plants opens its chooser.
   const apple = toolOptions(page).getByRole('button', { name: /Malus domestica/ }).first()
+  await expect(apple, 'Place plants opens its chooser').toBeVisible()
   await apple.scrollIntoViewIfNeeded()
   await apple.click()
   await expect(toolOptions(page), 'choosing a species closes the options').toHaveCount(0)
@@ -617,6 +612,40 @@ test.describe('390×844 tool options', () => {
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'peek')
     await expect(toolOptions(page), 'at the peek the options close').toHaveCount(0)
     await expect(panel, 'and the panel').toHaveCount(0)
+  })
+
+  test('(canopi-f47t.54, D4) Place plants with no species opens its chooser at half; choosing one puts the panel back, and a tap with none chosen opens it again', async ({ page }) => {
+    await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
+    await raiseSheet(page)
+    const selected = page.locator('[data-sheet-tab][aria-selected="true"]')
+    const before = await selected.getAttribute('data-panel')
+    const apple = toolOptions(page).getByRole('button', { name: /Malus domestica/ }).first()
+    await mapHost(page).focus()
+    await page.keyboard.press('p')
+    await expect(apple, 'arming Place plants with no species shows its chooser').toBeVisible()
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+    await expect(selected, 'in place of the open panel').toHaveCount(0)
+
+    // Rested at its peek, the sheet opens the chooser again at a tap on the map with no species chosen.
+    await page.locator('[data-sheet-handle]').focus()
+    await page.keyboard.press('Home')
+    await expect(toolOptions(page), 'at the peek the chooser closes').toHaveCount(0)
+    await tap(page, ABOVE)
+    await expect(apple, 'a tap on the map with no species opens the chooser again').toBeVisible()
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+    await apple.click()
+    await expect(toolOptions(page), 'choosing a species closes the chooser').toHaveCount(0)
+    await expect(sheet(page), 'the sheet goes back to its peek').toHaveAttribute('data-phone-sheet', 'peek')
+    await expect(card(page).locator('[data-tool-card-lead="species"]'), 'the bar names the chosen species').toBeVisible()
+
+    // With a species chosen Options is Change species, over the open panel, which comes back once one is chosen.
+    await raiseSheet(page)
+    await page.locator('[data-tool-options-button]').tap()
+    await expect(apple, 'Options shows the chooser').toBeVisible()
+    await apple.click()
+    await expect(toolOptions(page)).toHaveCount(0)
+    await expect(selected, 'the panel comes back').toHaveAttribute('data-panel', before!)
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
   })
 })
 
@@ -852,6 +881,10 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
         await mapHost(page).focus()
         await page.keyboard.press('p')
         await expect(card(page), `${where}: Place plants' card is the bar's`).toHaveAttribute('data-tool-card', 'plant-stamp')
+        // Arming it with no species opened its chooser; the sheet rests at its peek first.
+        await expect(toolOptions(page), `${where}: Place plants opens its chooser`).toBeVisible()
+        await page.locator('[data-sheet-handle]').focus()
+        await page.keyboard.press('Home')
         await expectStopsInOrder(page, (height) => expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`))
       })
     }

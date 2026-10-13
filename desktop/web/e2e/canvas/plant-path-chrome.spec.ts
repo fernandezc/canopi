@@ -75,9 +75,9 @@ function toolOptions(page: Page): Locator {
   return page.locator('[data-sheet-panel="options"]')
 }
 
-/** On a phone, opens the armed tool's options from the bar's Options button, unless they show already. */
+/** On a phone, opens the armed tool's options from the bar's Options button. */
 async function openToolOptions(page: Page): Promise<void> {
-  if (await toolOptions(page).count() === 0) await page.locator('[data-tool-options-button]').tap()
+  await page.locator('[data-tool-options-button]').tap()
   await expect(toolOptions(page), 'the tool\'s options show').toBeVisible()
 }
 
@@ -153,7 +153,7 @@ async function drawTwoPoints(page: Page, layout: Layout, spacing = '1'): Promise
   const phone = isPhone(layout)
   await mapHost(page).focus()
   await page.keyboard.press('p')
-  if (phone) await openToolOptions(page)
+  // On a phone, arming Place plants with no species opens its chooser, the tool's options.
   const apple = (phone ? toolOptions(page) : card(page)).getByRole('button', { name: /Malus domestica/ }).first()
   await expect(apple).toBeVisible()
   // On a phone the spots are found once the options close and the sheet rests at its peek again.

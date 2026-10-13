@@ -1,7 +1,8 @@
 import { useEffect } from 'preact/hooks'
 import { phoneToolOptions } from '../../app/shell/phone-layout'
 import { useMapSelectionSummary } from '../../app/map-selection/summary'
-import { currentCanvasQuerySurface, currentCanvasTool } from '../../canvas/session'
+import { readPlantStampSource } from '../../canvas/plant-stamp-source'
+import { currentCanvasQuerySurface, currentCanvasTool, currentCanvasToolGuidance } from '../../canvas/session'
 import { OverviewNotice } from './CanvasOverview'
 import { BarMapNotice } from './MapNotice'
 import { PlantLabelsChip } from './PlantLabelsChip'
@@ -21,6 +22,10 @@ import styles from './PhoneContextBar.module.css'
  * tool, and the labels chip stays mounted, so its window runs while another context shows. Phones are the Web
  * Edition's; the edition renders the bar only while a Design is open, and the sheet steps aside while "Where is your
  * site?" or a story is shown.
+ *
+ * The bar owns when the tool's options open and close by themselves (answer 30): Place plants with no species chosen
+ * is its chooser, so arming it, or a tap on the map that asks for a species first, opens them at half; another tool,
+ * and the bar going with the Design, closes them, which gives the sheet back its panel as it was.
  */
 export function PhoneContextBar() {
   const tool = currentCanvasTool.value
@@ -29,10 +34,14 @@ export function PhoneContextBar() {
   const card = !overview && tool !== 'select' && tool !== 'hand'
   const selection = !overview && !card && summary !== null
   const highlight = !overview && !card && !selection && plantsHighlighted()
-  // The tool's options close with the tool, and the sheet goes back to its panel as it was.
+  const promptSpecies = currentCanvasToolGuidance.value.promptSpecies
   useEffect(() => {
-    phoneToolOptions.value = null
+    phoneToolOptions.value = tool === 'plant-stamp' && readPlantStampSource() === null ? 'half' : null
   }, [tool])
+  useEffect(() => {
+    if (promptSpecies) phoneToolOptions.value = 'half'
+  }, [promptSpecies])
+  useEffect(() => () => { phoneToolOptions.value = null }, [])
   return (
     <>
       <BarMapNotice />

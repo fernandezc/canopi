@@ -8,6 +8,7 @@ import type { ToolId } from '../canvas/runtime/interaction-types'
 import { locale } from '../app/settings/state'
 import { PhoneContextBar } from '../components/canvas/PhoneContextBar'
 import { ToolOptions } from '../components/canvas/ToolCard'
+import { clearPlantStampSource, selectPlantStampSource } from '../canvas/plant-stamp-source'
 import { phoneLayout, phoneToolOptions } from '../app/shell/phone-layout'
 import { PLANT_LABELS_CHIP_MS } from '../components/canvas/PlantLabelsChip'
 import { plantFinderMapMatches } from '../app/plant-finder/map-matches'
@@ -63,6 +64,7 @@ describe('Phone context bar', () => {
     setCanvasToolGuidance(IDLE_CANVAS_TOOL_GUIDANCE)
     phoneToolOptions.value = null
     phoneLayout.value = null
+    clearPlantStampSource()
     currentCanvasSelection.value = new Set()
     plantFinderMapMatches.value = null
     designSessionFixture.file = null
@@ -144,6 +146,30 @@ describe('Phone context bar', () => {
     expect(phoneToolOptions.value).toBe('half')
     render(null, options)
     options.remove()
+  })
+
+  it('opens Place plants\' chooser as the tool\'s options at half while no species is chosen, and closes them with the tool', async () => {
+    await choose('plant-stamp')
+    expect(phoneToolOptions.value, 'arming Place plants with no species opens its chooser').toBe('half')
+    await choose('polygon')
+    expect(phoneToolOptions.value, 'another tool closes them').toBeNull()
+    await choose('plant-stamp')
+    await act(() => { phoneToolOptions.value = null })
+    await choose('plant-stamp', { promptSpecies: true })
+    expect(phoneToolOptions.value, 'a tap on the map with no species opens them again').toBe('half')
+    await choose('select')
+    expect(phoneToolOptions.value).toBeNull()
+
+    selectPlantStampSource({ canonical_name: 'Malus domestica', common_name: 'Apple', stratum: null, width_max_m: null })
+    await choose('plant-stamp')
+    expect(phoneToolOptions.value, 'with a species chosen Place plants places at once').toBeNull()
+  })
+
+  it('closes the tool\'s options when the bar goes, as the Design closes', async () => {
+    await choose('plant-stamp')
+    expect(phoneToolOptions.value).toBe('half')
+    await act(() => render(null, container))
+    expect(phoneToolOptions.value).toBeNull()
   })
 
   it('shows the selection under Select or Pan, on one line in the bar, and never with a tool\'s card', async () => {
