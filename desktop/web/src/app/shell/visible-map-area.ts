@@ -19,7 +19,15 @@ import { currentCanvasViewportCommandSurface } from '../../canvas/session'
  * register the room they have above the chrome under their column (the view
  * chip under the tool rail; the inspection launcher and the zoom group under
  * the panel rail), so a short window folds their last entries into a More
- * button instead of covering that chrome.
+ * button instead of covering that chrome. A page that scrolls under the
+ * chrome (the start screen) keeps clear of it through `--map-clear-*`: chrome
+ * whose top stands in the map's lower half (the landscape panel sheet's corner
+ * box at its peek) is room at the bottom, where the page's end scrolls above
+ * it, and other chrome is room at its own edge. An open Design's chrome waiting
+ * to show (the map area marked `data-design-hidden`: chrome inside the map area,
+ * and `data-design-chrome` outside it) frames the camera but keeps no room from
+ * the page: the start screen covers that wait, and its layout must not shift
+ * beside chrome nobody sees.
  */
 export interface VisibleMapFrame {
   /** The map area's size, in CSS pixels. */
@@ -155,6 +163,19 @@ export function leftChromeCrowdsMap(frame: VisibleMapFrame, leftChromeEdgePx: nu
   return frame.width - frame.right - leftChromeEdgePx < MIN_VISIBLE_MAP_WIDTH_PX
 }
 
+/**
+ * Pure: the room a page scrolling under the chrome keeps at each edge. As `measureVisibleMapFrame`, except that chrome
+ * whose top stands in the map's lower half covers the bottom edge: the page's end scrolls above it, so it takes no
+ * width from every row.
+ */
+function measureScrollClearance(map: DOMRect, occluders: Iterable<MapOccluderBox>): VisibleMapFrame {
+  const middle = map.top + map.height / 2
+  return measureVisibleMapFrame(map, [...occluders].map(({ rect, side }) => ({
+    rect,
+    side: rect.top >= middle ? 'bottom' as const : side,
+  })))
+}
+
 function inferSide(map: DOMRect, rect: DOMRect): MapOccluderSide {
   if (rect.width >= map.width * HORIZONTAL_BAND_SHARE) {
     return rect.top + rect.height / 2 < map.top + map.height / 2 ? 'top' : 'bottom'
@@ -174,7 +195,7 @@ let stopCameraSync: (() => void) | null = null
 function recompute(): void {
   if (!area) return
   const map = area.getBoundingClientRect()
-  const measure = () => [...occluders].map(([element, { side, frames }]) => ({ rect: element.getBoundingClientRect(), side, frames }))
+  const measure = () => [...occluders].map(([element, { side, frames }]) => ({ element, rect: element.getBoundingClientRect(), side, frames }))
   let boxes = measure()
   const framing = measureVisibleMapFrame(map, boxes.filter(({ frames }) => frames))
   let framingMoved = false
@@ -191,6 +212,11 @@ function recompute(): void {
   const folded = map.width > 0 && measureBottomBandRoom(map, boxes) < MAP_ATTRIBUTION_MIN_ROOM_PX
   if (mapAttributionFolded.peek() !== folded) mapAttributionFolded.value = folded
   for (const edge of INSET_PROPERTIES) area.style.setProperty(`--map-inset-${edge}`, `${next[edge]}px`)
+  const page = area
+  const clearance = measureScrollClearance(map, page.hasAttribute('data-design-hidden')
+    ? boxes.filter(({ element }) => !page.contains(element) && !element.closest('[data-design-chrome]'))
+    : boxes)
+  for (const edge of INSET_PROPERTIES) area.style.setProperty(`--map-clear-${edge}`, `${clearance[edge]}px`)
   for (const kind of ['tool', 'panel'] as const) {
     const room = measureRailRoom(
       rails[kind]?.getBoundingClientRect() ?? null,
@@ -271,6 +297,7 @@ function releaseArea(element: HTMLElement): void {
   for (const edge of INSET_PROPERTIES) {
     element.style.removeProperty(`--map-inset-${edge}`)
     element.style.removeProperty(`--map-framing-inset-${edge}`)
+    element.style.removeProperty(`--map-clear-${edge}`)
   }
   area = null
   stopWatching()

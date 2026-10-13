@@ -320,7 +320,7 @@ for (const phone of PHONES) {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     test(`(canopi-f47t.54, D) a bar in the sheet's first row moves with peek, half and full, is covered by the sheet's registration, clears the zoom column and takes taps (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      await openFixture(page, FIXTURE, { basemapHidden: true })
       const bar = await putFixedBar(page)
       for (const height of ['peek', 'half', 'full'] as const) {
         if (height !== 'peek') {
@@ -339,7 +339,7 @@ for (const phone of PHONES) {
     })
 
     test(`(canopi-f47t.54, D) a key from a control in the bar is not the dock's: Select all from the bar selects on the map, from a sheet tab it does not (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      await openFixture(page, FIXTURE, { basemapHidden: true })
       const bar = await putFixedBar(page)
       expect(await bar.evaluate((element) => element.closest('[data-key-region="dock"]') === null), 'the bar is outside the dock key region').toBe(true)
       await page.locator('[data-sheet-tab]').first().focus()
@@ -542,7 +542,7 @@ for (const phone of BAR_SIZES) {
     for (const locale of ['en', 'de']) {
       test(`(canopi-f47t.54, D4) every tool, a held row and the selection keep the bar one touch row, its controls take the tap${zoomAtPeek ? ' and the zoom column shows at peek' : ''} (${size} ${locale})`, async ({ page }) => {
         const where = `${size} ${locale}`
-        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false } })
         await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
         for (const key of TOOL_KEYS) {
           await mapHost(page).focus()
@@ -722,7 +722,6 @@ test.describe('390×844 tool options', () => {
 // ellipsised, its labels short), and Select all of this species and Clear take the tap at their centre.
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
   test.describe(`${size} selection in the bar`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
@@ -730,7 +729,7 @@ for (const phone of PHONES) {
     for (const locale of ['en', 'de', 'it']) {
       test(`(canopi-f47t.54, D) a planted row's selection is the bar's one line, and its buttons take the tap (${size} ${locale})`, async ({ page }) => {
         const where = `${size} ${locale}`
-        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false } })
         await holdRowInBar(page)
         await mapHost(page).focus()
         await page.keyboard.press('Enter')
@@ -759,12 +758,11 @@ for (const phone of PHONES) {
 // between the top bar and the sheet at its peek, held upright or on its side, and a tap opens the lens.
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
   test.describe(`${size} lens launcher`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     test(`(canopi-f47t.54, D) the inspection launcher is a button of the zoom column, which fits beside the sheet, and a tap opens the lens (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { openWith: portrait ? 'button' : 'shortcut' })
+      await openFixture(page, FIXTURE)
       const column = page.locator('[data-zoom-group]')
       const launcher = column.locator('[data-inspection-launcher]')
       await expect(launcher, `${size}: the launcher is in the zoom column`).toBeVisible()
@@ -787,12 +785,11 @@ for (const phone of PHONES) {
 // after Shift+L changes the labels is the sheet's first row, and the canvas mounts no top chip slot.
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
   test.describe(`${size} labels chip in the bar`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     test(`(canopi-f47t.54, D) the labels chip is the bar's, and no top chip slot floats (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      await openFixture(page, FIXTURE, { basemapHidden: true })
       await mapHost(page).focus()
       await page.keyboard.press('Shift+L')
       const chip = page.locator('[data-plant-labels-chip]')
@@ -809,12 +806,11 @@ for (const phone of PHONES) {
 // holds (here Plant a row's card), in the panel sheet: Retry takes the tap at its centre, at peek and half.
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
   test.describe(`${size} notice in the bar`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     test(`(canopi-f47t.54, D) offline, the map notice is the bar's top row, alone or above the card, and Retry takes the tap (${size})`, async ({ page }) => {
-      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
       const notice = page.locator('[data-map-notice]')
       const expectNoticeOnTop = async (where: string) => {
         await expect(notice, `${where}: offline, the map notice shows`).toBeVisible()
@@ -942,7 +938,7 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
 
     for (const locale of ['en', 'de']) {
       test(`(canopi-f47t.54, D4) offline with Place plants armed, the sheet keeps below the top bar, rises at each step, keeps a one-row bar and is half the workspace at half (${size} ${locale})`, async ({ page }) => {
-        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false } })
         const where = `${size} ${locale}`
         await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
         await mapHost(page).focus()
@@ -969,13 +965,12 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
 
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const portrait = phone.height > phone.width
   test.describe(`${size} phone chrome guard`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     for (const locale of ['en', 'de']) {
       test(`(canopi-f47t.54, D) nothing but the zoom column floats over the map and every control in the bar takes the tap (${size} ${locale})`, async ({ page }) => {
-        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false } })
         const where = `${size} ${locale}`
         await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
         await expectPhoneChrome(page, `${where} idle`)

@@ -161,6 +161,90 @@ describe('visible map area', () => {
     }
   })
 
+  it('publishes the clearance a scrolled page keeps: chrome standing in the lower half is room at the bottom, other chrome room at its edge', () => {
+    // A landscape phone (844×390): the panel sheet covers the right edge, yet at its peek it is a box in the bottom right
+    // corner, so the start screen ends above it rather than giving up the right 368 px of every row.
+    const area = element({ left: 0, top: 0, width: 844, height: 390 })
+    const releaseArea = registerMapArea(area)
+    const sheetAtPeek = element({ left: 476, top: 292, width: 360, height: 90 })
+    const releaseSheet = registerMapOccluder(sheetAtPeek, 'right')
+    const clear = (edge: string) => area.style.getPropertyValue(`--map-clear-${edge}`)
+    try {
+      expect(area.style.getPropertyValue('--map-inset-right')).toBe('368px')
+      expect(area.style.getPropertyValue('--map-inset-bottom')).toBe('0px')
+      expect(clear('bottom'), 'the page ends above the corner box').toBe('98px')
+      expect(clear('right'), 'the corner box takes no width from the page').toBe('0px')
+
+      // The panel rail stands from the top: its column is kept clear down the whole page.
+      const releaseRail = registerMapOccluder(element({ left: 780, top: 72, width: 52, height: 200 }), 'right')
+      expect(clear('right')).toBe('64px')
+      expect(clear('bottom')).toBe('98px')
+      releaseRail()
+
+      // Opened along the right edge, the sheet stands from the top bar: it is room at the right.
+      boxes.set(sheetAtPeek, { left: 476, top: 72, width: 360, height: 310 })
+      refreshVisibleMapArea()
+      expect(clear('right')).toBe('368px')
+      expect(clear('bottom')).toBe('0px')
+    } finally {
+      releaseSheet()
+      releaseArea()
+    }
+    expect(area.style.getPropertyValue('--map-clear-bottom'), 'released with the map area').toBe('')
+  })
+
+  it('leaves an open Design\'s chrome out of the clearance while it waits to show, so the start screen keeps its layout', () => {
+    // A Design opened from the start screen: until its first scene is drawn the map area is marked data-design-hidden, the
+    // start screen stays up, and the Design's chrome is laid out but transparent. That chrome (the canvas chrome inside the
+    // map area, the Desktop panel rail marked data-design-chrome outside it) frames the camera, yet takes no room from the
+    // start screen, whose library would otherwise shift beside chrome nobody sees.
+    const area = element(WINDOW)
+    const releaseArea = registerMapArea(area)
+    const releaseTitle = registerMapOccluder(element(TITLE_BAR))
+    const clear = (edge: string) => area.style.getPropertyValue(`--map-clear-${edge}`)
+    area.setAttribute('data-design-hidden', '')
+    const rail = element(PANEL_RAIL)
+    rail.setAttribute('data-design-chrome', '')
+    const releaseRail = registerRail('panel', rail)
+    const zoom = document.createElement('div')
+    area.appendChild(zoom)
+    boxes.set(zoom, ZOOM_GROUP)
+    const releaseZoom = registerMapOccluder(zoom, 'bottom')
+    try {
+      expect(area.style.getPropertyValue('--map-inset-right'), 'the waiting rail frames the camera').toBe('64px')
+      expect(area.style.getPropertyValue('--map-inset-bottom'), 'the waiting zoom group frames the camera').toBe('56px')
+      expect(clear('right'), 'the waiting rail takes no width from the start screen').toBe('0px')
+      expect(clear('bottom'), 'the waiting zoom group takes no room from its end').toBe('0px')
+      expect(clear('top'), 'shown chrome keeps its clearance').toBe('60px')
+
+      // Shown, the Design's chrome is room at its edges again.
+      area.removeAttribute('data-design-hidden')
+      refreshVisibleMapArea()
+      expect(clear('right')).toBe('64px')
+      expect(clear('bottom')).toBe('56px')
+    } finally {
+      releaseZoom()
+      releaseRail()
+      releaseTitle()
+      releaseArea()
+    }
+  })
+
+  it('keeps bottom chrome as room at the bottom of a scrolled page', () => {
+    const area = element(WINDOW)
+    const releaseArea = registerMapArea(area)
+    const releaseZoom = registerMapOccluder(element(ZOOM_GROUP), 'bottom')
+    const releaseTitle = registerMapOccluder(element(TITLE_BAR))
+    try {
+      expect(area.style.getPropertyValue('--map-clear-bottom')).toBe('56px')
+      expect(area.style.getPropertyValue('--map-clear-top')).toBe('60px')
+    } finally {
+      releaseTitle()
+      releaseZoom()
+      releaseArea()
+    }
+  })
+
   it('publishes the frame as CSS insets on the map area and hands it to the camera', async () => {
     const surfaces = createTestCanvasRuntimeSurfaces()
     const setFramingInsets = vi.spyOn(surfaces.commands.viewport, 'setFramingInsets')
