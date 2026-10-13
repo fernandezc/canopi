@@ -24,7 +24,7 @@
 // zone chip format; the points and dots are DOM handles. On a 2-point row all of it is the straight row's, bit for bit.
 
 import { plantAlongPath, type PathPlanting, type PathSpacing } from '../../plant-path/spacing'
-import { flattenPath, pointAlong, type PathPoints } from '../../plant-path/curve'
+import { flattenPath, pointAlong, tangentAlong, type PathPoints } from '../../plant-path/curve'
 import {
   addPoint,
   closePath,
@@ -39,7 +39,7 @@ import {
   type PathDraft,
 } from '../../point-editor/anchors'
 import { dotHandles, parsePointHandle, pointHandleId, pointHandles } from '../../point-editor/layout'
-import { CLOSE_DISTANCE_PX, pointMenuItems, pointPressIntent, type PointAction } from '../../point-editor/rules'
+import { CLOSE_DISTANCE_PX, isSamePoint, pointMenuItems, pointPressIntent, type PointAction } from '../../point-editor/rules'
 import {
   formatPlantSpacingIntervalInput,
   parsePlantRowCountInput,
@@ -71,8 +71,6 @@ const SOURCE_RING_STROKE: DraftStroke = Object.freeze({ token: 'selection', widt
 const ROW_GUIDE_STROKE: DraftStroke = Object.freeze({ token: 'selection', widthPx: 2, dash: Object.freeze([6, 6]) })
 /** The owner of the draft's point and dot handles (`point:draft:<i>`, `dot:draft:<i>`). */
 const DRAFT_OWNER = 'draft'
-/** A placed point this close to the last one, on both axes, is the same point (polygon.ts's rule). */
-const SAME_POINT_M = 0.0001
 /** A length chip beside a dot keeps this much screen between the curve and its nearest side (measure-labels.ts). */
 const BESIDE_DOT_GAP_PX = 6
 
@@ -232,7 +230,7 @@ export function createPlantRowTool(): CanvasTool {
       shapes.push({ kind: 'ghost', entity: { kind: 'plant', plant, mark: 'dot', sizeFrom: start }, opacity: PLANT_ROW_GHOST_OPACITY })
     }
     const anchor = flat ? pointAlong(flat, row.planting.lengthM / 2) : { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 }
-    const beside = besideDot(tool, anchor, flat ? tangentAt(flat, row.planting.lengthM / 2) : { x: end.x - start.x, y: end.y - start.y })
+    const beside = besideDot(tool, anchor, flat ? tangentAlong(flat, row.planting.lengthM / 2) : { x: end.x - start.x, y: end.y - start.y })
     shapes.push({
       kind: 'label',
       anchor,
@@ -812,18 +810,4 @@ export function createPlantRowTool(): CanvasTool {
       ctx = null
     },
   }
-}
-
-function isSamePoint(a: WorldPoint, b: WorldPoint): boolean {
-  return Math.abs(a.x - b.x) < SAME_POINT_M && Math.abs(a.y - b.y) < SAME_POINT_M
-}
-
-/** The polyline's direction `distance` metres along it. */
-function tangentAt(flat: ReturnType<typeof flattenPath>, distance: number): WorldPoint {
-  const { vertices, lengths } = flat
-  let index = 0
-  while (index < lengths.length - 2 && lengths[index + 1]! < distance) index += 1
-  const a = vertices[index]!
-  const b = vertices[index + 1] ?? a
-  return { x: b.x - a.x, y: b.y - a.y }
 }

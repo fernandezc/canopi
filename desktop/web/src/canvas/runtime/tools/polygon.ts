@@ -17,7 +17,7 @@
 // zone and selects it. Its draft is a fill-only polygon of the corners, the rubber band, a disc per corner and the edge
 // and area chips (tools/measure-labels.ts), whose edge chips re-cull on every camera frame.
 
-import { CLOSE_DISTANCE_PX } from '../../point-editor/rules'
+import { CLOSE_DISTANCE_PX, isSamePoint } from '../../point-editor/rules'
 import type { ToolId } from '../interaction-types'
 import type { WorldPoint } from '../view/types'
 import { createPolygonalZoneDraftMeasurements } from '../zone-measurements'
@@ -27,8 +27,6 @@ import type { CanvasTool, ToolCommand, ToolContext, ToolGesture, ToolPoint, Tool
 import { appendPolygonZoneToDraft } from './tool-actions'
 import { DRAFT_STROKE, ZONE_DRAFT_FILL } from './zone-drag'
 
-/** A press on the last corner moves the rubber band only. */
-const SAME_CORNER_M = 0.0001
 /** The corners' fill carries no stroke: the rubber band draws the edges. */
 const FILL_ONLY: DraftStroke = Object.freeze({ token: 'draft', widthPx: 0 })
 /** A light disc of radius 3.5 px on a 1 px casing ring (plan §1, exception 2), at each point of a vertex path. */
@@ -304,8 +302,4 @@ function polygonDraftShapes(corners: readonly WorldPoint[], active: WorldPoint |
   const chips = createPolygonalZoneDraftMeasurements(corners, active)
   shapes.push(...measureLabelShapes(chips, (a, b) => view.screenDistance(a, b)))
   return shapes
-}
-
-function isSamePoint(a: WorldPoint, b: WorldPoint): boolean {
-  return Math.abs(a.x - b.x) < SAME_CORNER_M && Math.abs(a.y - b.y) < SAME_CORNER_M
 }
