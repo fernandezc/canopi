@@ -34,7 +34,7 @@ Canopi is a desktop (Tauri) and Web app for designing agroecological sites on a 
 
 Decided by [ADR 0001](adr/0001-geolocated-map-canvas.md); constants live in `desktop/web/src/canvas/session-plane.ts`.
 
-- **Files store lon/lat.** `.canopi` format v9 (`CURRENT_CANOPI_FILE_VERSION`) stores every persisted position, including saved-view cameras, as `GeoPoint { lon, lat }`; zone and note rotation is degrees clockwise from true north. There is no Design-level anchor, bearing, placement status or altitude, and the obsolete root keys are refused; a bearing belongs only to view cameras.
+- **Files store lon/lat.** `.canopi` format v9 (`CURRENT_CANOPI_FILE_VERSION`) stores every persisted position, including saved-view cameras, as `GeoPoint { lon, lat }`; zone and note rotation is degrees clockwise from true north. There is no Design-level anchor, bearing, placement status or altitude; plant and guide ids are required; a bearing belongs only to view cameras.
 - **Session plane.** On load the codec builds a local Mercator-anchored plane (`canvas/projection.ts`) at the centre of the objects' bounds, or the view centre for an empty Design. All runtime geometry, tools, snapping, measurement, hit testing, LiDAR sampling and PDF layout work in metres there, on north-aligned axes; one view transform (centre, zoom, bearing) maps them to screen pixels ([ADR 0016](adr/0016-one-view-transform.md)).
 - **Re-origin.** When the view centre moves over 10 km from the origin, the runtime rebuilds the plane and re-projects every object from stored lon/lat, losslessly.
 - **Canonical write-back.** Positions are written rounded to 1e-9 degree, latitude clamped to ±85.051128779, longitude clamped to ±180 on save only (re-origin keeps it unclamped). Rounding is idempotent, so an unedited position never drifts (`geolocated-design-codec.test.ts`).
@@ -83,9 +83,9 @@ Every `#[tauri::command]` is registered once and is executor-backed async or one
 
 ## Persistence of app data
 
-[ADR 0021](adr/0021-canopi-2-breaks-stored-data.md) decides every store: no migrations; older local data is left in place, unread, and the user is told once; Drafts and Web below move aside until P25.
+[ADR 0021](adr/0021-canopi-2-breaks-stored-data.md) decides every store: no migrations; older local data is left in place, unread, and the user is told once.
 
 - Designs: only the current format opens; an older or newer file is refused unchanged with a typed `DesignLoadFailure` that says which.
-- Desktop user DB and Drafts: a database or Draft from before 2.0 is renamed `….before-2.0-<unix-seconds>` and Canopi starts fresh; a newer database is refused untouched; a damaged one is renamed `<file>.corrupt-<unix-seconds>`.
+- Desktop user DB and Drafts: a database from before 2.0 is renamed `….before-2.0-<unix-seconds>` and Canopi starts fresh; older Drafts stay, unread; a newer database is refused untouched; a damaged one is renamed `<file>.corrupt-<unix-seconds>`.
 - LiDAR library: an older or corrupt catalogue is set aside and rebuilt from the originals and their `meta.json`; a newer one is refused and the library runs empty and read-only. Originals are never deleted by recovery.
-- Web: independent browser-local records (drafts, settings, species activity, stamps); older data is copied to `before-2.0` backup keys at startup.
+- Web: independent browser-local records (drafts, settings, species activity, stamps); the 1.x record and older Drafts stay under their keys, unread.
