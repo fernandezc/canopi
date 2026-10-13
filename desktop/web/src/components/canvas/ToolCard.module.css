@@ -51,12 +51,12 @@
 
 /* Phones: the card is the context bar's (PhoneContextBar), the panel sheet's first row, so it flows in the sheet with no
    place of its own; at most 40 % of the screen's height (container units do not resolve in the sheet), so a row is drawn
-   above it, its text and fields scrolling above the row's foot. */
+   above it, its text and fields scrolling above the row's foot. In a sheet too short for it (a phone on its side with a
+   panel open) it keeps its height and the bar scrolls, so what it holds scrolls into view with the bar. */
 .card[data-placement='bar'] {
   position: static;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   width: auto;
-  min-height: 0;
   max-height: 40svh;
   padding: var(--space-3) var(--space-1) var(--space-2);
   border: 0;
@@ -67,9 +67,10 @@
   backdrop-filter: none;
 }
 
-/* In a short sheet a row's card keeps a line of its fields above its foot (three touch targets' height); below that the
-   bar scrolls. */
+/* A row's card gives way first: it keeps a line of its fields above its foot (three touch targets' height), scrolling
+   the rest above the foot, and below that the bar scrolls. */
 .card[data-placement='bar'][data-row] {
+  flex-shrink: 1;
   min-height: calc(var(--control-size-touch) * 3);
 }
 

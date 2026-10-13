@@ -274,6 +274,40 @@ describe('phone layout', () => {
     render(null, host)
   })
 
+  it('puts the drag\'s half stop above a tall peek, where the open panel keeps a quarter of the screen under the bar', async () => {
+    const host = document.createElement('div')
+    container.appendChild(host)
+    host.style.position = 'relative'
+    await act(async () => { render(<Sheet layout="portrait" />, host) })
+    const sheet = host.querySelector<HTMLElement>('[data-phone-sheet]')!
+    const handle = host.querySelector<HTMLButtonElement>('[data-sheet-handle]')!
+    Object.defineProperty(sheet, 'offsetParent', { get: () => host })
+    vi.spyOn(host, 'getBoundingClientRect').mockReturnValue(rect({ left: 0, top: 0, width: 390, height: 844 }))
+    // A context bar holding Place plants' card and the map notice: the peek sheet is 472 px, taller than half the host.
+    vi.spyOn(sheet, 'getBoundingClientRect').mockReturnValue(rect({ left: 0, top: 372, width: 390, height: 472 }))
+
+    const pointer = (type: string, clientY: number, timeStamp: number) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientY }) as MouseEvent & { pointerId: number }
+      Object.defineProperty(event, 'pointerId', { value: 1 })
+      Object.defineProperty(event, 'timeStamp', { value: timeStamp })
+      return event
+    }
+    await act(async () => {
+      handle.dispatchEvent(pointer('pointerdown', 400, 0))
+      document.dispatchEvent(pointer('pointermove', 272, 400))
+    })
+    expect(sheet.style.height).toBe('600px')
+    await act(async () => {
+      document.dispatchEvent(pointer('pointerup', 272, 800))
+      handle.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    // Half is the peek plus a quarter of the screen (683 px), not 422 px under the peek: let go at 600 px, the panel
+    // opens at half.
+    expect(sheet.dataset.phoneSheet).toBe('half')
+    expect(sidePanel.value).toBe('layers')
+    render(null, host)
+  })
+
   it('covers the bottom edge of the visible map in portrait, the right edge on its side (its corner at peek too), and ends the tool strip above it', async () => {
     const boxes = new Map<Element, Box>()
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

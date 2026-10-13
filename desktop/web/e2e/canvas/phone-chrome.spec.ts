@@ -416,7 +416,8 @@ async function holdRowInBar(page: Page): Promise<void> {
 
 // On a phone Plant a row's card is the context bar (answers 18 and 22): the panel sheet's first row at peek, half and
 // full, held upright or on its side; its check button (a 44 px target), count and length, and once scrolled to its
-// spacing field and mode switch, take the tap at their centre.
+// spacing field and mode switch, take the tap at their centre (over an open panel on a phone on its side, the bar
+// scrolls to the check button too).
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
   const portrait = phone.height > phone.width
@@ -438,6 +439,8 @@ for (const phone of PHONES) {
         expect(await card(page).evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the card is the bar's`).toBe(true)
         expectBarDocked(await sheetParts(page), where)
         const finish = card(page).locator('[data-plant-row-finish]')
+        // Over an open panel on a phone on its side the bar is shorter than the card's least height, and scrolls.
+        await finish.scrollIntoViewIfNeeded()
         await expectHitAtCentre(finish, `${where}: the check button`)
         const finishBox = await boxOf(finish)
         expect(Math.min(finishBox.width, finishBox.height), `${where}: the check button is a 44 px target`).toBeGreaterThanOrEqual(44)
@@ -604,10 +607,14 @@ async function floatingOverMap(page: Page): Promise<string[]> {
   })
 }
 
+/** The share of the screen's height an open panel keeps under the context bar. */
+const OPEN_PANEL_SHARE = 0.25
+
 /**
  * The guard of answers 18 and 22-26: nothing but the zoom column floats over the map; the sheet, its context bar
- * included, stays below the top bar; and every control in the context bar is a 44 px target (ADR 0010) that takes the
- * tap at its centre (scrolled into view where the bar's card scrolls).
+ * included, stays below the top bar; an open panel keeps a quarter of the screen under the bar; and every control in
+ * the bar is a 44 px target (ADR 0010) that takes the tap at its centre (scrolled into view where the bar's card
+ * scrolls).
  */
 async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   await nextFrames(page)
@@ -615,6 +622,12 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   const titleBar = await boxOf(page.locator('[data-workspace-title-bar]'))
   const { sheet: sheetBox } = await sheetParts(page)
   expect(sheetBox.y, `${where}: the sheet's top (${sheetBox.y}) is below the top bar (${titleBar.y + titleBar.height})`).toBeGreaterThanOrEqual(titleBar.y + titleBar.height)
+  const panel = page.locator('[data-phone-sheet] [role="tabpanel"]')
+  if (await panel.count() > 0) {
+    const panelBox = await boxOf(panel)
+    const least = page.viewportSize()!.height * OPEN_PANEL_SHARE
+    expect(panelBox.height, `${where}: the open panel keeps a quarter of the screen under the bar (${panelBox.height} of ${least} px)`).toBeGreaterThanOrEqual(least - 1)
+  }
   const controls = page.locator('[data-phone-context-bar]').locator('button, input, select, textarea, [role="button"]')
   for (const control of await controls.all()) {
     if (!await control.isVisible()) continue
@@ -626,9 +639,27 @@ async function expectPhoneChrome(page: Page, where: string): Promise<void> {
   }
 }
 
+/** Raises the sheet from its peek a step at a time from its handle, runs `check` at each stop, and expects each step up
+ *  to raise it (a portrait half sheet grows past half for its panel; a landscape peek stays below the top bar). */
+async function expectStopsInOrder(page: Page, check: (height: string) => Promise<void>): Promise<void> {
+  const heights: number[] = []
+  for (const height of ['peek', 'half', 'full'] as const) {
+    if (height !== 'peek') {
+      await page.locator('[data-sheet-handle]').focus()
+      await page.keyboard.press('ArrowUp')
+    }
+    await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+    await check(height)
+    heights.push((await sheetParts(page)).sheet.height)
+  }
+  expect(heights[1]!, `raising the sheet to half never lowers it (peek ${heights[0]}, half ${heights[1]})`).toBeGreaterThanOrEqual(heights[0]! - 0.5)
+  expect(heights[2]!, `raising the sheet to full never lowers it (half ${heights[1]}, full ${heights[2]})`).toBeGreaterThanOrEqual(heights[1]! - 0.5)
+}
+
 // The tallest card the bar holds is Place plants' chooser, and the notice row goes on top of it offline: held upright or
 // on its side, down to an iPhone SE's 568x320, in en and de, the sheet stays below the top bar at its peek (the bar
-// scrolls instead), and the card's and the notice's controls are 44 px targets that take the tap at peek, half and full.
+// scrolls instead), each step up raises it, an open panel keeps a quarter of the screen under the card, and the card's
+// and the notice's controls are 44 px targets that take the tap.
 for (const phone of [...PHONES, { width: 568, height: 320 }]) {
   const size = `${phone.width}×${phone.height}`
   const portrait = phone.height > phone.width
@@ -636,21 +667,14 @@ for (const phone of [...PHONES, { width: 568, height: 320 }]) {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
     for (const locale of ['en', 'de']) {
-      test(`(canopi-f47t.54, D) offline with Place plants armed, the sheet keeps below the top bar (${size} ${locale})`, async ({ page }) => {
+      test(`(canopi-f47t.54, D) offline with Place plants armed, the sheet keeps below the top bar, rises at each step and leaves the open panel its share (${size} ${locale})`, async ({ page }) => {
         await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
         const where = `${size} ${locale}`
         await expect(page.locator('[data-map-notice]'), `${where}: offline, the map notice shows`).toBeVisible()
         await mapHost(page).focus()
         await page.keyboard.press('p')
         await expect(card(page), `${where}: Place plants' card is the bar's`).toHaveAttribute('data-tool-card', 'plant-stamp')
-        for (const height of ['peek', 'half', 'full'] as const) {
-          if (height !== 'peek') {
-            await page.locator('[data-sheet-handle]').focus()
-            await page.keyboard.press('ArrowUp')
-          }
-          await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
-          await expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`)
-        }
+        await expectStopsInOrder(page, (height) => expectPhoneChrome(page, `${where} Place plants, sheet at ${height}`))
       })
     }
   })
