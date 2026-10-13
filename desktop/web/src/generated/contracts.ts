@@ -642,12 +642,16 @@ export type LoadedDesign = {
  *  current data and reports `Current`.
  */
 export type LocalDataStatus =
-// Nothing from before Canopi 2.0 was found.
+/**
+ *  No user database from before Canopi 2.0 was found. Drafts in an
+ *  earlier format and the retired 1.x autosave store stay in place,
+ *  unread, and are not reported.
+ */
 { kind: "current" } |
 /**
- *  User data (favourites, saved stamps, settings, recent files), Design
- *  drafts or the retired autosave from before Canopi 2.0 were moved
- *  aside, never deleted, and Canopi started fresh.
+ *  The user database from before Canopi 2.0 (favourites, saved stamps,
+ *  settings, recent files) was renamed, never deleted, and Canopi started
+ *  fresh.
  */
 { kind: "moved_aside" };
 

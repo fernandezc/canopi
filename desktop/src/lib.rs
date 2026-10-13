@@ -262,20 +262,17 @@ pub fn run() {
     }
 }
 
-/// Open the user database in `data_dir`, then take over the data folder.
+/// Open the user database in `data_dir`.
 ///
-/// Canopi 2.0 breaks stored data (ADR 0021): the user database, Design drafts
-/// and the retired autosave store from before 2.0 are moved aside, never
-/// deleted, and the returned status tells the user once. Drafts and autosave
-/// move only after the user database opened: a refused startup promises the
-/// user that it changed nothing.
+/// Canopi 2.0 breaks stored data (ADR 0021): a user database from before 2.0
+/// is renamed, since 2.0 needs its path, and the returned status tells the
+/// user once. Drafts in an earlier format and the retired 1.x autosave store
+/// stay where they are, unread, and are not reported (U59).
 fn open_user_data(
     data_dir: &std::path::Path,
 ) -> Result<(db::UserDb, LocalDataStatus), db::UserDbInitError> {
     let (user_db, opened) = db::UserDb::open(data_dir.join("user.db"))?;
-    let drafts_moved = design::drafts::set_aside_drafts_from_before_2_0(data_dir);
-    let autosave_moved = design::drafts::set_aside_retired_autosave_store(data_dir);
-    let status = if opened == db::UserDbOpened::MovedAside || drafts_moved > 0 || autosave_moved {
+    let status = if opened == db::UserDbOpened::MovedAside {
         LocalDataStatus::MovedAside
     } else {
         LocalDataStatus::Current
@@ -337,31 +334,6 @@ mod tests {
     }
 
     #[test]
-    fn a_refused_user_database_leaves_earlier_drafts_and_autosave_in_place() {
-        let data_dir = super::test_scratch::TestScratch::new("startup-refused");
-        let autosave = data_dir.join("autosave");
-        std::fs::create_dir(&autosave).unwrap();
-        std::fs::write(autosave.join("recovery.canopi"), "unsaved work").unwrap();
-        let drafts = data_dir.join("drafts");
-        std::fs::create_dir(&drafts).unwrap();
-        std::fs::write(drafts.join("old.canopi"), r#"{"version": 8}"#).unwrap();
-        let connection = rusqlite::Connection::open(data_dir.join("user.db")).unwrap();
-        connection.pragma_update(None, "user_version", 99).unwrap();
-        drop(connection);
-
-        let error = super::open_user_data(&data_dir)
-            .err()
-            .expect("newer data is refused");
-        assert!(super::startup_refusal_message(&error).is_some());
-        assert_eq!(
-            std::fs::read_to_string(autosave.join("recovery.canopi")).unwrap(),
-            "unsaved work",
-            "a refused startup changes nothing in the data folder"
-        );
-        assert!(drafts.join("old.canopi").exists());
-    }
-
-    #[test]
     fn a_fresh_data_folder_opens_as_current() {
         let data_dir = super::test_scratch::TestScratch::new("startup-fresh");
 
@@ -371,52 +343,72 @@ mod tests {
         assert_eq!(status, super::LocalDataStatus::Current);
     }
 
-    /// Canopi 2.0 breaks stored data (ADR 0021): each earlier store is moved
-    /// aside on its own and the user is told; the next start is current.
+    /// Canopi 2.0 breaks stored data (ADR 0021): a user database from before
+    /// 2.0 is renamed, since 2.0 needs its path, and the user is told once.
     #[test]
-    fn earlier_local_data_is_moved_aside_and_reported_once() {
-        let older_user_db = |dir: &std::path::Path| {
-            let connection = rusqlite::Connection::open(dir.join("user.db")).unwrap();
-            connection
-                .execute_batch(
-                    "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-                     PRAGMA user_version = 8;",
-                )
-                .unwrap();
-        };
-        let older_draft = |dir: &std::path::Path| {
-            let drafts = dir.join("drafts");
-            std::fs::create_dir(&drafts).unwrap();
-            let mut value = serde_json::to_value(super::design::format::create_new_design(
-                "Preview",
-                "2026-09-25T00:00:00Z",
-            ))
+    fn an_earlier_user_database_is_moved_aside_and_reported_once() {
+        let data_dir = super::test_scratch::TestScratch::new("startup-earlier-user-db");
+        let connection = rusqlite::Connection::open(data_dir.join("user.db")).unwrap();
+        connection
+            .execute_batch(
+                "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 PRAGMA user_version = 8;",
+            )
             .unwrap();
-            value["version"] = serde_json::json!(8);
-            std::fs::write(drafts.join("old.canopi"), value.to_string()).unwrap();
-        };
-        let retired_autosave = |dir: &std::path::Path| {
-            std::fs::create_dir(dir.join("autosave")).unwrap();
-            std::fs::write(dir.join("autosave").join("recovery.canopi"), "{}").unwrap();
-        };
-        type Prepare = fn(&std::path::Path);
-        let cases: [(&str, Prepare); 3] = [
-            ("user-db", older_user_db),
-            ("drafts", older_draft),
-            ("autosave", retired_autosave),
-        ];
-        for (label, prepare) in cases {
-            let data_dir =
-                super::test_scratch::TestScratch::new(&format!("startup-moved-aside-{label}"));
-            prepare(&data_dir);
+        drop(connection);
 
-            let (user_db, status) = super::open_user_data(&data_dir).expect("earlier data opens");
-            drop(user_db);
-            assert_eq!(status, super::LocalDataStatus::MovedAside, "{label}");
+        let (user_db, status) = super::open_user_data(&data_dir).expect("earlier data opens");
+        drop(user_db);
+        assert_eq!(status, super::LocalDataStatus::MovedAside);
 
-            let (user_db, again) = super::open_user_data(&data_dir).expect("current data opens");
+        let (user_db, again) = super::open_user_data(&data_dir).expect("current data opens");
+        drop(user_db);
+        assert_eq!(again, super::LocalDataStatus::Current, "told once");
+    }
+
+    /// Drafts in an earlier format and the retired 1.x autosave store stay
+    /// where they are, unread and unchanged, on every start, and are not
+    /// reported: only the renamed user database is (U59).
+    #[test]
+    fn earlier_drafts_and_autosave_stay_in_place_and_are_not_reported() {
+        let data_dir = super::test_scratch::TestScratch::new("startup-earlier-drafts");
+        let drafts = data_dir.join("drafts");
+        std::fs::create_dir(&drafts).unwrap();
+        let mut value = serde_json::to_value(super::design::format::create_new_design(
+            "Preview",
+            "2026-09-25T00:00:00Z",
+        ))
+        .unwrap();
+        value["version"] = serde_json::json!(8);
+        let older = value.to_string();
+        std::fs::write(drafts.join("old.canopi"), &older).unwrap();
+        let autosave = data_dir.join("autosave");
+        std::fs::create_dir(&autosave).unwrap();
+        std::fs::write(autosave.join("recovery.canopi"), "unsaved work").unwrap();
+
+        for start in ["first", "second"] {
+            let (user_db, status) = super::open_user_data(&data_dir).expect("the folder opens");
             drop(user_db);
-            assert_eq!(again, super::LocalDataStatus::Current, "{label}: told once");
+            assert_eq!(status, super::LocalDataStatus::Current, "{start} start");
+            assert_eq!(
+                std::fs::read_to_string(drafts.join("old.canopi")).unwrap(),
+                older
+            );
+            assert_eq!(
+                std::fs::read_to_string(autosave.join("recovery.canopi")).unwrap(),
+                "unsaved work"
+            );
+            let mut entries = std::fs::read_dir(&data_dir)
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .filter(|name| !name.starts_with("user.db"))
+                .collect::<Vec<_>>();
+            entries.sort();
+            assert_eq!(
+                entries,
+                ["autosave", "drafts"],
+                "{start} start moves nothing"
+            );
         }
     }
 
