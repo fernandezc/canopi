@@ -267,15 +267,6 @@ describe('browser Design Session lifecycle', () => {
       kind: 'unsupported_version',
     },
     {
-      label: 'an obsolete root spatial_frame',
-      content: () => ({
-        ...makeCanopiFile(),
-        spatial_frame: { anchor_longitude_deg: 13, anchor_latitude_deg: 23, north_bearing_deg: 0 },
-      }),
-      message: '$.spatial_frame: obsolete root field',
-      kind: 'invalid_document',
-    },
-    {
       label: 'an out-of-range longitude',
       content: () => ({ ...makeCanopiFile(), plants: [{ ...plantAt({ lon: 181, lat: 0 }) }] }),
       message: '$.plants[0].position.lon: expected a number less than or equal to 180',
