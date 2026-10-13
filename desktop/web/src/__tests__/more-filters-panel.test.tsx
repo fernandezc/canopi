@@ -116,4 +116,50 @@ describe('MoreFiltersPanel outside-click behavior', () => {
     expect(rangeInputs).toHaveLength(2)
     expect(rangeInputs.every((input) => (input as HTMLInputElement).step === '1')).toBe(true)
   })
+
+  it('leaves Esc to the tool while it waits hidden under a phone tool\'s options, and takes it again once they close', async () => {
+    const { PhoneSheet } = await import('../components/shared/PhoneSheet')
+    const { phoneToolOptions } = await import('../app/shell/phone-layout')
+    const { navigateTo, sidePanel } = await import('../app/shell/state')
+    const { ESCAPE_PRIORITY, registerEscapeLayer, runEscape } = await import('../app/keyboard/escape-chain')
+    const onClose = vi.fn()
+    const leaveTool = vi.fn(() => true)
+    const disposeTool = registerEscapeLayer({ priority: ESCAPE_PRIORITY.tool, isActive: () => true, escape: leaveTool })
+    const escape = () => runEscape({ event: { key: 'Escape', shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }, focus: 'map' } as Parameters<typeof runEscape>[0])
+    sidePanel.value = 'plant-db'
+    phoneToolOptions.value = null
+    function Catalog() {
+      return (
+        <PhoneSheet
+          layout="portrait"
+          tabs={[{ panel: 'plant-db', id: 'panel.plant-db', label: 'Catalog', disabled: false, active: sidePanel.value === 'plant-db', action: () => navigateTo('plant-db') }]}
+          options={<p data-tool-options-content />}
+        >
+          <MoreFiltersPanel open onClose={onClose} />
+        </PhoneSheet>
+      )
+    }
+
+    try {
+      await act(async () => {
+        render(<Catalog />, container)
+        await flushEffects()
+      })
+      // A tool armed from the keyboard: its options show in front of the catalog, whose More filters stays open under them.
+      await act(async () => { phoneToolOptions.value = 'half' })
+      expect(container.querySelector<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(true)
+      escape()
+      expect(onClose, 'the hidden More filters does not take the Esc').not.toHaveBeenCalled()
+      expect(leaveTool, 'the Esc leaves the tool').toHaveBeenCalledTimes(1)
+
+      await act(async () => { phoneToolOptions.value = null })
+      escape()
+      expect(onClose, 'shown again, More filters takes the Esc').toHaveBeenCalledTimes(1)
+      expect(leaveTool).toHaveBeenCalledTimes(1)
+    } finally {
+      disposeTool()
+      sidePanel.value = null
+      phoneToolOptions.value = null
+    }
+  })
 })
