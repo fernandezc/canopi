@@ -35,5 +35,6 @@ export async function bearing(page: Page): Promise<number> {
   const transform = await page.locator('[data-compass] [data-needle]').first().getAttribute('transform')
   const match = /rotate\(([-\d.e]+)/.exec(transform ?? '')
   if (!match) throw new Error(`the compass needle has no rotation: ${transform}`)
-  return -Number(match[1])
+  const deg = -Number(match[1])
+  return deg === 0 ? 0 : deg   // never -0
 }
