@@ -566,8 +566,9 @@ for (const phone of BAR_SIZES) {
 }
 
 // Options (or a tap on the tool's name) shows the tool's options at half in place of the open panel, with no tab
-// selected: the tool's guidance, which the bar's row has no room for. Options again, a tab or the tool's disarming puts
-// the panel back as it was; the sheet resting at its peek closes both.
+// selected: the tool's guidance, which the bar's row has no room for. Options again, a tab, the tool's disarming or the
+// overview puts the panel back as it was; a panel opened from elsewhere (the chooser's catalog link) shows in front of
+// them; the sheet resting at its peek closes both.
 test.describe('390×844 tool options', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
 
@@ -649,7 +650,7 @@ test.describe('390×844 tool options', () => {
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
   })
 
-  test('(canopi-f47t.54, D4) Place plants with no species opens its chooser at half; choosing one puts the panel back, and a tap with none chosen opens it again', async ({ page }) => {
+  test('(canopi-f47t.54, D4) Place plants with no species opens its chooser at half, its controls 44 px targets; choosing one puts the panel back, each tap with none chosen opens it again, and its catalog link shows the catalog', async ({ page }) => {
     await openFixture(page, FIXTURE, { basemapHidden: true, settings: { snap_to_grid: false } })
     await raiseSheet(page)
     const selected = page.locator('[data-sheet-tab][aria-selected="true"]')
@@ -688,6 +689,12 @@ test.describe('390×844 tool options', () => {
     await expect(toolOptions(page)).toHaveCount(0)
     await expect(selected, 'the panel comes back').toHaveAttribute('data-panel', before!)
     await expect(sheet(page)).toHaveAttribute('data-phone-sheet', 'half')
+
+    // The chooser's catalog link opens the catalog in front of the options, as a tab would.
+    await page.locator('[data-tool-options-button]').tap()
+    await toolOptions(page).getByRole('button', { name: 'Open the full catalog' }).tap()
+    await expect(toolOptions(page), 'the catalog link closes the options').toHaveCount(0)
+    await expect(page.locator('[data-phone-sheet] [role="tabpanel"]').getByRole('region', { name: 'Plant catalog' }), 'and shows the catalog').toBeVisible()
   })
 })
 

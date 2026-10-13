@@ -7,6 +7,7 @@ import {
   installPhoneLayout,
   phoneLayout,
   phoneSheetOpenHeight,
+  phoneToolOptions,
   snapPhoneSheet,
   stepPhoneSheet,
   type PhoneLayout,
@@ -18,7 +19,7 @@ import {
   toolRailRoom,
   visibleMapFrame,
 } from '../app/shell/visible-map-area'
-import { activePanel, navigateTo, sidePanel, type SidePanel } from '../app/shell/state'
+import { activePanel, navigateTo, selectPanel, sidePanel, type SidePanel } from '../app/shell/state'
 import { locale } from '../app/settings/state'
 import type { PanelRailCommand } from '../components/shared/PanelRail'
 import { PHONE_SHEET_TABS, PhoneSheet } from '../components/shared/PhoneSheet'
@@ -69,6 +70,7 @@ describe('phone layout', () => {
     sidePanel.value = null
     phoneLayout.value = null
     phoneSheetOpenHeight.value = 'half'
+    phoneToolOptions.value = null
   })
 
   afterEach(() => {
@@ -76,6 +78,7 @@ describe('phone layout', () => {
     container.remove()
     phoneLayout.value = null
     sidePanel.value = null
+    phoneToolOptions.value = null
     vi.restoreAllMocks()
   })
 
@@ -215,6 +218,48 @@ describe('phone layout', () => {
     await act(async () => { container.querySelector<HTMLButtonElement>('[role="tab"]')!.click() })
     expect(sheet.dataset.phoneSheet).toBe('full')
     expect((await key('Tab')).defaultPrevented).toBe(false)
+  })
+
+  it('shows a panel opened by any route in front of the tool\'s options: a tab, More, or a request from elsewhere', async () => {
+    function WithOptions() {
+      const open = sidePanel.value
+      return (
+        <PhoneSheet layout="portrait" tabs={tabs()} options={<p data-tool-options-content />}>
+          {open ? <div data-panel-content={open} /> : null}
+        </PhoneSheet>
+      )
+    }
+    await act(async () => { render(<WithOptions />, container) })
+    const sheet = container.querySelector<HTMLElement>('[data-phone-sheet]')!
+    const optionsShown = () => container.querySelector('[data-sheet-panel="options"] [data-tool-options-content]') !== null
+    const panelShown = (panel: SidePanel) => container.querySelector(`[role="tabpanel"] [data-panel-content="${panel}"]`) !== null
+    const more = async (label: string) => {
+      await act(async () => { container.querySelector<HTMLButtonElement>('[data-sheet-more]')!.click() })
+      const item = Array.from(document.querySelectorAll<HTMLElement>('[role^="menuitem"]')).find((node) => node.textContent === label)!
+      await act(async () => { item.click() })
+    }
+
+    await act(async () => { phoneToolOptions.value = 'half' })
+    expect(optionsShown()).toBe(true)
+    // A request from outside the sheet, as Place plants' chooser opens the catalog.
+    await act(async () => { selectPanel('plant-db') })
+    expect(optionsShown(), 'the catalog link closes the options').toBe(false)
+    expect(panelShown('plant-db'), 'and shows the catalog').toBe(true)
+    expect(sheet.dataset.phoneSheet).toBe('half')
+    expect(container.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Catalog')
+
+    // A folded panel from More.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    await more('budget')
+    expect(optionsShown(), 'More closes the options').toBe(false)
+    expect(panelShown('budget'), 'and shows its panel').toBe(true)
+
+    // More on the panel already open, over the options, shows it, as its tab would, rather than closing it.
+    await act(async () => { phoneToolOptions.value = 'half' })
+    await more('budget')
+    expect(sidePanel.value).toBe('budget')
+    expect(optionsShown()).toBe(false)
+    expect(panelShown('budget')).toBe(true)
   })
 
   it('moves focus between the tabs with the arrow keys', async () => {

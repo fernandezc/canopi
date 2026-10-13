@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact'
-import { useEffect, useId, useRef } from 'preact/hooks'
+import { useEffect, useId, useLayoutEffect, useRef } from 'preact/hooks'
 import {
   cyclePhoneSheet,
   phoneSheetOpenHeight,
@@ -55,9 +55,10 @@ interface SheetDrag {
  * a draft (Plant a row's pick, a polygon's or profile's first point) the sheet
  * drops to its peek, so the draft is drawn on the map; raised again during the
  * draft, it stays. The armed tool's options (answer 30) show in place of the
- * open panel while `phoneToolOptions` holds their height: a press on a tab
- * shows its panel instead, and closing them gives the sheet back its panel and
- * height as they were.
+ * open panel while `phoneToolOptions` holds their height: a panel opened by any
+ * route (a tab, More, the chooser's catalog link, a shortcut) shows in front of
+ * them, a press on the open panel's tab or More item shows it, and closing them
+ * gives the sheet back its panel and height as they were.
  *
  * Its first row is the context bar (answers 18, 22 and 30): what the map's
  * context shows on a phone, one touch row (and the map notice's row) that never
@@ -93,7 +94,8 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
   const panels = tabs.filter((command) => command.panel)
   // Only side panels open the sheet; a primary view (Templates) just switches the map.
   const sidePanels = panels.filter((command) => isSidePanel(command.panel!))
-  const open = sidePanels.some((command) => command.active)
+  const openPanel = sidePanels.find((command) => command.active)?.panel ?? null
+  const open = openPanel !== null
   // The tool's options stand in front of the open panel, which comes back as it was once they close.
   const optionsHeight = options ? phoneToolOptions.value : null
   const height: PhoneSheetHeight = optionsHeight ?? (open && children ? phoneSheetOpenHeight.value : 'peek')
@@ -107,6 +109,10 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
   useEffect(() => {
     if (drafting) moveTo('peek')
   }, [drafting])
+  // Before paint, so the options never cover a panel just opened.
+  useLayoutEffect(() => {
+    if (openPanel) phoneToolOptions.value = null
+  }, [openPanel])
 
   function moveTo(next: PhoneSheetHeight): void {
     if (next === 'peek') {
@@ -179,6 +185,17 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
     items[next]?.focus()
   }
 
+  /** A tab or More item: over the tool's options its open panel shows; elsewhere a press on the open one rests the sheet,
+   *  as the rail closes the dock. Any other panel opens, which shows it in front of the options. */
+  function press(command: PanelRailCommand): void {
+    if (command.disabled) return
+    if (optionsHeight && command.active) {
+      phoneToolOptions.value = null
+      return
+    }
+    command.action()
+  }
+
   const focusIndex = Math.max(0, shown.findIndex((command) => command.active))
 
   return (
@@ -233,16 +250,7 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
                 aria-controls={!optionsHeight && command.active && open ? panelId : undefined}
                 aria-disabled={command.disabled ? true : undefined}
                 tabIndex={index === focusIndex ? 0 : -1}
-                onClick={() => {
-                  if (command.disabled) return
-                  // Over the tool's options a tab shows its panel; elsewhere a second press on the open tab rests the
-                  // sheet, as the rail closes the dock.
-                  if (optionsHeight) {
-                    phoneToolOptions.value = null
-                    if (command.active) return
-                  }
-                  command.action()
-                }}
+                onClick={() => press(command)}
               >
                 <span className={styles.tabLabel}>{t(`webPhone.tabs.${command.panel}`)}</span>
               </button>
@@ -263,7 +271,7 @@ export function PhoneSheet({ layout, tabs, bar, options, children }: {
                 label: command.label,
                 checked: command.active ?? false,
                 disabled: command.disabled,
-                run: () => command.action(),
+                run: () => press(command),
               }))}
             />
           )}
