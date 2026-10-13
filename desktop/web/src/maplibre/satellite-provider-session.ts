@@ -3,7 +3,7 @@ import {
   type SatelliteDescriptor,
   type SatelliteConfig,
 } from './satellite-provider'
-import type { BasemapTileAuth } from './basemap-tile-auth'
+import { googleSessionRequestUrl, googleViewportRequestUrl, type BasemapTileAuth } from './basemap-tile-auth'
 import { logMapError } from './redact-credentials'
 
 /**
@@ -420,8 +420,7 @@ export class SatelliteImageryProvider {
 
   /** One session request with the fixed retry policy, fenced by generation. */
   private async runSessionRequest(generation: number, key: string): Promise<GoogleSession | null> {
-    const url = `https://tile.googleapis.com/v1/createSession?key=${encodeURIComponent(key)}`
-    const response = await this.requestWithRetry(generation, url, {
+    const response = await this.requestWithRetry(generation, googleSessionRequestUrl(key), {
       method: 'POST',
       body: { mapType: 'satellite', language: this.sessionLocale(), region: this.sessionRegion() },
     })
@@ -468,14 +467,13 @@ export class SatelliteImageryProvider {
     if (!session || !key) return
     this.latestDesiredViewport = viewport
     this.viewportInFlight = { generation, viewport }
-    const url =
-      `https://tile.googleapis.com/v1/viewport?session=${encodeURIComponent(session.sessionToken)}` +
-      `&key=${encodeURIComponent(key)}` +
-      `&zoom=${viewport.zoom}&north=${viewport.north}&south=${viewport.south}` +
-      `&east=${viewport.east}&west=${viewport.west}`
     let response: SatelliteHttpResponse | null = null
     try {
-      response = await this.requestWithRetry(generation, url, { method: 'GET' })
+      response = await this.requestWithRetry(
+        generation,
+        googleViewportRequestUrl(session.sessionToken, key, viewport),
+        { method: 'GET' },
+      )
     } catch {
       response = null
     }

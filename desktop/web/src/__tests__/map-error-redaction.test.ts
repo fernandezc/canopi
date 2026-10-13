@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { describeMapErrorEvent, redactCredentials, redactError } from '../maplibre/redact-credentials'
 
@@ -25,5 +27,14 @@ describe('map error credential redaction', () => {
     const redacted = redactError(leaky)
     expect(redacted).not.toBe(leaky)
     expect(redacted.message).toBe('GET https://x/tile?session=<redacted> failed')
+  })
+
+  // S24: one module builds every URL that carries the Google key or a session, so a reviewer reads one file to see
+  // where they go; the provider asks it for request URLs.
+  it('keeps every Google tile endpoint in basemap-tile-auth.ts', () => {
+    const sources = readdirSync('src', { recursive: true, encoding: 'utf8' })
+      .filter((path) => /\.tsx?$/.test(path) && !/(^|\/)__tests__\//.test(path) && !/\.test\.tsx?$/.test(path))
+    const holders = sources.filter((path) => readFileSync(join('src', path), 'utf8').includes('tile.googleapis.com'))
+    expect(holders).toEqual(['maplibre/basemap-tile-auth.ts'])
   })
 })

@@ -12,10 +12,10 @@ import {
   type SatelliteReconcileTarget,
 } from '../maplibre/satellite-contribution'
 import { MAPLIBRE_SATELLITE_LAYER_ID, MAPLIBRE_SATELLITE_SOURCE_ID } from '../maplibre/config'
-import { BasemapTileAuth } from '../maplibre/basemap-tile-auth'
 import { readSatelliteConfig } from '../app/settings/satellite-config'
 import { createSatelliteImagery, mountSatelliteLifecycle } from '../maplibre/satellite-bind'
-import { GOOGLE_SESSION_TILES, type SatelliteDescriptor } from '../maplibre/satellite-provider'
+import { BasemapTileAuth, GOOGLE_SESSION_TILES } from '../maplibre/basemap-tile-auth'
+import type { SatelliteDescriptor } from '../maplibre/satellite-provider'
 
 const VIEWPORT_A: SatelliteViewport = { west: -1, south: 48, east: 1, north: 49, zoom: 14 }
 const VIEWPORT_B: SatelliteViewport = { west: 10, south: 40, east: 12, north: 42, zoom: 12 }

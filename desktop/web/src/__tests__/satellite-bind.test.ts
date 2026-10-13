@@ -5,8 +5,8 @@ import {
   MAPLIBRE_SATELLITE_SOURCE_ID,
 } from '../maplibre/config'
 import { mountSatelliteLifecycle, type SatelliteMountOptions } from '../maplibre/satellite-bind'
-import { BasemapTileAuth } from '../maplibre/basemap-tile-auth'
-import { GOOGLE_KEYLESS_TILES, GOOGLE_SESSION_TILES } from '../maplibre/satellite-provider'
+import { BasemapTileAuth, GOOGLE_SESSION_TILES } from '../maplibre/basemap-tile-auth'
+import { GOOGLE_KEYLESS_TILES } from '../maplibre/satellite-provider'
 
 const VIEWPORT = { west: -1, south: 48, east: 1, north: 49, zoom: 14 }
 
