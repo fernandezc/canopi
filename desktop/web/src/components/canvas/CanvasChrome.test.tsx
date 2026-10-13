@@ -1,6 +1,6 @@
 // canopi-23p2: the top-centre chips share one slot, which registers with the visible-map-area seam, so they stack
-// instead of covering each other. jsdom has no layout, so this checks the structure: no browser spec reads the slot's
-// rects yet.
+// instead of covering each other; on a phone they are the context bar's (PhoneContextBar). jsdom has no layout, so this
+// checks the structure: no browser spec reads the slot's rects yet.
 import { render } from 'preact'
 import { createRef } from 'preact'
 import { act } from 'preact/test-utils'
@@ -97,22 +97,15 @@ describe('the top-centre chip slot', () => {
     }
   })
 
-  it('on a phone layout the slot does not register as top chrome, as the map notice (U36)', async () => {
-    const area = document.createElement('div')
-    document.body.append(area)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const box = this === area ? { left: 0, top: 0, width: 390, height: 800 }
-        : this.hasAttribute('data-top-chip-slot') ? { left: 15, top: 72, width: 360, height: 92 }
-          : { left: 0, top: 0, width: 0, height: 0 }
-      return { ...box, x: box.left, y: box.top, right: box.left + box.width, bottom: box.top + box.height, toJSON: () => ({}) } as DOMRect
-    })
+  it('on a phone the canvas mounts no top chip slot, tool card or selection chip: they are the context bar\'s', async () => {
     phoneLayout.value = 'portrait'
-    const release = registerMapArea(area)
     try {
       await renderChrome()
-      expect(visibleMapFrame.value.top).toBe(0)
+      expect(container.querySelector('[data-top-chip-slot]')).toBeNull()
+      expect(container.querySelector('[data-overview-notice]')).toBeNull()
+      expect(container.querySelector('[data-tool-card], [role="status"][aria-live="polite"]')).toBeNull()
+      expect(container.querySelector('[data-selection-chip]')).toBeNull()
     } finally {
-      release()
       phoneLayout.value = null
     }
   })

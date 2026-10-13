@@ -73,7 +73,8 @@ function CanvasChromeContent({ projection, canvasRef, stampChooser, myLocation, 
       {!locating && !phoneLayout.value && <SelectionChip />}
       {!locating && <CanvasOverview />}
       <DisplayLegend />
-      <SiteOnboarding><TopChipSlot locating={locating} /></SiteOnboarding>
+      {/* Phones show the top chips in the context bar. */}
+      <SiteOnboarding>{!phoneLayout.value && <TopChipSlot locating={locating} />}</SiteOnboarding>
       <CanvasContextMenu profileLine={profileLine} />
       <PlantAppearancePopovers canvasRef={canvasRef} />
     </>
@@ -83,14 +84,14 @@ function CanvasChromeContent({ projection, canvasRef, stampChooser, myLocation, 
 /**
  * The one top-centre chip slot (canopi-23p2): the overview notice, the highlight chip and the labels chip stack in it as
  * flow children instead of covering each other, and it registers as chrome over the map's top edge, so fitting and
- * framing keep below it; on a phone it does not, as the map notice (U36), and it sits below the tool card (U58).
- * SiteOnboarding places it: in the Start card's row while that card shows.
+ * framing keep below it. SiteOnboarding places it: in the Start card's row while that card shows. Phones have none:
+ * their chips are the context bar's (PhoneContextBar).
  */
 function TopChipSlot({ locating }: { readonly locating: boolean }) {
   const slot = useRef<HTMLDivElement>(null)
-  useMapOccluder(slot, 'top', phoneLayout.value === null)
+  useMapOccluder(slot, 'top')
   return (
-    <div ref={slot} className={chipStyles.topSlot} data-top-chip-slot data-phone={phoneLayout.value ? '' : undefined}>
+    <div ref={slot} className={chipStyles.topSlot} data-top-chip-slot>
       {!locating && <OverviewNotice />}
       <SpeciesFocusChip />
       {!locating && <PlantLabelsChip />}

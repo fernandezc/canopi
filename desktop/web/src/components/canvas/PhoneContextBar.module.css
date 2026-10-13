@@ -1,0 +1,19 @@
+/* A chip that is the phone's context bar (PhoneContextBar): a flat row of the panel sheet, on the sheet's own surface,
+   in place of the floating chip it is over the map elsewhere. */
+.row {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row:empty {
+  display: none;
+}
+
+.row > * {
+  max-width: none;
+  padding-left: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}

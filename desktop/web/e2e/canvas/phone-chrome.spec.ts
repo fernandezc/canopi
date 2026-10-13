@@ -551,3 +551,25 @@ for (const phone of PHONES) {
     })
   })
 }
+
+// On a phone the top chips are the context bar's (answer 24): with nothing selected under Select, the labels chip shown
+// after Shift+L changes the labels is the sheet's first row, and the canvas mounts no top chip slot.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} labels chip in the bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) the labels chip is the bar's, and no top chip slot floats (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { basemapHidden: true, openWith: portrait ? 'button' : 'shortcut' })
+      await mapHost(page).focus()
+      await page.keyboard.press('Shift+L')
+      const chip = page.locator('[data-plant-labels-chip]')
+      await expect(chip, `${size}: the labels chip shows`).toBeVisible()
+      expect(await chip.evaluate((element) => element.closest('[data-phone-context-bar]') !== null), `${size}: the chip is the bar's`).toBe(true)
+      await expect(page.locator('[data-top-chip-slot]'), `${size}: no top chip slot`).toHaveCount(0)
+      await nextFrames(page)
+      expectBarDocked(await sheetParts(page), size)
+    })
+  })
+}

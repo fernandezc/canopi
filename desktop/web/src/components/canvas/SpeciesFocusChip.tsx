@@ -13,6 +13,16 @@ import {
 import { t } from '../../i18n'
 import styles from './SpeciesFocusChip.module.css'
 
+/** Whether plants are highlighted on the map, so the highlight chip shows: a species focused, or finder matches in it. */
+export function plantsHighlighted(): boolean {
+  const queries = currentCanvasQuerySurface.value
+  void queries?.revision.scene.value
+  const matches = plantFinderMapMatches.value
+  if (!queries) return false
+  if (queries.getSpeciesFocus().canonicalName) return true
+  return matches !== null && countPlantsOfSpecies(queries.getSceneSnapshot(), matches.canonicalNames) > 0
+}
+
 /**
  * The top chip for plants highlighted on the map: one species focused from "Plants in
  * this Design", or the finder's matches. Its actions never edit the Design.
