@@ -21,7 +21,6 @@ import { setCurrentCanvasSession } from '../canvas/session'
 import { SidePanelDock } from '../components/shared/SidePanelDock'
 import { InspectionLens } from '../components/canvas/InspectionLens'
 import { ToolCard } from '../components/canvas/ToolCard'
-import { phoneLayout } from '../app/shell/phone-layout'
 import {
   IDLE_CANVAS_TOOL_GUIDANCE,
   setCanvasTool,
@@ -388,10 +387,10 @@ describe('visible map area', () => {
 
   it.each([
     // Beside the tool rail, under the title bar: Plant a row's card, grown by its fields and foot, covers the left edge.
-    { name: 'beside the rail', phone: null, map: WINDOW, box: { left: 248, top: 72, width: 320, height: 260 }, edge: 'left', cover: 248 + 320 },
-    // A phone held upright: the card runs nearly the map's width under the top bar, so it covers the top edge.
-    { name: 'on a phone held upright', phone: 'portrait', map: { left: 0, top: 0, width: 390, height: 844 }, box: { left: 68, top: 60, width: 214, height: 300 }, edge: 'top', cover: 60 + 300 },
-  ] as const)('the tool card holding a row registers $name, so Fit, framing and the chips avoid it (answer 15)', async ({ phone, map, box, edge, cover }) => {
+    { name: 'beside the rail', placement: 'map', map: WINDOW, box: { left: 248, top: 72, width: 320, height: 260 }, edge: 'left', cover: 248 + 320 },
+    // In a phone's context bar the card is the panel sheet's first row: the sheet's own registration covers it.
+    { name: 'nothing in the phone bar', placement: 'bar', map: { left: 0, top: 0, width: 390, height: 844 }, box: { left: 8, top: 500, width: 374, height: 200 }, edge: 'left', cover: 0 },
+  ] as const)('the tool card holding a row registers $name, so Fit, framing and the chips avoid it (answer 15)', async ({ placement, map, box, edge, cover }) => {
     const surfaces = createTestCanvasRuntimeSurfaces()
     const setFramingInsets = vi.spyOn(surfaces.commands.viewport, 'setFramingInsets')
     setCurrentCanvasSession(surfaces)
@@ -408,10 +407,9 @@ describe('visible map area', () => {
       count: 5, density: 'normal', focusRequest: 0, points: 2, mode: 'interval', length: '10 m',
     }
     try {
-      phoneLayout.value = phone
-      await act(async () => render(<ToolCard />, container))
-      // The Select card, which every Design opens with, leaves the framing to the rails.
-      expect(container.querySelector('[data-tool-card="select"]')).not.toBeNull()
+      await act(async () => render(<ToolCard placement={placement} />, container))
+      // The Select card, which every Design opens with, leaves the framing to the rails (a phone shows none).
+      expect(container.querySelector('[data-tool-card="select"]') !== null).toBe(placement === 'map')
       expect(visibleMapFrame.value[edge]).toBe(0)
 
       await act(async () => {
@@ -432,7 +430,6 @@ describe('visible map area', () => {
       render(null, container)
       container.remove()
       releaseArea()
-      phoneLayout.value = null
       setCanvasTool('select')
       setCanvasToolGuidance(IDLE_CANVAS_TOOL_GUIDANCE)
     }

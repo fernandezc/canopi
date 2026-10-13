@@ -731,7 +731,9 @@
       "measurements_many": "{{count, number}} 个测量",
       "measurements_other": "{{count, number}} 个测量",
       "clear": "清除选择",
-      "rename": "重命名…"
+      "rename": "重命名…",
+      "sameSpeciesShort": "同一物种",
+      "clearShort": "清除"
     },
     "viewChip": "视图",
     "map": {

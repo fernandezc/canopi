@@ -1,31 +1,24 @@
-// The phone chrome's seams for every chrome mix (canopi-f47t.54, stream H; plan section 4 "2.0 plant along a path",
-// answer 17). Where the registered chrome leaves the map less than 120 px on an axis, Fit to Design frames the Design in
-// a 120 px band grown around the free band's centre, not under the chrome on the whole screen. When a drawing tool
-// starts a draft the panel sheet drops to its peek. Held on its side with the Plant a row card on the left, the map
-// notice's Retry stays clear of the zoom column, which is placed from the visible map rather than registered with it.
-// After a tap, a mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3). Both engines, touch, offline
-// (so the map notice shows). DOM assertions only, no baselines.
+// The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18 and 22-26). The context bar
+// is the panel sheet's first row: it moves with peek, half, full and a finger drag, the sheet's registration covers it,
+// and it holds Plant a row's card or the selection, whose controls take the tap. When a drawing tool starts a draft the
+// panel sheet drops to its peek. After a tap, a mouse-typed boundary event keeps the touch handles 44 px (canopi-94o3).
+// Both engines, touch, offline (so the map notice shows) unless the basemap is hidden. DOM assertions only, no
+// baselines.
 //
 // The base fixture at 390x844: its opening camera puts the Apple inside the rectangle zone at (114, 349) (touch.spec.ts).
-// The fit is read where the Design is drawn from the row's handles (the picked Apple and one point), as
-// plant-path.spec.ts reads it at 1024x768; the opening scale comes from the row's length in the tool card.
-import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { pressMod } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
-import { boxOf, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap, type Box } from '../support/layout'
+import { boxOf, chipFrame, expectHitAtCentre, mapHost, nextFrames, openFixture, overlap, type Box } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 /** The fixture's Apple inside the rectangle zone, at the opening camera on a 390x844 screen. */
 const APPLE: Point = { x: 114, y: 349 }
-const APPLE_GEO = { lon: 3.877071839, lat: 43.611230142 }
-/** Empty ground straight below the Apple, above the sheet's peek, and beside that. */
-const BELOW: Point = { x: 114, y: 620 }
-const BESIDE: Point = { x: 250, y: 620 }
-/** fit.ts's least framing extent. */
-const MIN_FRAMING_PX = 120
+/** Empty ground straight above the Apple, below the tool rail's end, and beside that. */
+const ABOVE: Point = { x: 114, y: 240 }
+const BESIDE: Point = { x: 220, y: 240 }
 
 interface Edges { readonly top: number, readonly right: number, readonly bottom: number, readonly left: number }
 
@@ -37,42 +30,6 @@ async function tap(page: Page, at: Point): Promise<void> {
   await page.touchscreen.tap(at.x, at.y)
   // Apart in time, so two taps never make a double tap.
   await page.waitForTimeout(600)
-}
-
-/** A row handle's centre on screen. */
-async function handleAt(page: Page, id: string): Promise<Point> {
-  const box = await page.locator(`[data-canvas-handle="${id}"]`).boundingBox()
-  if (!box) throw new Error(`no handle ${id} is shown`)
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
-}
-
-/**
- * The picked Apple and the row's second point on screen. A two-point row shows no handle on the picked plant, so there
- * the Apple is read through the straight segment's midpoint dot; from three points it has its own.
- */
-async function rowEnds(page: Page, points: 2 | 3): Promise<readonly [Point, Point]> {
-  const point = await handleAt(page, 'point:draft:1')
-  if (points === 3) return [await handleAt(page, 'point:draft:0'), point]
-  const dot = await handleAt(page, 'dot:draft:0')
-  return [{ x: 2 * dot.x - point.x, y: 2 * dot.y - point.y }, point]
-}
-
-function metresFromApple(geo: { readonly lon: number, readonly lat: number }): Point {
-  const lat = (APPLE_GEO.lat * Math.PI) / 180
-  return { x: (geo.lon - APPLE_GEO.lon) * 111_320 * Math.cos(lat), y: (geo.lat - APPLE_GEO.lat) * 110_574 }
-}
-
-/** The fixture's plants, zone corners (an ellipse's centre) and label anchors, in metres east and north of the Apple. */
-function designPoints(): Point[] {
-  type Geo = { readonly lon: number, readonly lat: number }
-  const design = JSON.parse(readFileSync(FIXTURE, 'utf8')) as {
-    plants: { position: Geo }[], zones: { zone_type: string, points: Geo[] }[], annotations: { position: Geo }[]
-  }
-  return [
-    ...design.plants.map((plant) => plant.position),
-    ...design.zones.flatMap((zone) => zone.zone_type === 'ellipse' ? zone.points.slice(0, 1) : zone.points),
-    ...design.annotations.map((annotation) => annotation.position),
-  ].map(metresFromApple)
 }
 
 /** The visible map frame the camera fits into (`--map-framing-inset-*` on the map area), as edges in page pixels. */
@@ -91,80 +48,6 @@ async function framingEdges(page: Page): Promise<Edges & { readonly area: Edges 
     }
   })
 }
-
-/** fit.ts's framing on one axis: a band under 120 px grows to 120 px around its centre, inside the area. */
-function grownSpan(start: number, end: number, areaStart: number, areaEnd: number): readonly [number, number] {
-  if (end - start >= MIN_FRAMING_PX) return [start, end]
-  const from = Math.min(Math.max((start + end) / 2 - MIN_FRAMING_PX / 2, areaStart), areaEnd - MIN_FRAMING_PX)
-  return [from, from + MIN_FRAMING_PX]
-}
-
-test.describe('390×844 card and half sheet', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
-
-  // Answer 17 and stream P's finding 1: the grown Plant a row card and the half sheet leave a band of about 62 px; Fit to
-  // Design used to frame the whole screen then, putting the Design under the card and the sheet.
-  test('(canopi-f47t.54, H) with the card and the half sheet leaving under 120 px, Fit to Design frames the Design in a 120 px band around the free band', async ({ page }) => {
-    await openFixture(page, FIXTURE, { settings: { snap_to_grid: false } })
-    await mapHost(page).focus()
-    await page.keyboard.press('w')
-    await expect(card(page)).toHaveAttribute('data-tool-card', 'plant-spacing')
-    await tap(page, APPLE)
-    const field = card(page).locator('[data-plant-spacing-interval-input]')
-    await expect(field, 'the pick focuses the spacing field').toBeFocused()
-    await page.keyboard.press('Enter')
-    await tap(page, BELOW)
-    await expect(card(page).locator('[data-plant-row-finish]'), 'the row holds two points').toBeVisible()
-    await nextFrames(page)
-    const before = await rowEnds(page, 2)
-    const lengthText = await card(page).locator('[data-plant-row-length] b').textContent()
-    const lengthM = Number.parseFloat((lengthText ?? '').replace(',', '.'))
-    expect(lengthM, `the row's length reads as metres: ${lengthText}`).toBeGreaterThan(0)
-    // The opening scale, in px per metre, and the opening camera: north up, the Apple where it was picked.
-    const openingScale = Math.hypot(before[1].x - before[0].x, before[1].y - before[0].y) / lengthM
-    // A third point shows the picked plant's own handle, which the fit keeps on screen with the Design.
-    await tap(page, BESIDE)
-    await expect(page.locator('[data-canvas-handle="point:draft:0"]'), 'three points show the picked plant\'s handle').toHaveCount(1)
-
-    await page.locator('[data-sheet-handle]').focus()
-    await page.keyboard.press('ArrowUp')
-    await expect(page.locator('[data-phone-sheet]'), 'the panel sheet rests at half height').toHaveAttribute('data-phone-sheet', 'half')
-    await expect(card(page).locator('[data-plant-row-finish]'), 'the row is still held').toBeVisible()
-    await nextFrames(page)
-    const frame = await framingEdges(page)
-    expect(frame.bottom - frame.top, 'the card and the half sheet leave the map under 120 px of height').toBeLessThan(MIN_FRAMING_PX)
-    const [top, bottom] = grownSpan(frame.top, frame.bottom, frame.area.top, frame.area.bottom)
-    const [left, right] = grownSpan(frame.left, frame.right, frame.area.left, frame.area.right)
-
-    await page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to Design' }).click()
-    let last = ''
-    await expect.poll(async () => {
-      const now = JSON.stringify(await rowEnds(page, 3))
-      const still = now === last
-      last = now
-      return still
-    }, { message: 'the fit comes to rest', intervals: [100] }).toBe(true)
-    const after = JSON.parse(last) as [Point, Point]
-    // The camera change, screen to screen, in complex numbers: after = after0 + k (before - before0).
-    const db = { re: before[1].x - before[0].x, im: before[1].y - before[0].y }
-    const da = { re: after[1].x - after[0].x, im: after[1].y - after[0].y }
-    const norm = db.re * db.re + db.im * db.im
-    const k = { re: (da.re * db.re + da.im * db.im) / norm, im: (da.im * db.re - da.re * db.im) / norm }
-    const fitted = (metres: Point): Point => {
-      const opening = { re: APPLE.x + metres.x * openingScale - before[0].x, im: APPLE.y - metres.y * openingScale - before[0].y }
-      return { x: after[0].x + k.re * opening.re - k.im * opening.im, y: after[0].y + k.re * opening.im + k.im * opening.re }
-    }
-    // A pixel of slack: the opening Apple and the length are read to a pixel and to the card's rounding.
-    const slack = 2
-    for (const point of [...designPoints().map(fitted), after[0]]) {
-      const where = `the Design at (${point.x.toFixed(1)}, ${point.y.toFixed(1)})`
-      expect(point.y, `${where} is below the grown frame's top ${top}`).toBeGreaterThanOrEqual(top - slack)
-      expect(point.y, `${where} is above the grown frame's bottom ${bottom}`).toBeLessThanOrEqual(bottom + slack)
-      expect(point.x, `${where} is right of the frame's left ${left}`).toBeGreaterThanOrEqual(left - slack)
-      expect(point.x, `${where} is left of the frame's right ${right}`).toBeLessThanOrEqual(right + slack)
-    }
-  })
-})
 
 /** Raises the panel sheet a step from its handle (ArrowUp: a tap on it moved nothing in WebKit's touch emulation). */
 async function raiseSheet(page: Page): Promise<void> {
@@ -198,7 +81,7 @@ test.describe('390×844 drafts and the sheet', () => {
     await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
     await expect(sheet(page), 'the pick drops the sheet to its peek').toHaveAttribute('data-phone-sheet', 'peek')
     await page.keyboard.press('Enter')
-    await tap(page, BELOW)
+    await tap(page, ABOVE)
     await raiseSheet(page)
     await nextFrames(page)
     await expect(sheet(page), 'raised again during the draft, the sheet stays').toHaveAttribute('data-phone-sheet', 'half')
@@ -215,38 +98,7 @@ test.describe('390×844 drafts and the sheet', () => {
   })
 })
 
-interface Landscape {
-  readonly width: number
-  readonly height: number
-  /** The new Apple, then the row's two points: clear ground right of the card, left of the zoom column, above the peek. */
-  readonly row: readonly [Point, Point, Point]
-}
-
-const LANDSCAPES: readonly Landscape[] = [
-  { width: 740, height: 360, row: [{ x: 600, y: 220 }, { x: 640, y: 220 }, { x: 640, y: 180 }] },
-  { width: 844, height: 390, row: [{ x: 680, y: 240 }, { x: 720, y: 240 }, { x: 720, y: 200 }] },
-]
-
-/** Places an Apple from Place plants' species list, then holds a Plant a row draft from it with two more points. */
-async function holdRow(page: Page, row: readonly [Point, Point, Point]): Promise<void> {
-  await mapHost(page).focus()
-  await page.keyboard.press('p')
-  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
-  await apple.scrollIntoViewIfNeeded()
-  await apple.click()
-  await tap(page, row[0])
-  // Esc leaves Place plants, the next clears the placed Apple's selection.
-  await mapHost(page).focus()
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('Escape')
-  await page.keyboard.press('w')
-  await tap(page, row[0])
-  await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
-  await page.keyboard.press('Enter')
-  await tap(page, row[1])
-  await tap(page, row[2])
-  await expect(card(page).locator('[data-plant-row-finish]'), 'the row holds three points').toBeVisible()
-}
+const LANDSCAPES = [{ width: 740, height: 360 }, { width: 844, height: 390 }] as const
 
 /** Every shown box matching `selector`. */
 async function shownBoxes(page: Page, selector: string): Promise<Box[]> {
@@ -269,7 +121,7 @@ for (const layout of LANDSCAPES) {
 
     test(`(canopi-f47t.54, H) with a row held, the map notice and its Retry clear the zoom group, sheet at peek or half (${size})`, async ({ page }) => {
       await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: 'shortcut' })
-      await holdRow(page, layout.row)
+      await holdRowInBar(page)
       for (const height of ['peek', 'half'] as const) {
         if (height === 'half') await raiseSheet(page)
         await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
@@ -319,7 +171,7 @@ test.describe('390×844 boundary events', () => {
     await tap(page, APPLE)
     await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
     await page.keyboard.press('Enter')
-    await tap(page, BELOW)
+    await tap(page, ABOVE)
     await tap(page, BESIDE)
     await tap(page, BESIDE)
     await expect(page.locator('[data-canvas-handle="point:draft:2"][data-canvas-handle-active]'), 'the tapped point is touched').toHaveCount(1)
@@ -332,13 +184,14 @@ test.describe('390×844 boundary events', () => {
       host.dispatchEvent(new PointerEvent('pointerleave', {
         pointerId: 1, pointerType: 'mouse', isPrimary: true, clientX: at.x, clientY: at.y, relatedTarget: document.body,
       }))
-    }, { x: 300, y: 600 })
+    }, { x: 300, y: 420 })
     await nextFrames(page)
     const afterLeave = await rowHandleSizes(page)
     expect(afterLeave.every((size) => size >= 44), `a mouse-typed leave keeps 44 px handles: ${afterLeave}`).toBe(true)
 
-    await page.mouse.move(300, 600)
-    await page.mouse.move(305, 600)
+    // Over the map, above the sheet and its context bar.
+    await page.mouse.move(300, 420)
+    await page.mouse.move(305, 420)
     await expect.poll(async () => (await rowHandleSizes(page, '[data-canvas-handle^="point:"]')).every((size) => size === 20), 'a mouse move makes the points 20 px').toBe(true)
   })
 })
@@ -556,6 +409,116 @@ for (const phone of PHONES) {
         samples.forEach((parts, index) => expectBarDocked(parts, `${size} drag frame ${index}`))
         const lowest = Math.min(...samples.map((parts) => parts.sheet.height))
         expect(lowest, `the drag's peek stop keeps the bar and the tabs (${lowest} vs the peek's ${peek.sheet.height})`).toBeGreaterThanOrEqual(peek.sheet.height - 1)
+      })
+    }
+  })
+}
+
+/** The middle of the visible map the seam leaves (`--map-inset-*`), less a shift left, as a tap spot. */
+async function mapSpot(page: Page, left = 0): Promise<Point> {
+  const frame = await chipFrame(page)
+  return { x: Math.round((frame.left + frame.right) / 2 - left), y: Math.round((frame.top + frame.bottom) / 2) }
+}
+
+/**
+ * Places an Apple in the middle of the visible map from Place plants' species list (the card is the bar's), then holds a
+ * Plant a row draft from it with two more points left of it, each in the middle of the map as the bar grows.
+ */
+async function holdRowInBar(page: Page): Promise<void> {
+  await mapHost(page).focus()
+  await page.keyboard.press('p')
+  const apple = card(page).getByRole('button', { name: /Malus domestica/ }).first()
+  await apple.scrollIntoViewIfNeeded()
+  await apple.click()
+  await nextFrames(page)
+  const spot = await mapSpot(page)
+  await tap(page, spot)
+  // Esc leaves Place plants, the next clears the placed Apple's selection.
+  await mapHost(page).focus()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('w')
+  await tap(page, spot)
+  await expect(card(page).locator('[data-plant-spacing-interval-input]'), 'the tap picks the Apple').toBeFocused()
+  await page.keyboard.press('Enter')
+  await nextFrames(page)
+  await tap(page, await mapSpot(page, 50))
+  await nextFrames(page)
+  await tap(page, await mapSpot(page, 100))
+  await expect(card(page).locator('[data-plant-row-finish]'), 'the row holds three points').toBeVisible()
+}
+
+// On a phone Plant a row's card is the context bar (answers 18 and 22): the panel sheet's first row at peek, half and
+// full, held upright or on its side; its check button (a 44 px target), count and length, and once scrolled to its
+// spacing field and mode switch, take the tap at their centre.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} card in the bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    test(`(canopi-f47t.54, D) Plant a row's card is the sheet's first row and its controls take the tap at peek, half and full (${size})`, async ({ page }) => {
+      await openFixture(page, FIXTURE, { settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+      await holdRowInBar(page)
+      for (const height of ['peek', 'half', 'full'] as const) {
+        if (height !== 'peek') {
+          await page.locator('[data-sheet-handle]').focus()
+          await page.keyboard.press('ArrowUp')
+        }
+        const where = `${size} ${height}`
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect(card(page).locator('[data-plant-row-finish]'), `${where}: the row is still held`).toBeVisible()
+        await nextFrames(page)
+        expect(await card(page).evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the card is the bar's`).toBe(true)
+        expectBarDocked(await sheetParts(page), where)
+        const finish = card(page).locator('[data-plant-row-finish]')
+        await expectHitAtCentre(finish, `${where}: the check button`)
+        const finishBox = await boxOf(finish)
+        expect(Math.min(finishBox.width, finishBox.height), `${where}: the check button is a 44 px target`).toBeGreaterThanOrEqual(44)
+        await expectHitAtCentre(card(page).locator('[data-plant-spacing-generated-count]'), `${where}: the row's count`)
+        await expectHitAtCentre(card(page).locator('[data-plant-row-length]'), `${where}: the row's length`)
+        for (const control of [card(page).locator('[data-plant-spacing-interval-input]'), ...await card(page).locator('[data-plant-row-mode]').all()]) {
+          await control.scrollIntoViewIfNeeded()
+          await expectHitAtCentre(control, `${where}: ${await control.evaluate((element) => element.outerHTML.slice(0, 60))}`)
+        }
+        await expectHitAtCentre(finish, `${where}: the check button after a scroll`)
+      }
+    })
+  })
+}
+
+// On a phone the selection is the context bar's one context under Select (answers 18, 23 and 26): once Plant a row plants,
+// its plants stay selected and the selection chip is the sheet's first row in place of the card, on one line (its text
+// ellipsised, its labels short), and Select all of this species and Clear take the tap at their centre.
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const portrait = phone.height > phone.width
+  test.describe(`${size} selection in the bar`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    for (const locale of ['en', 'de']) {
+      test(`(canopi-f47t.54, D) a planted row's selection is the bar's one line, and its buttons take the tap (${size} ${locale})`, async ({ page }) => {
+        const where = `${size} ${locale}`
+        await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
+        await holdRowInBar(page)
+        await mapHost(page).focus()
+        await page.keyboard.press('Enter')
+        // The planted plants stay selected; the first Esc leaves Plant a row for Select, which shows them.
+        await page.keyboard.press('Escape')
+        const chip = page.locator('[data-selection-chip]')
+        await expect(chip, `${where}: the planted plants are selected`).toHaveAttribute('data-selection-chip', 'bar')
+        await expect(card(page), `${where}: the card leaves the bar to the selection`).toHaveCount(0)
+        await nextFrames(page)
+        expect(await chip.evaluate((element) => element.parentElement?.hasAttribute('data-phone-context-bar')), `${where}: the chip is the bar's`).toBe(true)
+        expectBarDocked(await sheetParts(page), where)
+        const text = await boxOf(chip.locator('[role="status"]'))
+        const buttons = await chip.getByRole('button').all()
+        expect(buttons.length, `${where}: Select all of this species and Clear`).toBe(2)
+        for (const button of buttons) {
+          const box = await boxOf(button)
+          expect(Math.abs(box.y + box.height / 2 - (text.y + text.height / 2)), `${where}: ${await button.textContent()} is on the text's line`).toBeLessThanOrEqual(4)
+          await expectHitAtCentre(button, `${where}: the chip's ${await button.textContent()}`)
+        }
       })
     }
   })

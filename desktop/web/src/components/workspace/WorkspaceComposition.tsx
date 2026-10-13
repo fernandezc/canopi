@@ -1,4 +1,4 @@
-import type { ComponentType } from 'preact'
+import type { ComponentChildren, ComponentType } from 'preact'
 import { Suspense } from 'preact/compat'
 import { useEffect, useMemo, useRef } from 'preact/hooks'
 import { usePlanningViewState } from '../../app/planning-view/state'
@@ -46,6 +46,7 @@ export function WorkspaceComposition({
   surfaces,
   responsive = false,
   phoneTabs,
+  phoneBar,
 }: {
   readonly panelProjection: WorkspacePanelProjection
   readonly surfaces: WorkspaceSurfaces
@@ -55,6 +56,8 @@ export function WorkspaceComposition({
    * them shows its panels in the phone sheet while `phoneLayout` is set.
    */
   readonly phoneTabs?: readonly PanelRailCommand[]
+  /** The phone sheet's context bar, its first row (PhoneContextBar). */
+  readonly phoneBar?: ComponentChildren
 }) {
   const registrations = useMemo(
     () => validateWorkspaceSurfaces(panelProjection, surfaces),
@@ -120,7 +123,7 @@ export function WorkspaceComposition({
       {phone && phoneTabs ? (
         // The phone sheet stands in for the dock and the panel rail; it steps aside with the dock.
         !locating && !presenting && (
-          <PhoneSheet layout={phone} tabs={phoneTabs}>{sidePanelContent}</PhoneSheet>
+          <PhoneSheet layout={phone} tabs={phoneTabs} bar={phoneBar}>{sidePanelContent}</PhoneSheet>
         )
       ) : mountedSide && sidePanelContent ? (
         <SidePanelDock

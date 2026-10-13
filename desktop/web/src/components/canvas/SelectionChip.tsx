@@ -16,12 +16,16 @@ import styles from './SelectionChip.module.css'
  * the zoom group, so it never meets the top finder chip. It reads the
  * selection through read-only runtime queries and offers Select all of this
  * species, Rename… for a lone zone and Clear selection; the rest lives in the
- * right-click menu.
+ * right-click menu. On a phone it is the context bar's (`placement="bar"`,
+ * PhoneContextBar): one line, its text ellipsised and its buttons' labels short.
  */
 const SELECT_SAME_SPECIES = canvasCommandDefinitions.find((definition) =>
   definition.kind === 'edit' && definition.id === 'select-same-species')!
 
-export function SelectionChip() {
+export function SelectionChip({ placement = 'map' }: {
+  /** At the bottom of the visible map, or in the phone's context bar. */
+  readonly placement?: 'map' | 'bar'
+} = {}) {
   const summary = useMapSelectionSummary()
   const queries = currentCanvasQuerySurface.value
   const overview = queries?.view.mode.value === 'overview'
@@ -31,8 +35,9 @@ export function SelectionChip() {
   const wholeSpecies = summary.species.length === 1 && isOnlyPlants(summary) && only!.selectedCount < only!.designCount
   // The summary hook re-renders the chip on selection and scene changes (locks included).
   const renameZoneId = loneEditableZoneId(queries?.getDesignObjectSelection() ?? null)
+  const bar = placement === 'bar'
   return (
-    <div className={styles.chip} role="group" aria-label={t('canvas.selectionChip.label')} data-selection-chip="bottom">
+    <div className={styles.chip} role="group" aria-label={t('canvas.selectionChip.label')} data-selection-chip={bar ? 'bar' : 'bottom'}>
       <span className={styles.text} role="status" aria-live="polite">
         <b><SpeciesCommonName name={head} englishFallback={headEnglishFallback} /></b>
         {details.map((detail, index) => (
@@ -48,7 +53,7 @@ export function SelectionChip() {
           aria-keyshortcuts={SELECT_SAME_SPECIES.shortcuts?.[0] ? ariaKeyShortcuts(SELECT_SAME_SPECIES.shortcuts[0]) : undefined}
           onClick={() => currentCanvasSceneEditCommandSurface.value?.selectSpecies([only!.canonicalName])}
         >
-          {t(SELECT_SAME_SPECIES.labelKey)}
+          {t(bar ? 'canvas.selectionChip.sameSpeciesShort' : SELECT_SAME_SPECIES.labelKey)}
         </button>
       )}
       {renameZoneId !== null && (
@@ -70,7 +75,7 @@ export function SelectionChip() {
         className={styles.quiet}
         onClick={() => currentCanvasSceneEditCommandSurface.value?.clearSelection()}
       >
-        {t('canvas.selectionChip.clear')}
+        {t(bar ? 'canvas.selectionChip.clearShort' : 'canvas.selectionChip.clear')}
       </button>
     </div>
   )

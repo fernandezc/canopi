@@ -14,6 +14,8 @@ import {
 } from '../components/workspace/WorkspaceComposition'
 import { lazy } from 'preact/compat'
 import type { PanelRailCommand } from '../components/shared/PanelRail'
+import { PhoneContextBar } from '../components/canvas/PhoneContextBar'
+import { designSessionStore } from '../app/document-session/store'
 
 const WorldMapPanel = lazy(async () => {
   const module = await import('../components/panels/WorldMapPanel')
@@ -58,8 +60,14 @@ export function WebWorkspace({
       surfaces={surfaces}
       responsive
       phoneTabs={phoneTabs}
+      phoneBar={<WebPhoneBar />}
     />
   )
+}
+
+/** The phone's context bar while a Design is open; the start screen has none. */
+function WebPhoneBar() {
+  return designSessionStore.currentDesign.value === null ? null : <PhoneContextBar />
 }
 
 function WebCatalog() {

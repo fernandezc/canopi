@@ -1,4 +1,4 @@
-import type { FunctionComponent, RefObject } from 'preact'
+import type { FunctionComponent } from 'preact'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { armCanvasTool } from '../../app/keyboard/arming'
 import { focusOwner } from '../../app/keyboard/focus-owner'
@@ -56,11 +56,15 @@ export interface StampChooserProps {
  * press or a right-click), Alt+click and Delete. The text and the fields
  * scroll above the foot, which stays in view. Holding a row the card registers
  * with the visible-map-area seam; where it still covers the picked plant or
- * a point, the user pans.
+ * a point, the user pans. On a phone the card is the context bar's
+ * (`placement="bar"`, PhoneContextBar): the panel sheet's first row, which the
+ * sheet's registration covers; there Select and Pan show no card.
  */
-export function ToolCard({ stampChooser: StampChooser }: {
+export function ToolCard({ stampChooser: StampChooser, placement = 'map' }: {
   /** Place a stamp's saved-stamp chooser; editions without saved stamps offer none. */
   readonly stampChooser?: FunctionComponent<StampChooserProps>
+  /** Over the map beside the tool rail, or in the phone's context bar. */
+  readonly placement?: 'map' | 'bar'
 }) {
   const tool = currentCanvasTool.value
   const guidance = currentCanvasToolGuidance.value
@@ -72,7 +76,8 @@ export function ToolCard({ stampChooser: StampChooser }: {
   const [choosingStamp, setChoosingStamp] = useState(false)
   const coarsePointer = useCoarsePointer()
   const section = useRef<HTMLElement>(null)
-  const content = siteLocateOpen.value || overview
+  // On a phone Select and Pan leave the bar to the selection and the map (answer 23).
+  const content = siteLocateOpen.value || overview || (placement === 'bar' && (tool === 'select' || tool === 'hand'))
     ? null
     : toolCardContent({
         tool,
@@ -97,10 +102,9 @@ export function ToolCard({ stampChooser: StampChooser }: {
   // From its first point the row is a path the card can plant, switch and edit (U58).
   const rowPath = row && (row.points ?? 0) >= 2 ? row : null
   const rowMode = row?.mode ?? 'interval'
-  usePublishedBottom(section, content !== null)
   // Holding a row the card grows over the map, so Fit, framing and the chips avoid it (answer 15): beside the rail it
-  // covers the left edge; on a phone held upright, nearly as wide as the map, the top edge.
-  useMapOccluder(section, phoneLayout.value === 'portrait' ? 'top' : 'left', row !== null)
+  // covers the left edge. In the phone bar the sheet's registration covers it.
+  useMapOccluder(section, 'left', row !== null && placement === 'map')
 
   useEffect(() => {
     if (tool !== 'plant-stamp') setChangingSpecies(false)
@@ -126,7 +130,7 @@ export function ToolCard({ stampChooser: StampChooser }: {
       ref={section}
       className={content ? styles.card : styles.idle}
       data-tool-card={content?.tool}
-      data-phone={phoneLayout.value ?? undefined}
+      data-placement={placement}
       data-row={row ? '' : undefined}
       data-touch={row && (coarsePointer || row.touch) ? '' : undefined}
       aria-label={content?.title}
@@ -381,26 +385,6 @@ function readSavedStampSummary(): SavedStampSummary | null {
     plants: payload.plants.length,
     species: new Set(payload.plants.map((plant) => plant.canonicalName)).size,
   }
-}
-
-/**
- * Publishes the shown card's bottom edge on the canvas area as `--tool-card-bottom` (px from the area's top), so the top
- * chip slot can sit below the card on phones (SpeciesFocusChip.module.css); removed while no card shows.
- */
-function usePublishedBottom(ref: RefObject<HTMLElement>, shown: boolean): void {
-  useLayoutEffect(() => {
-    const card = ref.current
-    const host = card?.parentElement
-    if (!shown || !card || !host || typeof ResizeObserver === 'undefined') return
-    const publish = () => host.style.setProperty('--tool-card-bottom', `${card.offsetTop + card.offsetHeight}px`)
-    publish()
-    const observer = new ResizeObserver(publish)
-    observer.observe(card)
-    return () => {
-      observer.disconnect()
-      host.style.removeProperty('--tool-card-bottom')
-    }
-  }, [ref, shown])
 }
 
 const COARSE_POINTER_QUERY = '(pointer: coarse)'

@@ -731,7 +731,9 @@
       "measurements_many": "{{count, number}} di misure",
       "measurements_other": "{{count, number}} misure",
       "clear": "Annulla la selezione",
-      "rename": "Rinomina…"
+      "rename": "Rinomina…",
+      "sameSpeciesShort": "Stessa specie",
+      "clearShort": "Annulla"
     },
     "viewChip": "Vista",
     "map": {

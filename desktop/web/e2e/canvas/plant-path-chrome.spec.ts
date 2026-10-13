@@ -9,9 +9,9 @@
 // a 44 px target after a tap; the spacing field and the mode switch show whole and do once scrolled into view (the
 // card's text and fields scroll above its foot); with an invalid spacing the check button focuses the field, which
 // shows whole; every point and dot takes the click at its centre and is a 44 px target after a tap (checked with two
-// points; after a tap on a point, in its own tests per touch layout). On phones the top chip slot sits below the card,
-// inside the viewport, and once a row is planted the selection chip clears its neighbours (expected red where the
-// phone context bar is owed). Both engines; offline, so the map notice shows. DOM assertions only, no baselines.
+// points; after a tap on a point, in its own tests per touch layout). On phones the card is the context bar's, in the
+// panel sheet, so its clearance is phone-chrome.spec.ts's; the invalid spacing and the touched points are checked here
+// on phones too. Both engines; offline, so the map notice shows. DOM assertions only, no baselines.
 // Selectors are locale-free (the DOM contract of plant-path.spec.ts: `[data-plant-row-finish]`, `[data-plant-row-mode]`,
 // `[data-plant-spacing-generated-count]`, `[data-plant-row-length]`, `point:` and `dot:` canvas handles).
 import { fileURLToPath } from 'node:url'
@@ -47,6 +47,11 @@ const LAYOUTS: readonly Layout[] = [
   { width: 844, height: 390, locales: ['en', 'de', 'ru'], touch: true },
   { width: 740, height: 360, locales: ['en', 'de', 'ru'], touch: true },
 ]
+
+/** The Web Edition's phone layout (app/shell/phone-layout.ts): under 640 px wide, or on its side under 480 px tall. */
+function isPhone(layout: Layout): boolean {
+  return layout.width < 640 || (layout.width > layout.height && layout.height < 480 && layout.width < 960)
+}
 
 /** The card's neighbours; an element that is absent or has no area is not one. */
 const NEIGHBOURS: ReadonlyArray<readonly [string, string]> = [
@@ -101,6 +106,12 @@ async function rowSpots(page: Page, layout: Layout): Promise<readonly [Point, Po
   const maxHeight = await card(page).evaluate((element) => Number.parseFloat(getComputedStyle(element).maxHeight))
   const obstacles: Box[] = [{ ...cardBox, height: Number.isFinite(maxHeight) ? maxHeight : frame.bottom - cardBox.y }]
   for (const [, selector] of NEIGHBOURS) obstacles.push(...await shownBoxes(page, selector))
+  // On a phone the zoom column and the inspection launcher beside it are placed midway down the visible map, which moves
+  // as the card in the panel sheet grows and shrinks (Place plants' species list, then the row's fields): their whole
+  // column is kept clear.
+  const column = await shownBoxes(page, '[data-zoom-group="phone"]')
+  const placed = column.length > 0 ? [...column, ...await shownBoxes(page, '[data-inspection-launcher]')] : []
+  for (const box of placed) obstacles.push({ ...box, y: frame.top, height: frame.bottom - frame.top })
   const reach = (layout.touch ? TOUCH_TARGET_PX : 20) / 2 + 4
   const gap = layout.touch ? 60 : 40
   const clear = (at: Point) => at.x - reach >= frame.left && at.x + reach <= frame.right && at.y - reach >= frame.top
@@ -248,7 +259,9 @@ async function expectHandleTargets(page: Page, layout: Layout, where: string): P
   }
 }
 
-for (const layout of LAYOUTS) {
+// On a phone the card is the context bar's, in the panel sheet, and has no neighbours to clear: phone-chrome.spec.ts
+// checks it there.
+for (const layout of LAYOUTS.filter((each) => !isPhone(each))) {
   const size = `${layout.width}×${layout.height}${layout.name ? ` ${layout.name}` : ''}`
   test.describe(size, () => {
     test.use({ viewport: { width: layout.width, height: layout.height }, hasTouch: layout.touch })
@@ -313,106 +326,5 @@ for (const layout of LAYOUTS.filter((each) => each.touch)) {
       await nextFrames(page)
       await expectHandleTargets(page, layout, `${layout.width}x${layout.height} en a point touched`)
     })
-  })
-}
-
-const PHONES = LAYOUTS.filter((layout) => [[390, 844], [360, 560], [740, 360]].some(([width, height]) => layout.width === width && layout.height === height))
-
-test.describe('phones', () => {
-  test.use({ hasTouch: true })
-
-  test('(canopi-f47t.54, P) on phones the top chip slot sits below the tool card, inside the viewport (390×844, 360×560, 740×360)', async ({ page }) => {
-    for (const layout of PHONES) {
-      const where = `${layout.width}x${layout.height}`
-      await page.setViewportSize({ width: layout.width, height: layout.height })
-      await openBase(page, layout, 'en')
-      await drawTwoPoints(page, layout)
-      const cardBox = await boxOf(card(page))
-      const slot = await boxOf(page.locator('[data-top-chip-slot]'))
-      expect(slot.y, `${where}: the top chip slot sits below the card`).toBeGreaterThanOrEqual(cardBox.y + cardBox.height)
-      expect(slot.x, `${where}: the slot starts inside the viewport`).toBeGreaterThanOrEqual(0)
-      expect(slot.x + slot.width, `${where}: the slot ends inside the viewport`).toBeLessThanOrEqual(layout.width)
-      expect(slot.y, `${where}: the slot is above the viewport's bottom`).toBeLessThan(layout.height)
-    }
-  })
-})
-
-// On a phone held upright the card covers the map's top edge, so the map notice stays at the bottom, below the card,
-// above the panel sheet: with the sheet at half height (bottom chrome that leaves the map little room), the card still
-// stops above the notice rather than above the sheet.
-test.describe('360×560 half sheet', () => {
-  test.use({ viewport: { width: 360, height: 560 }, hasTouch: true })
-
-  test('(canopi-f47t.54, P) on a phone held upright the tool card stops above the map notice with the panel sheet at half height (360×560 en)', async ({ page }) => {
-    const layout = LAYOUTS.find((each) => each.width === 360 && each.height === 560)!
-    await openBase(page, layout, 'en')
-    await drawTwoPoints(page, layout)
-    // The handle's ArrowUp raises the sheet a step in both engines (a tap on it moved nothing in WebKit's touch emulation).
-    await page.locator('[data-sheet-handle]').focus()
-    await page.keyboard.press('ArrowUp')
-    await expect(page.locator('[data-phone-sheet]'), 'the panel sheet rests at half height').toHaveAttribute('data-phone-sheet', 'half')
-    await expect(card(page).locator('[data-plant-row-finish]'), 'the row is still held').toBeVisible()
-    await nextFrames(page)
-    await expectCardClear(page, layout, 'en', 'a half sheet')
-  })
-})
-
-// Once Plant a row plants, its plants stay selected (answer 28) beside the idle card, and the plain selection chip
-// (count, Select all of this species, Clear) shows: on phones, at the sheet's peek and half, it clears every neighbour
-// and the idle tool card, stays in the viewport, and its buttons take the click at their centre. The phone context bar
-// (canopi-f47t.54) replaces this check with its own guard and deletes it in the same commit.
-const CHIP_PHONES: readonly Layout[] = [[390, 844], [360, 560], [740, 360], [844, 390]]
-  .map(([width, height]) => ({ width: width!, height: height!, locales: ['en', 'de', 'ru'], touch: false }))
-
-async function expectPlantedChipClear(page: Page, layout: Layout, sheet: 'peek' | 'half'): Promise<void> {
-  for (const locale of layout.locales) {
-    const where = `${layout.width}x${layout.height} ${locale} ${sheet}`
-    await openBase(page, layout, locale)
-    await drawTwoPoints(page, layout)
-    await page.keyboard.press('Enter')
-    const chip = page.locator('[data-selection-chip]')
-    await expect(chip, `${where}: the planted row's plants are selected`).toBeVisible()
-    if (sheet === 'half') {
-      await page.locator('[data-sheet-handle]').focus()
-      await page.keyboard.press('ArrowUp')
-      await expect(page.locator('[data-phone-sheet]'), `${where}: the panel sheet rests at half height`).toHaveAttribute('data-phone-sheet', 'half')
-    }
-    await nextFrames(page)
-    await expect(chip, `${where}: the chip still shows`).toBeVisible()
-    const chipBox = await boxOf(chip)
-    for (const [name, selector] of [...NEIGHBOURS.filter(([, selector]) => selector !== '[data-selection-chip]'), ['the tool card', '[data-tool-card]'] as const]) {
-      for (const box of await shownBoxes(page, selector)) {
-        expect(overlap(chipBox, box), `${where}: the selection chip clears ${name}`).toBe(false)
-      }
-    }
-    expect(chipBox.x, `${where}: the chip starts inside the viewport`).toBeGreaterThanOrEqual(0)
-    expect(chipBox.x + chipBox.width, `${where}: the chip ends inside the viewport`).toBeLessThanOrEqual(layout.width)
-    for (const button of await chip.getByRole('button').all()) await expectHitAtCentre(button, `${where}: the chip's ${await button.textContent()}`)
-  }
-}
-
-// Red in both engines until the phone context bar (canopi-f47t.54): at half the chip, centred on the
-// map above the sheet, meets the zoom column everywhere (and the inspection launcher at 360x560); at peek it meets
-// the zoom column at 360x560 and the idle Plant a row card at 740x360 (de, ru). 390x844 and 844x390 at peek pass.
-const CHIP_CLEAR_AT_PEEK = new Set(['390x844', '844x390'])
-
-for (const layout of CHIP_PHONES) {
-  const size = `${layout.width}×${layout.height}`
-  test.describe(`${size} planted`, () => {
-    test.use({ viewport: { width: layout.width, height: layout.height } })
-
-    for (const sheet of ['peek', 'half'] as const) {
-      const clear = sheet === 'peek' && CHIP_CLEAR_AT_PEEK.has(`${layout.width}x${layout.height}`)
-      const title = `the selection chip of a planted row stays clear of its neighbours at ${size}, sheet at ${sheet} (${layout.locales.join(' ')})`
-      if (clear) {
-        test(`(canopi-f47t.54, D) ${title}`, async ({ page }) => {
-          await expectPlantedChipClear(page, layout, sheet)
-        })
-      } else {
-        test.fail(`(canopi-f47t.54, chunk 5 phone context bar) ${title}`, async ({ page }) => {
-          await expectPlantedChipClear(page, layout, sheet)
-        })
-      }
-    }
   })
 }

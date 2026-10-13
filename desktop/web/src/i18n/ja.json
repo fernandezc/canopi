@@ -731,7 +731,9 @@
       "measurements_many": "計測 {{count, number}} 件",
       "measurements_other": "計測 {{count, number}} 件",
       "clear": "選択を解除",
-      "rename": "名前を変更…"
+      "rename": "名前を変更…",
+      "sameSpeciesShort": "同じ種",
+      "clearShort": "解除"
     },
     "viewChip": "表示",
     "map": {

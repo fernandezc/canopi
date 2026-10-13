@@ -22,19 +22,6 @@
   color: var(--color-text);
 }
 
-/* Phones (board WebPhone): beside the tool strip and clear of the notch on the left, the card stops short of the right
-   column of the visible map: the zoom column and the inspection launcher left of its top, 44 px each with 16 px between
-   (ZoomControls.module.css and InspectionLens.module.css `.phone` rules); the top chip slot sits below it
-   (`--tool-card-bottom`, published by the card). */
-.card[data-phone] {
-  /* At most 40 % of the map's height, so a row is drawn below it; the text and fields scroll above the row's foot. */
-  max-height: min(calc(100cqh - var(--chrome-rail-top) - var(--tool-card-room-bottom) - var(--chrome-inset)), 40cqh);
-  left: calc(var(--canvas-tool-card-left) + env(safe-area-inset-left));
-  right: calc(max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right))) + 2 * var(--control-size-touch) + var(--space-4) + var(--space-2));
-  width: auto;
-  max-width: 320px;
-}
-
 /* Plant a row: the text and the fields scroll above the foot (the row's count and length and the check button that
    plants it), which stays in view whatever the card's height. The body scrolls, not the card, so a focused field
    scrolls into view above the foot, never under it. */
@@ -57,10 +44,27 @@
 }
 
 /* Holding a row the card registers with the visible-map-area seam (ToolCard) as covering the map's left edge, so status
-   chrome (the map notice) stands beside it, never below: the card stops above the framing chrome alone. On a phone held
-   upright it covers the top edge instead, the notice stays below it, and the card stops above all the bottom chrome. */
-.card[data-row]:not([data-phone='portrait']) {
+   chrome (the map notice) stands beside it, never below: the card stops above the framing chrome alone. */
+.card[data-row] {
   --tool-card-room-bottom: var(--map-framing-inset-bottom, 0px);
+}
+
+/* Phones: the card is the context bar's (PhoneContextBar), the panel sheet's first row, so it flows in the sheet with no
+   place of its own; at most 40 % of the screen's height (container units do not resolve in the sheet), so a row is drawn
+   above it, its text and fields scrolling above the row's foot. */
+.card[data-placement='bar'] {
+  position: static;
+  flex: 0 1 auto;
+  width: auto;
+  min-height: 0;
+  max-height: 40svh;
+  padding: var(--space-3) var(--space-1) var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 /* No card: the live region stays mounted but takes no room. */

@@ -76,3 +76,28 @@
 .measure {
   white-space: nowrap;
 }
+
+/* Phones: the context bar's (PhoneContextBar), the panel sheet's first row: one line, the text ellipsised before the
+   buttons give way. */
+.chip[data-selection-chip='bar'] {
+  position: static;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  width: auto;
+  max-width: none;
+  margin: 0;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.chip[data-selection-chip='bar'] .text {
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

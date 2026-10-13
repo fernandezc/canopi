@@ -144,6 +144,19 @@ describe('Selection chip', () => {
     expect(clearSelection).toHaveBeenCalledTimes(1)
   })
 
+  it('in the phone\'s context bar keeps Select all of this species and Clear selection on one line, with short labels', async () => {
+    await act(() => render(<SelectionChip placement="bar" />, container))
+    await select([{ kind: 'plant', id: 'apricot-1' }, { kind: 'plant', id: 'apricot-2' }])
+    expect(chip()!.dataset.selectionChip).toBe('bar')
+    expect(status()).toBe('2 plants · Apricot · 5 m apart')
+    expect(buttons()).toEqual(['Same species', 'Clear'])
+
+    await act(() => chip()!.querySelector<HTMLButtonElement>('button')!.click())
+    expect(selectSpecies).toHaveBeenCalledWith(['Prunus armeniaca'])
+    await act(() => [...chip()!.querySelectorAll<HTMLButtonElement>('button')].at(-1)!.click())
+    expect(clearSelection).toHaveBeenCalledTimes(1)
+  })
+
   it('counts plants of one species, and drops Select all once the whole species is selected', async () => {
     await act(() => render(<SelectionChip />, container))
     await select([{ kind: 'plant', id: 'apricot-1' }, { kind: 'plant', id: 'apricot-2' }])

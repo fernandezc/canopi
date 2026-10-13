@@ -63,13 +63,14 @@ function CanvasChromeContent({ projection, canvasRef, stampChooser, myLocation, 
   return (
     <>
       {!locating && <ToolRail projection={projection} showNames={toolRailShowsNamesOnMap.value} />}
-      <ToolCard stampChooser={stampChooser} />
+      {/* Phones show the card and the selection chip in the context bar (PhoneContextBar). */}
+      {!phoneLayout.value && <ToolCard stampChooser={stampChooser} />}
       {/* Phones leave Grid and Snap to grid to the View menu. */}
       {!phoneLayout.value && <ViewChip toggles={projection.settingsToggles} />}
       <ZoomControls viewActions={projection.viewActions} myLocation={myLocation} />
       <InspectionLens canvasRef={canvasRef} />
       {children}
-      {!locating && <SelectionChip />}
+      {!locating && !phoneLayout.value && <SelectionChip />}
       {!locating && <CanvasOverview />}
       <DisplayLegend />
       <SiteOnboarding><TopChipSlot locating={locating} /></SiteOnboarding>

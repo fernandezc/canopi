@@ -731,7 +731,9 @@
       "measurements_many": "{{count, number}} metingen",
       "measurements_other": "{{count, number}} metingen",
       "clear": "Selectie wissen",
-      "rename": "Hernoemen…"
+      "rename": "Hernoemen…",
+      "sameSpeciesShort": "Zelfde soort",
+      "clearShort": "Wissen"
     },
     "viewChip": "Weergave",
     "map": {

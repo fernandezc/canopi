@@ -731,7 +731,9 @@
       "measurements_many": "{{count, number}} de medições",
       "measurements_other": "{{count, number}} medições",
       "clear": "Limpar a seleção",
-      "rename": "Renomear…"
+      "rename": "Renomear…",
+      "sameSpeciesShort": "Mesma espécie",
+      "clearShort": "Limpar"
     },
     "viewChip": "Visualização",
     "map": {

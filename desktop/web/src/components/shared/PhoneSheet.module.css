@@ -144,8 +144,8 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* Phone fields take 16 px so iOS does not zoom into them. */
-.sheet .panel :is(input, select, textarea) {
+/* Phone fields take 16 px so iOS does not zoom into them, in the bar and the panel. */
+.sheet :is(input, select, textarea) {
   font-size: var(--text-touch);
 }
 
@@ -177,24 +177,26 @@
   cursor: pointer;
 }
 
-/* The context bar: the sheet's first row (the header at full, the corner box's
-   top at a landscape peek). It takes no room while empty, and its body scrolls
-   past 40 % of the screen's height (container units do not resolve here). */
+/* The context bar: the sheet's first row (the header at full, the corner box's top at a landscape peek). It takes no
+   room while empty; its content keeps its own height (a tool card at most 40 % of the screen's) and gives way only where
+   the sheet is too short for it and the handle and tabs, its card's text then scrolling above the card's foot. */
 .bar {
-  flex-shrink: 0;
-  max-height: 40svh;
-  overflow-y: auto;
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .bar:empty {
   display: none;
 }
 
-/* The dock key region under the bar: the handle, the tabs and the open panel. */
+/* The dock key region under the bar: the handle and the tabs, which it always keeps, and the open panel, which takes
+   the rest. */
 .dock {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   flex-direction: column;
   min-width: 0;
-  min-height: 0;
+  min-height: calc(var(--control-size-touch) * 2);
 }
