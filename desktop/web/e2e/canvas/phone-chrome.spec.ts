@@ -726,7 +726,8 @@ for (const phone of PHONES) {
   test.describe(`${size} selection in the bar`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
-    for (const locale of ['en', 'de']) {
+    // Italian holds the longest short labels (Stessa specie, Rinomina…, Deseleziona).
+    for (const locale of ['en', 'de', 'it']) {
       test(`(canopi-f47t.54, D) a planted row's selection is the bar's one line, and its buttons take the tap (${size} ${locale})`, async ({ page }) => {
         const where = `${size} ${locale}`
         await openFixture(page, FIXTURE, { locale, settings: { snap_to_grid: false }, openWith: portrait ? 'button' : 'shortcut' })
