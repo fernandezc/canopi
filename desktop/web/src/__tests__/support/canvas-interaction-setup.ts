@@ -15,6 +15,8 @@ import {
 import { h, render as renderPreact } from 'preact'
 import { setupRerender, teardown as teardownPreactTestUtils } from 'preact/test-utils'
 import { ToolCard } from '../../components/canvas/ToolCard'
+import { CanvasContextMenu } from '../../components/canvas/CanvasContextMenu'
+import { closeCanvasContextMenu, openCanvasContextMenu } from '../../app/canvas-context-menu/state'
 import { focusOwner } from '../../app/keyboard/focus-owner'
 import { setCurrentCanvasSession } from '../../canvas/session'
 import {
@@ -714,6 +716,8 @@ export function installSceneInteractionFixture(
 
   let toolCardHost: HTMLDivElement
   let flushToolCard: () => void
+  /** The app's own menu, once a test asks for it (appContextMenu). */
+  let appMenuHost: HTMLDivElement | null = null
   let keyRouter: KeyRouterHandle
   let releaseMapRegion: () => void
   /** The edition's command sink under the canvas rows: records what a key runs there and consumes nothing. */
@@ -749,6 +753,29 @@ export function installSceneInteractionFixture(
     input.value = value
     input.dispatchEvent(new Event('input', { bubbles: true }))
     flushToolCard()
+  }
+
+  /**
+   * The app's own right-click menu (components/canvas/CanvasContextMenu over app/canvas-context-menu/state), rendered as
+   * the workspace renders it, for a test that presses keys in the real menu: pass `adapter` as the deps' contextMenu.
+   * `item` and `isOpen` read the rendered menu after the pending renders.
+   */
+  function appContextMenu() {
+    if (!appMenuHost) {
+      appMenuHost = document.body.appendChild(document.createElement('div'))
+      renderPreact(h(CanvasContextMenu, { profileLine: undefined }), appMenuHost)
+    }
+    return {
+      adapter: { open: openCanvasContextMenu, close: closeCanvasContextMenu } satisfies CanvasRuntimeContextMenuAdapter,
+      item(id: string): HTMLElement | null {
+        flushToolCard()
+        return document.querySelector<HTMLElement>(`[role="menu"] [data-command="${id}"]`)
+      },
+      isOpen(): boolean {
+        flushToolCard()
+        return document.querySelector('[role="menu"]') !== null
+      },
+    }
   }
 
   /** A still right-click at a container point, as Windows sends it: the press, the release (which opens the canvas menu)
@@ -840,6 +867,12 @@ export function installSceneInteractionFixture(
     live().events.dispose()
     renderPreact(null, toolCardHost)
     toolCardHost.remove()
+    if (appMenuHost) {
+      closeCanvasContextMenu()
+      renderPreact(null, appMenuHost)
+      appMenuHost.remove()
+      appMenuHost = null
+    }
     releaseMapRegion()
     teardownPreactTestUtils()
     setCurrentCanvasSession(null)
@@ -861,6 +894,7 @@ export function installSceneInteractionFixture(
     typeSpacing,
     openContextMenu,
     openContextMenuFromKeyboard,
+    appContextMenu,
     keyCommands,
   }
 }

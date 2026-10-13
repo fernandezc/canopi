@@ -73,6 +73,7 @@ describe('SceneInteractionSession', () => {
     createTestSession,
     openContextMenu,
     openContextMenuFromKeyboard,
+    appContextMenu,
     keyCommands,
   } = installSceneInteractionFixture(
     (f) => {
@@ -2944,6 +2945,55 @@ describe('SceneInteractionSession', () => {
     choose()
     expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3]])
     expect(document.activeElement).toBe(corner(0))
+    session.dispose()
+  })
+
+  // F6: the canvas menu's keys are its entries' shortcuts on what it names (Delete on the selection's menu deletes the
+  // selection); on a point menu, which names a point, Delete and Backspace are Delete point, never the zone's deletion.
+  // Through the app's own menu, which holds focus as it does in the workspace.
+  it('Delete or Backspace in a point menu deletes its corner, never the zone; on a triangle the menu stays and nothing goes (A16)', () => {
+    const pentagon = [{ x: 20, y: 20 }, { x: 120, y: 20 }, { x: 140, y: 80 }, { x: 70, y: 130 }, { x: 0, y: 80 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [{
+        kind: 'zone', locked: false, id: 'polygon-1', name: 'polygon-1', zoneType: 'polygon', rotationDeg: 0,
+        points: pentagon, fillColor: null, notes: null,
+      }]
+    })
+    const menu = appContextMenu()
+    const deps = createInteractionDeps(container, store, testView, { contextMenu: menu.adapter })
+    const session = createTestSession(deps)
+    session.setTool('select')
+    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
+    const pressInMenu = (key: string) => events.keyDown({ key, code: key, cancelable: true, target: document.activeElement! })
+    const openOnCorner = (index: number) => {
+      corner(index).focus()
+      events.keyDown({ key: 'F10', shiftKey: true, cancelable: true, target: corner(index) })
+      const deletePoint = menu.item('delete-point')
+      expect(document.activeElement, 'the point menu takes focus').toBe(deletePoint)
+    }
+
+    openOnCorner(1)
+    pressInMenu('Delete')
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[3], pentagon[4]])
+    expect(menu.isOpen(), 'Delete closes the point menu').toBe(false)
+    expect(document.activeElement, 'focus is on the corner now at its place, as Delete point leaves it').toBe(corner(1))
+
+    openOnCorner(1)
+    pressInMenu('Backspace')
+    expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[3], pentagon[4]])
+    expect(menu.isOpen(), 'Backspace closes the point menu').toBe(false)
+
+    // A triangle: Delete point is refused, so the key removes nothing and the menu stays, as its disabled entry does.
+    openOnCorner(1)
+    for (const key of ['Delete', 'Backspace']) {
+      pressInMenu(key)
+      expect(store.persisted.zones).toHaveLength(1)
+      expect(store.persisted.zones[0]!.points).toHaveLength(3)
+      expect(menu.isOpen(), `${key} on a refused point keeps the menu`).toBe(true)
+    }
+    expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
     session.dispose()
   })
 

@@ -3,7 +3,8 @@
 // along a smooth curve through them, in one Undo step; a click on the first point closes a loop; "N plants" counts the
 // picked plant; before planting a point drags, a dot drag or double-click inserts, Alt+click deletes and Alt while placing
 // makes a sharp point; Esc, Backspace and Ctrl+Z step back one point; Delete removes the last-touched point, and a
-// right-click or long press on a point opens its menu (the card offers no point buttons: decision 16). A drag from the plant still plants a straight row (guard). Both engines unless a
+// right-click or long press on a point opens its menu (the card offers no point buttons: decision 16), where Delete and
+// Backspace delete that point and Ctrl+Z closes it (stream D2, finish items F5 and F6). A drag from the plant still plants a straight row (guard). Both engines unless a
 // test says otherwise; WebKit has taps, finger drags are Chromium-only (CDP). DOM and saved-Design assertions only, no
 // baselines; the path engine's positions are compared bit for bit between Node and each browser, so these tests read
 // exact positions.
@@ -411,6 +412,25 @@ test('(canopi-f47t.54, P) right-click and long press on a point while drawing op
 
   await expect.poll(() => pointCount(page), 'the row is still drawn').toBe(3)
   await expectNothingPlanted(page, 'opening the menus plants nothing')
+})
+
+// F6: in a point's menu, Delete and Backspace are its Delete point: never the last point or the last-touched one.
+test('(canopi-f47t.54, D2) Delete and Backspace in a point\'s menu while drawing delete that point and close the menu', async ({ page }) => {
+  await openBase(page)
+  await pickApple(page)
+  for (const at of [P1, P2, P3]) await click(page, at)
+  await expect.poll(() => pointCount(page), 'the picked plant and three points').toBe(4)
+
+  for (const [key, left, next] of [['Delete', 3, P2], ['Backspace', 2, P3]] as const) {
+    const point = await pointAt(page, 1)
+    await page.mouse.click(point.x, point.y, { button: 'right' })
+    await expect(menuEntries(page), 'the point menu').toHaveCount(3)
+    await page.keyboard.press(key)
+    await expect(page.getByRole('menu'), `${key} closes the menu`).toHaveCount(0)
+    await expect.poll(() => pointCount(page), `${key} removes one point`).toBe(left)
+    expect(distance(await pointAt(page, 1), next), `${key} removes the menu's point, not the last one`).toBeLessThan(2)
+  }
+  await expectNothingPlanted(page, 'the keys plant nothing')
 })
 
 test('(canopi-f47t.54, P) a drag from the plant still plants a straight row in one Undo step (guard)', async ({ page }) => {
