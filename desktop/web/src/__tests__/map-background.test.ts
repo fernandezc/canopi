@@ -392,6 +392,19 @@ describe('map background band', () => {
       background.dispose()
     })
 
+    // A saved-view capture calls retry() on every frame: imagery that is showing must not blank while a new session opens.
+    it('Retry leaves Satellite imagery that is showing alone', async () => {
+      const { background, statuses, requests } = mountKeyed(google)
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('ok'))
+      const asked = requests.length
+      background.retry(presentation({ satelliteVisible: true }))
+      await settle()
+      expect(statuses).toEqual(['loading', 'ok'])
+      expect(requests).toHaveLength(asked)
+      background.dispose()
+    })
+
     it('gives the Basemap\'s status back when Satellite is turned off', async () => {
       const { background, statuses } = mountKeyed(rejected)
       background.update(presentation({ satelliteVisible: true }))

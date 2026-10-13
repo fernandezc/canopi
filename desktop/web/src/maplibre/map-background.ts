@@ -104,7 +104,7 @@ export interface MapBackgroundHandle {
   update(presentation: MapBackgroundPresentation): void
   /**
    * Retry: applies the presentation, downloading a Basemap that couldn't load (its style or its resources) again, and
-   * starting Satellite over (a new Google session).
+   * starting Satellite that couldn't load over (a new Google session).
    */
   retry(presentation: MapBackgroundPresentation): void
   /**
@@ -257,8 +257,9 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
       untracked(() => {
         vector.discardFailedResources()
         show(next)
-        // Satellite starts a new generation: a new Google session, or the free imagery again.
-        satellite?.update(readViewport(map))
+        // Satellite that couldn't load starts over with a new Google session. Imagery that is showing or loading is
+        // left alone: a saved-view capture retries on every frame and must not blank it.
+        if (satelliteState === 'unavailable') satellite?.update(readViewport(map))
       })
     },
     claimMapError(event) {
