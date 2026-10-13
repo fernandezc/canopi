@@ -3,24 +3,47 @@ import { currentCanvasQuerySurface } from '../../canvas/session'
 import { t } from '../../i18n'
 import { currentPlantDisplay } from '../../app/plant-display/state'
 import { phoneLayout } from '../../app/shell/phone-layout'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
+import { leftChromeCrowdsMap, visibleMapFrame } from '../../app/shell/visible-map-area'
+import { useMapOccluder } from '../shared/useMapChrome'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import styles from './DisplayLegend.module.css'
 
+/**
+ * The pinned plant names' legend, beside the tool rail at the bottom. Where it leaves the map the labelled tool rail's
+ * least width before the right chrome, it covers the map's left edge on the visible-map-area seam, as the open
+ * inspection lens does: framing, the chips and the map notice keep right of it (canopi-f47t.60: the notice stood under
+ * it beside the open dock). With less (a window beside the open dock) it stays off the seam, or the notice and chips
+ * would squeeze into a tower of single words; it then stands above the bottom chrome the seam measures, the notice
+ * included. Measures on every render, as the lens does: it reads only the frame's width and right edge, so its own
+ * cover cannot feed back.
+ */
 export function DisplayLegend() {
+  const legend = useRef<HTMLDivElement>(null)
   const querySurface = currentCanvasQuerySurface.value
   void querySurface?.revision.scene.value
   void querySurface?.revision.plantNames.value
 
   // Phones show the pinned names on the map only: nothing but the zoom column floats there (answer 25).
-  if (!querySurface || phoneLayout.value !== null) return null
-
-  const pinnedEntries = buildPinnedPlantNameLegendEntries(querySurface, currentPlantDisplay.value)
-  if (pinnedEntries.length === 0) return null
+  const pinnedEntries = !querySurface || phoneLayout.value !== null
+    ? []
+    : buildPinnedPlantNameLegendEntries(querySurface, currentPlantDisplay.value)
+  const shown = pinnedEntries.length > 0
+  const frame = visibleMapFrame.value
+  const [covers, setCovers] = useState(false)
+  useLayoutEffect(() => {
+    const edge = legend.current?.getBoundingClientRect().right
+    setCovers(edge !== undefined && !leftChromeCrowdsMap(frame, edge))
+  })
+  useMapOccluder(legend, 'left', shown && covers)
+  if (!shown) return null
 
   return (
     <div
+      ref={legend}
       className={styles.legend}
       data-pinned-plant-name-legend
+      data-covers-map={covers ? '' : undefined}
     >
       <div className={styles.title}>{t('canvas.pinnedPlantNames.legend')}</div>
       <div className={styles.entries}>

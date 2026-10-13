@@ -18,6 +18,13 @@
   animation: legendIn var(--transition-normal) forwards;
 }
 
+/* Off the visible-map-area seam (DisplayLegend.tsx), nothing keeps clear of the legend: it keeps clear of the bottom
+   chrome the seam measures instead, standing above the map notice while one shows. */
+.legend:not([data-covers-map]) {
+  bottom: max(var(--chrome-bottom), calc(var(--map-inset-bottom, 0px) + var(--space-2)));
+  max-height: calc(100% - var(--chrome-rail-top) - max(var(--chrome-bottom), calc(var(--map-inset-bottom, 0px) + var(--space-2))));
+}
+
 @keyframes legendIn {
   to {
     opacity: 1;
