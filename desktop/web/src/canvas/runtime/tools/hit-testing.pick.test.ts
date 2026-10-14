@@ -245,6 +245,26 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
     }
   }
 
+  it('a band across an ellipse\'s drawn line selects it at high zoom, midway between the outline\'s corners', () => {
+    // 10 m radius at 500 px/m: 5000 px on screen, where a fixed 48-gon would lie about 10 px inside the drawn curve.
+    const scale = 500
+    const radius = 10
+    const theta = Math.PI / 48
+    const centre = { x: -radius * Math.cos(theta), y: -radius * Math.sin(theta) }
+    const h = createToolHarness({
+      scene: { zones: [rectZone('pond', [centre, { x: radius, y: radius }], { zoneType: 'ellipse' })] },
+      screen: { width: 1000, height: 1000 },
+      camera: { zoom: stageScaleToMapZoom(scale, 0), bearingDeg: 0 },
+    })
+    harnesses.push(h)
+    expect(h.view.view().pixelsPerMetre).toBeCloseTo(scale, 6)
+    const onLine = h.view.view().worldToScreen({ x: 0, y: 0 })
+    const inward = Math.sign(h.view.view().worldToScreen(centre).x - onLine.x)
+    // From 20 px outside the drawn line to 4 px inside it, 8 px tall.
+    h.drag({ x: onLine.x - inward * 20, y: onLine.y - 4 }, { x: onLine.x + inward * 4, y: onLine.y + 4 })
+    expect(h.store.session.selectedTargets.map(key)).toEqual(['zone:pond'])
+  })
+
   it('a zone on a locked layer is picked by neither a click nor the menu; the hover still highlights its line', () => {
     const { h, scene, screenAt } = setup(1, 0)
     h.store.updatePersisted((draft) => {

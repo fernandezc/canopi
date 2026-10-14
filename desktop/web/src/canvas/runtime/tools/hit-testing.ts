@@ -216,7 +216,7 @@ export function queryQuadTopLevel(
       const plant = member.kind === 'plant' ? scene.plants.find((entry) => entry.id === member.id) : null
       if (plant && plantIntersectsPolygon(plant, area, viewportScale, speciesCache, getPlantContext)) return true
       const zone = member.kind === 'zone' ? scene.zones.find((entry) => entry.id === member.id) : null
-      if (zone && zoneIntersectsPolygon(zone, area)) return true
+      if (zone && zoneIntersectsPolygon(zone, area, viewportScale)) return true
       const annotation = member.kind === 'annotation'
         ? scene.annotations.find((entry) => entry.id === member.id)
         : null
@@ -243,7 +243,7 @@ export function queryQuadTopLevel(
   for (const zone of scene.zones) {
     if (groupedMemberKeys.has(sceneTargetKey({ kind: 'zone', id: zone.id }))) continue
     if (!isSceneLayerEditable(scene, 'zones')) continue
-    if (zoneIntersectsPolygon(zone, area)) targets.push({ kind: 'zone', id: zone.id })
+    if (zoneIntersectsPolygon(zone, area, viewportScale)) targets.push({ kind: 'zone', id: zone.id })
   }
 
   for (const annotation of scene.annotations) {
@@ -341,15 +341,16 @@ function zoneLineDistancePx(zone: SceneZoneEntity, point: ScenePoint, viewportSc
 }
 
 /** A band selects a zone when it crosses one of its lines or holds it whole: by its outline, never by its inside, so a
- *  band wholly inside a zone leaves the zone out (canopi-qd2k). */
-function zoneIntersectsPolygon(zone: SceneZoneEntity, area: QueryPolygon): boolean {
+ *  band wholly inside a zone leaves the zone out (canopi-qd2k). An ellipse's outline follows its drawn curve at the zoom,
+ *  as a click's does. */
+function zoneIntersectsPolygon(zone: SceneZoneEntity, area: QueryPolygon, viewportScale: number): boolean {
   if (zone.zoneType === 'rect' && zone.points.length >= 4) {
     const corners = getRectangularZoneCorners(zone)
     return corners ? outlineIntersectsPolygon(corners, area) : false
   }
 
   if (zone.zoneType === 'ellipse' && zone.points.length >= 2) {
-    const polygon = getEllipticalZonePolygon(zone)
+    const polygon = getEllipticalZonePolygon(zone, ellipseBoundarySegmentCount(zone, viewportScale))
     return polygon ? outlineIntersectsPolygon(polygon, area) : false
   }
 
