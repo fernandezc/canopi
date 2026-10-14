@@ -405,6 +405,30 @@ describe('map background band', () => {
       background.dispose()
     })
 
+    // A saved-view capture waits for isApplied(): a hidden layer while a new Google session opens is no imagery yet.
+    it('is not applied while Satellite loads, even with its layer still installed (hidden)', async () => {
+      let answer: (url: string) => Promise<Response> = async (url) => google(url)
+      const { map, background, statuses } = mountKeyed((url) => answer(url) as unknown as Response)
+      background.update(presentation({ satelliteVisible: true }))
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('ok'))
+      expect(background.isApplied()).toBe(true)
+      // Google holds every answer until released.
+      let open = () => {}
+      const opened = new Promise<void>((resolve) => { open = resolve })
+      answer = async (url) => {
+        await opened
+        return google(url)
+      }
+      googleMapsApiKey.value = 'OTHER-KEY'
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('loading'))
+      expect(map.getLayer(MAPLIBRE_SATELLITE_LAYER_ID)).toBeDefined()
+      expect(background.isApplied()).toBe(false)
+      open()
+      await vi.waitFor(() => expect(statuses.at(-1)).toBe('ok'))
+      expect(background.isApplied()).toBe(true)
+      background.dispose()
+    })
+
     it('gives the Basemap\'s status back when Satellite is turned off', async () => {
       const { background, statuses } = mountKeyed(rejected)
       background.update(presentation({ satelliteVisible: true }))
