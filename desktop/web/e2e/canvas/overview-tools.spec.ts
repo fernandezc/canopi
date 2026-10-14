@@ -287,7 +287,17 @@ test('an empty Design picked from overview zooms in about the view centre, not t
   await page.mouse.down()
   await page.mouse.move(grab.x - 200, grab.y - 100, { steps: 10 })
   await page.mouse.up()
-  await expect.poll(async () => (await lastView(page))?.lon, 'the pan settled').not.toBe(opening.lon)
+  // last_view is written once the view settles, which can happen mid-drag when a step is slow: wait for the whole drag
+  // (the view centre 200 px right and 100 px down of the opening one, north up) rather than for any change.
+  const target = worldPx(opening, opening.zoom)
+  target.x += 200
+  target.y += 100
+  await expect.poll(async () => {
+    const view = await lastView(page)
+    if (!view) return Infinity
+    const at = worldPx(view, opening.zoom)
+    return Math.max(Math.abs(at.x - target.x), Math.abs(at.y - target.y))
+  }, 'the whole pan settled').toBeLessThan(1)
   const panned = (await lastView(page))!
 
   await designMap(page).focus()
@@ -300,6 +310,13 @@ test('an empty Design picked from overview zooms in about the view centre, not t
   const panLength = Math.hypot(panned.lon - opening.lon, panned.lat - opening.lat)
   expect(fromPanned, 'the view stays centred where it was').toBeLessThan(panLength / 100)
 })
+
+/** A lon/lat's Web Mercator world pixel at MapLibre's zoom (512 px tiles). */
+function worldPx(at: { lon: number, lat: number }, zoom: number): { x: number, y: number } {
+  const size = 512 * 2 ** zoom
+  const sin = Math.sin(at.lat * Math.PI / 180)
+  return { x: (at.lon + 180) / 360 * size, y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * size }
+}
 
 /** The view the Web Edition remembers (settings `last_view`, written once the view settles). */
 async function lastView(page: Page): Promise<{ lon: number, lat: number, zoom: number } | null> {
