@@ -114,7 +114,8 @@ export interface MapBackgroundHandle {
   claimMapError(event: unknown): boolean
   /**
    * Whether the latest presentation is on the map: the requested Basemap style
-   * installed, or the Satellite layer added. Tile loading is not part of it.
+   * installed, or the Satellite layer added and ready (not hidden while a Google
+   * session opens or renews). Tile loading is not part of it.
    */
   isApplied(): boolean
   /**
@@ -267,7 +268,8 @@ export function mountMapBackground(options: MapBackgroundOptions): MapBackground
     },
     isApplied() {
       if (disposed || !presentation || !readiness.isReady()) return false
-      if (presentation.satellite.visible) return map.getLayer(MAPLIBRE_SATELLITE_LAYER_ID) != null
+      // A Satellite layer kept while a new Google session opens is hidden: only ready imagery is applied.
+      if (presentation.satellite.visible) return satelliteState === 'ready' && map.getLayer(MAPLIBRE_SATELLITE_LAYER_ID) != null
       if (presentation.basemap.visible) return vector.installedStyle === presentation.basemap.style
       return true
     },

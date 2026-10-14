@@ -4,7 +4,7 @@ import { t } from '../../i18n'
 import { currentPlantDisplay } from '../../app/plant-display/state'
 import { phoneLayout } from '../../app/shell/phone-layout'
 import { useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { leftChromeCrowdsMap, visibleMapFrame } from '../../app/shell/visible-map-area'
+import { bottomChromeCoverOver, leftChromeCrowdsMap, visibleMapFrame } from '../../app/shell/visible-map-area'
 import { useMapOccluder } from '../shared/useMapChrome'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import styles from './DisplayLegend.module.css'
@@ -15,8 +15,10 @@ import styles from './DisplayLegend.module.css'
  * inspection lens does: framing, the chips and the map notice keep right of it (canopi-f47t.60: the notice stood under
  * it beside the open dock). With less (a window beside the open dock) it stays off the seam, or the notice and chips
  * would squeeze into a tower of single words; it then stands above the bottom chrome the seam measures, the notice
- * included. Measures on every render, as the lens does: it reads only the frame's width and right edge, so its own
- * cover cannot feed back.
+ * included. It stays off the seam too where other bottom chrome reaches into its place (the Web edition's bottom sheet
+ * under 761 px), or it would cover the left edge unseen under that chrome. Measures on every render, as the lens does:
+ * it reads only the frame's width and right edge and the bottom chrome over its column, never its own box's height or
+ * place, so its own cover cannot feed back.
  */
 export function DisplayLegend() {
   const legend = useRef<HTMLDivElement>(null)
@@ -32,8 +34,15 @@ export function DisplayLegend() {
   const frame = visibleMapFrame.value
   const [covers, setCovers] = useState(false)
   useLayoutEffect(() => {
-    const edge = legend.current?.getBoundingClientRect().right
-    setCovers(edge !== undefined && !leftChromeCrowdsMap(frame, edge))
+    const element = legend.current
+    if (!element) {
+      setCovers(false)
+      return
+    }
+    const { left, right } = element.getBoundingClientRect()
+    // Covering, it stands `--chrome-bottom` above the map's bottom edge (DisplayLegend.module.css).
+    const place = parseFloat(getComputedStyle(element).getPropertyValue('--chrome-bottom')) || 0
+    setCovers(!leftChromeCrowdsMap(frame, right) && bottomChromeCoverOver(left, right) <= place)
   })
   useMapOccluder(legend, 'left', shown && covers)
   if (!shown) return null

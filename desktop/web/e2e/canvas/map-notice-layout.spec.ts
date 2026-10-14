@@ -9,7 +9,8 @@
 // but it never moves the camera's framing, so a Design opened while the notice shows opens in the same frame as one
 // opened with the basemap hidden, when no notice shows. On phones it is the context bar's top row, in the panel sheet
 // (phone-chrome.spec.ts). The pinned-names legend is chrome over the map's left edge on the seam, so the notice centres
-// beside it and never stands under it (canopi-f47t.60). Both engines; no baselines.
+// beside it and never stands under it (canopi-f47t.60); where the bottom sheet spans its place, the legend stands above
+// the sheet instead, off the seam. Both engines; no baselines.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
@@ -95,7 +96,7 @@ for (const { width, height, locale = 'en' } of LAYOUTS) {
 
 // Where the legend, beside the tool rail at the bottom, and the notice can meet: an open panel moves the visible map's
 // centre left, towards the legend (canopi-f47t.60: at 1280x800 with Layers open the notice stood under the legend).
-const LEGEND_LAYOUTS: ReadonlyArray<{ readonly width: number, readonly height: number }> = [
+const LEGEND_LAYOUTS: ReadonlyArray<{ readonly width: number, readonly height: number, readonly iconRail?: boolean }> = [
   { width: 1400, height: 900 },
   { width: 1280, height: 800 },
   { width: 1200, height: 800 },
@@ -103,26 +104,34 @@ const LEGEND_LAYOUTS: ReadonlyArray<{ readonly width: number, readonly height: n
   { width: 900, height: 700 },
   { width: 800, height: 700 },
   { width: 761, height: 700 },
+  // The Web edition's desktop layout under 761 px: an open panel is the bottom sheet, which spans the legend's place.
+  // Beside the icon rail the legend leaves the map room enough to cover its left edge, were the sheet not over it.
+  { width: 750, height: 700, iconRail: true },
+  { width: 700, height: 700, iconRail: true },
 ]
 
-for (const viewport of LEGEND_LAYOUTS) {
-  test.describe(`${viewport.width}x${viewport.height} pinned-names legend`, () => {
-    test.use({ viewport })
+for (const { width, height, iconRail = false } of LEGEND_LAYOUTS) {
+  test.describe(`${width}x${height}${iconRail ? ' icon rail' : ''} pinned-names legend`, () => {
+    test.use({ viewport: { width, height } })
 
     for (const panelOpen of [false, true]) {
       test(`${panelOpen ? 'with Layers open' : 'with no panel open'}, the notice stands clear of the legend, never a tower of single words, and Retry takes the click at its centre`, async ({ page }) => {
-        await openFixture(page, pinnedNamesFixture())
+        await openFixture(page, pinnedNamesFixture(), iconRail ? { settings: { tool_names_visible: false } } : {})
         const legend = page.locator('[data-pinned-plant-name-legend]')
         await expect(legend).toBeVisible()
+        const dock = page.locator('[data-key-region="dock"]')
         if (panelOpen) {
           await page.locator('[data-panel-rail] [data-panel="layers"]').click()
-          await expect(page.locator('[data-key-region="dock"]')).toBeVisible()
+          await expect(dock).toBeVisible()
         }
         const { notice, retry } = await expectNoticeWithRetry(page)
         // The legend's enter animation lifts it into place.
         await expect.poll(async () => await legend.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
         await nextFrames(page)
         await expectRetryHit(retry)
+        // The legend never stands under the open dock (the bottom sheet), where the notice and framing would keep clear
+        // of a legend no one sees.
+        if (panelOpen) expect(overlap(await boxOf(legend), await boxOf(dock)), 'the legend clears the dock').toBe(false)
         const noticeBox = await boxOf(notice)
         expect(overlap(noticeBox, await boxOf(legend)), 'the notice clears the legend').toBe(false)
         const atWidest = noticeBox.width >= NOTICE_MAX_WIDTH_PX - 0.5

@@ -164,6 +164,37 @@ export function leftChromeCrowdsMap(frame: VisibleMapFrame, leftChromeEdgePx: nu
 }
 
 /**
+ * Pure: how far chrome on the bottom edge whose box spans part of the column from `left` to `right` covers the map
+ * there (the narrow edition's bottom sheet over the pinned-names legend's place); 0 when none does.
+ */
+export function measureBottomCoverOver(
+  map: DOMRect,
+  occluders: Iterable<MapOccluderBox>,
+  left: number,
+  right: number,
+): number {
+  const column = [...occluders].filter(({ rect }) => rect.left < right && rect.right > left)
+  return measureVisibleMapFrame(map, column.filter(({ rect, side }) =>
+    rect.width > 0 && rect.height > 0 && (side ?? inferSide(map, rect)) === 'bottom')).bottom
+}
+
+/**
+ * How far the registered framing chrome on the bottom edge covers the column from `left` to `right` (see
+ * `measureBottomCoverOver`); 0 without a map area. Status chrome (`frames: false`) is left out, as it places itself
+ * from the framing frame, and so is chrome on the other edges: left chrome placed from this reading (the pinned-names
+ * legend) never measures its own registration.
+ */
+export function bottomChromeCoverOver(left: number, right: number): number {
+  if (!area) return 0
+  return measureBottomCoverOver(
+    area.getBoundingClientRect(),
+    [...occluders].filter(([, { frames }]) => frames).map(([element, { side }]) => ({ rect: element.getBoundingClientRect(), side })),
+    left,
+    right,
+  )
+}
+
+/**
  * Pure: the room a page scrolling under the chrome keeps at each edge. As `measureVisibleMapFrame`, except that chrome
  * whose top stands in the map's lower half covers the bottom edge: the page's end scrolls above it, so it takes no
  * width from every row.
