@@ -146,18 +146,19 @@ describe('plant presentation service', () => {
     ])
 
     const canopyPresentation = buildPlantPresentationEntries([canopyPlant], {
-      pixelsPerMetre: 16,
+      pixelsPerMetre: 4,
       speciesCache,
     }, new Set())[0]!
     const fallbackPresentation = buildPlantPresentationEntries([fallbackPlant], {
-      pixelsPerMetre: 16,
+      pixelsPerMetre: 4,
       speciesCache,
     }, new Set())[0]!
 
-    expect(canopyPresentation.radiusScreenPx).toBeCloseTo(14, 2)
-    expect(canopyPresentation.radiusWorld).toBeCloseTo(14 / 16, 2)
-    expect(fallbackPresentation.radiusScreenPx).toBeCloseTo(14, 2)
-    expect(fallbackPresentation.radiusWorld).toBeCloseTo(14 / 16, 2)
+    // Under the 14 px cap, so a 4 m canopy (16 px across at 4 px/m, 8 px radius) would show.
+    expect(canopyPresentation.radiusScreenPx).toBeCloseTo(6.72, 2)
+    expect(canopyPresentation.radiusWorld).toBeCloseTo(6.72 / 4, 2)
+    expect(fallbackPresentation.radiusScreenPx).toBeCloseTo(6.72, 2)
+    expect(fallbackPresentation.radiusWorld).toBeCloseTo(6.72 / 4, 2)
     expect(fallbackPresentation.symbol).toBe('conifer')
   })
 

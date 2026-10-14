@@ -44,8 +44,8 @@ A modal (Edit › Rotate…, the menu, Ctrl Alt R), "Rotate selection": Angle in
 
 ## Symbol and colour
 
-- A map symbol grows with zoom to 42% of the gap to its nearest plant (4 m if alone), 2–14 px in radius so names and notes keep room; from 16 px across it shows its detailed artwork. Display › Symbol size scales it.
-- Plant color ▸ and Plant symbol ▸ open popovers beside the menu (Esc returns focus to the map). Symbols: 70 px tiles in four labelled groups as one radio group, 5 columns. Colours: named swatches plus Custom color. Footer: "Apply to N selected" (secondary) and "Set for all <species>" (primary). Choices preview until applied.
+- A map symbol grows with zoom to 42% of the gap to its nearest plant (4 m if alone), 2–14 px in radius; from 16 px across it shows its detailed artwork. Display › Symbol size scales it.
+- Plant color ▸ and Plant symbol ▸ open popovers beside the menu (Esc returns focus to the map). Symbols: 70 px tiles in four labelled groups as one radio group, 5 columns. Colours: a radio group of named swatches plus Custom color. Footer: "Apply to N selected" (secondary) and "Set for all <species>" (primary). Choices preview until applied.
 
 ## Inspection lens
 
