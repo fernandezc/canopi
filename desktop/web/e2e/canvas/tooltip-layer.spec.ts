@@ -102,6 +102,20 @@ function buttons(page: Page, layout: Layout): Array<[string, Locator]> {
   ]
 }
 
+/** Rests the pointer on the plant near `plant` until its hover card shows (the engines' framing may differ by a pixel or two). */
+async function showHoverCard(page: Page, plant: { readonly x: number, readonly y: number }): Promise<void> {
+  const showing = () => page.evaluate(() => document.querySelector<HTMLElement>('[data-tooltip-layer] [data-hover-tooltip]')?.style.display === 'block')
+  await page.mouse.move(plant.x - 30, plant.y - 30)
+  for (const radius of [0, 4, 8, 12, 16]) {
+    for (const dx of [-radius, 0, radius]) {
+      for (const dy of [-radius, 0, radius]) {
+        await page.mouse.move(plant.x + dx, plant.y + dy, { steps: 2 })
+        if (await showing()) return
+      }
+    }
+  }
+}
+
 /** The top bar's shown buttons that carry a tooltip (the menu bar's named menus carry none). */
 function topBarIconButtons(page: Page): Locator {
   return page.locator('[data-workspace-title-bar] button:has([data-tooltip-anchor])').filter({ visible: true })
@@ -175,19 +189,42 @@ for (const layout of LAYOUTS) {
       // At 1440x900 the open dock is beside the plant, where its card opens.
       if (layout.width >= 1440) await page.locator('[data-panel-rail] [data-panel="layers"]').click()
       const card = page.locator('[data-tooltip-layer] [data-hover-tooltip]')
-      // The plant's dot, near its place at the opening camera (the engines' framing may differ by a pixel or two).
-      const showing = () => page.evaluate(() => document.querySelector<HTMLElement>('[data-tooltip-layer] [data-hover-tooltip]')?.style.display === 'block')
-      await page.mouse.move(layout.plant.x - 30, layout.plant.y - 30)
-      search: for (const radius of [0, 4, 8, 12, 16]) {
-        for (const dx of [-radius, 0, radius]) {
-          for (const dy of [-radius, 0, radius]) {
-            await page.mouse.move(layout.plant.x + dx, layout.plant.y + dy, { steps: 2 })
-            if (await showing()) break search
-          }
-        }
-      }
+      await showHoverCard(page, layout.plant)
       await expect(card).toHaveText(/\p{L}/u)
       await expectWholeOnTop(card, 'the hover card')
     })
+
+    if (layout.name === 'desktop') {
+      test('the canvas hover card gives way to a menu and to a dialog opened while it shows', async ({ page }) => {
+        await openFixture(page, FIXTURE)
+        const card = page.locator('[data-tooltip-layer] [data-hover-tooltip]')
+        await showHoverCard(page, layout.plant)
+        await expect(card).toBeVisible()
+
+        // A right-click where the pointer rests opens the plant's menu at the pointer, where the card was.
+        await page.mouse.down({ button: 'right' })
+        await page.mouse.up({ button: 'right' })
+        await expect(page.locator('[role="menu"]')).toBeVisible()
+        await expect(card, 'no card over the menu').toBeHidden()
+        await page.keyboard.press('Escape')
+        await expect(page.locator('[role="menu"]')).toHaveCount(0)
+
+        // A shortcut opens a dialog while the pointer rests on the plant: the Desktop command palette (Ctrl+Shift+P),
+        // which the Web build has not, so a modal with its role is added the way a dialog mounts.
+        await showHoverCard(page, layout.plant)
+        await expect(card).toBeVisible()
+        await page.evaluate(() => {
+          const dialog = document.createElement('div')
+          dialog.setAttribute('role', 'dialog')
+          dialog.setAttribute('aria-modal', 'true')
+          dialog.dataset.probeDialog = 'true'
+          dialog.textContent = 'Dialog'
+          document.body.appendChild(dialog)
+        })
+        await expect(card, 'no card over the dialog').toBeHidden()
+        await page.evaluate(() => document.querySelector('[data-probe-dialog]')?.remove())
+        await expect(card, 'the card is back once the dialog closes, the pointer still on the plant').toBeVisible()
+      })
+    }
   })
 }
