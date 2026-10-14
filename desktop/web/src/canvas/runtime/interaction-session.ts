@@ -17,6 +17,7 @@ import { readPlantStampSource, clearPlantStampSource, selectPlantStampSource } f
 import {
   clearSavedObjectStampDragSource,
   clearSavedObjectStampSource,
+  readSavedObjectStampDragName,
   readSavedObjectStampSource,
   selectSavedObjectStampSource,
 } from '../saved-object-stamp-source'
@@ -647,8 +648,8 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
 
   /**
    * A plant or saved stamp dropped on the overview (ToolHostDeps.overviewDrop) places nothing: the Design fits as a tool
-   * picked in overview does (about the view centre when it is empty), the plant or stamp stays picked and its stamp tool
-   * arms, and the map takes focus on the next frame as after a placed drop (canopi-n2cg).
+   * picked in overview does (about the view centre when it is empty), the plant or stamp stays picked (a stamp with the
+   * name its Favorites drag holds, as Place gives it) and its stamp tool arms, and the map takes focus on the next frame as after a placed drop (canopi-n2cg).
    */
   private _overviewDropped(payload: OverviewDropPayload): void {
     if (this._disposed) return
@@ -657,7 +658,7 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
       selectPlantStampSource(payload.species)
       this._switchTool('plant-stamp')
     } else {
-      selectSavedObjectStampSource(payload.stamp, null)
+      selectSavedObjectStampSource(payload.stamp, readSavedObjectStampDragName())
       this._switchTool('saved-object-stamp')
     }
     this._dropped(payload.kind)

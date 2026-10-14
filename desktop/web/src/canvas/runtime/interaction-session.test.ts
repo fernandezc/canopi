@@ -23,6 +23,7 @@ import {
 import {
   clearSavedObjectStampSource,
   readSavedObjectStampDragPreviewSource,
+  readSavedObjectStampName,
   readSavedObjectStampSource,
   selectSavedObjectStampSource,
   writeSavedObjectStampDragData,
@@ -364,6 +365,7 @@ describe('the interaction session', () => {
     }))
     expect(returnToDesign).toHaveBeenCalledTimes(2)
     expect(readSavedObjectStampSource()).not.toBeNull()
+    expect(readSavedObjectStampName(), 'the tool card names the dropped stamp, as when it is picked with Place').toBe('Bed')
     expect(session.tool).toBe('saved-object-stamp')
     expect(store.persisted.zones).toHaveLength(0)
   })

@@ -24,6 +24,7 @@ type ReadableDragData = Pick<DataTransfer, 'getData'> & DragDataTypes
 const selectedSavedObjectStampSource = signal<SavedObjectStampPayload | null>(null)
 const selectedSavedObjectStampName = signal<string | null>(null)
 const activeSavedObjectStampDragSource = signal<SavedObjectStampPayload | null>(null)
+const activeSavedObjectStampDragName = signal<string | null>(null)
 
 export function readSavedObjectStampSource(): SavedObjectStampPayload | null {
   return selectedSavedObjectStampSource.value
@@ -62,6 +63,7 @@ export function writeSavedObjectStampDragData(
   dataTransfer.setData(LEGACY_TEXT_MIME, serialized)
   dataTransfer.effectAllowed = 'copy'
   activeSavedObjectStampDragSource.value = payload
+  activeSavedObjectStampDragName.value = stamp.name
   return payload
 }
 
@@ -105,8 +107,15 @@ export function readSavedObjectStampDropSource(event: DragEvent): SavedObjectSta
   return readSavedObjectStampDragData(event.dataTransfer)
 }
 
+/** The name of the saved stamp being dragged from Favorites (the drag data carries only its payload), for the tool card
+ *  when a drop picks it rather than placing it. */
+export function readSavedObjectStampDragName(): string | null {
+  return activeSavedObjectStampDragSource.value ? activeSavedObjectStampDragName.value : null
+}
+
 export function clearSavedObjectStampDragSource(): void {
   activeSavedObjectStampDragSource.value = null
+  activeSavedObjectStampDragName.value = null
 }
 
 function hasDragDataType(dataTransfer: DragDataTypes, type: string): boolean {
