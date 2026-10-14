@@ -10,7 +10,7 @@ let disposeThemeEffect: (() => void) | null = null;
 
 function readCachedTheme(): "light" | "dark" | null {
   try {
-    const cached = localStorage.getItem("canopi-theme");
+    const cached = localStorage.getItem("canopi:first-paint-theme");
     return cached === "light" || cached === "dark" ? cached : null;
   } catch {
     return null;
@@ -19,7 +19,7 @@ function readCachedTheme(): "light" | "dark" | null {
 
 function writeCachedTheme(resolved: "light" | "dark"): void {
   try {
-    localStorage.setItem("canopi-theme", resolved);
+    localStorage.setItem("canopi:first-paint-theme", resolved);
   } catch {
     // Theme cache is optional; the active settings adapter remains authoritative.
   }

@@ -12,7 +12,7 @@ describe("settings bootstrap theme lifecycle", () => {
   });
 
   it("returns a disposer that stops theme synchronization", async () => {
-    localStorage.setItem("canopi-theme", "dark");
+    localStorage.setItem("canopi:first-paint-theme", "dark");
     const { theme } = await import("../app/settings/state");
     const { initTheme } = await import("../utils/theme");
 
@@ -43,7 +43,7 @@ describe("settings bootstrap theme lifecycle", () => {
   });
 
   it("hydrates Browser settings and replaces the first-paint cache before render", async () => {
-    localStorage.setItem("canopi-theme", "light");
+    localStorage.setItem("canopi:first-paint-theme", "light");
     const { browserAppDataStore } = await import("../web/browser-app-data");
     browserAppDataStore.saveSettings({ locale: "fr", theme: "dark" });
     const { locale, theme } = await import("../app/settings/state");
@@ -54,6 +54,18 @@ describe("settings bootstrap theme lifecycle", () => {
     expect(locale.value).toBe("fr");
     expect(theme.value).toBe("dark");
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    expect(localStorage.getItem("canopi:first-paint-theme")).toBe("dark");
+  });
+  it("leaves the 1.x first-paint theme key unread and unchanged", async () => {
+    // Canopi 1.x cached its theme under "canopi-theme"; 2.0 starts fresh and never touches 1.x data (ADR 0021).
+    localStorage.setItem("canopi-theme", "dark");
+    const { theme } = await import("../app/settings/state");
+    const { initTheme } = await import("../utils/theme");
+
+    initTheme();
+    theme.value = "light";
+
+    expect(theme.value).toBe("light");
     expect(localStorage.getItem("canopi-theme")).toBe("dark");
   });
 });
