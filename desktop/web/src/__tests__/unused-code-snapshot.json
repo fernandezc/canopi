@@ -246,6 +246,7 @@
     "src/app/settings/projection.ts#resetSettingsProjectionForTests",
     "src/app/settings/projection.ts#snapshotSettingsProjection",
     "src/app/shell/phone-layout.ts#classifyPhoneLayout",
+    "src/app/shell/visible-map-area.ts#measureBottomCoverOver",
     "src/app/shell/visible-map-area.ts#measureBottomBandRoom",
     "src/app/shell/visible-map-area.ts#measureRailRoom",
     "src/app/shell/visible-map-area.ts#measureVisibleMapFrame",
