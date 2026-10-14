@@ -97,7 +97,7 @@ describe('Canvas Command Projection', () => {
     expect(run).toHaveBeenCalledWith({ type: 'select-tool', tool: 'ellipse' }, 'rail')
   })
 
-  it('keeps Select and Pan while overview disables every editing tool and mutating edit', () => {
+  it('keeps every tool enabled in overview, which disables only the mutating edits', () => {
     const run = vi.fn()
     const projection = createCanvasCommandProjection({
       state: state({ spatialEditingAvailable: false, selection: EVERYTHING }),
@@ -107,9 +107,9 @@ describe('Canvas Command Projection', () => {
     })
     const tools = projectedCanvasTools(projection)
 
-    expect(tools.filter((tool) => !tool.disabled).map((tool) => tool.tool)).toEqual(['select', 'hand'])
+    expect(tools.filter((tool) => tool.disabled)).toEqual([])
     tools.find((tool) => tool.tool === 'polygon')!.action('menu')
-    expect(run).not.toHaveBeenCalled()
+    expect(run).toHaveBeenCalledWith({ type: 'select-tool', tool: 'polygon' }, 'menu')
     const edits = Object.fromEntries(projection.editActions.map((edit) => [edit.id, edit.disabled]))
     expect(edits).toMatchObject({ copy: false, 'select-all': false, cut: true, paste: true, delete: true, group: true, lock: true })
     expect(projection.viewActions.every((view) => !view.disabled)).toBe(true)

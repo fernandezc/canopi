@@ -37,7 +37,7 @@ describe('CanvasOverview', () => {
     testView = null
   })
 
-  it('shows the Design as a named pin and offers one Return to Design action', async () => {
+  it('shows the Design as a named pin button and offers Return to Design, both fitting the Design', async () => {
     const returnToDesign = vi.fn()
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
       queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
@@ -48,14 +48,19 @@ describe('CanvasOverview', () => {
     const notice = container.querySelector('[data-overview-notice]')!
     expect(notice.getAttribute('role')).toBe('status')
     expect(notice.textContent).toContain('Zoom in to edit. Plants are hidden at this scale.')
-    const pin = container.querySelector<HTMLElement>('[data-overview-pin]')!
-    expect(pin.getAttribute('role')).toBe('img')
-    expect(pin.getAttribute('aria-label')).toMatch(/^Design: /)
-    expect(pin.style.left).toBe('200px')
-    const buttons = container.querySelectorAll('button')
-    expect([...buttons].map((button) => button.textContent)).toEqual(['Return to Design'])
-    ;(buttons[0] as HTMLButtonElement).click()
+    const returnButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Return to Design')!
+    returnButton.click()
     expect(returnToDesign).toHaveBeenCalledOnce()
+
+    // The pin is a button that fits the Design, named for it, with a tooltip saying so (canopi-n2cg).
+    const pin = container.querySelector<HTMLButtonElement>('[data-overview-pin]')!
+    expect(pin.tagName).toBe('BUTTON')
+    expect(pin.type).toBe('button')
+    expect(pin.getAttribute('aria-label')).toMatch(/^Go to Design: /)
+    expect(pin.querySelector('[role="tooltip"]')?.textContent).toBe('Fit the whole Design on screen')
+    expect(pin.style.left).toBe('200px')
+    pin.click()
+    expect(returnToDesign).toHaveBeenCalledTimes(2)
   })
 
   it('omits an offscreen marker while retaining the notice action', async () => {

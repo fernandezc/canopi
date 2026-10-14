@@ -2,12 +2,14 @@ import { designName } from '../../app/document-session/store'
 import { currentCanvasQuerySurface, currentCanvasViewportCommandSurface } from '../../canvas/session'
 import { t } from '../../i18n'
 import { visibleDesignName } from '../shared/DesignNameField'
+import { ButtonTooltip } from '../shared/ButtonTooltip'
 import { ControlIcon } from '../shared/ControlIcon'
 import styles from './CanvasOverview.module.css'
 
 /**
  * Overview (below 0.1 px/m): the Design shows as a named pin at its origin, where the view publishes it (none near an
- * edge). Its notice is a top chip (OverviewNotice, in CanvasChrome's top-centre slot).
+ * edge); the pin is a button that fits the Design, as Return to Design does (canopi-n2cg). Its notice is a top chip
+ * (OverviewNotice, in CanvasChrome's top-centre slot).
  */
 export function CanvasOverview() {
   const view = currentCanvasQuerySurface.value?.view
@@ -16,16 +18,18 @@ export function CanvasOverview() {
   if (!marker) return null
   const name = visibleDesignName(designName.value)
   return (
-    <div
+    <button
+      type="button"
       className={styles.pin}
       style={{ left: `${marker.x}px`, top: `${marker.y}px` }}
-      role="img"
       aria-label={t('canvas.overview.designPin', { name })}
+      onClick={() => currentCanvasViewportCommandSurface.value?.returnToDesign()}
       data-overview-pin
     >
       <span className={styles.pinDot} aria-hidden="true"><ControlIcon name="pin" /></span>
       <span className={styles.pinName} aria-hidden="true">{name}</span>
-    </div>
+      <ButtonTooltip label={t('canvas.overview.designPinHint')} side="bottom" />
+    </button>
   )
 }
 

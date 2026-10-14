@@ -51,6 +51,11 @@ export interface ViewReadSurface {
   captureView(): { readonly camera: ViewCamera; readonly screen: ViewScreen }
 }
 
+interface ReturnToDesignOptions {
+  /** Where the fallback (an empty or too-large Design) zooms in: the plane origin (default) or the view centre. */
+  readonly around?: 'origin' | 'view-centre'
+}
+
 /** What app code and components may command. Implemented by ViewNavigation; nothing else is exposed. */
 export interface ViewCommandSurface {
   zoomIn(): void
@@ -58,7 +63,9 @@ export interface ViewCommandSurface {
   zoomBy(factor: number): void                         // the scale menu and plant coverage
   zoomToFit(): void                                    // Fit to Design, Home
   zoomToSelection(): void                              // Shift+2
-  returnToDesign(): void                               // kept: "Back to my Design"
+  /** Return to Design, the Design pin, and a tool picked or a plant dropped in overview: the fit when it reaches site
+   *  scale, else a usable scale with the plane origin centred, or (`around: 'view-centre'`) about the view centre. */
+  returnToDesign(options?: ReturnToDesignOptions): void
   focusTemporaryBounds(bounds: SceneBounds, options: TemporaryBoundsFocusOptions): boolean          // kept: LiDAR's Fit to data; bookmarks the view before the first unreturned focus
   /** The plant finder's Zoom to them: a temporary focus's framing that sets no bookmark (false when nothing could be framed). */
   frameBounds(bounds: SceneBounds, options: TemporaryBoundsFocusOptions): boolean

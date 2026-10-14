@@ -124,7 +124,7 @@ vi.mock('../app/plant-browser', async () => ({
 
 vi.mock('../canvas/session', () => ({
   currentCanvasToolCommandSurface: mockCanvasSession.currentToolCommandSurface,
-  currentCanvasQuerySurface: { value: null },
+  currentCanvasQuerySurface: { value: null, peek: () => null },
   currentCanvasTool: { value: 'select' },
   currentCanvasKeyboardPort: () => null,
   setCurrentCanvasTool: (name: string) => mockCanvasSession.currentToolCommandSurface.value?.setTool(name),

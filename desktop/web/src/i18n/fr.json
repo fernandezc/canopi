@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "Zoomez pour modifier. Les plantes sont masquées à cette échelle.",
       "returnToDesign": "Revenir au Design",
-      "designPin": "Design : {{name}}"
+      "designPin": "Aller au Design : {{name}}",
+      "designPinHint": "Afficher tout le Design à l’écran"
     },
     "plantColor": {
       "label": "Couleur de plante",

@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "Ingrandisci per modificare. A questa scala le piante sono nascoste.",
       "returnToDesign": "Torna al progetto",
-      "designPin": "Progetto: {{name}}"
+      "designPin": "Vai al progetto: {{name}}",
+      "designPinHint": "Adatta l’intero progetto allo schermo"
     },
     "plantColor": {
       "label": "Colore della pianta",

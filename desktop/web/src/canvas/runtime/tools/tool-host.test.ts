@@ -2287,13 +2287,31 @@ describe('ToolHost', () => {
       h.drop('over', at, PEAR_OVER)
       expect(h.renderer.lastDraft()!.shapes.map((shape) => shape.kind)).toEqual(['quad', ...chips.map((shape) => shape.kind)])
 
-      // Entering overview clears it, and a dragover there answers none, quarantined, and shows nothing.
+      // Entering overview clears it, and a dragover there shows nothing.
       h.view.setViewport(OVERVIEW)
       expect(h.renderer.lastDraft()?.shapes.some((shape) => shape.kind === 'quad') ?? false).toBe(false)
-      expect(h.drop('over', at, PEAR_OVER)).toEqual({ quarantine: true, dropEffect: 'none' })
+      h.drop('over', at, PEAR_OVER)
       expect(h.renderer.lastDraft()?.shapes.some((shape) => shape.kind === 'quad') ?? false).toBe(false)
-      expect(h.drop('drop', at, PEAR_DROP)).toEqual({ quarantine: true })
+    })
+
+    it('in overview a plant or saved stamp drop is taken, places nothing and goes to the session (canopi-n2cg)', () => {
+      useStubTools(stubTool('rectangle'), stubTool('select'))
+      const h = harness({ tool: 'rectangle', viewport: OVERVIEW })
+      const at = { x: 83, y: 91 }
+
+      // Copy, so the browser fires the drop; no preview.
+      expect(h.drop('over', at, PEAR_OVER)).toEqual({ dropEffect: 'copy' })
+      expect(h.drop('over', at, GUILD_DRAG)).toEqual({ dropEffect: 'copy' })
+      expect(h.renderer.lastDraft()).toBeNull()
+      expect(h.drop('over', at, { kind: 'unknown' })).toEqual({ quarantine: true, dropEffect: 'none' })
+
+      expect(h.drop('drop', at, PEAR_DROP)).toEqual({})
+      expect(h.drop('drop', at, GUILD_DRAG)).toEqual({})
+      expect(h.drop('drop', at, { kind: 'unknown' })).toEqual({ quarantine: true })
+      expect(h.record.overviewDrops).toEqual([PEAR_DROP, GUILD_DRAG])
+      expect(h.record.drops).toEqual([])
       expect(h.store.persisted.plants).toHaveLength(0)
+      expect(h.store.persisted.zones).toHaveLength(0)
     })
 
   })

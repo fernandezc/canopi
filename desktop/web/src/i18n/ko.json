@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "편집하려면 확대하세요. 이 축척에서는 식물이 숨겨집니다.",
       "returnToDesign": "디자인으로 돌아가기",
-      "designPin": "디자인: {{name}}"
+      "designPin": "디자인으로 이동: {{name}}",
+      "designPinHint": "디자인 전체를 화면에 맞추기"
     },
     "plantColor": {
       "label": "식물 색상",

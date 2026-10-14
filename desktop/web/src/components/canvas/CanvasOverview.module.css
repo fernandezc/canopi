@@ -51,8 +51,16 @@
   border-radius: var(--radius-full);
   background: var(--color-glass);
   box-shadow: var(--shadow-float);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   transform: translate(calc(-1 * var(--control-size-md) / 2 - var(--space-1)), -50%);
-  pointer-events: none;
+  cursor: pointer;
+}
+
+.pin:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .pinDot {

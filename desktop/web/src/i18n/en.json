@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "Zoom in to edit. Plants are hidden at this scale.",
       "returnToDesign": "Return to Design",
-      "designPin": "Design: {{name}}"
+      "designPin": "Go to Design: {{name}}",
+      "designPinHint": "Fit the whole Design on screen"
     },
     "plantColor": {
       "label": "Plant color",

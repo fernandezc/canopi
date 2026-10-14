@@ -42,7 +42,6 @@ export interface ViewNavigationDeps {
 
 export interface ViewNavigation extends ViewCommandSurface {
   zoomToFit(): void   // keeps the bearing
-  returnToDesign(): void
   /** Oriented at the current bearing: the box's four corners are fitted, not the box on screen axes. */
   focusTemporaryBounds(bounds: SceneBounds, options: TemporaryBoundsFocusOptions): boolean
   returnFromTemporaryFocus(): boolean        // bookmark is a ViewCamera: re-origin cannot invalidate it
@@ -63,7 +62,7 @@ export interface ViewNavigation extends ViewCommandSurface {
 
 /** Zoom in and zoom out: the step about the screen centre. */
 const ZOOM_STEP_FACTOR = 1.1
-/** Return to Design's fallback frames this many metres across the shorter screen side, the plane origin centred. */
+/** Return to Design's fallback frames this many metres across the shorter screen side. */
 const RETURN_VIEW_METRES = 100
 const ROTATION_STEP_DEG = 15
 const NO_INSETS: ScreenInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 })
@@ -139,8 +138,9 @@ export function createViewNavigation(deps: ViewNavigationDeps): ViewNavigation {
       // Never empty here, so no empty-scene scale applies.
       place(fitScene(fitFrame(), { extentPoints: () => points, emptySceneScale: 0 }, bearing))
     },
-    returnToDesign() {
-      // The fit when it reaches site scale and moves the view, else the plane origin centred at a usable scale.
+    returnToDesign(options) {
+      // The fit when it reaches site scale and moves the view, else a usable scale: the plane origin centred, or the
+      // ground at the view centre kept there (picking a tool in overview).
       const bearing = driver().bearingTarget()
       const framing = fitFrame()
       const fitted = fitScene(framing, deps.readSceneExtent(), bearing)
@@ -149,8 +149,13 @@ export function createViewNavigation(deps: ViewNavigationDeps): ViewNavigation {
         return
       }
       const { width, height } = framing.screen
-      const scale = Math.min(framing.scaleBounds.max, Math.max(framing.scaleBounds.min, Math.min(width, height) / RETURN_VIEW_METRES))
-      place({ x: width / 2, y: height / 2, scale: Math.max(WORKSPACE_OVERVIEW_SCALE_THRESHOLD, scale), bearingDeg: bearing })
+      const clamped = Math.min(framing.scaleBounds.max, Math.max(framing.scaleBounds.min, Math.min(width, height) / RETURN_VIEW_METRES))
+      const scale = Math.max(WORKSPACE_OVERVIEW_SCALE_THRESHOLD, clamped)
+      if (options?.around === 'view-centre') {
+        zoomAroundPx(screenCentre(), scale / framing.current.scale)
+        return
+      }
+      place({ x: width / 2, y: height / 2, scale, bearingDeg: bearing })
     },
     focusTemporaryBounds(bounds, options) {
       const focused = boundsFraming(bounds, options)

@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "Zoom in om te bewerken. Op deze schaal zijn planten verborgen.",
       "returnToDesign": "Terug naar het ontwerp",
-      "designPin": "Ontwerp: {{name}}"
+      "designPin": "Naar het ontwerp: {{name}}",
+      "designPinHint": "Het hele ontwerp in beeld passen"
     },
     "plantColor": {
       "label": "Plantkleur",

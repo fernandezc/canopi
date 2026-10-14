@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "放大以编辑。此比例下植物已隐藏。",
       "returnToDesign": "返回设计",
-      "designPin": "设计：{{name}}"
+      "designPin": "前往设计：{{name}}",
+      "designPinHint": "将整个设计适配到屏幕"
     },
     "plantColor": {
       "label": "植物颜色",

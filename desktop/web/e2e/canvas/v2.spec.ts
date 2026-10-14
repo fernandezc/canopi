@@ -710,17 +710,19 @@ test('phase 2: in overview a left drag pans and selects nothing, and a still rig
     await expect(scaleChip(page), '− zooms out').not.toHaveText(scale ?? '')
   }
   await expect(hint, 'zoomed out to overview').toBeVisible()
-  const pin = page.getByRole('img', { name: /^Design: / })
+  const pin = page.getByRole('button', { name: /^Go to Design: / })
   const before = await pin.boundingBox()
   if (!before) throw new Error('the Design pin is not shown in overview')
-  await page.mouse.move(NEUTRAL.x, NEUTRAL.y)
+  // The pin is a button (canopi-n2cg), so the drag starts on empty map below it.
+  const grab = { x: before.x + before.width / 2, y: before.y + before.height + 120 }
+  await page.mouse.move(grab.x, grab.y)
   await page.mouse.down()
-  await page.mouse.move(NEUTRAL.x - 60, NEUTRAL.y + 40, { steps: 10 })
+  await page.mouse.move(grab.x - 60, grab.y + 40, { steps: 10 })
   await page.mouse.up()
   await expect.poll(async () => (await pin.boundingBox())?.x ?? Number.NaN, 'the left drag panned the map').toBeCloseTo(before.x - 60, 0)
   expect((await pin.boundingBox())!.y - before.y, 'the left drag panned the map down').toBeCloseTo(40, 0)
   await expect(selection(page), 'nothing is selectable in overview').toHaveCount(0)
-  await page.mouse.click(NEUTRAL.x, NEUTRAL.y, { button: 'right' })
+  await page.mouse.click(grab.x, grab.y, { button: 'right' })
   await expect(page.getByRole('menu'), 'a still right-click in overview opens no menu').toHaveCount(0)
 })
 

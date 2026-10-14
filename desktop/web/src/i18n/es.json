@@ -201,7 +201,8 @@
     "overview": {
       "zoomInToEdit": "Acerca la vista para editar. Las plantas se ocultan a esta escala.",
       "returnToDesign": "Volver al diseño",
-      "designPin": "Diseño: {{name}}"
+      "designPin": "Ir al diseño: {{name}}",
+      "designPinHint": "Ajustar todo el diseño a la pantalla"
     },
     "plantColor": {
       "label": "Color de planta",

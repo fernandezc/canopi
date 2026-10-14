@@ -13,11 +13,12 @@
 // navigation cursor, and passes on no draft or handles while a story is presented.
 
 import { effect, signal } from '@preact/signals'
-import { readPlantStampSource, clearPlantStampSource } from '../plant-stamp-source'
+import { readPlantStampSource, clearPlantStampSource, selectPlantStampSource } from '../plant-stamp-source'
 import {
   clearSavedObjectStampDragSource,
   clearSavedObjectStampSource,
   readSavedObjectStampSource,
+  selectSavedObjectStampSource,
 } from '../saved-object-stamp-source'
 import { currentCanvasTool, IDLE_CANVAS_TOOL_GUIDANCE, type CanvasToolGuidance } from '../session-state'
 import type {
@@ -39,7 +40,7 @@ import type { AdapterEffect, RawInput, RecogniserConfig, RecogniserState, Target
 import { initialRecogniserState, recognise } from './input/recognise'
 import { DEFAULT_THRESHOLDS } from './input/thresholds'
 import type { GestureOutcome, PointerWorld, ToolHost, ToolHostDeps } from './interaction-ports'
-import type { Modifiers, ToolId } from './interaction-types'
+import type { Modifiers, OverviewDropPayload, ToolId } from './interaction-types'
 import { createCanvasKeyboardPort } from './keyboard-port'
 import type { PlantPresentationContext } from './plant-presentation'
 import type { SceneRenderTarget } from './renderers/scene-types'
@@ -333,6 +334,7 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
         capturePress: (pointerId) => this._capturePress(pointerId),
         transientHistoryChanged: () => _deps.notifyTransientHistoryChange(),
         dropped: (kind) => this._dropped(kind),
+        overviewDrop: (payload) => this._overviewDropped(payload),
       }
       this._stopHearingMode = own(this._frames.onViewFrame('tools', (frame) => this._modeHeard(frame.mode)), (stop) => stop())
       this._toolHost = own(createToolHost(hostDeps), (host) => host.dispose())
@@ -641,6 +643,24 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
       this._dropFocusFrame = null
       this._focus.focusMap()
     })
+  }
+
+  /**
+   * A plant or saved stamp dropped on the overview (ToolHostDeps.overviewDrop) places nothing: the Design fits as a tool
+   * picked in overview does (about the view centre when it is empty), the plant or stamp stays picked and its stamp tool
+   * arms, and the map takes focus on the next frame as after a placed drop (canopi-n2cg).
+   */
+  private _overviewDropped(payload: OverviewDropPayload): void {
+    if (this._disposed) return
+    this._deps.viewNavigation.returnToDesign({ around: 'view-centre' })
+    if (payload.kind === 'species') {
+      selectPlantStampSource(payload.species)
+      this._switchTool('plant-stamp')
+    } else {
+      selectSavedObjectStampSource(payload.stamp, null)
+      this._switchTool('saved-object-stamp')
+    }
+    this._dropped(payload.kind)
   }
 
   private _cancelDropFocus(): void {

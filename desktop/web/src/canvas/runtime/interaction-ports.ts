@@ -6,7 +6,7 @@ import type { CanvasContextMenuPointAction, CanvasFocusPort } from './app-adapte
 import type { Gesture, MenuSource } from './input/gestures'
 import type { InputPlatform } from './input/platform'
 import type { AdapterEffect, RawInput, TargetClass } from './input/raw-input'
-import type { PointerKind, ToolHandleId, ToolId } from './interaction-types'
+import type { OverviewDropPayload, PointerKind, ToolHandleId, ToolId } from './interaction-types'
 import type { PlantPresentationContext } from './plant-presentation'
 import type { SpeciesCacheEntry } from './presentation-data'
 import type { SceneRenderTarget } from './renderers/scene-types'
@@ -167,6 +167,11 @@ export interface ToolHostDeps {
    * too) and focuses the map again on the next animation frame, after the browser's drag end.
    */
   readonly dropped: (kind: 'species' | 'saved-stamp') => void
+  /**
+   * A plant or saved stamp dropped in overview, which places nothing: the session fits the Design, keeps the plant or
+   * stamp picked and arms its stamp tool (canopi-n2cg).
+   */
+  readonly overviewDrop: (payload: OverviewDropPayload) => void
 }
 
 /** What createToolScene reads (tools/tool-host.ts re-exports the factory). Hit tests need the scale and the plant presentation
