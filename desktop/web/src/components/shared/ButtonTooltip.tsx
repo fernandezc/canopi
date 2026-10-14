@@ -21,6 +21,11 @@ interface ButtonTooltipProps {
  * The tooltip of the button it is placed in. It is drawn in the window-level tooltip layer (utils/tooltip-layer.ts),
  * so no frame covers or clips it, while a mouse or pen hovers the button or keyboard focus is on it, and whenever
  * `shown`. A finger's hover never shows it (a tap leaves the button hovered); a press hides it.
+ *
+ * Assistive tech hears what the tooltip adds to the button's name, shown or not: the button's aria-describedby names a
+ * hidden node, kept in the layer so the button's own text is unchanged, that holds each of the label, shortcut and
+ * description its name (or aria-keyshortcuts, or another description) does not already say. A tooltip inside an
+ * aria-hidden wrapper describes nothing.
  */
 export function ButtonTooltip({
   label,
@@ -32,6 +37,8 @@ export function ButtonTooltip({
   const id = useId()
   const marker = useRef<HTMLSpanElement>(null)
   const bubble = useRef<HTMLSpanElement>(null)
+  const spoken = useRef<HTMLSpanElement>(null)
+  const describedId = `${id}-described`
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const open = shown || hovered || focused
@@ -58,6 +65,35 @@ export function ButtonTooltip({
       button.removeEventListener('pointerdown', press)
     }
   }, [])
+
+  // After every render, as the button's own attributes may have changed with it.
+  useLayoutEffect(() => {
+    const button = marker.current?.closest('button')
+    const node = spoken.current
+    if (!button || !node) return
+    const others = (button.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((token) => token && token !== describedId)
+    const said = [
+      button.getAttribute('aria-label') ?? spokenText(button),
+      ...others.map((other) => document.getElementById(other)?.textContent ?? ''),
+    ].join(' ').toLowerCase()
+    const parts = marker.current?.closest('[aria-hidden="true"]') ? [] : [
+      label,
+      button.hasAttribute('aria-keyshortcuts') ? undefined : shortcut,
+      description,
+    ].filter((part): part is string => !!part && !said.includes(part.toLowerCase()))
+    node.textContent = parts.join(', ')
+    const tokens = parts.length > 0 ? [...others, describedId] : others
+    if (tokens.length > 0) button.setAttribute('aria-describedby', tokens.join(' '))
+    else button.removeAttribute('aria-describedby')
+  })
+  useEffect(() => {
+    const button = marker.current?.closest('button')
+    return () => {
+      const rest = (button?.getAttribute('aria-describedby') ?? '').split(/\s+/).filter((token) => token && token !== describedId)
+      if (rest.length > 0) button?.setAttribute('aria-describedby', rest.join(' '))
+      else button?.removeAttribute('aria-describedby')
+    }
+  }, [describedId])
 
   // A scroll moves the button from under the pointer, and a window left behind takes no hover.
   useEffect(() => {
@@ -105,6 +141,7 @@ export function ButtonTooltip({
   return (
     <>
       <span ref={marker} hidden data-tooltip-anchor={id} />
+      {createPortal(<span ref={spoken} id={describedId} hidden />, tooltipLayer())}
       {open && createPortal(
         <span ref={bubble} data-tooltip-for={id} className={`${styles.tooltip}${hovered || focused ? '' : ` ${styles.tooltipShown}`}`} role="tooltip">
           <span className={styles.tooltipName}>{label}</span>
@@ -120,6 +157,16 @@ export function ButtonTooltip({
       )}
     </>
   )
+}
+
+/** The text a button is named by when it has no aria-label: its text outside aria-hidden or hidden elements. */
+function spokenText(button: HTMLElement): string {
+  const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT)
+  let text = ''
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.parentElement?.closest('[aria-hidden="true"], [hidden]')) text += ` ${node.textContent ?? ''}`
+  }
+  return text
 }
 
 /** The engine's keyboard focus; WebKit misses focus a script moves on a key, so callers add `lastInputWasKey`. */

@@ -50,7 +50,10 @@ function mount(bearingDeg: number): void {
 
 const compass = () => container.querySelector<HTMLButtonElement>('button[data-compass]')!
 const bearing = () => view.view().camera.bearingDeg
-const description = () => document.getElementById(compass().getAttribute('aria-describedby') ?? '')?.textContent
+/** The bearing the compass describes itself by: the first node its aria-describedby names (its tooltip's hint follows). */
+const description = () => document.getElementById(compass().getAttribute('aria-describedby')?.split(' ')[0] ?? '')?.textContent
+const describedBy = () => (compass().getAttribute('aria-describedby') ?? '').split(' ')
+  .map((id) => document.getElementById(id)?.textContent).join(' ')
 
 /** The point at `deg` around the compass centre on screen (0 = right, 90 = down: clockwise as the screen turns). */
 function around(deg: number, radius = 12): { x: number; y: number } {
@@ -106,6 +109,7 @@ describe('Compass', () => {
     expect(compass().hasAttribute('title')).toBe(false)
     expect(compass().getAttribute('aria-keyshortcuts')?.split(' ')).toEqual(expect.arrayContaining(['N', 'Shift+N']))
     expect(description()).toBe('North is up')
+    expect(describedBy()).toBe('North is up Click to reset north. Drag the ring to turn the view; hold Shift for 15° steps.')
     expect(compass().dataset.turned).toBeUndefined()
     // The tooltip names the command with its key and the hint as its second line.
     const tooltip = hoveredTooltip(compass()!)!
