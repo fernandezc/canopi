@@ -89,6 +89,8 @@ export interface SpeciesCatalogFilterStripView {
 export interface SpeciesCatalogFavoritesView {
   readonly items: readonly SpeciesListItem[]
   readonly loading: boolean
+  /** The last load failed: the panel says the catalog couldn't load, with Retry (`retryFavorites`), not "none yet". */
+  readonly failed: boolean
   readonly revision: number
 }
 
@@ -101,6 +103,8 @@ export interface SpeciesCatalogDynamicOptionsView {
 export interface SpeciesCatalogSidebarView {
   readonly favoriteNames: readonly string[]
   readonly recentlyViewed: readonly SpeciesListItem[]
+  /** The last Recently viewed load failed, as `SpeciesCatalogFavoritesView.failed`. */
+  readonly recentlyViewedFailed: boolean
 }
 
 export interface SpeciesCatalogDetailImage {
@@ -147,6 +151,8 @@ export interface SpeciesCatalogWorkbench {
   dispose(): void
   reloadSidebarLists(): Promise<void>
   loadFavorites(): Promise<void>
+  /** Loads Favorites and Recently viewed again, after a failure (their Retry). */
+  retryFavorites(): void
   loadFilterOptions(): Promise<void>
   setSearchText(text: string): void
   clearSearchText(): void
@@ -290,6 +296,8 @@ export function createSpeciesCatalogWorkbench({
   const favoriteNames = signal<string[]>([])
   const favoriteItems = signal<SpeciesListItem[]>([])
   const favoriteItemsLoading = signal(false)
+  const favoriteItemsFailed = signal(false)
+  const recentlyViewedFailed = signal(false)
   const favoriteItemsRevision = signal(0)
   const recentlyViewed = signal<SpeciesListItem[]>([])
   const projectedResults = computed<PlantSearchResultState>(() => {
@@ -331,6 +339,7 @@ export function createSpeciesCatalogWorkbench({
   const favorites = computed<SpeciesCatalogFavoritesView>(() => ({
     items: favoriteItems.value,
     loading: favoriteItemsLoading.value,
+    failed: favoriteItemsFailed.value,
     revision: favoriteItemsRevision.value,
   }))
 
@@ -343,6 +352,7 @@ export function createSpeciesCatalogWorkbench({
   const sidebar = computed<SpeciesCatalogSidebarView>(() => ({
     favoriteNames: favoriteNames.value,
     recentlyViewed: recentlyViewed.value,
+    recentlyViewedFailed: recentlyViewedFailed.value,
   }))
 
   let favoriteItemsGeneration = 0
@@ -494,9 +504,13 @@ export function createSpeciesCatalogWorkbench({
           favoriteNames.value = favorites.map((item) => item.canonical_name)
         }
         recentlyViewed.value = recent.map(projectFavoriteState)
+        recentlyViewedFailed.value = false
       })
-    } catch {
-      // Non-fatal: sidebar affordances stay stale rather than blocking search.
+    } catch (error) {
+      // Search goes on; Recently viewed says the catalog couldn't load.
+      if (disposed || generation !== sidebarListsGeneration || currentLocale !== localeSignal.value) return
+      recordCatalogFailure(error)
+      recentlyViewedFailed.value = true
     }
   }
 
@@ -556,9 +570,13 @@ export function createSpeciesCatalogWorkbench({
         if (favoriteGeneration === favoriteNamesGeneration) {
           favoriteNames.value = items.map((item) => item.canonical_name)
         }
+        favoriteItemsFailed.value = false
       })
-    } catch {
-      // Non-fatal: the favorites panel keeps its previous content.
+    } catch (error) {
+      // The panel says the catalog couldn't load, with Retry; the raw error goes to the diagnostics only.
+      if (disposed || generation !== favoriteItemsGeneration || requestedLocale !== localeSignal.value) return
+      recordCatalogFailure(error)
+      favoriteItemsFailed.value = true
     }
   }
 
@@ -728,6 +746,12 @@ export function createSpeciesCatalogWorkbench({
       if (disposed) return
       plantSearchSession.retry()
       void loadFilterOptions()
+      void loadFavoriteItems()
+      void loadSidebarLists(false)
+    },
+
+    retryFavorites() {
+      if (disposed) return
       void loadFavoriteItems()
       void loadSidebarLists(false)
     },

@@ -62,4 +62,36 @@ describe('ButtonTooltip', () => {
     nextFrame()
     expect(frames).toEqual([])
   })
+
+  /** What assistive tech reads as the button's description: the text of the nodes its aria-describedby names. */
+  const descriptionOf = (button: Element) => (button.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean)
+    .map((id) => document.getElementById(id)?.textContent?.trim() ?? '').filter(Boolean).join(' ')
+
+  it('describes its button with what the tooltip adds to the name, shown or not', () => {
+    // A disabled button's reason: named by its text, described by the reason.
+    act(() => { render(<button type="button" aria-disabled>Analyze<ButtonTooltip label="Import data first" side="bottom" /></button>, root) })
+    const analyze = root.querySelector('button')!
+    expect(tooltipOf(analyze)).toBeNull()
+    expect(analyze.textContent).toBe('Analyze')
+    expect(descriptionOf(analyze)).toBe('Import data first')
+    // Data arrives: the reason goes, and so does the description.
+    act(() => { render(<button type="button">Analyze</button>, root) })
+    expect(analyze.hasAttribute('aria-describedby')).toBe(false)
+
+    // A tool rail button names its tool and shortcut: the tooltip adds nothing, so it describes nothing.
+    act(() => { render(<button type="button" aria-label="Select (V)" aria-keyshortcuts="v"><ButtonTooltip label="Select" shortcut="V" /></button>, root) })
+    expect(root.querySelector('button')!.hasAttribute('aria-describedby')).toBe(false)
+
+    // A hint beyond the name is described, beside the button's own description.
+    act(() => {
+      render(<><button type="button" aria-label="Reset north" aria-keyshortcuts="Shift+N" aria-describedby="bearing">
+        <ButtonTooltip label="Reset north" shortcut="Shift+N" description="Drag to turn the map" />
+      </button><span id="bearing">North up</span></>, root)
+    })
+    expect(descriptionOf(root.querySelector('button')!)).toBe('North up Drag to turn the map')
+
+    // A tooltip its caller hid from assistive tech stays hidden.
+    act(() => { render(<button type="button">Site data<span aria-hidden="true"><ButtonTooltip label="Site data" shortcut="Ctrl+L" /></span></button>, root) })
+    expect(root.querySelector('button')!.hasAttribute('aria-describedby')).toBe(false)
+  })
 })

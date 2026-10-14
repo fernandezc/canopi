@@ -33,7 +33,7 @@ describe('Web plant catalog load failure', () => {
   let diagnostics: typeof import('../app/problem-report/diagnostics')
   let consoleError: ReturnType<typeof vi.spyOn>
 
-  async function mountPanel(answer: Answer): Promise<ReturnType<typeof failingFetch>> {
+  async function mountPanel(answer: Answer, mode: 'catalog' | 'favorites' = 'catalog'): Promise<ReturnType<typeof failingFetch>> {
     const fetch = failingFetch(answer)
     vi.stubGlobal('fetch', fetch)
     vi.resetModules()
@@ -51,7 +51,7 @@ describe('Web plant catalog load failure', () => {
       speciesCatalogWorkbench: runtime.workbench,
     }))
     const { WebSpeciesCatalogPanel } = await import('../web/WebSpeciesCatalogPanel')
-    await act(async () => { render(<WebSpeciesCatalogPanel mode="catalog" />, container) })
+    await act(async () => { render(<WebSpeciesCatalogPanel mode={mode} />, container) })
     return fetch
   }
 
@@ -101,6 +101,32 @@ describe('Web plant catalog load failure', () => {
       expect((await alertShown()).textContent).toContain(LOAD_FAILED)
     })
   }
+
+  it('Favorites and Recently viewed show the same message and Retry, never an empty list, when the catalog cannot load', async () => {
+    const fetch = await mountPanel('network', 'favorites')
+    await vi.waitFor(async () => {
+      await act(async () => { await Promise.resolve() })
+      expect(container.querySelectorAll('[role="alert"]')).toHaveLength(2)
+    })
+    const alerts = Array.from(container.querySelectorAll<HTMLElement>('[role="alert"]'))
+    for (const alert of alerts) {
+      expect(alert.textContent).toContain(LOAD_FAILED)
+      expect(alert.textContent).not.toMatch(RAW.network)
+    }
+    expect(container.textContent).not.toContain('No favorites yet')
+    expect(container.textContent).not.toContain('No recently viewed plants yet')
+    expect(diagnostics.recentFrontendDiagnostics().some((entry) => entry.source === 'plant-catalog' && RAW.network.test(entry.message))).toBe(true)
+    expect(consoleError).not.toHaveBeenCalled()
+
+    const before = fetch.mock.calls.length
+    const retry = Array.from(alerts[0]!.querySelectorAll('button')).find((button) => button.textContent === 'Retry')!
+    await act(async () => { retry.click() })
+    await vi.waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(before))
+    await vi.waitFor(async () => {
+      await act(async () => { await Promise.resolve() })
+      expect(container.querySelectorAll('[role="alert"]')).toHaveLength(2)
+    })
+  })
 
   it('the species panel shows the same message and Retry when a species cannot load', async () => {
     const fetch = await mountPanel('network')
