@@ -10,6 +10,7 @@ import type { Page } from '@playwright/test'
 import { designMap } from '../support/canvas'
 import { mapHost, nextFrames, openFixture } from '../support/layout'
 import { expect, test } from '../support/offline'
+import { tooltipOf } from '../support/tooltip'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 /** Empty map, away from every object and chrome of the fixture's opening camera. */
@@ -102,7 +103,7 @@ test('the Design pin is a button that fits the Design', async ({ page }) => {
   await openOverview(page)
   await expect(designPin(page)).toBeVisible()
   await designPin(page).hover()
-  await expect(designPin(page).getByRole('tooltip')).toHaveText('Fit the whole Design on screen')
+  await expect(await tooltipOf(designPin(page))).toHaveText('Fit the whole Design on screen')
   await designPin(page).click()
   await expectFitted(page, 'the pin')
   await expect(tool(page, 'Select'), 'the pin arms no tool').toHaveAttribute('aria-pressed', 'true')
