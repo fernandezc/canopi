@@ -1,6 +1,6 @@
 # Story export: implementation plan
 
-Status: agreed (2026-09-26); not started as of 2026-09-28. Bead canopi-5ys2.3.4 (P3). Saved views, the Stories panel, presenting and the snapshot capture shipped in v2.0.0 (canopi-5ys2.3.1, .2, .3, .5, .6, .8); their rules are in the [design document](../guides/design-document.md) and [map workspace](../guides/map-workspace.md) guides and the [dock panels](../../.interface-design/patterns/dock-panels.md#stories) pattern.
+Status: agreed; 2.1 (canopi-5ys2.3.4). Saved views, the Stories panel, presenting and the snapshot capture shipped in 2.0; their rules are in the [design document](../guides/design-document.md) and [map workspace](../guides/map-workspace.md) guides and the [dock panels](../../.interface-design/patterns/dock-panels.md#stories) pattern.
 Mockups: design canvas boards StoryAuthor, StoryPresent, StoryPhone.
 
 ## 1. What users get
@@ -28,9 +28,6 @@ The web page keeps a heading per step, `lang` per story (defaulting to the UI lo
 
 Codec tests for the HTML document (no external requests, every image inline, attribution per snapshot); PDF layout tests for the step page; delivery tests per edition; an i18n completeness run.
 
-## 6. Decisions (2026-09-26: the user adopted the recommendations)
+## 6. Decisions (the user adopted the recommendations)
 
-- **D1 Images:** embedded in the `.canopi` as compressed data (1 MiB per image, 10 MiB per Design). Built.
-- **D2 Step ↔ view:** a step points to a saved view; one view can serve several stories. Built.
 - **D3 Export map:** static snapshots, not an interactive web map (Google imagery cannot be embedded outside Canopi).
-- **D4 Scope for v2.0:** saved views, the Stories panel and presenting in v2.0; export after.

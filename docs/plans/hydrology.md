@@ -1,7 +1,7 @@
 # Hydrology in Canopi: implementation plan
 
-Status: agreed (2026-09-26); not started as of 2026-09-28 (canopi-5ys2.1.1 and .1.2 open). The registry it needs shipped in v2.0.0 (canopi-h90p.9.1); the global lane (canopi-h90p.9.3) has not. Technical detail: `analysis-registry-and-hydrology.md` in this folder.
-Beads: canopi-h90p.9.1 registry (prerequisite, parked), .9.3 contours + global lane, canopi-5ys2.1.1 water flow, .1.2 catchments.
+Status: agreed; 2.1, after the architecture step canopi-f47t.52 (epic canopi-eon8). The registry it builds on shipped in 2.0; the global lane has not. Technical detail: `analysis-registry-and-hydrology.md` in this folder.
+Beads: canopi-h90p.9.3 contours + global lane, canopi-5ys2.1.1 water flow, canopi-5ys2.1.2 catchments.
 Mockups: the WaterFlow board (rows in the Site data panel); 2.1 draws its Analyze and details boards.
 
 ## 1. What users get
@@ -23,19 +23,16 @@ Design uses: swales and keylines along contours, pond and wetland placement, wat
 
 ## 3. Order
 
-1. Registry, typed items and provenance with slope only (h90p.9.1 — the parked branch; its design already includes the global lane and vector kinds, and will absorb any lane the ONF plan needs).
-2. Contours (h90p.9.3): proves the global lane and vector items with one tool.
-3. Water flow (5ys2.1.1): recipes and styles only.
-4. Catchments (5ys2.1.2): map point picking.
+1. Contours (h90p.9.3): proves the global lane and vector items with one tool.
+2. Water flow (5ys2.1.1): recipes and styles only.
+3. Catchments (5ys2.1.2): map point picking.
 
-## 4. Before starting: fix and follow-ups
+## 4. Rules
 
-- **Licence notice (canopi-vy33, do now):** the GeoLibre CLI links an AGPL-3.0-or-later crate (`wbspatialstats`); our notice says MIT. Canopi is AGPL-3.0-only, so this is compatible, but the notice must say so and releases must offer the sidecar's source.
-- **Threads:** hydrology tools use all cores regardless of `RAYON_NUM_THREADS`; run one heavy job at a time (already the rule) at below-normal priority, and ask upstream for a thread option (canopi-2d1b, only with your go-ahead).
+- **Threads:** hydrology tools use all cores regardless of `RAYON_NUM_THREADS`; run one heavy job at a time (already the rule) at below-normal priority.
 - **Edge effects:** accumulation and catchments are truncated at the terrain's edge; the result details say so.
 
-## 5. Decisions (2026-09-26: the user adopted the recommendations)
+## 5. Decisions (the user adopted the recommendations)
 
-- **H1** Extent cap 25 M cells (recommended) or another limit.
-- **H2** Refresh updates results in place and keeps the run in history (recommended) vs a new copy each time.
-- **H3** Ship hydrology in v2.0 or after (recommended: after, once the registry and contours have landed).
+- **H1** Extent cap 25 M cells.
+- **H2** Refresh updates results in place and keeps the run in history (built with the registry in 2.0).
