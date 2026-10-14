@@ -1019,25 +1019,40 @@ const BASEMAP_CREDITS = '<a href="https://openfreemap.org">OpenFreeMap</a> <a hr
  */
 const CREDITS_UNDER_COLUMN = new Set(['360×740', '740×360'])
 
+/** Answers the Basemap style with inline credits and opens the fixture; the credits show at the sheet's peek. */
+async function openWithCredits(page: Page, size: string) {
+  await page.route('https://tiles.openfreemap.org/styles/**', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      version: 8,
+      sources: { openmaptiles: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: BASEMAP_CREDITS } },
+      layers: [{ id: 'water', type: 'fill', source: 'openmaptiles', paint: { 'fill-color': '#a0c8f0' } }],
+    }),
+  }))
+  await openFixture(page, FIXTURE)
+  await expect(mapHost(page).locator('.maplibregl-ctrl-attrib'), `${size}: the Basemap's credits show`).toBeVisible()
+}
+
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
   const known = CREDITS_UNDER_COLUMN.has(size)
   test.describe(`${size} map credits`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
+    // Never marked expected to fail, so a size where the overlap is known still catches credits that stop showing, a
+    // style route that stops matching or a sheet that never reaches half.
+    test(`(release close, DR16) the map credits show at the sheet's peek and half (${size})`, async ({ page }) => {
+      await openWithCredits(page, size)
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect(mapHost(page).locator('.maplibregl-ctrl-attrib'), `${size}, sheet at ${height}: the credits show`).toBeVisible()
+      }
+    })
+
     test(`(release close, DR16) the map credits and the zoom column never cover each other (${size})${known ? ' (expected to fail: owner main, canopi-f47t.58 follow-up)' : ''}`, async ({ page }) => {
       test.fail(known, 'the credits sit under the zoom column at this size (owner main, canopi-f47t.58 follow-up)')
-      await page.route('https://tiles.openfreemap.org/styles/**', (route) => route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          version: 8,
-          sources: { openmaptiles: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: BASEMAP_CREDITS } },
-          layers: [{ id: 'water', type: 'fill', source: 'openmaptiles', paint: { 'fill-color': '#a0c8f0' } }],
-        }),
-      }))
-      await openFixture(page, FIXTURE)
-      const credits = mapHost(page).locator('.maplibregl-ctrl-attrib')
-      await expect(credits, `${size}: the Basemap's credits show`).toBeVisible()
+      await openWithCredits(page, size)
       for (const height of ['peek', 'half'] as const) {
         if (height === 'half') await raiseSheet(page)
         await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
