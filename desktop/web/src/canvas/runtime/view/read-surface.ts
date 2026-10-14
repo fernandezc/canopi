@@ -2,6 +2,7 @@
 
 import type { ReadonlySignal } from '@preact/signals'
 import type {
+  DesignPinExtent,
   GeoPoint,
   SceneBounds,
   ScreenInsets,
@@ -71,6 +72,9 @@ export interface ViewCommandSurface {
   frameBounds(bounds: SceneBounds, options: TemporaryBoundsFocusOptions): boolean
   returnFromTemporaryFocus(): boolean                  // kept
   setFramingInsets(insets: ScreenInsets): void         // kept: the visible-map-area seam
+  /** The overview's Design pin registers its box about its point once laid out, and null once gone, so a tap on it fits the
+   *  Design and a hover shows its cursor and tooltip through the map's input (view/design-pin.ts). */
+  setDesignPinExtent(extent: DesignPinExtent | null): void
   resetNorth(): void
   rotateBy(direction: 1 | -1): void                    // next absolute 15° multiple in that direction
   beginRotation(pivot: 'centre'): RotationSession      // compass drag

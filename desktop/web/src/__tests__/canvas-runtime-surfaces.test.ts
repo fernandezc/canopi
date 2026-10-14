@@ -90,6 +90,7 @@ function createCommandSurface() {
       showPlace: () => false,
       zoomBy: () => {},
       setFramingInsets: () => {},
+      setDesignPinExtent: () => {},
       zoomToSelection: () => {},
       resetNorth: () => {},
       rotateBy: () => {},

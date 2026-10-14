@@ -4,6 +4,7 @@
 // frame 150 ms after the last one, and ViewReadSurface, the coarse signals app code observes instead of frames (P10).
 
 import { computed, signal, type ReadonlySignal } from '@preact/signals'
+import { designPinPoint } from './design-pin'
 import { normaliseBearing } from './navigation-policy'
 import type { ViewReadSurface } from './read-surface'
 import type {
@@ -13,13 +14,10 @@ import type {
   ViewCamera,
   ViewFrame,
   ViewFrameSource,
-  ViewScreen,
 } from './types'
 
 /** A frame this long without a newer one is the settled frame. */
 export const SETTLE_MS = 150
-/** The overview pin shows only this many CSS px or more inside every screen edge. */
-const DESIGN_PIN_EDGE_MARGIN_PX = 24
 /** One zoom band per factor of 1.25 in px/m: the level-of-detail key. */
 const ZOOM_BAND_FACTOR = 1.25
 const FRAME_PHASES: readonly FramePhase[] = ['tools', 'overlays']
@@ -191,7 +189,7 @@ export function createViewReadSurface(frames: ViewFrameSource): ViewReadSurface 
       if (current.pixelsPerMetre >= scaleBounds.max) return 'max'
       return null
     }),
-    designPin: coarse(() => designPin(frames.viewFrame.value), samePoint),
+    designPin: coarse(() => designPinPoint(frames.viewFrame.value), samePoint),
     settledCamera: coarse(() => frames.settledViewFrame.value.view.camera, sameCamera),
     settledRevision: computed(() => frames.settledViewFrame.value.revision),
     captureView() {
@@ -199,18 +197,6 @@ export function createViewReadSurface(frames: ViewFrameSource): ViewReadSurface 
       return { camera: current.camera, screen: current.screen }
     },
   }
-}
-
-/** The plane origin's screen point in overview, rounded after the edge test, or null. */
-function designPin(frame: ViewFrame): ScreenPoint | null {
-  if (frame.mode !== 'overview') return null
-  const origin = frame.view.worldToScreen({ x: 0, y: 0 })
-  const screen: ViewScreen = frame.view.screen
-  const inside = origin.x >= DESIGN_PIN_EDGE_MARGIN_PX
-    && origin.x <= screen.width - DESIGN_PIN_EDGE_MARGIN_PX
-    && origin.y >= DESIGN_PIN_EDGE_MARGIN_PX
-    && origin.y <= screen.height - DESIGN_PIN_EDGE_MARGIN_PX
-  return inside ? { x: Math.round(origin.x), y: Math.round(origin.y) } : null
 }
 
 function threeSignificantFigures(value: number): number {

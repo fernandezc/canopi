@@ -199,6 +199,11 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   let toolGuidance: Parameters<ToolEffects['setGuidance']>[0] = null
   let live: LiveGesture | null = null
   let lastHover: StillPointer | null = null
+  /** In overview, where a mouse or pen rests on the map, so a frame that moves the Design pin under it (a wheel zoom or pan)
+   *  hovers it again; null off the map, while pressed and in site mode. */
+  let overviewHover: ScreenPoint | null = null
+  /** A mouse or pen rests on the overview's Design pin: its tooltip shows and the map's cursor is the pointer. */
+  let pinHovered = false
   /** The pointer kind that last hovered, pressed or long-pressed the map, from the platform's until then
    *  (ToolContext.pointer): a tool armed later, or a selection made off the map, sizes its handles for it. */
   let pointerKind: PointerKind = deps.initialPointer
@@ -590,7 +595,21 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   function resetCursor(): void {
-    deps.chrome.setCursor(cursorForTool(currentId))
+    deps.chrome.setCursor(pinHovered ? 'pointer' : cursorForTool(currentId))
+  }
+
+  /** The Design pin's hover (canopi-n2cg): its tooltip and the pointer cursor, while a mouse or pen rests on it in overview. */
+  function setPinHovered(next: boolean): void {
+    if (next === pinHovered) return
+    pinHovered = next
+    deps.designPin.hovered(next)
+    resetCursor()
+  }
+
+  /** The overview's hover at the resting point (none: off the map, pressed or in site mode) hovers the pin when it is on it. */
+  function hoverPinAt(at: ScreenPoint | null): void {
+    overviewHover = at
+    setPinHovered(at !== null && frame().mode === 'overview' && deps.designPin.contains(at))
   }
 
   // ── Passive hover and the pointer's world point ─────────────────────────────────────────────────────────────────
@@ -639,6 +658,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     if (frame().mode === 'overview') {
       lastHover = null
       clearPassiveHover()
+      // Only a mouse or pen over the map itself hovers the pin; never a finger, nor a pointer over the canvas's chrome.
+      hoverPinAt(g.target.kind === 'surface' && g.pointer !== 'touch' ? g.at : null)
       return NOTHING
     }
     lastHover = insideScreen(g.at, frame().view.screen) ? { screen: g.at, mods: g.mods, pointer: g.pointer } : null
@@ -662,6 +683,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   function hoverEnd(): GestureOutcome {
     publishPointer(null)
     lastHover = null
+    hoverPinAt(null)
     const tool = activeTool
     clearPassiveHover()
     callTool(() => tool.gesture({ kind: 'hover-end' }))
@@ -682,6 +704,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   function rawPress(button: 'primary' | 'secondary' | 'middle', target: TargetClass, pointerId?: number): void {
     if (disposed) return
     pressCommitsNote = false
+    // A press hides the pin's tooltip, as a press on a button does; the next hover shows it again.
+    hoverPinAt(null)
     endNudgeSeries(true)
     if (live && live.id !== pointerId) return
     if (target.kind === 'owned-text') return
@@ -843,6 +867,12 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     // A finger never hovers: its tap publishes the pointer at the resolved press, the down point, as a mouse's hover before
     // its press did (A16); not on a handle, as a hover there publishes none. A finger's drag or pair publishes nothing.
     if (g.pointer === 'touch' && gesture?.kind !== 'handle') publishPointerAt(g.at, g.pointer)
+    // In overview a primary press pans in the recogniser, and one released within its slop is a tap no tool hears: on
+    // the Design pin it fits the Design (canopi-n2cg); elsewhere it does nothing.
+    if (frame().mode === 'overview') {
+      if (deps.designPin.contains(g.at)) deps.designPin.tapped()
+      return NOTHING
+    }
     if (!gesture) {
       // A press the tool never heard (a new note's committing click): its release is none of the tool's.
       releasedOutsideTool()
@@ -1130,6 +1160,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       publishPointer(null)
       if (mode === 'overview') enterOverview()
     }
+    // The pin moves with the map under a still pointer, and leaves with the overview.
+    hoverPinAt(mode === 'overview' ? overviewHover : null)
     refreshAtPointer(activeTool)
     flush()
   }
@@ -1582,6 +1614,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
         // The host is the menu's only opener: an open menu would hold commands for a disposed runtime.
         () => deps.menu.close(),
         () => clearPassiveHover(),
+        () => setPinHovered(false),
         () => {
           pointerListeners.clear()
           if (publishedToolDraft || publishedDropPreview || publishedDecorations) deps.renderer.setDraft(null)

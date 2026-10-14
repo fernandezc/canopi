@@ -878,6 +878,7 @@ function fakeCommandSurface(): CanvasCommandSurface {
       showPlace: vi.fn(() => false),
       zoomBy: vi.fn(),
       setFramingInsets: vi.fn(),
+      setDesignPinExtent: vi.fn(),
       zoomToSelection: vi.fn(),
       resetNorth: vi.fn(),
       rotateBy: vi.fn(),

@@ -24,6 +24,13 @@ export function setCanvasSelection(
 
 export const currentCanvasHasSelection = computed(() => currentCanvasSelection.value.size > 0)
 
+/** A mouse or pen rests on the overview's Design pin, as the map's hover finds it: the pin shows its tooltip (canopi-n2cg). */
+export const currentCanvasDesignPinHovered = signal(false)
+
+export function setCanvasDesignPinHovered(hovered: boolean): void {
+  currentCanvasDesignPinHovered.value = hovered
+}
+
 /** What a stamp pick places: the tool card names it and counts its plants and species. */
 export interface CanvasStampGuidance {
   readonly kind: 'plant' | 'zone' | 'annotation' | 'group'

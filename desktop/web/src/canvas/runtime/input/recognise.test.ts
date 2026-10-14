@@ -646,11 +646,11 @@ describe('recognise: 5.5 touch and trackpad gestures', () => {
     expect(kinds(run(sequence).gestures)).toEqual(['menu-request'])
   })
 
-  it('E15 Touch in overview: a hold or a tap does nothing; a drag pans past 8 px with the whole travel', () => {
+  it('E15 Touch in overview: a hold opens no menu and lifts as a still press (a tap only the Design pin hears); a drag pans past 8 px with the whole travel', () => {
     const result = run(SEQUENCES.E15_OVERVIEW)
     // No timer in overview: it has no menu.
     expect(result.steps[0]!.effects).toEqual([{ kind: 'prevent-default' }, { kind: 'capture', pointerId: 1 }])
-    expect(result.steps.map((step) => kinds(step.gestures))).toEqual([[], [], [], [], ['pan:start', 'pan:move'], ['pan:move'], ['pan:end']])
+    expect(result.steps.map((step) => kinds(step.gestures))).toEqual([[], [], ['tap'], [], ['pan:start', 'pan:move'], ['pan:move'], ['pan:end']])
     expect(pansOf(result.gestures).reduce((sum, pan) => sum + pan.deltaPx.x, 0)).toBe(120)
   })
 
@@ -862,8 +862,38 @@ describe('recognise: 5.7 middle button and Space', () => {
     const result = run(sequence)
     expect(kinds(result.gestures)).toEqual(['pan:start', 'pan:move', 'pan:move', 'pan:move', 'pan:end'])
     expect(pansOf(result.gestures)[0]!.source).toBe('primary-drag')
-    const clicked = run(seq('overview click', WINDOWS, [down(100, 100), up(100, 100)], { mode: 'overview' }))
-    expect(clicked.gestures.some((gesture) => gesture.kind === 'press' || gesture.kind === 'tap')).toBe(false)
+  })
+
+  it('G7 Overview still click: no press, and a tap at the release that only the Design pin hears (canopi-n2cg)', () => {
+    const clicked = run(seq('overview click', WINDOWS, [down(100, 100), move(102, 101, { buttons: 1 }), up(102, 101)], { mode: 'overview' }))
+    expect(kinds(clicked.gestures)).toEqual(['pan:start', 'pan:move', 'pan:end', 'tap'])
+    expect(clicked.gestures.at(-1)).toMatchObject({ kind: 'tap', at: { x: 102, y: 101 }, pointer: 'mouse' })
+    // A finger's tap is at its down point, with no long-press timer: overview has no menu.
+    const tapped = run(seq('overview tap', ANDROID, [down(100, 100, { pointer: 'touch' }), move(103, 100, { pointer: 'touch', buttons: 1 }), up(103, 100, { pointer: 'touch' })], { mode: 'overview' }))
+    expect(kinds(tapped.gestures)).toEqual(['tap'])
+    expect(tapped.gestures[0]).toMatchObject({ at: { x: 100, y: 100 }, pointer: 'touch' })
+    // A secondary or middle click is no tap; nor a click whose view left overview while it was down.
+    expect(kinds(run(seq('overview right click', WINDOWS, [down(100, 100, { button: 2 }), up(100, 100, { button: 2 })], { mode: 'overview' })).gestures)).toEqual([])
+    const left = run(seq('overview click left', WINDOWS, [
+      down(100, 100),
+      configure({ tool: 'select', mode: 'site', pointingDevice: 'mouse' }),
+      up(100, 100),
+    ], { mode: 'overview' }))
+    expect(left.gestures.some((gesture) => gesture.kind === 'tap')).toBe(false)
+  })
+
+  it('G7 Overview pinch: no tap, whichever finger stays still or lifts first (canopi-n2cg)', () => {
+    for (const [still, moving, firstUp] of [[1, 2, 2], [1, 2, 1], [2, 1, 2], [2, 1, 1]] as const) {
+      const at = (id: number): [number, number] => (id === 1 ? [100, 100] : [200, 100])
+      const result = run(seq(`overview pinch ${still}`, ANDROID, [
+        down(...at(1), { pointer: 'touch', id: 1 }),
+        down(...at(2), { pointer: 'touch', id: 2 }),
+        move(at(moving)[0] + 60, 100, { pointer: 'touch', id: moving, buttons: 1 }),
+        up(...(firstUp === moving ? [at(moving)[0] + 60, 100] as [number, number] : at(still)), { pointer: 'touch', id: firstUp }),
+        up(...(firstUp === moving ? at(still) : [at(moving)[0] + 60, 100] as [number, number]), { pointer: 'touch', id: firstUp === 1 ? 2 : 1 }),
+      ], { mode: 'overview' }))
+      expect(result.gestures.some((gesture) => gesture.kind === 'tap'), `still finger ${still}, finger ${firstUp} up first`).toBe(false)
+    }
   })
 
   it('G8 Pan tool, pen tip drag: a primary-drag pan; the press ends with cancel(navigate)', () => {

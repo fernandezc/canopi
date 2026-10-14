@@ -42,7 +42,7 @@ export const currentCanvasQuerySurface = computed<CanvasQuerySurface | null>(() 
 export const currentCanvasDocumentSurface = computed<CanvasDocumentSurface | null>(() =>
   currentCanvasSession.value?.documents ?? null,
 )
-export { currentCanvasHasSelection, currentCanvasSelection, currentCanvasTool, currentCanvasToolGuidance } from './session-state'
+export { currentCanvasDesignPinHovered, currentCanvasHasSelection, currentCanvasSelection, currentCanvasTool, currentCanvasToolGuidance } from './session-state'
 
 export function getCurrentCanvasSession(): CanvasRuntimeSurfaces | null {
   return currentCanvasSession.value

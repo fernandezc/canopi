@@ -115,6 +115,8 @@ export interface SceneInteractionSessionDeps {
   notifyTransientHistoryChange: () => void
   /** Mirrors the active tool's gesture and stamp state for the tool card. */
   publishToolGuidance: (guidance: CanvasToolGuidance) => void
+  /** Mirrors whether a mouse or pen rests on the overview's Design pin, which then shows its tooltip (canopi-n2cg). */
+  publishDesignPinHover: (hovered: boolean) => void
   /** The arrow keys' nudges, through the runtime's scene-edit commands. */
   nudge: Pick<CanvasSceneEditCommandSurface, 'nudgeSelected' | 'endNudge'>
   /** The view's frames (scene-runtime/construction.ts). */
@@ -336,6 +338,15 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
         transientHistoryChanged: () => _deps.notifyTransientHistoryChange(),
         dropped: (kind) => this._dropped(kind),
         overviewDrop: (payload) => this._overviewDropped(payload),
+        designPin: {
+          contains: (at) => navigation.onDesignPin(at),
+          hovered: (hovered) => _deps.publishDesignPinHover(hovered),
+          // As the pin's own button and Return to Design: the Design fits and the map takes focus.
+          tapped: () => {
+            navigation.returnToDesign()
+            focus.focusMap()
+          },
+        },
       }
       this._stopHearingMode = own(this._frames.onViewFrame('tools', (frame) => this._modeHeard(frame.mode)), (stop) => stop())
       this._toolHost = own(createToolHost(hostDeps), (host) => host.dispose())

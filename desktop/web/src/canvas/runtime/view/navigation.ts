@@ -7,6 +7,7 @@
 import { isWorkspaceOverviewScale, WORKSPACE_OVERVIEW_SCALE_THRESHOLD } from '../../workspace-camera-policy'
 import type { CameraDriverHost, CameraMove } from './camera-driver'
 import { placementCentre, screenToGeo } from './camera-math'
+import { designPinContains, validDesignPinExtent } from './design-pin'
 import { acceptsMove } from './driver-frame'
 import { fitScene, fitTemporaryBounds, isEmptyExtent, type FitFrame } from './fit'
 import {
@@ -19,6 +20,7 @@ import {
 } from './navigation-policy'
 import type { RotationSession, ViewCommandSurface } from './read-surface'
 import type {
+  DesignPinExtent,
   PlanarCamera,
   SceneBounds,
   SceneExtent,
@@ -55,6 +57,10 @@ export interface ViewNavigation extends ViewCommandSurface {
   turnToEdge(a: WorldPoint, b: WorldPoint): void   // smaller turn that makes a→b horizontal; never snapped
   beginRotation(pivot: ScreenPoint | 'centre'): RotationSession
 
+  /** Whether a screen point is on the overview's Design pin, by the box it registered (setDesignPinExtent); the ToolHost's
+   *  tap and hover in overview. */
+  onDesignPin(at: ScreenPoint): boolean
+
   // gesture sinks (InputRouter only)
   panByPx(deltaPx: ScreenPoint): void
   zoomAroundPx(anchor: ScreenPoint, factor: number): void
@@ -77,6 +83,8 @@ export function createViewNavigation(deps: ViewNavigationDeps): ViewNavigation {
   let bookmark: ViewCamera | null = null
   /** The live rotation session; key turns and resets wait until it ends. */
   let rotation: object | null = null
+  /** The Design pin's measured box about its point, while it shows. */
+  let pinExtent: DesignPinExtent | null = null
 
   const frame = () => deps.driver.frames.viewFrame.peek()
   const driver = () => deps.driver.current()
@@ -182,6 +190,12 @@ export function createViewNavigation(deps: ViewNavigationDeps): ViewNavigation {
     },
     clearTemporaryFocus() {
       bookmark = null
+    },
+    setDesignPinExtent(extent) {
+      pinExtent = validDesignPinExtent(extent)
+    },
+    onDesignPin(at) {
+      return designPinContains(frame(), pinExtent, at)
     },
     setFramingInsets(insets) {
       const valid = [insets.top, insets.right, insets.bottom, insets.left].every((edge) => Number.isFinite(edge) && edge >= 0)
