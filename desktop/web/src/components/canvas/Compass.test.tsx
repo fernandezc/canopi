@@ -20,6 +20,7 @@ import {
 import { installCanvasKeyRouter } from '../../__tests__/support/key-router'
 import { createTestView, type TestView } from '../../__tests__/support/test-view'
 import { Compass } from './Compass'
+import { hoveredTooltip } from '../../__tests__/support/tooltip'
 
 /** The compass's centre on screen; its box is a 28 px button about it. */
 const CENTRE = { x: 100, y: 100 }
@@ -107,7 +108,7 @@ describe('Compass', () => {
     expect(description()).toBe('North is up')
     expect(compass().dataset.turned).toBeUndefined()
     // The tooltip names the command with its key and the hint as its second line.
-    const tooltip = compass().querySelector('[role="tooltip"]')!
+    const tooltip = hoveredTooltip(compass()!)!
     expect(tooltip.textContent).toContain('Reset north')
     expect(tooltip.textContent).toContain('Drag the ring to turn the view')
 

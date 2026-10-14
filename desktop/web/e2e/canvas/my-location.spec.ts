@@ -25,6 +25,7 @@ import type { Locator, Page } from '@playwright/test'
 import { designMap } from '../support/canvas'
 import { pixel, pixelsAround, type Pixels } from '../support/pixels'
 import { expect, test } from '../support/offline'
+import { tooltipOf } from '../support/tooltip'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 
@@ -175,7 +176,7 @@ test.describe('phone portrait, touch', () => {
   test('a tap while Blocked shows the tooltip\'s reason for a few seconds, inside the window (Q16)', async ({ page }) => {
     await denyGeolocationPermission(page)
     await openBaseFixture(page)
-    const tooltip = locationButton(page).locator('[role="tooltip"]')
+    const tooltip = await tooltipOf(locationButton(page))
     await locationButton(page).tap()
     await expect(locationButton(page), 'a denied permission is Blocked (A4)').toHaveAttribute('aria-disabled', 'true')
     await expect(tooltip, 'the reason leaves after a few seconds, though the tap left the button hovered').toBeHidden({ timeout: 8_000 })
@@ -195,7 +196,7 @@ test.describe('phone portrait, touch', () => {
       await button.tap()
       await expect(button, 'a denied permission is Blocked (A4)').toHaveAttribute('aria-disabled', 'true')
       await button.tap({ force: true })
-      await expectReasonReadable(page, button.locator('[role="tooltip"]'), locale)
+      await expectReasonReadable(page, await tooltipOf(button), locale)
     })
   }
 
@@ -204,7 +205,7 @@ test.describe('phone portrait, touch', () => {
   test('a label longer than the tooltip\'s measure wraps inside its box', async ({ page }) => {
     await denyGeolocationPermission(page)
     await openBaseFixture(page)
-    const tooltip = locationButton(page).locator('[role="tooltip"]')
+    const tooltip = await tooltipOf(locationButton(page))
     await locationButton(page).tap()
     await expect(locationButton(page), 'a denied permission is Blocked (A4)').toHaveAttribute('aria-disabled', 'true')
     const fr = JSON.parse(await readFile(fileURLToPath(new URL('../../src/i18n/fr.json', import.meta.url)), 'utf8'))

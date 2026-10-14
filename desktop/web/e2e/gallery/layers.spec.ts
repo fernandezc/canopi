@@ -5,6 +5,7 @@
 // overflows at 320 px in English, German, Russian and Japanese, light and dark. Chromium and WebKit; DOM assertions only.
 import type { Locator, Page } from '@playwright/test'
 import { expect, openGallery, test } from '../support/gallery'
+import { tooltipOf } from '../support/tooltip'
 
 /** The Layers panel, in any language: the dock's one complementary region on this surface. */
 function layers(page: Page): Locator {
@@ -15,8 +16,8 @@ function layers(page: Page): Locator {
 async function overflowing(scope: Locator): Promise<string[]> {
   return scope.evaluate((root) => Array.from(root.querySelectorAll<HTMLElement>('*'))
     .filter((element) => {
-      // Tooltips, hidden elements and visually hidden labels (1 px boxes) are not drawn text.
-      if (element.closest('[role="tooltip"]') || element.getClientRects().length === 0 || element.clientWidth <= 1) return false
+      // Hidden elements and visually hidden labels (1 px boxes) are not drawn text.
+      if (element.getClientRects().length === 0 || element.clientWidth <= 1) return false
       const style = getComputedStyle(element)
       // Ellipsis is the intended truncation of a long name; the panel itself must never scroll sideways.
       if (style.textOverflow === 'ellipsis') return false
@@ -25,29 +26,13 @@ async function overflowing(scope: Locator): Promise<string[]> {
     .map((element) => `${element.tagName.toLowerCase()}: ${element.textContent?.slice(0, 40) ?? ''}`))
 }
 
-/**
- * The share of a shown tooltip's box that is drawn: what its containing block and every clipping box above that leave
- * of it, within the window (an `overflow` box between the tooltip and its containing block does not clip it).
- */
+/** The share of a shown tooltip's box inside the window (it is drawn in the window-level layer, above every frame). */
 async function drawnShare(tooltip: Locator): Promise<number> {
   return tooltip.evaluate((element: HTMLElement) => {
     const box = element.getBoundingClientRect()
-    let [left, top, right, bottom] = [box.left, box.top, box.right, box.bottom]
-    for (let clip = element.offsetParent; clip; clip = clip.parentElement) {
-      const style = getComputedStyle(clip)
-      if (style.overflowX === 'visible' && style.overflowY === 'visible') continue
-      const rect = clip.getBoundingClientRect()
-      left = Math.max(left, rect.left)
-      top = Math.max(top, rect.top)
-      right = Math.min(right, rect.right)
-      bottom = Math.min(bottom, rect.bottom)
-    }
-    left = Math.max(left, 0)
-    top = Math.max(top, 0)
-    right = Math.min(right, window.innerWidth)
-    bottom = Math.min(bottom, window.innerHeight)
-    const drawn = Math.max(0, right - left) * Math.max(0, bottom - top)
-    return drawn / (box.width * box.height)
+    const width = Math.max(0, Math.min(box.right, window.innerWidth) - Math.max(box.left, 0))
+    const height = Math.max(0, Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0))
+    return (width * height) / (box.width * box.height)
   })
 }
 
@@ -62,7 +47,7 @@ test.describe('Desktop Layers', () => {
       [summary.getByRole('button', { name: 'Open Site data' }), /^Open Site data$/],
     ] as const) {
       await button.hover()
-      const tooltip = button.locator('[role="tooltip"]')
+      const tooltip = await tooltipOf(button)
       await expect(tooltip).toHaveText(text)
       await expect(tooltip).toHaveCSS('opacity', '1')
       clipped.push(`${await tooltip.textContent()}: ${(await drawnShare(tooltip)).toFixed(2)}`)

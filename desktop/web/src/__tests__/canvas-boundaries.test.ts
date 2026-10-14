@@ -58,6 +58,8 @@ const P6_COMPONENT_POINTER_LISTENERS: Readonly<Record<string, number>> = {
   'src/components/canvas/ZoomControls.tsx': 1,
   'src/components/plant-db/MoreFiltersPanel.tsx': 1,
   'src/components/shared/ActionMenu.tsx': 2,
+  // A tooltip's button: a mouse or pen enters and leaves it (a finger's hover shows none), a press hides the tooltip.
+  'src/components/shared/ButtonTooltip.tsx': 3,
   'src/components/shared/DatePicker.tsx': 1,
   'src/components/shared/Dropdown.tsx': 1,
   'src/components/shared/MenuBar.tsx': 1,

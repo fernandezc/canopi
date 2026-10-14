@@ -20,6 +20,7 @@ import {
   createTestCanvasRuntimeSurfaces,
 } from './support/canvas-runtime-surfaces'
 import { createTestView } from './support/test-view'
+import { hoveredTooltip, tooltipOf } from './support/tooltip'
 
 /** The view at the Design default, 20 CSS px per metre, unless the test overrides its signals. */
 function view(overrides: Partial<ViewReadSurface> = {}): ViewReadSurface {
@@ -344,7 +345,7 @@ describe('ZoomControls', () => {
     }
     const labels = () => [...container.querySelectorAll('[data-zoom-group] button')].map((element) => element.getAttribute('aria-label'))
     const location = () => button('Show my location')
-    const tooltip = () => location().querySelector('[role="tooltip"]')!.textContent
+    const tooltip = () => hoveredTooltip(location())!.textContent
 
     it('stands just before the compass on the desktop group and in the phone column', async () => {
       await mountWithLocation()
@@ -411,7 +412,8 @@ describe('ZoomControls', () => {
         target.click()
       })
     }
-    const tooltipShown = () => location().querySelector('[role="tooltip"]')!.className.includes('tooltipShown')
+    /** Its tooltip shows with no hover or focus: the reason a tap asked for. */
+    const tooltipShown = () => tooltipOf(location()) !== null
 
     it('a tap while Blocked shows the tooltip with its reason for a few seconds, since touch screens have no hover (A4, Q16)', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })

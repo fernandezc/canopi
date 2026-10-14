@@ -38,6 +38,8 @@ export function inspectionLayout(plants: readonly ScenePlantEntity[], lensView: 
   }).sort((a, b) => a.distanceM - b.distanceM || a.plant.id.localeCompare(b.plant.id))
     .filter(({ screenPosition: p }) => p.x >= 0 && p.y >= 0 && p.x <= frame.width && p.y <= frame.height)
   const occupied = new LabelCollisionIndex()
+  // The centre crosshair (InspectionLens.tsx, arms out to 10 px plus their halo) and every plant stay clear of names.
+  occupied.add({ x: frame.width / 2 - 12, y: frame.height / 2 - 12, width: 24, height: 24 })
   for (const { screenPosition: p } of visible) occupied.add({ x: p.x - 10, y: p.y - 10, width: 20, height: 20 })
   return visible.map(({ plant, screenPosition: p }) => {
     const name = names.get(plant.canonicalName)?.trim() || plant.commonName?.trim() || plant.canonicalName

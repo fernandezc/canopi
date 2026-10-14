@@ -1,7 +1,9 @@
+/* Drawn in the window-level tooltip layer (utils/tooltip-layer.ts), whose stacking and fixed box are global.css's
+   [data-tooltip-layer]; ButtonTooltip.tsx sets left and top from the button's window box. */
 .tooltip {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 0;
   background: var(--color-tip);
   color: var(--color-on-tip);
   border-radius: var(--radius-md);
@@ -11,58 +13,26 @@
   font-weight: 400;
   line-height: var(--line-height);
   text-align: left;
-  /* As wide as its longest line, up to a reading measure that fits a phone's window: a top or bottom tooltip grows
-     from the button's end edge, so a long line would run past the window's start. Past the measure the label and
+  /* As wide as its longest line, up to a reading measure that fits a phone's window. Past the measure the label and
      the description wrap, so the text stays on the tooltip's background. */
   width: max-content;
   max-width: min(22em, calc(100vw - 2 * var(--space-4)));
   pointer-events: none;
-  z-index: var(--z-tooltip);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity var(--transition-fast), visibility var(--transition-fast);
+  animation: tooltip-in var(--transition-fast) var(--transition-delay-tooltip) both;
 }
 
-.tooltipRight {
-  left: calc(100% + 8px);
-}
-
-.tooltipLeft {
-  right: calc(100% + 8px);
-}
-
-.tooltipTop {
-  top: auto;
-  right: 0;
-  bottom: calc(100% + 8px);
-  transform: none;
-}
-
-.tooltipBottom {
-  top: calc(100% + 8px);
-  right: 0;
-  transform: none;
-}
-
-button:hover .tooltip,
-button:focus-visible .tooltip {
-  opacity: 1;
-  visibility: visible;
-  transition-delay: var(--transition-delay-tooltip);
-}
-
-/* A reason a tap asked for, shown for a few seconds whatever the hover. */
+/* A reason a tap asked for shows at once. */
 .tooltipShown {
-  opacity: 1;
-  visibility: visible;
+  animation-delay: 0s;
 }
 
-/* Touch screens: a tap leaves the button hovered, so its tooltip would stay over
-   the button above; only keyboard focus or a tap's reason shows it there. */
-@media (hover: none) {
-  button:hover:not(:focus-visible) .tooltip:not(.tooltipShown) {
+@keyframes tooltip-in {
+  from {
     opacity: 0;
-    visibility: hidden;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 
@@ -85,6 +55,6 @@ button:focus-visible .tooltip {
 
 @media (prefers-reduced-motion: reduce) {
   .tooltip {
-    transition: none;
+    animation: none;
   }
 }

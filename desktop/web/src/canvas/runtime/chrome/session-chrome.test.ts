@@ -223,9 +223,9 @@ describe('the session\'s chrome', () => {
 
     events.pointerMove({ x: 20, y: 30 })
 
-    // The host's is the chrome's, and the map carries one.
-    expect(container.querySelectorAll('[data-hover-tooltip]')).toHaveLength(1)
-    const tooltip = container.querySelector<HTMLElement>('[data-canvas-chrome="hover-tooltip"][data-hover-tooltip]')!
+    // The host's is the chrome's, and the window's tooltip layer carries one.
+    expect(document.querySelectorAll('[data-hover-tooltip]')).toHaveLength(1)
+    const tooltip = document.querySelector<HTMLElement>('[data-tooltip-layer] > [data-canvas-chrome="hover-tooltip"][data-hover-tooltip]')!
     expect(tooltip.style.display).toBe('block')
     expect(tooltip.textContent).toBe('AppleMalus domestica')
   })
@@ -256,9 +256,10 @@ describe('the session\'s chrome', () => {
     session.dispose()
     sessions.length = 0
 
-    for (const selector of ['[data-canvas-handle-layer]', 'textarea', '[data-hover-tooltip]']) {
+    for (const selector of ['[data-canvas-handle-layer]', 'textarea']) {
       expect(container.querySelector(selector), selector).toBeNull()
     }
+    expect(document.querySelector('[data-hover-tooltip]')).toBeNull()
   })
 
   it('a session whose handle layer cannot be built leaves nothing behind', () => {

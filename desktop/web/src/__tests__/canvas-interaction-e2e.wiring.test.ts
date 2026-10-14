@@ -169,9 +169,9 @@ describe('SceneInteractionSession', () => {
     })
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
-    // Hovering a plant brings the session's plant tooltip onto the map.
+    // Hovering a plant brings the session's plant tooltip into the window's tooltip layer.
     events.pointerMove({ x: 300, y: 250 })
-    expect(container.querySelector('[data-hover-tooltip]')).not.toBeNull()
+    expect(document.querySelector('[data-hover-tooltip]')).not.toBeNull()
     expect(container.hasAttribute('tabindex')).toBe(true)
     expect(container.querySelector('[data-canvas-handle-layer]')).not.toBeNull()
     // The story-presentation observer: the host, the chrome, the handle layer and the map host's keyboard stop are torn
@@ -186,7 +186,7 @@ describe('SceneInteractionSession', () => {
     expect(events.listenerLog?.containerRemoves('pointerdown')).toHaveLength(2)
     expect(events.listenerLog?.containerRemoves('pointermove')).toHaveLength(1)
     expect(events.listenerLog?.windowRemoves('blur')).toHaveLength(1)
-    expect(container.querySelector('[data-hover-tooltip]')).toBeNull()
+    expect(document.querySelector('[data-hover-tooltip]')).toBeNull()
     expect(container.querySelector('[data-canvas-handle-layer]')).toBeNull()
     expect(container.hasAttribute('tabindex')).toBe(false)
     expect(() => session.dispose()).not.toThrow()

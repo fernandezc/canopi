@@ -31,3 +31,21 @@ it('keeps full localized and fallback names for coincident plants, wrapping long
   const edge = inspectionLayout(edgePlants, lensViewAt(edgePlants, { width: 180, height: 220 }), new Map(), value => value.length * 8)
   expect(edge.every(plant => plant.label !== null)).toBe(true)
 })
+
+it('keeps every name off the lens centre, where the crosshair marks the inspected point (canopi-n54g)', () => {
+  const frame = { width: 430, height: 390 }
+  const make = (id: string, position: { x: number; y: number }) => ({
+    kind: 'plant' as const, id, canonicalName: `Species ${id}`, commonName: 'Menthe verte', position, color: null, canopySpreadM: null,
+    rotationDeg: null, scale: null, notes: null, plantedDate: null, quantity: null, locked: false,
+  })
+  const seed = createTestSceneRendererSnapshot({ scene: { plants: [make('a', { x: 0, y: 0 })] } }).scene.plants
+  const view = lensViewAt(seed, frame)
+  // A plant just above the centre: its first choice, the name below it, would cover the centre.
+  const plants = createTestSceneRendererSnapshot({ scene: { plants: [make('above', view.screenToWorld({ x: 215, y: 180 }))] } }).scene.plants
+  const [plant] = inspectionLayout(plants, view, new Map(), (value) => value.length * 8)
+  const label = plant!.label!
+  expect(label).not.toBeNull()
+  const centre = { x: frame.width / 2, y: frame.height / 2 }
+  const covers = label.x < centre.x + 12 && centre.x - 12 < label.x + label.width && label.y < centre.y + 12 && centre.y - 12 < label.y + label.height
+  expect(covers, `the name at ${JSON.stringify(label)} leaves the centre's 24 px clear`).toBe(false)
+})

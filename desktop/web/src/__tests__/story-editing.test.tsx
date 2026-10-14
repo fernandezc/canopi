@@ -27,6 +27,7 @@ import {
 import { currentDesign, designSessionStore } from '../app/document-session/store'
 import type { CanopiFile, RichTextBlock, SavedView, Story } from '../types/design'
 import { replaceCurrentDesignState } from './support/design-session-state'
+import { hoveredTooltip } from './support/tooltip'
 
 const span = (text: string, marks: { bold?: boolean; italic?: boolean; link?: string | null } = {}) => ({
   text, bold: marks.bold ?? false, italic: marks.italic ?? false, link: marks.link ?? null,
@@ -170,8 +171,8 @@ describe('the rich text editor', () => {
     setShortcutPlatform({ os: 'mac' })
     try {
       await mount()
-      expect(tool('Bold').querySelector('[role="tooltip"]')!.textContent).toBe('BoldCmd B')
-      expect(tool('Italic').querySelector('[role="tooltip"]')!.textContent).toBe('ItalicCmd I')
+      expect(hoveredTooltip(tool('Bold')!)!.textContent).toBe('BoldCmd B')
+      expect(hoveredTooltip(tool('Italic')!)!.textContent).toBe('ItalicCmd I')
       expect(tool('Bold').getAttribute('aria-keyshortcuts')).toBe('Control+B Meta+B')
       expect(tool('Italic').getAttribute('aria-keyshortcuts')).toBe('Control+I Meta+I')
     } finally {

@@ -120,6 +120,7 @@
       "title": "Lente di ispezione",
       "close": "Chiudi lente",
       "hint": "Sposta il puntatore sulla tela per ispezionare · Trascina qui per esplorare",
+      "hintTouch": "Tocca la mappa per ispezionare · Trascina qui per esplorare",
       "empty": "Nessuna pianta qui. Sposta o allarga la lente.",
       "unavailable": "Anteprima non disponibile. I nomi restano nelle posizioni delle piante.",
       "locate": "Centra la lente su {{name}}",

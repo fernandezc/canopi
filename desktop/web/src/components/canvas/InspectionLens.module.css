@@ -1,6 +1,6 @@
-/* The launcher sits in the panel-rail column above the zoom group, clear of the dock; the lens opens in the tool card slot. */
-.launcher, .panel { position: absolute; z-index: 30; }
-.launcher { right: var(--chrome-inset); bottom: var(--chrome-bottom); display: flex; align-items: center; justify-content: center; width: var(--control-size-3xl); height: var(--control-size-3xl); }
+/* The launcher sits in the panel-rail column above the zoom group, clear of the dock, with the rails; the lens opens in
+   the tool card's slot, above the card (global.css's stacking scale). */
+.launcher { position: absolute; z-index: 30; right: var(--chrome-inset); bottom: var(--chrome-bottom); display: flex; align-items: center; justify-content: center; width: var(--control-size-3xl); height: var(--control-size-3xl); }
 .controls button, .expandButton {
   position: relative;
   display: inline-flex;
@@ -27,6 +27,8 @@
 .launcher:hover, .panel button:hover { background: var(--color-control-hover); }
 .launcher:focus-visible, .panel button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .panel {
+  position: absolute;
+  z-index: var(--z-canvas-inspection-lens);
   top: var(--chrome-rail-top);
   left: var(--canvas-tool-card-left);
   width: min(390px, calc(100% - var(--canvas-tool-card-left) - var(--chrome-inset)));
@@ -49,6 +51,10 @@
 .artwork, .connectors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .connectors line { stroke: var(--color-text-muted); stroke-width: 0.7; }
 .connectors [data-active='true'] line { stroke: var(--color-primary); stroke-width: 1.5; }
+/* The inspected point: ink on a paper halo, legible on zones and plants alike. */
+.centre path { fill: none; stroke-linecap: round; }
+.centreHalo { stroke: var(--color-bg); stroke-width: 3.5; }
+.centreInk { stroke: var(--color-text); stroke-width: 1.5; }
 .panel .plantName { position: absolute; font-family: var(--font-sans); font-size: var(--text-sm); font-weight: 600; line-height: var(--space-4); padding: var(--space-1); border: 0; background: var(--canvas-bg); }
 .plantName span { display: block; white-space: pre; }
 .panel p { margin: 0; padding: var(--space-2) var(--space-3); font-size: var(--text-xs); color: var(--color-text-muted); }

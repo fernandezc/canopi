@@ -29,6 +29,7 @@ import { SpeciesCommonName } from '../shared/SpeciesIdentity'
 import { PlantSymbolGlyph } from './PlantSymbolGlyph'
 import { SpeciesChooser } from './SpeciesChooser'
 import { ToolIcon } from './toolbar-icons'
+import { useCoarsePointer } from '../shared/useCoarsePointer'
 import { useMapOccluder } from '../shared/useMapChrome'
 import { displayedPlantColor } from '../../app/plant-display/state'
 import styles from './ToolCard.module.css'
@@ -535,20 +536,4 @@ function readSavedStampSummary(): SavedStampSummary | null {
     plants: payload.plants.length,
     species: new Set(payload.plants.map((plant) => plant.canonicalName)).size,
   }
-}
-
-const COARSE_POINTER_QUERY = '(pointer: coarse)'
-
-/** Whether the primary pointer is coarse (a touch screen), following a mouse plugged in or out. */
-function useCoarsePointer(): boolean {
-  const query = typeof window.matchMedia === 'function' ? window.matchMedia(COARSE_POINTER_QUERY) : null
-  const [coarse, setCoarse] = useState(query?.matches ?? false)
-  useEffect(() => {
-    if (!query) return
-    const update = () => setCoarse(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-  return coarse
 }

@@ -54,6 +54,7 @@ import { activePanel, sidePanel } from '../app/shell/state'
 import { locale } from '../app/settings/state'
 import type { LibraryItemSummary } from '../generated/contracts'
 import type { Signal } from '@preact/signals'
+import { hoveredTooltip } from './support/tooltip'
 
 const library = librarySnapshot
 
@@ -75,13 +76,9 @@ function buttons(root: ParentNode = container): HTMLButtonElement[] {
   return Array.from(root.querySelectorAll('button'))
 }
 
-/** A button's name: its aria-label, else its text without its tooltip. */
+/** A button's name: its aria-label, else its text. */
 function nameOf(candidate: HTMLButtonElement): string {
-  const label = candidate.getAttribute('aria-label')
-  if (label) return label
-  const copy = candidate.cloneNode(true) as HTMLElement
-  copy.querySelectorAll('[role="tooltip"]').forEach((tooltip) => tooltip.remove())
-  return (copy.textContent ?? '').trim()
+  return candidate.getAttribute('aria-label') ?? (candidate.textContent ?? '').trim()
 }
 
 function button(label: string | RegExp, root: ParentNode = container): HTMLButtonElement {
@@ -234,10 +231,10 @@ describe('the Site data panel', () => {
     mount()
     const analyze = button('Analyze…')
     expect(analyze.getAttribute('aria-disabled')).toBe('true')
-    expect(analyze.textContent).toContain('Add terrain or height data first')
+    expect(hoveredTooltip(analyze)?.textContent).toBe('Add terrain or height data first')
     const profile = button('Profile')
     expect(profile.getAttribute('aria-disabled')).toBe('true')
-    expect(profile.textContent).toContain('Show an elevation or height layer to draw a profile')
+    expect(hoveredTooltip(profile)?.textContent).toBe('Show an elevation or height layer to draw a profile')
   })
 
   it('lists one line per item, front first, results under their source and a run under one analysis line', () => {

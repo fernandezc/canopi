@@ -120,6 +120,7 @@
       "title": "Inspektionslupe",
       "close": "Lupe schließen",
       "hint": "Zum Prüfen über die Zeichenfläche bewegen · Hier zum Erkunden ziehen",
+      "hintTouch": "Zum Prüfen auf die Karte tippen · Hier zum Erkunden ziehen",
       "empty": "Keine Pflanzen hier. Lupe ziehen oder erweitern.",
       "unavailable": "Vorschau nicht verfügbar. Namen bleiben an den Pflanzenpositionen.",
       "locate": "Lupe auf {{name}} zentrieren",

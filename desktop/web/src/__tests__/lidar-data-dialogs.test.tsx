@@ -65,6 +65,7 @@ import { locale } from '../app/settings/state'
 import { openLayerRow } from '../app/canvas-layer-presentation/open-row'
 import { dropdownTrigger } from './support/dropdown-trigger'
 import { formatDiskSize } from '../components/panels/lidar/item-text'
+import { hoveredTooltip } from './support/tooltip'
 
 function layer(id: string, name: string, overrides: Partial<LibraryItemSummary> = {}): LibraryItemSummary {
   return sourceItem(id, name, { resolution_m: 0.5, value_range: [1, 2], ...overrides })
@@ -639,7 +640,7 @@ describe('Data library, Import and Analyze dialogs', () => {
       expect(container.textContent).toContain('No data yet')
       const importButton = button(/^Import…/)
       expect(importButton.disabled).toBe(true)
-      expect(importButton.textContent).toContain('Open a Design to import data')
+      expect(hoveredTooltip(importButton)?.textContent).toBe('Open a Design to import data')
 
       setDesign(design([]))
       render(null, container)

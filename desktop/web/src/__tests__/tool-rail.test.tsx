@@ -27,6 +27,7 @@ import {
   createTestCanvasCommandSurface,
   createTestCanvasRuntimeSurfaces,
 } from './support/canvas-runtime-surfaces'
+import { hoveredTooltip } from './support/tooltip'
 
 /** The rail as both editions mount it: the shared projection and the first-use setting. */
 function Rail() {
@@ -120,7 +121,7 @@ describe('ToolRail', () => {
     expect(rail.getAttribute('data-tool-rail')).toBe('icons')
     const polygon = railButton('canvas.tool.polygon')
     expect(polygon.getAttribute('aria-label')).toBe('Polygon zone (Z)')
-    expect(polygon.querySelector('[role="tooltip"]')?.textContent).toBe('Polygon zoneZ')
+    expect(hoveredTooltip(polygon)?.textContent).toBe('Polygon zoneZ')
     expect(container.textContent).not.toContain('Zones')
   })
 
@@ -183,7 +184,7 @@ describe('ToolRail', () => {
       const rail = container.querySelector('[role="toolbar"]')!
       expect(rail.getAttribute('data-tool-rail')).toBe('icons')
       expect(railButton('edit.redo').getAttribute('aria-label')).toBe('Redo (Ctrl Shift Z)')
-      expect(railButton('edit.redo').querySelector('[role="tooltip"]')?.textContent).toBe('RedoCtrl Shift Z')
+      expect(hoveredTooltip(railButton('edit.redo')!)?.textContent).toBe('RedoCtrl Shift Z')
     } finally {
       vi.restoreAllMocks()
     }

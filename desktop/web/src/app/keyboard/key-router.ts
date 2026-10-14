@@ -10,6 +10,7 @@
 // view-arrows, outside-dock and command rows, each chord's one row per scope, through the canvas port or the edition's
 // CommandSink.
 // The router registers the canvas port's Esc layers for as long as it is installed, and records at document capture
+// (app/keyboard/input-modality.ts) whether the last input was a key or a pointer press, and
 // whether the last pointer press or focus move landed in the map host (with nothing focused, only then are the map-focus
 // keys the map's) or in the dock or phone sheet (then the map's selection edits leave the key to the page;
 // app/keyboard/target-class.ts). The focus move counts so a dock control that F6 or Tab reached and that then
@@ -26,6 +27,7 @@ import { registerCanvasEscapeLayers, runEscape } from './escape-chain'
 import type { FocusOwner } from './focus-owner'
 import { chordMatches, chordOf, digitChordOf, type KeyboardEventLike, type KeyChord } from './key-chord'
 import { pushedKeyScopes, type CommandSink, type KeymapRow, type KeyScope } from './keymap'
+import { noteKeyPress, notePointerPress } from './input-modality'
 import { classifyKeyTarget, isInDock, ownsArrows, type KeyTarget, type LastPress } from './target-class'
 
 /** F6 and Shift+F6 move between the workspace regions through the focus owner. */
@@ -64,6 +66,7 @@ export function installKeyRouter(deps: KeyRouterDeps): KeyRouterHandle {
   }
   // The listeners are registered for keydown and keyup only, so a KeyboardEvent here is a KeyboardEventLike.
   const onKeyDownCapture = (event: KeyboardEvent): void => {
+    noteKeyPress()
     // Step 1: a key that is part of a composition is the IME's.
     if (isComposing(event)) return
     held.set(event.code || event.key, event.key)
@@ -76,8 +79,14 @@ export function installKeyRouter(deps: KeyRouterDeps): KeyRouterHandle {
     if (port) port.keyState(keyState(event as KeyboardEventLike, 'keyup', at(port, event as KeyboardEventLike)))
     if (event.key === 'Meta') letGo()
   }
-  const onLeave = (): void => letGo()
+  // A window left behind takes the keys held and the key flag with it: a key the page heard on the way out (Alt of
+  // Alt+Tab) is no keyboard focus when the window comes back.
+  const onLeave = (): void => {
+    letGo()
+    notePointerPress()
+  }
   const onPressOrFocus = (event: Event): void => {
+    if (event.type === 'pointerdown') notePointerPress()
     const host = deps.canvas()?.host
     last = {
       onMap: !!host && event.target instanceof Node && host.contains(event.target),

@@ -2171,7 +2171,7 @@ describe('scene canvas runtime', () => {
     expect(events.listenerLog?.containerRemoves('pointerdown')).toHaveLength(2)
     expect(events.listenerLog?.containerRemoves('pointermove')).toHaveLength(1)
     expect(events.listenerLog?.windowRemoves('blur')).toHaveLength(1)
-    expect(container.querySelector('[data-hover-tooltip]')).toBeNull()
+    expect(document.querySelector('[data-hover-tooltip]')).toBeNull()
     expect((runtime as any)._rendering.container).toBeNull()
     events.dispose()
     runtime.destroy()

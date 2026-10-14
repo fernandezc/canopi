@@ -7,9 +7,11 @@
 :root {
   /* Stacking scale. Popups portal to <body>, so a menu opened inside a dialog
      must sit above every dialog and full-window surface. */
-  /* The tool card floats over the map chrome it shares a corner with (the inspection lens, the rails: 30) and under
-     the dock (32), the selection chip (34), the top chip slot (35) and the phone sheet (36). */
+  /* The tool card floats over the rails it shares a corner with (30) and under the dock (32), the selection chip (34),
+     the top chip slot (35) and the phone sheet (36). An open inspection lens, in the card's slot, draws above the card
+     (canopi-n54g); it stays left of the dock, so their shared level never decides a pixel. */
   --z-canvas-tool-card: 31;
+  --z-canvas-inspection-lens: 32;
   --z-full-window: 900;
   --z-toast: 950;
   --z-dialog: 1000;
@@ -370,6 +372,21 @@ mark {
     transition-duration: 0s !important;
     transition-delay: 0s !important;
   }
+}
+
+/* The window-level tooltip layer (utils/tooltip-layer.ts): every button tooltip and the canvas hover card, above
+   every frame and popup, placed in window pixels. The only use of --z-tooltip (stacking-order.test.ts). */
+[data-tooltip-layer] {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+}
+
+/* The hover card names what the pointer rests on, so it gives way to any menu or dialog opened over the map (a
+   right-click's menu at the pointer, a dialog a shortcut opens) though its layer draws above them. */
+body:has([role='menu'], [aria-modal='true']) [data-hover-tooltip] {
+  display: none !important;
 }
 
 /* A presented story shows the map without the hover chrome the runtime places

@@ -206,3 +206,55 @@ it('a drag on the preview pans the lens, through the real lens owner', async () 
   vi.restoreAllMocks()
   vi.useRealTimers()
 })
+
+it('marks the inspected point with a crosshair at the preview centre, never announces the names count, and gives touch its hint (canopi-n54g)', async () => {
+  document.body.appendChild(root)
+  const state = signal({ point: { x: 0, y: 0 }, scale: 10, zoomPercent: 700, previewAvailable: true, frame: { width: 430, height: 390 },
+    plants: [{ id: 'mint', name: 'Menthe verte', screenPosition: { x: 215, y: 195 }, label: { x: 160, y: 208, width: 110, height: 24, lines: ['Menthe verte'] } }] })
+  const view: CanvasInspectionHandle = {
+    state, sourceQuad: signal<InspectionSourceQuad | null>(null),
+    inspectAtScreenPoint: vi.fn(), inspectAtWorldPoint: vi.fn(), centerOnCanvas: vi.fn(), panByScreen: vi.fn(), zoomBy: vi.fn(), highlightPlant: vi.fn(), focusPlant: vi.fn(), dispose: vi.fn(),
+  }
+  const coarse = { value: false }
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query === '(pointer: coarse)' && coarse.value, media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  }))
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+    queries: createTestCanvasQuerySurface(),
+    documents: createTestCanvasDocumentSurface({ attachInspectionTo: vi.fn(() => view) }),
+  }))
+  try {
+    await act(async () => render(<InspectionLens canvasRef={{ current: host }} />, root))
+    await act(async () => root.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click())
+    const centre = () => root.querySelector<SVGGElement>('[data-inspection-frame] [data-inspection-centre]')
+    expect(centre()).not.toBeNull()
+    expect(centre()!.getAttribute('transform')).toBe('translate(215 195)')
+    // Hollow: four arms, none reaching the centre point.
+    const arms = Array.from(centre()!.querySelectorAll('path')).map((path) => path.getAttribute('d'))
+    expect(arms.length).toBeGreaterThan(0)
+    for (const d of arms) expect(d).not.toMatch(/[ML]0 0\b/)
+    // The mark follows the preview's size, and stays when no plant is in view.
+    await act(async () => { state.value = { ...state.value, frame: { width: 620, height: 480 }, plants: [] } })
+    expect(centre()!.getAttribute('transform')).toBe('translate(310 240)')
+
+    const count = Array.from(root.querySelectorAll('span')).find((span) => span.textContent === 'Names 0 / 0')!
+    expect(count).not.toBeUndefined()
+    expect(count.closest('[role="status"], [aria-live="polite"], [aria-live="assertive"]'), 'the count is read on demand, not on every move').toBeNull()
+    expect(root.textContent).toContain('Move over canvas to inspect · Drag here to explore')
+  } finally {
+    render(null, root)
+  }
+  coarse.value = true
+  try {
+    await act(async () => render(<InspectionLens canvasRef={{ current: host }} />, root))
+    await act(async () => root.querySelector<HTMLButtonElement>('button[aria-expanded]')!.click())
+    expect(root.textContent).toContain('Tap the map to inspect · Drag here to explore')
+    expect(root.textContent).not.toContain('Move over canvas to inspect')
+  } finally {
+    vi.unstubAllGlobals()
+    host.remove()
+  }
+})
