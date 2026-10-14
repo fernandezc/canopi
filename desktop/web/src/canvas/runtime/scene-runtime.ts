@@ -1,5 +1,5 @@
 import { batch, effect, type ReadonlySignal } from '@preact/signals'
-import { setCanvasSelection, setCanvasToolGuidance } from '../session-state'
+import { setCanvasDesignPinHovered, setCanvasSelection, setCanvasToolGuidance } from '../session-state'
 import { refreshCanvasColorCache } from '../theme-refresh'
 import { onAnnotationFontLoad } from './annotation-layout'
 import { getMapBackdropInk, setCanvasMapBackdrop } from './scene-visuals'
@@ -233,6 +233,7 @@ export class SceneCanvasRuntime {
       getLocalizedCommonNames: () => this._presentation.getLocalizedCommonNames(),
       notifyTransientHistoryChange: () => this._notifyTransientHistoryChanged(),
       publishToolGuidance: setCanvasToolGuidance,
+      publishDesignPinHover: setCanvasDesignPinHovered,
       nudge: this._commandSurface.sceneEdits,
       setHoveredTarget: (target) => {
         this._setHoveredTarget(target)

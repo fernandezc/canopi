@@ -1,6 +1,8 @@
 // Tools in overview (canopi-n2cg; ADR 0015 and 0018, amended 2026-10-14): zoomed out past 0.1 px/m every tool stays
 // enabled; picking a drawing tool by its rail button or its key fits the Design, as Fit to Design does, then arms it;
-// a click on the Design pin or Enter on it fits the Design, while a wheel or a drag that starts on it is the map's; a
+// a click or a tap on the Design pin or Enter on it fits the Design, while a wheel, a drag or a pinch that starts on it is
+// the map's, whose input owns the pin's pointer: its hover shows the pointer cursor and the pin's tooltip, never through a
+// dialog drawn over it; a
 // plant dragged from the catalog onto the overview fits the Design, places nothing and stays picked for Place plants;
 // an empty Design zooms in about the view centre, not the origin; a drop on the pin itself is taken as on the map. Both
 // engines, DOM assertions only. The e2e catalog is always 404 (support/offline.ts), so the drag is synthetic dragenter,
@@ -8,6 +10,7 @@
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import { designMap } from '../support/canvas'
+import { Fingers } from '../support/fingers'
 import { mapHost, nextFrames, openFixture } from '../support/layout'
 import { expect, test } from '../support/offline'
 import { tooltipOf } from '../support/tooltip'
@@ -99,24 +102,113 @@ test('in overview every tool is enabled; a drawing tool\'s button or key fits th
   }
 })
 
-test('a click on the Design pin or Enter on it fits the Design', async ({ page }) => {
-  await openOverview(page)
-  await expect(designPin(page)).toBeVisible()
-  // The pin takes no pointer events itself (the map has every gesture), so the mouse is moved over its box.
+/** A point on the pin's name label, away from its dot: the whole pin is the map's for gestures. */
+async function onPin(page: Page): Promise<{ x: number, y: number }> {
   const box = await designPin(page).boundingBox()
   if (!box) throw new Error('no Design pin')
-  await page.mouse.move(box.x + box.width - 12, box.y + box.height / 2)
-  await expect(await tooltipOf(designPin(page))).toHaveText('Fit the whole Design on screen')
-  await page.mouse.click(box.x + box.width - 12, box.y + box.height / 2)
+  return { x: box.x + box.width - 12, y: box.y + box.height / 2 }
+}
+
+test('a mouse over the Design pin shows the pointer cursor and, after the hover delay, its tooltip; a click or Enter fits', async ({ page }) => {
+  await openOverview(page)
+  await expect(designPin(page)).toBeVisible()
+  // With motion, so the tooltip's hover delay applies.
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const tooltip = await tooltipOf(designPin(page))
+  const pin = await onPin(page)
+  await page.mouse.move(pin.x + 200, pin.y + 120)
+  await expect(tooltip).toHaveCount(0)
+  await expect(mapHost(page), 'bare map shows the tool\'s cursor').not.toHaveCSS('cursor', 'pointer')
+
+  // The pin takes no pointer events itself (the map has every gesture): the map's hover finds its box.
+  await page.mouse.move(pin.x, pin.y, { steps: 4 })
+  await expect(mapHost(page), 'over the pin the map shows the pointer cursor').toHaveCSS('cursor', 'pointer')
+  await expect(tooltip).toHaveText('Fit the whole Design on screen')
+  expect(await tooltip.evaluate((element) => getComputedStyle(element).animationDelay), 'the tooltip waits for the hover delay').not.toBe('0s')
+  await page.mouse.move(pin.x + 200, pin.y + 120, { steps: 4 })
+  await expect(tooltip, 'off the pin its tooltip hides').toHaveCount(0)
+  await expect(mapHost(page)).not.toHaveCSS('cursor', 'pointer')
+
+  await page.mouse.click(pin.x, pin.y)
   await expectFitted(page, 'the pin')
   await expect(tool(page, 'Select'), 'the pin arms no tool').toHaveAttribute('aria-pressed', 'true')
+  await expect(designMap(page), 'the map has focus after the click').toBeFocused()
 
   // From the keyboard: the pin leaves with the overview, so the map takes focus and its keys work at once.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await zoomOutToOverview(page)
   await designPin(page).focus()
   await page.keyboard.press('Enter')
   await expectFitted(page, 'the pin from the keyboard')
   await expect(designMap(page), 'the map has focus').toBeFocused()
+})
+
+test('a dialog drawn over the Design pin shows neither its tooltip nor the pointer cursor, and a click on it fits nothing', async ({ page }) => {
+  await openOverview(page)
+  const pin = await onPin(page)
+  await page.mouse.move(pin.x + 200, pin.y + 120)
+  await designMap(page).focus()
+  await page.keyboard.press('F1')
+  const dialog = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(dialog).toBeVisible()
+  const covering = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[role="dialog"]') !== null, pin)
+  expect(covering, 'the dialog covers the pin').toBe(true)
+
+  await page.mouse.move(pin.x, pin.y, { steps: 4 })
+  await page.mouse.move(pin.x + 2, pin.y + 1)
+  await page.waitForTimeout(800)
+  await expect(await tooltipOf(designPin(page)), 'no pin tooltip over the dialog').toHaveCount(0)
+  expect(await page.evaluate(({ x, y }) => getComputedStyle(document.elementFromPoint(x, y)!).cursor, pin)).not.toBe('pointer')
+  await page.mouse.click(pin.x + 2, pin.y + 1)
+  await expect(overviewNotice(page), 'a click on the dialog over the pin fits nothing').toBeVisible()
+})
+
+test.describe('Chromium touch on the Design pin', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'multi-touch through CDP is Chromium-only')
+  test.use({ hasTouch: true })
+
+  test('a tap on the pin fits the Design; a pinch with a still finger on it fits nothing, whichever finger lands first', async ({ page }) => {
+    await openOverview(page)
+    const fingers = await Fingers.of(page)
+    const away = (from: { x: number, y: number }, by: number) => ({ x: from.x - 260 - by, y: from.y + 160 + by / 2 })
+
+    for (const pinFirst of [true, false]) {
+      const pin = await onPin(page)
+      const other = away(pin, 0)
+      if (pinFirst) {
+        await fingers.start(0, pin)
+        await fingers.start(1, other)
+      } else {
+        await fingers.start(1, other)
+        await fingers.start(0, pin)
+      }
+      for (let step = 1; step <= 8; step += 1) await fingers.move({ 1: away(pin, step * 12) })
+      if (pinFirst) {
+        await fingers.end(1)
+        await fingers.end(0)
+      } else {
+        await fingers.end(0)
+        await fingers.end(1)
+      }
+      await page.waitForTimeout(300)
+      await expect(overviewNotice(page), `a pinch with a still finger on the pin (${pinFirst ? 'landing first' : 'landing second'}) fits nothing`).toBeVisible()
+    }
+
+    await fingers.tap(await onPin(page))
+    await expectFitted(page, 'a tap on the pin')
+  })
+})
+
+test.describe('WebKit touch on the Design pin', () => {
+  test.skip(({ browserName }) => browserName !== 'webkit', 'page.touchscreen in WebKit')
+  test.use({ hasTouch: true })
+
+  test('a touchscreen tap on the pin fits the Design', async ({ page }) => {
+    await openOverview(page)
+    const pin = await onPin(page)
+    await page.touchscreen.tap(pin.x, pin.y)
+    await expectFitted(page, 'a tap on the pin')
+  })
 })
 
 test('a wheel or a drag that starts on the Design pin acts on the map; a press dragged off it fits nothing', async ({ page }) => {

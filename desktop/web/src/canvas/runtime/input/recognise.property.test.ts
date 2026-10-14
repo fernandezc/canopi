@@ -140,6 +140,10 @@ function checkSessionLifecycle(seed: number): void {
     const starts = gestures.filter((gesture) => gesture.kind === 'press').length + sessionPans(gestures, 'start')
     // A held touch press lifted within its slop: its press and its tap come together (A2).
     const heldTap = input.kind === 'up' && endedSessions[0]?.mode === 'held' && endedSessions[0].heldPress !== null
+    // An overview press, which no tool hears, released within its slop in overview: a tap with no press (canopi-n2cg).
+    const overviewTap = input.kind === 'up' && endedSessions[0] !== undefined && !endedSessions[0].pressed
+      && endedSessions[0].navigation === 'primary-drag' && !endedSessions[0].slopPassed && snapshot.context.mode === 'overview'
+      && (endedSessions[0].mode === 'held' || endedSessions[0].mode === 'pan')
 
     expect(endedSessions.length, at(index)).toBeLessThanOrEqual(1)
     const [endedSession] = endedSessions
@@ -159,7 +163,7 @@ function checkSessionLifecycle(seed: number): void {
     } else if (endedSession.mode === 'held') {
       // The host heard nothing of a held press: it ends silently, unless its lift sends the press and its tap.
       expect({ editingEnds, panEnds, rotateEndsNow }, `${at(index)}: a held touch press ends once`)
-        .toEqual({ editingEnds: heldTap ? 1 : 0, panEnds: 0, rotateEndsNow: 0 })
+        .toEqual({ editingEnds: heldTap || overviewTap ? 1 : 0, panEnds: 0, rotateEndsNow: 0 })
     } else if (endedSession.mode === 'secondary') {
       // A still secondary press ends with its menu on release, or with a fence's cancel.
       const fenced = !endsNaturally(input)
@@ -179,7 +183,7 @@ function checkSessionLifecycle(seed: number): void {
       expect(panEnds, at(index)).toBe(1)
       expect(rotateEndsNow, at(index)).toBe(0)
       // A press the host saw ends once, whatever ended its pan; a pan with no press ends silently on its release.
-      expect(editingEnds, at(index)).toBe(endedSession.pressed || input.kind !== 'up' ? 1 : 0)
+      expect(editingEnds, at(index)).toBe(endedSession.pressed || input.kind !== 'up' || overviewTap ? 1 : 0)
       if (endedSession.pressed && input.kind === 'up') {
         const navigated = gestures.some((gesture) => gesture.kind === 'cancel' && gesture.reason === 'navigate')
         expect(navigated, `${at(index)}: a Pan-tool press ends with a tap only when its drag did not pan`).toBe(endedSession.slopPassed)

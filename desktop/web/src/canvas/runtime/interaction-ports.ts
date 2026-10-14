@@ -172,6 +172,17 @@ export interface ToolHostDeps {
    * stamp picked and arms its stamp tool (canopi-n2cg).
    */
   readonly overviewDrop: (payload: OverviewDropPayload) => void
+  /**
+   * The overview's Design pin (canopi-n2cg), which is transparent to the pointer: the map's own tap and hover find it.
+   * `contains`: a screen point on its box (ViewNavigation.onDesignPin). `hovered`: a mouse or pen rests on it, so it shows
+   * its tooltip (the host sets the pointer cursor). `tapped`: a tap on it, which fits the Design as Return to Design does
+   * and gives the map focus.
+   */
+  readonly designPin: {
+    contains(at: ScreenPoint): boolean
+    hovered(hovered: boolean): void
+    tapped(): void
+  }
 }
 
 /** What createToolScene reads (tools/tool-host.ts re-exports the factory). Hit tests need the scale and the plant presentation

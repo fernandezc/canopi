@@ -10,7 +10,8 @@
 // opens the menu at the release point (none in overview), carrying the handle it pressed (A16), a drag pans, and with Shift at the press it turns the view,
 // stepped while mod is held; no native contextmenu reaches it (the DOM source's listener prevents them); a middle drag, a
 // press with Space held (on a handle too), a primary press in overview and the Pan tool's primary drag pan, a pointer pan
-// carrying the pointer's point and a Pan-tool press ending with cancel('navigate') after its drag; a Shift+middle drag
+// carrying the pointer's point and a Pan-tool press ending with cancel('navigate') after its drag; an overview press, which
+// no tool hears, released within its slop ending in a tap with no press (the Design pin's, canopi-n2cg); a Shift+middle drag
 // rotating about its press once it passes 3 px (silent before, so a still click turns nothing), stepped while mod is
 // held, with the wheel ignored while a pointer rotate lives;
 // a button-less move over owned chrome, the text entry or a handle ends the hover; wheels, over the map or a handle, zoom
@@ -203,7 +204,8 @@ function down(step: Step, input: RawOf<'down'>, config: RecogniserConfig): void 
     navigation = 'auxiliary-drag'
     pressed = false
   } else if (context.mode === 'overview') {
-    // Overview draws no zones or notes, so a left press pans in every tool, for every pointer, and never reaches the host (U36).
+    // Overview draws no zones or notes, so a left press pans in every tool, for every pointer, and its press never reaches
+    // the host (U36); a still one ends in a tap, which only the Design pin hears (canopi-n2cg).
     navigation = 'primary-drag'
     pressed = false
   } else if (held.space) {
@@ -344,6 +346,8 @@ function up(step: Step, input: RawOf<'up'>, config: RecogniserConfig): void {
     // A lift within the slop: the press and its tap, both at the down point (A2), unless the host hears none.
     if (session.heldPress) {
       step.gestures.push(heldPressOf(session), { kind: 'tap', id: session.pointerId, at: session.start, pointer: session.pointer, mods: input.mods, clickCount: session.clickCount })
+    } else if (isOverviewPress(step, session)) {
+      step.gestures.push({ kind: 'tap', id: session.pointerId, at: session.start, pointer: session.pointer, mods: input.mods, clickCount: session.clickCount })
     }
     return
   }
@@ -361,6 +365,7 @@ function up(step: Step, input: RawOf<'up'>, config: RecogniserConfig): void {
     if (session.navigation) step.gestures.push(panEndOf(session))
     // A Pan-tool press the host saw ends once: a tap after a still click, or cancel('navigate') after its drag panned.
     if (session.pressed) step.gestures.push(session.slopPassed ? { kind: 'cancel', reason: 'navigate' } : tapOf(session, input))
+    else if (!session.slopPassed && isOverviewPress(step, session)) step.gestures.push(tapOf(session, input))
     return
   }
   if (session.mode === 'pending') {
@@ -770,6 +775,12 @@ function pointerRotateLive(state: RecogniserState): boolean {
     if (session.mode === 'rotate' && session.navigation !== 'trackpad-twist') return true
   }
   return false
+}
+
+/** An overview press, which pans and reaches no tool: released within its slop while the view is still in overview, it ends
+ *  in a tap with no press, which only the Design pin hears (canopi-n2cg). */
+function isOverviewPress(step: Step, session: PointerSession): boolean {
+  return !session.pressed && session.navigation === 'primary-drag' && step.state.context.mode === 'overview'
 }
 
 function tapOf(session: PointerSession, input: RawOf<'up'>): Gesture {

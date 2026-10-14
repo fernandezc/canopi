@@ -63,6 +63,7 @@ export function createTestCanvasCommandSurface(
       returnFromTemporaryFocus: () => false,
       showPlace: () => false,
       setFramingInsets: () => {},
+      setDesignPinExtent: () => {},
       zoomToSelection: () => {},
       resetNorth: () => {},
       rotateBy: () => {},

@@ -3,6 +3,7 @@ import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tooltipOf } from '../../__tests__/support/tooltip'
 import { ButtonTooltip } from './ButtonTooltip'
+import styles from './ButtonTooltip.module.css'
 
 describe('ButtonTooltip', () => {
   let root: HTMLDivElement
@@ -54,6 +55,17 @@ describe('ButtonTooltip', () => {
     box = new DOMRect(0, 0, 0, 0)
     nextFrame()
     expect(tooltip.style.visibility).toBe('hidden')
+  })
+
+  it('shows a hover found elsewhere after the hover delay, and a shown reason at once (canopi-n2cg)', () => {
+    act(() => { render(<button type="button"><ButtonTooltip label="Fit" hovered /></button>, root) })
+    const button = root.querySelector('button')!
+    expect(tooltipOf(button)?.classList.contains(styles.tooltip!)).toBe(true)
+    expect(tooltipOf(button)?.classList.contains(styles.tooltipShown!), 'a hover waits for the delay').toBe(false)
+    act(() => { render(<button type="button"><ButtonTooltip label="Fit" shown /></button>, root) })
+    expect(tooltipOf(button)?.classList.contains(styles.tooltipShown!)).toBe(true)
+    act(() => { render(<button type="button"><ButtonTooltip label="Fit" /></button>, root) })
+    expect(tooltipOf(button)).toBeNull()
   })
 
   it('stops following once closed', () => {

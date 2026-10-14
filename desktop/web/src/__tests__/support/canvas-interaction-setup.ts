@@ -231,6 +231,7 @@ export function createInteractionDeps(
     | 'translate'
     | 'contextMenu'
     | 'publishToolGuidance'
+    | 'publishDesignPinHover'
     | 'nudge'
   >>
     & { onSceneEditCommit?: (type: string) => void } = {},
@@ -327,6 +328,7 @@ export function createInteractionDeps(
     setHoveredTarget: overrides.setHoveredTarget ?? (() => {}),
     getLocalizedCommonNames: () => new Map(),
     publishToolGuidance: overrides.publishToolGuidance ?? setCanvasToolGuidance,
+    publishDesignPinHover: overrides.publishDesignPinHover ?? (() => {}),
     nudge: overrides.nudge ?? { nudgeSelected: vi.fn(() => true), endNudge: vi.fn() },
     renderer: createRecordingRenderer(),
     readScrollWheel: () => 'zoom',

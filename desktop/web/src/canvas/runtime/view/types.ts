@@ -10,6 +10,9 @@ export interface ScreenPoint { readonly x: number; readonly y: number }
 /** Screen TL, TR, BR, BL order. */
 export type WorldQuad = readonly [WorldPoint, WorldPoint, WorldPoint, WorldPoint]
 export interface ScreenInsets { readonly top: number; readonly right: number; readonly bottom: number; readonly left: number }
+/** The overview's Design pin box as CSS px offsets from its point: left and top at or below zero, right and bottom at or above
+ *  (view/design-pin.ts). */
+export interface DesignPinExtent { readonly left: number; readonly top: number; readonly right: number; readonly bottom: number }
 export interface GeoPoint { readonly lon: number; readonly lat: number }
 
 /** World-axis box in plane metres. */

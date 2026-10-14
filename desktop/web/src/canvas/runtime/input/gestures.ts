@@ -21,6 +21,8 @@ export type Gesture =
   | { kind: 'hover'; at: ScreenPoint; pointer: PointerKind; mods: Modifiers; target: TargetClass }
   | { kind: 'hover-end' }
   | { kind: 'press'; id: number; at: ScreenPoint; pointer: PointerKind; mods: Modifiers; clickCount: number; target: PressTarget }
+  /** A press's release within its slop; in overview, also a still overview press's, which no `press` came before (the
+   *  Design pin's tap, canopi-n2cg). */
   | { kind: 'tap'; id: number; at: ScreenPoint; pointer: PointerKind; mods: Modifiers; clickCount: number }
   | { kind: 'drag-start'; id: number; at: ScreenPoint; mods: Modifiers }
   | { kind: 'drag-move'; id: number; at: ScreenPoint; mods: Modifiers }

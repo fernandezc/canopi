@@ -345,6 +345,10 @@ export interface ToolHarnessRecord {
   readonly drops: ('species' | 'saved-stamp')[]
   /** The drops the host took in overview (ToolHostDeps.overviewDrop), in order. */
   readonly overviewDrops: OverviewDropPayload[]
+  /** The Design pin's hover changes (ToolHostDeps.designPin.hovered), in order. */
+  readonly pinHovers: boolean[]
+  /** Taps on the Design pin (ToolHostDeps.designPin.tapped). */
+  pinTaps: number
 }
 
 /** The open text entry: its request, the host's submit and onCancel, the text typed into it (its initial text until typeText),
@@ -478,6 +482,8 @@ export function createToolHarness(options: ToolHarnessOptions = {}): ToolHarness
     captures: [],
     drops: [],
     overviewDrops: [],
+    pinHovers: [],
+    pinTaps: 0,
   }
   const chrome = {
     handles: [] as readonly ToolHandle[],
@@ -592,6 +598,11 @@ export function createToolHarness(options: ToolHarnessOptions = {}): ToolHarness
     },
     overviewDrop(payload) {
       record.overviewDrops.push(payload)
+    },
+    designPin: {
+      contains: (at) => view.navigation.onDesignPin(at),
+      hovered: (hovered) => { record.pinHovers.push(hovered) },
+      tapped: () => { record.pinTaps += 1 },
     },
   })
   host.subscribePointerWorld((point) => {

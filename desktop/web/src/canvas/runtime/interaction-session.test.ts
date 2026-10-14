@@ -378,6 +378,110 @@ describe('the interaction session', () => {
     expect(readSavedObjectStampName()).toBeNull()
   })
 
+  describe('the Design pin in overview (canopi-n2cg)', () => {
+    /** The pin's point is the plane origin, at (200, 150) on screen; its box, as CanvasOverview measures it, runs 20 px
+     *  left and 16 px up of it, 120 px right and 16 px down. */
+    const ON_PIN = { x: 190, y: 150 }
+    const OFF_PIN = { x: 80, y: 60 }
+
+    function overviewWithPin(overrides: Partial<SceneInteractionSessionDeps> = {}) {
+      useStubTools(stubTool('select'))
+      const returnToDesign = vi.fn(testView.navigation.returnToDesign)
+      const { session } = createSession({ viewNavigation: { ...testView.navigation, returnToDesign }, ...overrides })
+      testView.setViewport({ x: 200, y: 150, scale: 0.05 })
+      testView.navigation.setDesignPinExtent({ left: -20, top: -16, right: 120, bottom: 16 })
+      expect(testView.frames.viewFrame.peek().mode).toBe('overview')
+      return { session, returnToDesign }
+    }
+
+    const mouse = (buttons: number) => ({ pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0, buttons, timeStamp: 0 })
+    const finger = (id: number, buttons: number) => ({ pointerType: 'touch', pointerId: id, isPrimary: id === 1, button: 0, buttons, timeStamp: 0 })
+
+    it('a click on the pin fits the Design and gives the map focus; a click off it does nothing', () => {
+      const { returnToDesign } = overviewWithPin()
+
+      events.pointerDown(OFF_PIN, mouse(1))
+      events.pointerUp(OFF_PIN, mouse(0))
+      expect(returnToDesign).not.toHaveBeenCalled()
+      expect(testView.frames.viewFrame.peek().mode).toBe('overview')
+
+      container.blur()
+      events.pointerDown(ON_PIN, mouse(1))
+      events.pointerMove({ x: ON_PIN.x + 2, y: ON_PIN.y + 1 }, mouse(1))
+      events.pointerUp({ x: ON_PIN.x + 2, y: ON_PIN.y + 1 }, mouse(0))
+      expect(returnToDesign).toHaveBeenCalledExactlyOnceWith()
+      expect(testView.frames.viewFrame.peek().mode).toBe('site')
+      expect(document.activeElement).toBe(container)
+    })
+
+    it('a drag that starts on the pin pans the map and fits nothing', () => {
+      const { returnToDesign } = overviewWithPin()
+      const before = testView.viewport()
+
+      events.pointerDown(ON_PIN, mouse(1))
+      events.pointerMove({ x: ON_PIN.x + 30, y: ON_PIN.y + 20 }, mouse(1))
+      events.pointerUp({ x: ON_PIN.x + 30, y: ON_PIN.y + 20 }, mouse(0))
+
+      expect(returnToDesign).not.toHaveBeenCalled()
+      expect(testView.viewport().x - before.x).toBeCloseTo(30, 6)
+      expect(testView.viewport().y - before.y).toBeCloseTo(20, 6)
+    })
+
+    it('a finger\'s tap on the pin fits the Design', () => {
+      const { returnToDesign } = overviewWithPin()
+
+      events.pointerDown(ON_PIN, finger(1, 1))
+      events.pointerUp(ON_PIN, finger(1, 0))
+
+      expect(returnToDesign).toHaveBeenCalledOnce()
+    })
+
+    it('a pinch with a still finger on the pin fits nothing, whichever finger lands or lifts first', () => {
+      const { returnToDesign } = overviewWithPin()
+
+      // The still finger on the pin lands first and lifts last.
+      events.pointerDown(ON_PIN, finger(1, 1))
+      events.pointerDown(OFF_PIN, finger(2, 1))
+      events.pointerMove({ x: OFF_PIN.x - 30, y: OFF_PIN.y - 20 }, finger(2, 1))
+      events.pointerUp({ x: OFF_PIN.x - 30, y: OFF_PIN.y - 20 }, finger(2, 0))
+      events.pointerUp(ON_PIN, finger(1, 0))
+      expect(returnToDesign).not.toHaveBeenCalled()
+
+      // The finger on the pin lands second and lifts first.
+      const pin = { x: ON_PIN.x + 60, y: ON_PIN.y + 10 }
+      events.pointerDown(OFF_PIN, finger(3, 1))
+      events.pointerDown(pin, finger(4, 1))
+      events.pointerMove({ x: OFF_PIN.x - 30, y: OFF_PIN.y - 20 }, finger(3, 1))
+      events.pointerUp(pin, finger(4, 0))
+      events.pointerUp({ x: OFF_PIN.x - 30, y: OFF_PIN.y - 20 }, finger(3, 0))
+      expect(returnToDesign).not.toHaveBeenCalled()
+      expect(testView.frames.viewFrame.peek().mode).toBe('overview')
+    })
+
+    it('a mouse over the pin shows the pointer cursor and the pin\'s tooltip, until it moves off or leaves the map', () => {
+      const hovers: boolean[] = []
+      overviewWithPin({ publishDesignPinHover: (hovered) => { hovers.push(hovered) } })
+
+      events.pointerMove(OFF_PIN, mouse(0))
+      expect(hovers).toEqual([])
+      events.pointerMove(ON_PIN, mouse(0))
+      expect(hovers).toEqual([true])
+      expect(container.style.cursor).toBe('pointer')
+      events.pointerMove(OFF_PIN, mouse(0))
+      expect(hovers).toEqual([true, false])
+      expect(container.style.cursor).toBe('default')
+
+      events.pointerMove(ON_PIN, mouse(0))
+      events.pointerLeave(ON_PIN, mouse(0))
+      expect(hovers).toEqual([true, false, true, false])
+      expect(container.style.cursor).toBe('default')
+
+      // A finger never hovers it.
+      events.pointerMove(ON_PIN, finger(5, 0))
+      expect(hovers).toEqual([true, false, true, false])
+    })
+  })
+
   it('a registered tool\'s transient history and spacing field go through the host', () => {
     const row = stubTool('plant-spacing', {
       canUndoTransient: () => true,

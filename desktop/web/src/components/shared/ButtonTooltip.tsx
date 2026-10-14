@@ -15,12 +15,15 @@ interface ButtonTooltipProps {
   side?: TooltipSide
   /** Shown whatever the hover or focus: a reason a tap asked for on a touch screen, which has no hover. */
   shown?: boolean
+  /** A hover found elsewhere, shown as the button's own hover is, after its delay: the overview's Design pin, which is
+   *  transparent to the pointer, hears it from the map's input. */
+  hovered?: boolean
 }
 
 /**
  * The tooltip of the button it is placed in. It is drawn in the window-level tooltip layer (utils/tooltip-layer.ts),
- * so no frame covers or clips it, while a mouse or pen hovers the button or keyboard focus is on it, and whenever
- * `shown`. A finger's hover never shows it (a tap leaves the button hovered); a press hides it.
+ * so no frame covers or clips it, while a mouse or pen hovers the button (or `hovered` says one does) or keyboard focus is
+ * on it, and whenever `shown`. A finger's hover never shows it (a tap leaves the button hovered); a press hides it.
  *
  * Assistive tech hears what the tooltip adds to the button's name, shown or not: the button's aria-describedby names a
  * hidden node, kept in the layer so the button's own text is unchanged, that holds each of the label, shortcut and
@@ -33,6 +36,7 @@ export function ButtonTooltip({
   shortcut,
   side = 'right',
   shown = false,
+  hovered: hoveredElsewhere = false,
 }: ButtonTooltipProps) {
   const id = useId()
   const marker = useRef<HTMLSpanElement>(null)
@@ -41,7 +45,8 @@ export function ButtonTooltip({
   const describedId = `${id}-described`
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
-  const open = shown || hovered || focused
+  const hover = hovered || hoveredElsewhere
+  const open = shown || hover || focused
 
   useEffect(() => {
     const button = marker.current?.closest('button')
@@ -143,7 +148,7 @@ export function ButtonTooltip({
       <span ref={marker} hidden data-tooltip-anchor={id} />
       {createPortal(<span ref={spoken} id={describedId} hidden />, tooltipLayer())}
       {open && createPortal(
-        <span ref={bubble} data-tooltip-for={id} className={`${styles.tooltip}${hovered || focused ? '' : ` ${styles.tooltipShown}`}`} role="tooltip">
+        <span ref={bubble} data-tooltip-for={id} className={`${styles.tooltip}${hover || focused ? '' : ` ${styles.tooltipShown}`}`} role="tooltip">
           <span className={styles.tooltipName}>{label}</span>
           {shortcut && <span className={styles.tooltipShortcut}>{shortcut}</span>}
           {description && (
