@@ -180,13 +180,13 @@
   cursor: pointer;
 }
 
-.retryButton:hover:not(:disabled) {
+.retryButton:hover:not([aria-disabled='true']) {
   background: var(--color-danger);
   color: var(--color-bg);
 }
 
 /* A retry in progress: the button waits. */
-.retryButton:disabled {
+.retryButton[aria-disabled='true'] {
   cursor: progress;
   opacity: 0.6;
 }
