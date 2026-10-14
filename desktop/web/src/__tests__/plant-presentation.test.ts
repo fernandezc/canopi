@@ -72,23 +72,28 @@ describe('plant presentation service', () => {
     expect(plants.map((plant) => plant.position)).toEqual([{ x: 0, y: 0 }, { x: .27, y: 0 }])
   })
 
-  it('sizes default Plant Size Mode dots with a smooth absolute-scale Visual Footprint curve', () => {
-    const expectedRadiiByScale = new Map([
-      [1, 2.22],
-      [5, 2.91],
-      [10, 3.53],
-      [50, 5.35],
-      [200, 6.3],
-    ])
+  it('canopi-uabc: grows a symbol with zoom to 42 percent of its nearest-plant spacing, up to a 14 px radius', () => {
+    const plants = [createPlant({ id: 'a', position: { x: 0, y: 0 } }), createPlant({ id: 'b', position: { x: 1, y: 0 } })]
+    const radiusAt = (scale: number) => buildPlantPresentationEntries(plants, {
+      plants, pixelsPerMetre: scale, speciesCache: new Map(),
+    }, new Set())[0]!
 
-    for (const [scale, expectedRadiusPx] of expectedRadiiByScale) {
-      const entry = buildPlantPresentationEntries([createPlant()], {
-        pixelsPerMetre: scale,
-        speciesCache: new Map(),
-      }, new Set())[0]!
+    expect(radiusAt(10).radiusScreenPx).toBeCloseTo(4.2, 2)
+    expect(radiusAt(30).radiusScreenPx).toBeCloseTo(12.6, 2)
+    expect(radiusAt(200).radiusScreenPx).toBe(14)
+    // Zoomed in, the default symbol size reaches the detailed artwork (16 px across).
+    expect(radiusAt(30).glyphRadiusPx * 2).toBeGreaterThanOrEqual(16)
+    expect(radiusAt(30).dot).toBe(false)
+  })
 
-      expect(entry.radiusScreenPx).toBeCloseTo(expectedRadiusPx, 2)
-    }
+  it('canopi-uabc: sizes a plant with no near neighbour as if one stood 4 m away, never under 2 px', () => {
+    const radiusAt = (scale: number) => buildPlantPresentationEntries([createPlant()], {
+      pixelsPerMetre: scale, speciesCache: new Map(),
+    }, new Set())[0]!.radiusScreenPx
+
+    expect(radiusAt(1)).toBe(2)
+    expect(radiusAt(5)).toBeCloseTo(8.4, 2)
+    expect(radiusAt(50)).toBe(14)
   })
 
   it('uses the resolved base color as the display color', () => {
@@ -149,10 +154,10 @@ describe('plant presentation service', () => {
       speciesCache,
     }, new Set())[0]!
 
-    expect(canopyPresentation.radiusScreenPx).toBeCloseTo(4.05, 2)
-    expect(canopyPresentation.radiusWorld).toBeCloseTo(4.05 / 16, 2)
-    expect(fallbackPresentation.radiusScreenPx).toBeCloseTo(4.05, 2)
-    expect(fallbackPresentation.radiusWorld).toBeCloseTo(4.05 / 16, 2)
+    expect(canopyPresentation.radiusScreenPx).toBeCloseTo(14, 2)
+    expect(canopyPresentation.radiusWorld).toBeCloseTo(14 / 16, 2)
+    expect(fallbackPresentation.radiusScreenPx).toBeCloseTo(14, 2)
+    expect(fallbackPresentation.radiusWorld).toBeCloseTo(14 / 16, 2)
     expect(fallbackPresentation.symbol).toBe('conifer')
   })
 

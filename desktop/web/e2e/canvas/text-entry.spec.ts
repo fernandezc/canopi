@@ -121,8 +121,8 @@ async function commitNote(page: Page, text: string): Promise<void> {
   await expectCanvasDrawn(page)
 }
 
-/** The strip of screen the note at the neutral point sits in: its one line, below the rotate handle. */
-const NOTE_STRIP = { x: NEUTRAL.x - 40, y: NEUTRAL.y - 6, width: 520, height: 30 }
+/** The strip of screen the note at the neutral point sits in: its one line, below the rotate handle, short of the plant at (1122, 461). */
+const NOTE_STRIP = { x: NEUTRAL.x - 40, y: NEUTRAL.y - 6, width: 320, height: 30 }
 
 /**
  * Expects the selected note's outline (the selection's ochre, #9C5A16) to end within 6 CSS px past its last glyph (the

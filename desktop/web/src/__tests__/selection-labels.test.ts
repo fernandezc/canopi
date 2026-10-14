@@ -68,7 +68,7 @@ describe('selection labels', () => {
     expect(landing(result[0]!, createViewport({ scale: 1 })).y).toBeCloseTo(25, 2)
   })
 
-  it('keeps the selected plant label offset balanced at high zoom', () => {
+  it('hangs the selected plant label 2 px under its symbol at high zoom', () => {
     const result = computeSelectionLabels(
       [createPlant({ id: 'a', position: { x: 10, y: 20 } })],
       new Set(['a']),
@@ -77,7 +77,7 @@ describe('selection labels', () => {
     )
 
     expect(landing(result[0]!, createViewport({ scale: 1000 })).x).toBeCloseTo(10000, 5)
-    expect(landing(result[0]!, createViewport({ scale: 1000 })).y).toBeCloseTo(20008, 2)
+    expect(landing(result[0]!, createViewport({ scale: 1000 })).y).toBeCloseTo(20016, 2)
   })
 
   it('returns empty array when multiple plants are selected', () => {

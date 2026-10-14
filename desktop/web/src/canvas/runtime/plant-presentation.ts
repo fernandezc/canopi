@@ -169,9 +169,14 @@ export function plantStackCounts(entries: readonly PlantPresentationEntry[]): Re
   return counts
 }
 
-const SYMBOLIC_PLANT_MIN_SCREEN_PX = 2
-const SYMBOLIC_PLANT_MAX_SCREEN_PX = 6.75
-const SYMBOLIC_PLANT_HALF_GROWTH_SCALE = 21
+// A symbol fills 42% of the distance to its nearest plant, so neighbours never touch, up to a 14 px radius: zooming
+// in reaches the detailed artwork (16 px across) and still leaves room for names, notes and rings. A plant with no
+// neighbour within 4 m is sized as if one stood 4 m away, never under 2 px. projectcanopi.com's featured design uses
+// the same rule with an 18 px cap, as it shows plants alone.
+const PLANT_SPACING_SHARE = .42
+const PLANT_MAX_RADIUS_PX = 14
+const LONE_PLANT_SPACING_M = 4
+const LONE_PLANT_MIN_RADIUS_PX = 2
 
 function resolvePlantRadiusWorld(plant: ScenePlantEntity, context: PlantFootprintContext): number {
   const spacing = context.plants ? nearestPlantSpacing(context.plants, plant.position) : Infinity
@@ -185,18 +190,11 @@ function plantSizeAt(
 ): Pick<PlantPresentationEntry, 'radiusWorld' | 'radiusScreenPx' | 'glyphRadiusPx' | 'dot'> {
   const scale = Math.max(pixelsPerMetre, .001)
   // Display › Symbol size scales the footprint, so drawing, hit testing and bounds agree.
-  const radiusScreenPx = Math.max(.65, Math.min(getSymbolicPlantRadiusScreenPx(scale), spacing * scale * .42)
+  const ceilingPx = Math.min(PLANT_MAX_RADIUS_PX, Math.max(LONE_PLANT_MIN_RADIUS_PX, LONE_PLANT_SPACING_M * scale * PLANT_SPACING_SHARE))
+  const radiusScreenPx = Math.max(.65, Math.min(ceilingPx, spacing * scale * PLANT_SPACING_SHARE)
     * getCanvasPlantDisplay().symbolScale)
   const glyphRadiusPx = Math.round(radiusScreenPx * 4) / 4
   return { radiusWorld: radiusScreenPx / scale, radiusScreenPx, glyphRadiusPx, dot: isDotScale(pixelsPerMetre) || glyphRadiusPx < 3.6 }
-}
-
-function getSymbolicPlantRadiusScreenPx(viewportScale: number): number {
-  const scale = Math.max(viewportScale, 0.001)
-  const range = SYMBOLIC_PLANT_MAX_SCREEN_PX - SYMBOLIC_PLANT_MIN_SCREEN_PX
-  return SYMBOLIC_PLANT_MIN_SCREEN_PX + (
-    range * scale / (scale + SYMBOLIC_PLANT_HALF_GROWTH_SCALE)
-  )
 }
 
 function getStackPriority(plant: ScenePlantEntity, selected: boolean): number {

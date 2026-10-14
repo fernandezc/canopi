@@ -10,6 +10,7 @@ import { CANVAS_CHROME_FONT_FAMILY } from '../canvas/chrome-fonts'
 import { getCanvasTextOpacity } from '../canvas/runtime/text-visibility'
 import { bandCentreScale, zoomBandOf } from '../canvas/runtime/view/frame-source'
 import './support/camera-tolerance'
+import { ROUND_PLANT_SYMBOL_RADIUS } from '../canvas/runtime/plant-symbol-recipes'
 
 vi.mock('pixi.js', () => {
   const state = {
@@ -346,8 +347,9 @@ describe('createPixiScenePresentation', () => {
     }
     const renderer = mountPresentation(document.createElement('div'))
     const snapshot = createTestSceneRendererSnapshot({ scene: { plants: [
+      // Half a metre apart: 30, 60 and 90 px/m draw three sizes (6.3, 12.6 and the 14 px cap).
       createPlant({ id: 'a', symbol: 'shrub', position: { x: 1, y: 1 } }),
-      createPlant({ id: 'b', symbol: 'shrub', position: { x: 5, y: 1 } }),
+      createPlant({ id: 'b', symbol: 'shrub', position: { x: 1.5, y: 1 } }),
     ] } })
     renderer.present(view({ x: 0, y: 0, scale: 30 }), snapshot)
     const [firstPlant, secondPlant] = pixi.__pixiMockState.graphics
@@ -428,24 +430,25 @@ describe('createPixiScenePresentation', () => {
     const snapshot = createTestSceneRendererSnapshot({ scene: {
       plants: [createPlant({ symbol: 'shrub', position: { x: 2, y: 2 } })],
     } })
-    renderer.present(view({ x: 0, y: 0, scale: 20 }), snapshot)
+    // A lone plant at 4, 6 and 12 px/m is 6.72, 10.08 and 14 px in radius: three drawn sizes.
+    renderer.present(view({ x: 0, y: 0, scale: 4 }), snapshot)
     const plant = pixi.__pixiMockState.graphics[0]!
     const contextA = plant.context
-    renderer.present(view({ x: 0, y: 0, scale: 30 }))
+    renderer.present(view({ x: 0, y: 0, scale: 6 }))
     const contextB = plant.context
     expect(contextB).not.toBe(contextA)
-    renderer.present(view({ x: 0, y: 0, scale: 20 }))
+    renderer.present(view({ x: 0, y: 0, scale: 4 }))
     expect(plant.context).toBe(contextA)
     // Zoom frames retire nothing, however many sizes they draw.
-    renderer.present(view({ x: 0, y: 0, scale: 60 }))
+    renderer.present(view({ x: 0, y: 0, scale: 12 }))
     const contextC = plant.context
     expect(contextA.destroy).not.toHaveBeenCalled()
     expect(contextB.destroy).not.toHaveBeenCalled()
     // Each sync begins a generation; A and B, unseen since, go at the third.
-    renderer.present(view({ x: 0, y: 0, scale: 60 }), snapshot)
-    renderer.present(view({ x: 0, y: 0, scale: 60 }), snapshot)
+    renderer.present(view({ x: 0, y: 0, scale: 12 }), snapshot)
+    renderer.present(view({ x: 0, y: 0, scale: 12 }), snapshot)
     expect(contextA.destroy).not.toHaveBeenCalled()
-    renderer.present(view({ x: 0, y: 0, scale: 60 }), snapshot)
+    renderer.present(view({ x: 0, y: 0, scale: 12 }), snapshot)
     expect(contextA.destroy).toHaveBeenCalledOnce()
     expect(contextB.destroy).toHaveBeenCalledOnce()
     expect(contextC.destroy).not.toHaveBeenCalled()
@@ -626,7 +629,7 @@ describe('createPixiScenePresentation', () => {
     renderer.present(view({ x: -9900, y: -9900, scale: 1000 }), createRendererSnapshot({
       plants: [createPlant({ id: 'a', symbol: 'round' }), createPlant({ id: 'b', symbol: 'round' })],
     }))
-    const glyph = pixi.__pixiMockState.graphics.find(graphics => graphics.circle.mock.calls.some(([x, y, radius]) => x === 0 && y === 0 && radius > 4.8 && radius < 5.6))!
+    const glyph = pixi.__pixiMockState.graphics.find(graphics => graphics.circle.mock.calls.some(([x, y, radius]) => x === 0 && y === 0 && Math.abs(radius - 14 * ROUND_PLANT_SYMBOL_RADIUS) < 0.13))!
     expect(glyph).toBeDefined()
     expect(glyph.position.set).toHaveBeenLastCalledWith(100, 100)
     // Stack counts keep the 12 px type floor on a badge sized for them.
@@ -1167,7 +1170,8 @@ describe('createPixiScenePresentation', () => {
           notes: null,
           plantedDate: null,
           quantity: 1,
-        }],
+        }, // A neighbour 1 m away keeps the plant a dot, which strokes nothing, at both scales.
+        createPlant({ id: 'neighbour', position: { x: 11, y: 20 } })],
         zones: [{
           kind: 'zone',
           locked: false,

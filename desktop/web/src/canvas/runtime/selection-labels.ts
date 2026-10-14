@@ -39,7 +39,6 @@ export function projectScenePlantLabels(
 
 const PLANT_LABEL_GAP_PX = 2
 const PLANT_LABEL_MIN_OFFSET_PX = 5
-const PLANT_LABEL_MAX_OFFSET_PX = 8
 
 export function computeSelectionLabels(
   plants: readonly ScenePlantEntity[],
@@ -91,7 +90,7 @@ function below(anchor: ScenePoint, offsetYPx: number): AnchoredLabel {
   return { anchor: { x: anchor.x, y: anchor.y }, offsetPx: { x: 0, y: offsetYPx } }
 }
 
-/** The gap below a plant's footprint, at `pixelsPerMetre`, clamped to 5–8 px. */
+/** The gap below a plant's footprint at `pixelsPerMetre`: 2 px under the symbol, at least 5 px from its centre. */
 function plantLabelOffsetPx(
   plant: ScenePlantEntity,
   plants: readonly ScenePlantEntity[],
@@ -99,11 +98,7 @@ function plantLabelOffsetPx(
 ): number {
   const bounds = getPlantWorldBounds(plant, { plants, pixelsPerMetre })
   const radiusPx = (Math.max(bounds.width, bounds.height) * pixelsPerMetre) / 2
-  return clamp(radiusPx + PLANT_LABEL_GAP_PX, PLANT_LABEL_MIN_OFFSET_PX, PLANT_LABEL_MAX_OFFSET_PX)
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
+  return Math.max(radiusPx + PLANT_LABEL_GAP_PX, PLANT_LABEL_MIN_OFFSET_PX)
 }
 
 function abbreviateCanonical(name: string): string {

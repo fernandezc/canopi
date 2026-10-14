@@ -22,8 +22,8 @@ import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 /** A point on the rectangle zone's left edge, the Apple inside the rectangle, and empty ground, at 1024x768. */
-const RECT_EDGE: Point = { x: 311, y: 285 }
-const APPLE: Point = { x: 353, y: 265 }
+const RECT_EDGE: Point = { x: 321, y: 286 }
+const APPLE: Point = { x: 363, y: 266 }
 const GROUND: Point = { x: 560, y: 590 }
 const RECT_ZONE_CHIP = 'Rectangle zone · 112 m² · 44 m'
 const EMPTY_MAP_MENU = 'Canvas edit commands'
@@ -39,6 +39,8 @@ function places(rect: Rect) {
   return {
     /** `px` inside the left edge (outside when negative), level with the Apple. */
     left: (px: number): Point => ({ x: rect.x0 + px, y: midY }),
+    /** `px` inside the right edge, far from the Apple, whose symbol takes a tap 24 px inside the left edge. */
+    right: (px: number): Point => ({ x: rect.x1 - px, y: midY }),
     /** Inside, far from the outline and from the Apple. */
     inside: { x: rect.x0 + (rect.x1 - rect.x0) * 0.75, y: midY } as Point,
     /** A band inside the rectangle, around the Apple, pressed beyond a finger's 16 px from the outline. */
@@ -206,7 +208,7 @@ test.describe('(canopi-qd2k) a finger picks zones by their outline (Chromium)', 
     await expectNothingSelected(page, 'a tap inside clears')
     await fingers.tap(APPLE)
     await expect(selectionChip(page), 'a tap on the Apple inside selects it').toHaveText('Apple')
-    await fingers.tap(at.left(24))
+    await fingers.tap(at.right(24))
     await expectNothingSelected(page, 'a tap 24 px inside, past a finger\'s 16 px, clears')
 
     await fingers.drag(...at.bandAroundApple)

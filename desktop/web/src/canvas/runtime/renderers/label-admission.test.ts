@@ -42,9 +42,9 @@ describe('label admission', () => {
     const [name] = admitted.plantNameLabels
     expect(name?.anchor).toEqual({ x: 2, y: 3 })
     for (const [viewport, expected] of [
-      [{ x: 10, y: 20, scale: 20 }, { x: 50, y: 88.3170731707317 }],
-      [{ x: 17, y: 13, scale: 20 }, { x: 57, y: 81.3170731707317 }],
-      [{ x: -2, y: 40, scale: 20 }, { x: 38, y: 108.3170731707317 }],
+      [{ x: 10, y: 20, scale: 20 }, { x: 50, y: 98 }],
+      [{ x: 17, y: 13, scale: 20 }, { x: 57, y: 91 }],
+      [{ x: -2, y: 40, scale: 20 }, { x: 38, y: 118 }],
     ] as const) {
       expect(onScreen(name!, viewport).x).toBeCloseTo(expected.x, 6)
       expect(onScreen(name!, viewport).y).toBeCloseTo(expected.y, 6)
@@ -101,14 +101,15 @@ describe('label admission', () => {
     const admission = new LabelAdmission()
     admission.setScene(snapshot(false))
     const [selection] = admission.admit(20, true)!.selectionLabels
-    expect(onScreen(selection!, { x: 10, y: 20, scale: 20 }).y).toBeCloseTo(86.3170731707317, 6)
+    expect(onScreen(selection!, { x: 10, y: 20, scale: 20 }).y).toBeCloseTo(96, 6)
     const [zoomed] = admission.admit(2, true)!.selectionLabels
-    expect(onScreen(zoomed!, { x: 1, y: 2, scale: 2 })).toEqual({ x: 5, y: 13 })
+    expect(onScreen(zoomed!, { x: 1, y: 2, scale: 2 }).x).toBeCloseTo(5, 6)
+    expect(onScreen(zoomed!, { x: 1, y: 2, scale: 2 }).y).toBeCloseTo(13.36, 6)
     admission.setScene(snapshot(true, [['Mentha spicata', 'Menthe']]))
     expect(admission.admit(2, true)!.selectionLabels).toEqual([])
     const [name] = admission.admit(40, true)!.plantNameLabels
     expect(name?.text).toBe('Menthe')
-    expect(onScreen(name!, { x: 0, y: 0, scale: 40 }).y).toBeCloseTo(129.11475409836066, 6)
+    expect(onScreen(name!, { x: 0, y: 0, scale: 40 }).y).toBeCloseTo(138, 6)
     admission.setScene(createTestSceneRendererSnapshot())
     expect(admission.admit(40, true)!.plantNameLabels).toEqual([])
   })

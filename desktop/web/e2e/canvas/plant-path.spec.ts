@@ -10,7 +10,7 @@
 // exact positions.
 //
 // The base fixture at 1024x768 with grid snapping off, so a click places a point where it lands: its opening camera puts
-// the rectangle zone's north-west corner at (312, 223) and draws 10.414 px per metre; the Apple inside that zone is the
+// the rectangle zone's north-west corner at (322, 226) and draws 10.2 px per metre; the Apple inside that zone is the
 // row's picked plant. Each test first moves the map 192 px down with the arrow keys (OPENING_PAN_PX). The DOM contract
 // these tests read (stream P builds it): row points and midpoint dots are canvas handles `point:<owner>:<index>` and
 // `dot:<owner>:<index>` (glyph `corner` on a sharp point); the tool card carries the check button
@@ -44,17 +44,17 @@ function onScreen(x: number, y: number): Point {
 /** The picked Apple, as stored and on screen. */
 const APPLE_ID = '46595420-3ba9-4184-a4b0-b65fb40eff31'
 const APPLE_GEO = { lon: 3.877071839, lat: 43.611230142 }
-const APPLE: Point = onScreen(353.7, 264.7)
-const PX_PER_M = 10.414
+const APPLE: Point = onScreen(362.7, 266.3)
+const PX_PER_M = 10.2
 /** Empty ground for the row's points, about 9 to 11 m apart. */
-const P1: Point = onScreen(430, 345)
-const P2: Point = onScreen(510, 300)
-const P3: Point = onScreen(575, 370)
+const P1: Point = onScreen(437, 345)
+const P2: Point = onScreen(516, 301)
+const P3: Point = onScreen(579, 369)
 /** Empty ground for a loop with the Apple: about 11 m from it and from each other. */
-const Q1: Point = onScreen(470, 265)
-const Q2: Point = onScreen(412, 365)
+const Q1: Point = onScreen(477, 267)
+const Q2: Point = onScreen(420, 365)
 /** Empty ground for a point placed with Alt. */
-const P4: Point = onScreen(640, 330)
+const P4: Point = onScreen(643, 330)
 /** Empty ground away from the row (above the row once the map moved down). */
 const GROUND: Point = { x: 560, y: 590 }
 

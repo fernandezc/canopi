@@ -13,7 +13,7 @@ const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.m
 /** Empty map, away from every object and chrome of the fixture's opening camera. */
 const NEUTRAL = { x: 800, y: 450 }
 /** A point on the left edge of the fixture's rectangle zone (14 m x 8 m) at the opening camera. */
-const RECT_ZONE_EDGE = { x: 362, y: 300 }
+const RECT_ZONE_EDGE = { x: 367, y: 300 }
 const RECT_ZONE_CHIP = 'Rectangle zone · 112 m² · 44 m'
 
 async function openBaseFixture(page: Page): Promise<void> {

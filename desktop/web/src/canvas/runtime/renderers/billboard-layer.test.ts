@@ -166,8 +166,8 @@ describe('billboard layer', () => {
       expect(label!.alpha * label!.parent!.alpha).toBe(1)
       const at = view.worldToScreen(apple.position)
       expect(label!.position.x).toBeCloseTo(at.x, 3)
-      expect(label!.position.y - at.y).toBeGreaterThanOrEqual(5)
-      expect(label!.position.y - at.y).toBeLessThanOrEqual(8)
+      // 2 px under the symbol: a lone plant at 4 px/m is 6.72 px in radius.
+      expect(label!.position.y - at.y).toBeCloseTo(8.72, 3)
     }
 
     layer.present(createTestRendererView({ x: 230, y: 110, scale: 4 }), createTestSceneRendererSnapshot({ scene: { plants: [apple] } }))
