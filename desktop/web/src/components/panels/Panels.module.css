@@ -231,10 +231,10 @@
   padding: var(--space-0-5) var(--space-2);
 }
 
-/* Web on phones: the credits keep above the panel sheet and left of the side
-   sheet, clear of the home indicator. */
+/* Web on phones: the credits keep above the panel sheet, left of the side
+   sheet and of the floating zoom column, clear of the home indicator. */
 :global([data-phone-layout]) .canvasArea :global(.maplibregl-ctrl-bottom-right) {
-  right: max(calc(var(--map-inset-right, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-right)));
+  right: calc(max(var(--map-inset-right, 0px), env(safe-area-inset-right)) + var(--chrome-inset) + var(--zoom-group-width, 0px) + var(--space-2));
   bottom: max(calc(var(--map-inset-bottom, 0px) + var(--space-2)), calc(var(--chrome-inset) + env(safe-area-inset-bottom)));
-  max-width: calc(100% - var(--map-inset-left, 0px) - var(--map-inset-right, 0px) - 2 * var(--chrome-inset));
+  max-width: calc(100% - var(--map-inset-left, 0px) - var(--map-inset-right, 0px) - var(--zoom-group-width, 0px) - 2 * var(--chrome-inset) - var(--space-2));
 }

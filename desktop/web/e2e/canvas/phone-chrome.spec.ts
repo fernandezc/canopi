@@ -1011,14 +1011,6 @@ for (const phone of PHONES) {
 const BASEMAP_CREDITS = '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a>'
   + ' Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
-/**
- * Sizes where the credits sit under the zoom column today (found by this test, both engines): at 360x740 with the sheet
- * at half, the compact credits' (i) button (y 336-362) under the column's foot (y 77-361); at 740x360 at the peek, the
- * credits' line (x 75-384, y 332-352) under the column (x 334-384, y 75-345). Expected to fail until the column or the
- * credits leave room for each other (owner: main, to file under canopi-f47t.58).
- */
-const CREDITS_UNDER_COLUMN = new Set(['360×740', '740×360'])
-
 /** Answers the Basemap style with inline credits and opens the fixture; the credits show at the sheet's peek. */
 async function openWithCredits(page: Page, size: string) {
   await page.route('https://tiles.openfreemap.org/styles/**', (route) => route.fulfill({
@@ -1035,12 +1027,9 @@ async function openWithCredits(page: Page, size: string) {
 
 for (const phone of PHONES) {
   const size = `${phone.width}×${phone.height}`
-  const known = CREDITS_UNDER_COLUMN.has(size)
   test.describe(`${size} map credits`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
 
-    // Never marked expected to fail, so a size where the overlap is known still catches credits that stop showing, a
-    // style route that stops matching or a sheet that never reaches half.
     test(`(release close, DR16) the map credits show at the sheet's peek and half (${size})`, async ({ page }) => {
       await openWithCredits(page, size)
       for (const height of ['peek', 'half'] as const) {
@@ -1050,8 +1039,7 @@ for (const phone of PHONES) {
       }
     })
 
-    test(`(release close, DR16) the map credits and the zoom column never cover each other (${size})${known ? ' (expected to fail: owner main, canopi-f47t.58 follow-up)' : ''}`, async ({ page }) => {
-      test.fail(known, 'the credits sit under the zoom column at this size (owner main, canopi-f47t.58 follow-up)')
+    test(`(release close, DR16) the map credits and the zoom column never cover each other (${size})`, async ({ page }) => {
       await openWithCredits(page, size)
       for (const height of ['peek', 'half'] as const) {
         if (height === 'half') await raiseSheet(page)
