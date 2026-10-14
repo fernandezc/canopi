@@ -24,4 +24,4 @@ bd export -o .beads/issues.jsonl            # then commit the file
 
 ## Triage
 
-An open bead carries one readiness label: `needs-triage` (default), `needs-info`, `ready-for-agent` (outcome clear, acceptance observable, blockers as dependencies, no open product or policy decision) or `ready-for-human`. `wontfix` closes it. `in_progress` means claimed, not triaged. Change a label in two calls (remove, then add) and verify.
+An open bead carries a release label (`2.1`, `later`), which stands in for triage, or one readiness label: `needs-info`, `ready-for-agent` (outcome clear, acceptance observable, blockers as dependencies, no open product or policy decision) or `ready-for-human`. `needs-triage` marks only a new bead with no release label yet. `wontfix` closes it. `in_progress` means claimed, not triaged. Change a label in two calls (remove, then add) and verify.

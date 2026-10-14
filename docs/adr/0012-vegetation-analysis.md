@@ -44,7 +44,7 @@ The better source is the ONF plugin for Computree (`ct_pluginonf`, https://gitla
 
 ## Consequences
 
-- The crate is the only LGPL code in Canopi. The combined work is conveyed under AGPL-3.0-only. `THIRD_PARTY_NOTICES.md` names the ONF plugin, its commit and the permission, and the notices test checks the pinned revision.
+- The crate is the only LGPL code in Canopi. The combined work is conveyed under AGPL-3.0-or-later. `THIRD_PARTY_NOTICES.md` names the ONF plugin, its commit and the permission, and the notices test checks the pinned revision.
 - New library item kinds: point cloud, and vector tree tops, gaps and crowns. Provenance records the engine (`onf` or `canopi`), the method reference and resolved parameters, such as the sigma a recipe chose.
 - Detected trees are library data. Turning them into "existing tree" design objects is a later product step through a runtime transaction.
 - Validation fixtures include a small IGN LiDAR HD crop (Licence Ouverte Etalab 2.0) with goldens. Reference runs come from Canopi-written `CompuTreeBatch` scripts, with a dev-only harness as a fallback, and from lidR/lidaRtRee; none of them runs in CI or ships.

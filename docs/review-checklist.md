@@ -1,6 +1,6 @@
 # Release review checklist
 
-Run before tagging a release and on each platform build of the Release Candidate workflow ([release workflow](guides/native-and-release.md#release-workflow)). Drive the real hosts, never the UI gallery, in an isolated profile ([editions](guides/editions.md#development-hosts)) and never on a real user Design.
+Run by hand on the Linux Release Candidate before tagging ([release workflow](guides/native-and-release.md#release-workflow)); macOS and Windows rely on CI. Drive the real hosts, never the UI gallery, in an isolated profile ([editions](guides/editions.md#development-hosts)) and never on a real user Design.
 
 Check every section in light and dark, English and French, and a 720 px tall window.
 
@@ -103,6 +103,6 @@ Check every section in light and dark, English and French, and a 720 px tall win
 
 ## Platform builds
 
-1. Linux deb and AppImage, macOS arm64 and x64 dmg, Windows exe and msi from the candidate run: clean start, the plant catalog loads, About shows the version, no console errors; CI's `scripts/smoke-bundled-sidecar.sh` passed for each.
-2. On each: create, edit, save, reopen and switch Designs; species search, detail, favourite and placement; undo and redo; place search and fit; theme and locale switch; import a terrain tile and run Slope; export a PDF.
+1. Linux deb and AppImage: clean start, the plant catalog loads, About shows the version, no console errors; then create, edit, save, reopen and switch Designs; species search, detail, favourite and placement; undo and redo; place search and fit; theme and locale switch; import a terrain tile and run Slope; export a PDF.
+2. macOS dmg, Windows exe and msi: record untested, citing CI (Build & Test, `smoke-bundled-sidecar.sh` per package, Web Edition browsers).
 3. Record run id, commit, DB SHA-256, tester, date and results in the release bead before promoting.

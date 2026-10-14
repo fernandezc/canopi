@@ -38,6 +38,7 @@ MIT License text:
 - OpenFreeMap vector tiles and styles: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap" (shown on the map).
 - Google satellite imagery: "© Google" (shown on the map). Without a key the public `mt1.google.com` tiles are used; with the user's key, the Google Map Tiles API and its viewport copyright.
 - Place search: Nominatim, "Search by Nominatim · © OpenStreetMap contributors" (shown with results), ODbL.
+- Terrain Tiles (AWS Open Data, elevation-tiles-prod), for contour lines and hillshading: "Terrain Tiles © Mapzen and its sources" (shown on the map), sources listed at https://github.com/tilezen/joerd/blob/master/docs/attribution.md.
 
 ## Bundled interface fonts
 

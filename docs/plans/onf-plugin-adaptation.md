@@ -1,6 +1,6 @@
 # Plan: adapt the Computree ONF plugin (ct_pluginonf) to Canopi
 
-Status: agreed (2026-09-26); not started as of 2026-09-28 (no `vegetation/` crate or `native` lane exists); decisions in §8, ADR 0012. Beads under canopi-5ys2.2.
+Status: agreed; later (canopi-5ys2.2), after hydrology. Nothing is built yet (no `vegetation/` crate or `native` lane); decisions in §8, ADR 0012.
 
 Research date 2026-09-26. Research and planning only: no Canopi file was edited.
 
@@ -9,7 +9,7 @@ Research date 2026-09-26. Research and planning only: no Canopi file was edited.
 - Computree core `computree_v6` at `047b208b` (`/tmp/ctsrc/computree_v6`). The plugin uses its `ctlibstructureaddon` (CT_Image2D, Delaunay, interpolator) and `ctlibmath`.
 - Binary `/tmp/ctbin/computree-6.2.1-Linux`: `plugins/libplug_onf.so` (35 MB) plus a **closed** `libplug_onfdev.so` (27 MB, no public source).
 - Canopi context: `wt-v2` (`AGENTS.md`, `docs/architecture.md`, ADR 0002, ADR 0011, `docs/guides/data-library.md`, `docs/guides/native-and-release.md`).
-- Earlier plans: `plans/computree-canopy-spike.md` and `plans/analysis-registry-and-hydrology.md` (§3). Parked registry WIP: branch `ux-registry`, commit `1b3340fb`.
+- The analysis registry shipped in 2.0 (`common-types/src/analysis_registry.rs`, slope only); its 2.1 global lane and vector items are in `plans/analysis-registry-and-hydrology.md`.
 - Pinned `whitebox-wasm` checkout `9c0ff4f` (already in `desktop/Cargo.toml` for `wbgeotiff`).
 
 Machine-readable inventory used for §2: `/tmp/onfinv/inv.json`, produced by `/tmp/onfinv/extract.py`.
@@ -32,7 +32,7 @@ Machine-readable inventory used for §2: `/tmp/onfinv/inv.json`, produced by `/t
    - Registry entries `canopy.gaps`, `canopy.tree-tops`, `pointcloud.terrain`, then `canopy.crowns`, `canopy.gap-depth` and `pointcloud.structure`.
    - New item kinds: `PointCloud`, vector `TreeTops`, `Gaps` and `Crowns`, and a few raster quantities.
    - Provenance also records engine `onf`, the upstream ONF revision and "resolved" parameters (the sigma the recipe chose).
-   - ADR 0011 and principle 3 need an explicit amendment (proposed ADR 0012), because canopy moves off the GeoLibre lane.
+   - ADR 0012 (accepted) amends ADR 0011 and principle 3, because canopy moves off the GeoLibre lane.
 5. **Validation.**
    - Reproduce Computree 6.2.1 (`CompuTreeBatch`, the real `libplug_onf.so`) on the same inputs, using GUI-authored, templated `.xsct2` scripts. A dev-only C++ shim harness is the fallback oracle.
    - Goldens are small grids and vector files checked into Canopi, so comparison tests are **plain `cargo test`** (no engine in CI).
@@ -282,7 +282,7 @@ They do not need forest-inventory scaffolding, stem diameters or research voxel 
 | Canopi native rules | Natural fit: executor-backed `Local` job, heavy lease, a cancel token checked at bounded loop points, admission by cells and points, no child process | Child process through the bounded runner; cancel = kill; progress by parsing; file IPC | Same as (b), plus an unverifiable exit code (always 0), French logs, version-bound XML | Existing |
 | Maintenance vs upstream | Upstream is unmaintained: the pinned commit is final and Canopi owns the port; each port is a small hand translation | Easier diffs, but the stubs follow Computree API churn (the v5→v6 migration was huge) | Pinned templates per Computree version | Upstream GeoLibre |
 | Testability | `cargo test` with checked-in goldens; no engine needed in CI | Needs the binary in CI (like the `lidar-native` lane) | Local only | Existing lane |
-| Licence | Ported files stay LGPL-3.0-or-later in their own crate, combined into AGPL-3.0-only Canopi (§4.3) | Separate LGPL program; Qt/OpenCV notices | None shipped | MIT/Apache plus AGPL `wbspatialstats` (already) |
+| Licence | Ported files stay LGPL-3.0-or-later in their own crate, combined into AGPL-3.0-or-later Canopi (§4.3) | Separate LGPL program; Qt/OpenCV notices | None shipped | MIT/Apache plus AGPL `wbspatialstats` (already) |
 | Verdict | **Recommended** | Rejected: the "minimal extraction" is really a rewrite, and it keeps two heavy C++ dependencies and a fifth toolchain | Rejected: see the spike | Contradicts the user's choice; still valid for slope and hydrology |
 
 ### 4.2 Recommendation (a), in detail
@@ -327,7 +327,7 @@ They do not need forest-inventory scaffolding, stem diameters or research voxel 
 
 ### 4.3 Licence mechanics (not legal advice)
 
-- **LGPL-3.0-or-later → Canopi (AGPL-3.0-only).**
+- **LGPL-3.0-or-later → Canopi (AGPL-3.0-or-later).**
   - LGPLv3 is GPLv3 plus additional permissions.
   - A Rust translation is a derivative work of the LGPL files. It may be distributed under LGPL-3.0-or-later (keeping it that way is simplest), or as GPL-3.0-or-later by removing the additional permissions (GPLv3 §7).
   - GPLv3 §13 and AGPLv3 §13 allow combining GPLv3-family code with AGPLv3 code into one work. Each part keeps its licence; the combination is conveyed under AGPL terms, including the network clause.
@@ -392,7 +392,7 @@ Decided 2026-09-26: where ONF (or GeoLibre) has no public method, Canopi writes 
 
 ## 5. Mapping onto ADR 0011 seams
 
-This builds on the parked registry design (`plans/analysis-registry-and-hydrology.md` §3, WIP `1b3340fb` on `ux-registry`, slope only). The deltas are in §5.7.
+This builds on the shipped registry (`common-types/src/analysis_registry.rs`, slope only, ADR 0011). The deltas are in §5.7.
 
 ### 5.1 Lane
 
@@ -557,12 +557,11 @@ Registry type additions:
 - Point-cloud items: in the library only (row, details with class histogram and density, **Analyze**). v2 does not render points or add them to a Design. Optionally, later, a footprint outline (§8 Q5).
 - The library filter gains "Vegetation", and derived rows nest under their input (registry plan).
 
-### 5.7 Changes to the parked registry design (`ux-registry` @ `1b3340fb`, slope-only)
+### 5.7 Deltas to the shipped registry (`common-types/src/analysis_registry.rs`, slope only)
 
 1. `AnalysisLane` gains `Native`.
    - Keep `GeolibreWindowed`.
    - `GeolibreGlobal` lands with contours and hydrology.
-   - Update registry-plan §0.3 and §3.1 ("Only lanes that have entries exist… no `Native` variants until Computree lands"): the new lane is native ONF, not Computree.
 2. `AnalysisGroup` gains `Vegetation`.
 3. `LibraryItemType` gains `Vector{…}` (shared with contours and hydrology) and `PointCloud`.
    - The catalogue check `item_kind IN ('raster')` becomes `('raster','point-cloud')` for sources.
@@ -577,14 +576,7 @@ Registry type additions:
    - input coordinates are **projected** (the ONF output is in the input CRS);
    - the canonicaliser reprojects to WGS84 through `rust_engine/crs.rs`, the one CRS authority, and checks against the item's bounds;
    - a LAS/LAZ CRS resolves to a table row by its horizontal code (compound 7415 reads as 28992, 5698/5699 as 2154); WKT reading is built with the LAZ reader, and anything else is refused by name.
-9. ADR 0011 context and decision lines ("canopy analysis … through GeoLibre …; Computree only as an optional integration") and bead `canopi-5ys2.2`'s title and description must be rewritten. Propose **ADR 0012 "ONF canopy methods as a native Rust lane"**:
-   - decision (a);
-   - the LGPL crate boundary;
-   - GeoLibre kept for slope and hydrology;
-   - `wblidar`/`wbtopology` as the GeoLibre-family reuse, native coordinates only;
-   - Computree integration dropped.
-   - Also a line in `docs/architecture.md` "GeoLibre reuse boundary", and in principle-3 wording if needed.
-10. Guides:
+9. Guides:
     - `docs/guides/data-library.md`: point-cloud import, the vegetation analyses, deviations, the admission constants, the `onf` crate, gates.
     - `docs/guides/native-and-release.md`: none of the commands change, but the new `Local` jobs are listed.
     - `AGENTS.md` quality gates: an "ONF port" row.

@@ -65,7 +65,9 @@ cd desktop/web && npm run package:web        # /app/ base, SPA fallback /app/* -
 cd desktop/web && npm run package:web:root   # CANOPI_WEB_BASE_PATH=/ for web.projectcanopi.com
 ```
 
-Both need the generated catalog and write to ignored `desktop/web/dist-web-artifacts/`. DuckDB loads its own WASM from the CDN bundle. Keep `index.html` and the manifest revalidatable and cache only versioned assets immutably. Desktop release promotion never publishes Web archives; a deployment names the exact commit and artifact it serves.
+Both need the generated catalog (`npm run generate:web-catalog`) and write to ignored `desktop/web/dist-web-artifacts/`. Production (`web.projectcanopi.com`, ADR 0005) deploys the root artifact. Desktop release promotion never publishes Web archives; a deployment names the exact commit and artifact it serves.
+
+Hosting rules: `index.html`, the manifest and `canopi-catalog/**` are not content-hashed, so the host revalidates them; only `assets/*` is cached immutably. Unknown routes fall back to `index.html` after static files. Any CSP allows `cdn.jsdelivr.net` (DuckDB loads its WASM from there: script, worker and connect), `tiles.openfreemap.org`, `mt1.google.com`, `tile.googleapis.com`, `s3.amazonaws.com` (terrain), `nominatim.openstreetmap.org` and the catalog's photo hosts `inaturalist-open-data.s3.amazonaws.com`, `commons.wikimedia.org` and `upload.wikimedia.org`.
 
 Smoke check at the configured base: the shell loads with no missing assets or Tauri requests, Parquet files are served directly, browse, a two-character search and a filter work, and placement, `.canopi` download and reload recovery work. At root also confirm `basePath: "/"` in the manifest and that an unknown route returns `index.html`.
 

@@ -20,7 +20,7 @@ Canopi v1 drew Designs in local metres on a canvas and attached them to the Eart
   - The default basemap is the OpenFreeMap Liberty vector style (Positron, Bright, Dark selectable) with OpenFreeMap/OpenMapTiles/OpenStreetMap attribution.
   - Background is one Layers choice: Satellite, Street map or None; Google is the only satellite imagery.
   - Without a key, Google uses its public tiles (`https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}`), as GeoLibre's basemap control does; the user's own Google key (Layers › Satellite or Settings › Map and imagery) switches to the official Map Tiles API.
-  - The public tile endpoint is not a published Google API and Google's terms do not cover using it directly; the user accepted that risk for its resolution (2026-09-25).
+  - The keyless public tiles are used for their resolution; the user confirmed (2026-10-14) that this use is covered.
   - EOX Sentinel-2 cloudless, the licensed keyless alternative, was removed at the user's request (2026-09-25), so there is no provider choice.
   - Esri World Imagery was not adopted: its Master License Agreement does not clearly allow keyless display in a free third-party app.
   - OSM raster tiles and MapTiler are removed.
