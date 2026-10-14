@@ -1,5 +1,5 @@
 // The phone chrome (canopi-f47t.54; plan section 4 "2.0 plant along a path", answers 17, 18, 22-26 and 30). The guard: at
-// 390x844, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
+// 390x844, 360x740, 360x560, 740x360 and 844x390, in en and de, nothing but the zoom column floats over the map and every control
 // in the context bar takes the tap at its centre, idle, with the labels chip, with a row held at peek, half and full,
 // and with the planted row selected. The context bar is the panel sheet's first row: it moves with peek, half, full and
 // a finger drag, the sheet's registration covers it, and it holds the map notice on top of one context (the tool's
@@ -183,6 +183,7 @@ test.describe('390×844 boundary events', () => {
 // driver, so there the drag is a mouse's (the handle takes pointer events of either kind).
 const PHONES = [
   { width: 390, height: 844 },
+  { width: 360, height: 740 },
   { width: 360, height: 560 },
   { width: 740, height: 360 },
   { width: 844, height: 390 },
@@ -1001,6 +1002,68 @@ for (const phone of PHONES) {
         await expectPhoneChrome(page, `${where} the selection`)
       })
     }
+  })
+}
+
+// The map credits never sit under the zoom column (release close, DR16; U18's bottom band is retired). Offline the
+// Basemap style never installs and the map shows no credits, so its style is answered in the page with inline credits
+// and no sprite; the credits then show at the map's bottom right, on the zoom column's side, at the sheet's peek and half.
+const BASEMAP_CREDITS = '<a href="https://openfreemap.org">OpenFreeMap</a> <a href="https://www.openmaptiles.org/">© OpenMapTiles</a>'
+  + ' Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+
+/**
+ * Sizes where the credits sit under the zoom column today (found by this test, both engines): at 360x740 with the sheet
+ * at half, the compact credits' (i) button (y 336-362) under the column's foot (y 77-361); at 740x360 at the peek, the
+ * credits' line (x 75-384, y 332-352) under the column (x 334-384, y 75-345). Expected to fail until the column or the
+ * credits leave room for each other (owner: main, to file under canopi-f47t.58).
+ */
+const CREDITS_UNDER_COLUMN = new Set(['360×740', '740×360'])
+
+/** Answers the Basemap style with inline credits and opens the fixture; the credits show at the sheet's peek. */
+async function openWithCredits(page: Page, size: string) {
+  await page.route('https://tiles.openfreemap.org/styles/**', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({
+      version: 8,
+      sources: { openmaptiles: { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, attribution: BASEMAP_CREDITS } },
+      layers: [{ id: 'water', type: 'fill', source: 'openmaptiles', paint: { 'fill-color': '#a0c8f0' } }],
+    }),
+  }))
+  await openFixture(page, FIXTURE)
+  await expect(mapHost(page).locator('.maplibregl-ctrl-attrib'), `${size}: the Basemap's credits show`).toBeVisible()
+}
+
+for (const phone of PHONES) {
+  const size = `${phone.width}×${phone.height}`
+  const known = CREDITS_UNDER_COLUMN.has(size)
+  test.describe(`${size} map credits`, () => {
+    test.use({ viewport: { width: phone.width, height: phone.height }, hasTouch: true })
+
+    // Never marked expected to fail, so a size where the overlap is known still catches credits that stop showing, a
+    // style route that stops matching or a sheet that never reaches half.
+    test(`(release close, DR16) the map credits show at the sheet's peek and half (${size})`, async ({ page }) => {
+      await openWithCredits(page, size)
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect(mapHost(page).locator('.maplibregl-ctrl-attrib'), `${size}, sheet at ${height}: the credits show`).toBeVisible()
+      }
+    })
+
+    test(`(release close, DR16) the map credits and the zoom column never cover each other (${size})${known ? ' (expected to fail: owner main, canopi-f47t.58 follow-up)' : ''}`, async ({ page }) => {
+      test.fail(known, 'the credits sit under the zoom column at this size (owner main, canopi-f47t.58 follow-up)')
+      await openWithCredits(page, size)
+      for (const height of ['peek', 'half'] as const) {
+        if (height === 'half') await raiseSheet(page)
+        await expect(sheet(page)).toHaveAttribute('data-phone-sheet', height)
+        await expect.poll(async () => {
+          await nextFrames(page)
+          const shown = await shownBoxes(page, '.maplibregl-ctrl-attrib')
+          const column = await shownBoxes(page, '[data-zoom-group]')
+          return shown.flatMap((box) => column.filter((other) => overlap(box, other))).length
+        }, `${size}, sheet at ${height}: the credits share no pixel with the zoom column`).toBe(0)
+      }
+    })
   })
 }
 

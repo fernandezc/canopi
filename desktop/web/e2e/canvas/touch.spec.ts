@@ -3,10 +3,11 @@
 // this drives real touch input: in Chromium, CDP Input.dispatchTouchEvent with hasTouch, at 1024x768 and 390x844; in
 // WebKit, which has no multi-touch driver, page.touchscreen.tap placing one plant. DOM assertions only, no baselines.
 // Not covered here: the World map pinch (Q7), since the Web Edition ships no Design templates and so shows no World map
-// panel (world-map-surface.test.tsx covers its handler); the phone chrome (a one-off Web check, A17, then v2.spec.ts).
+// panel (world-map-surface.test.tsx covers its handler); the phone chrome (phone-chrome.spec.ts, and v2.spec.ts for the
+// compass and the View menu's rotation rows on a phone).
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
-import { designMap, expectCanvasDrawn } from '../support/canvas'
+import { bearing, designMap, expectCanvasDrawn } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
 import { expect, test } from '../support/offline'
 
@@ -70,14 +71,6 @@ function selectionChip(page: Page) {
 
 function scaleChip(page: Page) {
   return page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: /^Map scale/ })
-}
-
-/** The view's bearing, read from the compass needle (`rotate(-bearing 10 10)`). */
-async function bearing(page: Page): Promise<number> {
-  const transform = await page.locator('[data-compass] [data-needle]').first().getAttribute('transform')
-  const match = /rotate\(([-\d.e]+)/.exec(transform ?? '')
-  if (!match) throw new Error(`the compass needle has no rotation: ${transform}`)
-  return -Number(match[1])
 }
 
 /** An angle in (-180°, 180°]. */

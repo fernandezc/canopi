@@ -29,3 +29,12 @@ export async function pressMod(page: Page, key: string): Promise<void> {
   const mac = await page.evaluate(() => /Macintosh|Mac OS X|iPhone|iPad/.test(navigator.userAgent))
   await page.keyboard.press(`${mac ? 'Meta' : 'Control'}+${key}`)
 }
+
+/** The view's bearing in degrees clockwise from north, read from the compass needle (`rotate(-bearing 10 10)`). */
+export async function bearing(page: Page): Promise<number> {
+  const transform = await page.locator('[data-compass] [data-needle]').first().getAttribute('transform')
+  const match = /rotate\(([-\d.e]+)/.exec(transform ?? '')
+  if (!match) throw new Error(`the compass needle has no rotation: ${transform}`)
+  const deg = -Number(match[1])
+  return deg === 0 ? 0 : deg   // never -0
+}
