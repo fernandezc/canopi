@@ -384,8 +384,8 @@ describe('the interaction session', () => {
     const ON_PIN = { x: 190, y: 150 }
     const OFF_PIN = { x: 80, y: 60 }
 
-    function overviewWithPin(overrides: Partial<SceneInteractionSessionDeps> = {}) {
-      useStubTools(stubTool('select'))
+    function overviewWithPin(overrides: Partial<SceneInteractionSessionDeps> = {}, tool: StubTool = stubTool('select')) {
+      useStubTools(tool)
       const returnToDesign = vi.fn(testView.navigation.returnToDesign)
       const { session } = createSession({ viewNavigation: { ...testView.navigation, returnToDesign }, ...overrides })
       testView.setViewport({ x: 200, y: 150, scale: 0.05 })
@@ -412,6 +412,31 @@ describe('the interaction session', () => {
       expect(returnToDesign).toHaveBeenCalledExactlyOnceWith()
       expect(testView.frames.viewFrame.peek().mode).toBe('site')
       expect(document.activeElement).toBe(container)
+    })
+
+    it('a double-click on the pin fits the Design, and no press of its click series reaches the tool; a fresh click does', () => {
+      const presses: number[] = []
+      const tool = stubTool('select', {
+        gesture: (gesture) => {
+          if (gesture.kind === 'press') presses.push(gesture.clickCount)
+          return 'pass'
+        },
+      })
+      const { returnToDesign } = overviewWithPin({}, tool)
+      const click = (detail: number, timeStamp: number) => {
+        events.pointerDown(ON_PIN, { ...mouse(1), detail, timeStamp })
+        events.pointerUp(ON_PIN, { ...mouse(0), detail, timeStamp: timeStamp + 40 })
+      }
+
+      click(1, 1000)
+      expect(returnToDesign).toHaveBeenCalledOnce()
+      expect(testView.frames.viewFrame.peek().mode).toBe('site')
+      click(2, 1150)
+      click(3, 1300)
+      expect(presses).toEqual([])
+
+      click(1, 3000)
+      expect(presses).toEqual([1])
     })
 
     it('a drag that starts on the pin pans the map and fits nothing', () => {

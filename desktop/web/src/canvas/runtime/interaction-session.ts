@@ -591,6 +591,7 @@ class DefaultSceneInteractionSession implements SceneInteractionSession {
       this._takeRecogniser(rejected.state)
       this._source.apply(rejected.effects)
     }
+    if (outcome.consumeClickSeries) this._takeRecogniser(recognise(this._recogniser, { kind: 'consume-click-series', t: input.t }, this._config).state)
     if (this._releasesOutsideTool(input, result.gestures)) this._toolHost.released()
   }
 
@@ -1020,10 +1021,11 @@ function isOwnedOverlay(target: TargetClass): boolean {
 }
 
 function mergeOutcomes(a: GestureOutcome, b: GestureOutcome): GestureOutcome {
-  if (!b.quarantine && !b.rejectSession && !b.dropEffect) return a
+  if (!b.quarantine && !b.rejectSession && !b.dropEffect && !b.consumeClickSeries) return a
   return {
     quarantine: a.quarantine || b.quarantine || undefined,
     rejectSession: a.rejectSession || b.rejectSession || undefined,
+    consumeClickSeries: a.consumeClickSeries || b.consumeClickSeries || undefined,
     dropEffect: b.dropEffect ?? a.dropEffect,
   }
 }

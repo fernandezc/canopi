@@ -36,6 +36,8 @@ export interface GestureOutcome {
   readonly dropEffect?: 'copy' | 'move' | 'none'
   /** A refused press: its capture is not taken and its recogniser session ends without a gesture (later moves are hovers). */
   readonly rejectSession?: boolean
+  /** A tap that left overview (the Design pin's fit): the rest of its click series reaches no tool (canopi-n2cg). */
+  readonly consumeClickSeries?: boolean
 }
 
 export interface DomInputSourceDeps {
