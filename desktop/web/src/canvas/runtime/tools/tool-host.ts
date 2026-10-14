@@ -1299,7 +1299,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
    * menu has no point (the keyboard turns the view with Shift ← and Shift →).
    */
   function edgeTurnAt(world: WorldPoint, pointer: PointerKind): (() => void) | null {
-    const hit = deps.scene.hitAt(world, { pointer, zoneEdge: true })
+    const hit = deps.scene.hitAt(world, { pointer, includeLocked: true, zoneEdge: true })
     if (hit?.kind !== 'zone-edge') return null
     const zone = deps.scene.persisted.zones.find((entry) => entry.id === hit.zoneId)
     const edge = zone ? zoneEdgeSegment(zone, hit.edgeIndex) : null

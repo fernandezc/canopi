@@ -290,7 +290,9 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
     // Its menu names the bed (the visible pick), so it offers the bed's edge: turning the view moves no object.
     h.menu(screen, 'mouse')
     expect(h.record.menus.at(-1)!.turnViewToEdge).toBeTypeOf('function')
-    expect(scene.hitAt(world, { pointer: 'mouse', zoneEdge: true })).toMatchObject({ kind: 'zone-edge', zoneId: 'bed' })
+    expect(scene.hitAt(world, { pointer: 'mouse', includeLocked: true, zoneEdge: true })).toMatchObject({ kind: 'zone-edge', zoneId: 'bed' })
+    // Select's double-click corner follows its own editable pick: no edge on a locked layer.
+    expect(scene.hitAt(world, { pointer: 'mouse', zoneEdge: true })).toBeNull()
   })
 
   it('"Turn view to this edge" turns to the edge of the zone a long press picks, never a nearer line it does not reach', () => {

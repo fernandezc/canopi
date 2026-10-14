@@ -364,7 +364,8 @@ describe('scene hit testing', () => {
       zone('hedge', 'line', [{ x: 40, y: 0 }, { x: 40, y: 20 }]),
       zone('pond', 'ellipse', [{ x: 70, y: 10 }, { x: 5, y: 3 }]),
     ]
-    const at = (x: number, y: number, pointer: PointerKind = 'mouse', scale = 2) => hitZoneEdge(scene, { x, y }, scale, pointer, new Map(), getPlantContext)
+    const at = (x: number, y: number, pointer: PointerKind = 'mouse', scale = 2, pick: Parameters<typeof hitZoneEdge>[4] = 'visible') =>
+      hitZoneEdge(scene, { x, y }, scale, pointer, pick, new Map(), getPlantContext)
 
     // The hypotenuse (edge 1) is nearer than the bottom edge (edge 0); 2 px/m: distances read in pixels.
     expect(at(10, 9)).toEqual({ zoneId: 'triangle', edgeIndex: 1, distancePx: expect.closeTo(Math.SQRT2, 6) })
@@ -388,10 +389,11 @@ describe('scene hit testing', () => {
     expect(at(75, 10)).toBeNull()
     expect(zoneEdgeSegment(scene.zones[3]!, 0)).toBeNull()
 
-    // A locked layer still offers its edges, as the menu still names its zone (the visible pick): turning the view moves
-    // no object. A hidden layer offers none.
+    // A locked layer still offers its edges to the visible pick, as the menu still names its zone: turning the view moves
+    // no object. The editable pick (Select's double-click corner) offers none there. A hidden layer offers none.
     scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: true } : layer)
     expect(at(10, 9)).toEqual({ zoneId: 'triangle', edgeIndex: 1, distancePx: expect.closeTo(Math.SQRT2, 6) })
+    expect(at(10, 9, 'mouse', 2, 'editable')).toBeNull()
     scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: false, visible: false } : layer)
     expect(at(10, 9)).toBeNull()
   })

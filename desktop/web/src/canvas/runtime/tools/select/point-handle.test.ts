@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createToolHarness,
   measurementGuide,
+  plantEntity,
   rectZone,
   type ToolHarness,
 } from '../../../../__tests__/support/tool-harness'
@@ -316,6 +317,25 @@ describe('polygon corners (spec §3.2, U33: every corner route)', () => {
 
     h.undo()
     expect(corners(h)).toEqual(SQUARE)
+  })
+
+  it('double-click a polygon edge adds a corner under a locked plant\'s crown: the edge follows Select\'s editable pick (canopi-qd2k)', () => {
+    const h = createToolHarness({
+      scene: {
+        zones: [rectZone('poly', [...SQUARE], { zoneType: 'polygon' })],
+        plants: [plantEntity('apple', 'Malus domestica', { x: 130, y: 200 }, { canopySpreadM: 20 })],
+      },
+    })
+    harnesses.push(h)
+    h.store.updatePersisted((draft) => {
+      draft.layers = draft.layers.map((layer) => (layer.name === 'plants' ? { ...layer, locked: true } : layer))
+    })
+    h.select(POLY)
+
+    h.click({ x: 130, y: 201 })
+    h.click({ x: 130, y: 201 }, { clickCount: 2 })
+    expect(corners(h)).toEqual([SQUARE[0], SQUARE[1], SQUARE[2], { x: 130, y: 200 }, SQUARE[3]])
+    expect(h.store.session.selectedTargets).toEqual([POLY])
   })
 
   it('a double tap whose first press was inside the polygon adds no corner (U42)', () => {
