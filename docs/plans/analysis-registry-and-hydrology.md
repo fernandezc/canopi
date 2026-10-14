@@ -79,6 +79,7 @@ The tools come from `wbtools_oss` (`opengeos/whitebox-wasm` @ `9c0ff4fdf351`), r
 
 ### 3.1 Registry additions
 
+- `AnalysisGroup` gains `Water` beside `Terrain` (`common-types/src/analysis_registry.rs`); the Library type filter becomes All / Sources / Terrain / Water.
 - `AnalysisLane` gains `GeolibreGlobal` beside `GeolibreWindowed { halo }`.
 - `AnalysisParamKind` gains `Points { min, max }` (lon/lat picked on the map) for catchment outlets.
 - Outputs gain vector items (`VectorFeature`: streams, catchments, contours) beside raster quantities; the typed-item contract in `common-types/src/library.rs` and the catalogue grow with them. A catalogue bump follows ADR 0021 (an older library is rebuilt from its originals) and keeps `source_meta.rs` complete.
@@ -114,16 +115,16 @@ The tools come from `wbtools_oss` (`opengeos/whitebox-wasm` @ `9c0ff4fdf351`), r
 
 - **`terrain.contours@1`** (global, vector): `contours_from_raster --input=dem.tif --interval=<m, default 1> --base=0 --smooth=9 --tolerance=10 --output=contours.gpkg`; `smooth` and `tolerance` are advanced parameters.
 - **`hydrology.water-flow@1`** (global):
-  1. Condition the DEM with `breach_depressions_least_cost --dem=dem.tif --output=cond.tif --max_dist=<ceil(max_breach_m/pixel)> --fill_deps=true` or `fill_depressions --dem=dem.tif --output=cond.tif --fix_flats=true`.
+  1. Condition the DEM, by parameter `depressions` (`breach`, default, or `fill`): `breach_depressions_least_cost --dem=dem.tif --output=cond.tif --max_dist=<ceil(max_breach_m/pixel)> --fill_deps=true` (advanced `max_breach_m`, default 50) or `fill_depressions --dem=dem.tif --output=cond.tif --fix_flats=true`.
   2. `d8_pointer --dem=cond.tif --output=d8.tif`.
   3. `d8_flow_accum --input=d8.tif --input_is_pointer=true --out_type=ca --output=area.tif` (upslope area in m²).
-  4. Streams: `extract_streams --flow_accumulation=area.tif --threshold=<stream_area_m2>`, then `strahler_stream_order`, then `raster_streams_to_vector --streams_raster=order.tif --output=streams.gpkg` (lines with `order`).
+  4. Streams: `extract_streams --flow_accumulation=area.tif --threshold=<stream_area_m2> --output=streams.tif`, then `strahler_stream_order --d8_pntr=d8.tif --streams=streams.tif --output=order.tif`, then `raster_streams_to_vector --d8_pntr=d8.tif --streams_raster=order.tif --output=streams.gpkg` (lines with `order`).
   5. Wetness (flat cells become invalid): `d8_flow_accum --out_type=sca`, `slope --input=cond.tif --units=degrees`, `wetness_index`.
   6. Ponding: `depth_in_sink --dem=dem.tif --zero_background=false`; non-sink cells are NoData and draw transparent.
 
   Only the selected outputs' steps run, and the tool ids that ran go into the provenance.
 - **`hydrology.catchment@1`** (global, vector):
-  - Input `dem`; parameters `outlets` (`Points{1..16}`), `snap_m` (default 5) and the water-flow conditioning settings, prefilled from an existing water-flow run on the same DEM.
+  - Input `dem`; parameters `outlets` (`Points{1..16}`), `snap_m` (default 5) and the same `depressions` / `max_breach_m` as water flow, prefilled from an existing water-flow run on the same DEM.
   - Steps: conditioning, `d8_pointer`, `d8_flow_accum --out_type=ca`; outlets projected to the raster CRS through `crs.rs` and written as `outlets.gpkg`; `snap_pour_points`, `watershed`, `raster_to_vector_polygons`.
   - `area_m2` = per-value cell count × cell area.
 
