@@ -55,10 +55,7 @@
   font: inherit;
   text-align: left;
   transform: translate(calc(-1 * var(--control-size-md) / 2 - var(--space-1)), -50%);
-  cursor: pointer;
-}
-
-.dragThrough {
+  /* Every gesture that starts on the pin is the map's; its tap and hover come through the window (CanvasOverview.tsx). */
   pointer-events: none;
 }
 

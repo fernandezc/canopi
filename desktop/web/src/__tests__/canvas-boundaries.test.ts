@@ -45,10 +45,15 @@ const RAW_POINTER_LISTENER = /addEventListener\(\s*['"](pointer\w*|mouse\w*|whee
 
 /**
  * P6's components allowlist (inventory at the end of 0B, recorded in the 0B bead). Every entry is permanent: each
- * listens on its own element, or on the document for the rest of a press that began on its own element, never on the
+ * listens on its own element, or on the document for the rest of a press that began on its own element, or (the Design
+ * pin, transparent to the pointer) reads the window's pointer events over its own box without taking them; never on the
  * map host.
  */
 const P6_COMPONENT_POINTER_LISTENERS: Readonly<Record<string, number>> = {
+  // The overview's Design pin is transparent to the pointer, so every gesture on it is the map's (canopi-n2cg): it reads,
+  // never takes, the window's press, move, release and cancel over its box (a still press is its tap, a mouse over it its
+  // tooltip) and the page's pointer leave.
+  'src/components/canvas/CanvasOverview.tsx': 5,
   // The lens drags its own frame: the press on the frame, then the document's move, up and cancel.
   'src/components/canvas/InspectionLens.tsx': 4,
   // The swatch drag's document move, up and cancel, and the menu's outside-press dismissal.

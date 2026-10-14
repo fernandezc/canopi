@@ -713,7 +713,7 @@ test('phase 2: in overview a left drag pans and selects nothing, and a still rig
   const pin = page.getByRole('button', { name: /^Go to Design: / })
   const before = await pin.boundingBox()
   if (!before) throw new Error('the Design pin is not shown in overview')
-  // The pin is a button (canopi-n2cg), so the drag starts on empty map below it.
+  // The drag starts on empty map below the pin (a drag from the pin itself: overview-tools.spec.ts).
   const grab = { x: before.x + before.width / 2, y: before.y + before.height + 120 }
   await page.mouse.move(grab.x, grab.y)
   await page.mouse.down()
