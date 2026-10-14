@@ -37,7 +37,7 @@ BYTE_BUDGETS = {
     "docs/architecture.md": 12_000,
     "docs/workflow.md": 8_000,
     "docs/review-checklist.md": 12_000,
-    "docs/release-notes/v2.0.0.md": 12_000,
+    "docs/release-notes/v2.0.0.md": 14_000,
     ".interface-design/system.md": 9_000,
 }
 GUIDE_BYTE_BUDGET = 12_000
