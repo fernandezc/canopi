@@ -1,4 +1,5 @@
 import { getCanvasDetailLayout } from '../automatic-detail'
+import type { PointerKind } from '../interaction-types'
 import { rectsIntersect, type SimpleRect } from '../../operations'
 import { getAnnotationVisualWorldCorners, getRevealedAnnotationId, isPointInAnnotationPresentation } from '../annotation-layout'
 import {
@@ -17,7 +18,6 @@ import type {
 } from '../scene'
 import {
   getSceneGroupedMemberKeys,
-  includesSceneDesignObjectTarget,
   isSceneLayerEditable,
   resolveSceneObjectGroupMembers,
   sceneObjectGroupMemberLayerName,
@@ -32,10 +32,21 @@ import {
   pointsBounds,
 } from '../zone-geometry'
 
+/**
+ * The pick rule's one owner (canopi-qd2k, the user's decision of 2026-10-14; contract: hit-testing.pick.test.ts), reached
+ * through ToolScene.hitAt. A point picks the one topmost drawn object, in draw order: notes, plants, guides, zones; a
+ * grouped member answers as its group in its own kind's pass. A closed zone (polygon, rectangle, ellipse) is picked by its
+ * outline only, within PICK_TOLERANCE_PX[pointer] screen pixels, so a point inside one picks what lies beneath or nothing.
+ * Line zones and guides keep LINE_HIT_TOLERANCE_PX; plants keep their drawn footprint.
+ */
+export const PICK_TOLERANCE_PX: Readonly<Record<PointerKind, number>> = Object.freeze({ mouse: 6, pen: 6, touch: 16 })
+
+/** The pick on interactive (editable) layers: a click's, a tap's and the menu's. Object locks count (the caller rejects them). */
 export function hitTestTopLevel(
   scene: ScenePersistedState,
   point: ScenePoint,
   viewportScale: number,
+  pointer: PointerKind,
   speciesCache: ReadonlyMap<string, SpeciesCacheEntry>,
   getPlantContext: (viewportScale: number) => PlantPresentationContext,
   selection: SceneDesignObjectSelection = [],
@@ -45,6 +56,7 @@ export function hitTestTopLevel(
     scene,
     point,
     viewportScale,
+    pointer,
     speciesCache,
     getPlantContext,
     isSceneLayerEditable,
@@ -53,10 +65,12 @@ export function hitTestTopLevel(
   )
 }
 
+/** The same pick on visible layers, locked ones included: the passive hover's. */
 export function hitTestVisibleTopLevel(
   scene: ScenePersistedState,
   point: ScenePoint,
   viewportScale: number,
+  pointer: PointerKind,
   speciesCache: ReadonlyMap<string, SpeciesCacheEntry>,
   getPlantContext: (viewportScale: number) => PlantPresentationContext,
   selection: SceneDesignObjectSelection = [],
@@ -66,6 +80,7 @@ export function hitTestVisibleTopLevel(
     scene,
     point,
     viewportScale,
+    pointer,
     speciesCache,
     getPlantContext,
     isLayerVisible,
@@ -78,55 +93,46 @@ function hitTestTopLevelWithLayerFilter(
   scene: ScenePersistedState,
   point: ScenePoint,
   viewportScale: number,
+  pointer: PointerKind,
   speciesCache: ReadonlyMap<string, SpeciesCacheEntry>,
   getPlantContext: (viewportScale: number) => PlantPresentationContext,
   isLayerHitEligible: (scene: ScenePersistedState, layerName: string) => boolean,
   revealedAnnotationId: string | null,
   hoveredAnnotationId: string | null,
 ): SceneDesignObjectTarget | null {
-  const groupedMemberKeys = getSceneGroupedMemberKeys(scene)
+  const groupOf = memberGroups(scene, isLayerHitEligible)
   const detail = getCanvasDetailLayout(scene, viewportScale)
   const plantContext = { ...plantPresentationContext(getPlantContext, viewportScale, speciesCache), plants: scene.plants }
-
-  for (let i = scene.groups.length - 1; i >= 0; i -= 1) {
-    const group = scene.groups[i]!
-    const members = resolveSceneObjectGroupMembers(scene, group)
-    if (!isGroupLayerHitEligible(scene, isLayerHitEligible, members)) continue
-    for (const member of members) {
-      const plant = member.kind === 'plant' ? scene.plants.find((entry) => entry.id === member.id) : null
-      if (plant && hitTestPlant(plant, point, plantContext)) {
-        return { kind: 'group', id: group.id }
-      }
-      const zone = member.kind === 'zone' ? scene.zones.find((entry) => entry.id === member.id) : null
-      if (zone && hitZone(zone, point, viewportScale)) return { kind: 'group', id: group.id }
-      const annotation = member.kind === 'annotation'
-        ? scene.annotations.find((entry) => entry.id === member.id)
-        : null
-      if (annotation && isPointInAnnotationPresentation(annotation, point, viewportScale, false, detail.annotationIds.has(annotation.id))) return { kind: 'group', id: group.id }
-    }
+  /** The top-level target of a member: itself, its group, or undefined when it cannot be picked (its group or layer). */
+  const topLevel = (target: SceneConcreteDesignObjectTarget, layerName: string): SceneDesignObjectTarget | undefined => {
+    const key = sceneTargetKey(target)
+    if (groupOf.has(key)) return groupOf.get(key) ?? undefined
+    return isLayerHitEligible(scene, layerName) ? target : undefined
   }
 
   for (let i = scene.annotations.length - 1; i >= 0; i -= 1) {
     const annotation = scene.annotations[i]!
-    if (groupedMemberKeys.has(sceneTargetKey({ kind: 'annotation', id: annotation.id }))) continue
-    if (!isLayerHitEligible(scene, 'annotations')) continue
-    const revealed = annotation.id === revealedAnnotationId || annotation.id === hoveredAnnotationId
-    if (isPointInAnnotationPresentation(annotation, point, viewportScale, revealed, detail.annotationIds.has(annotation.id))) return { kind: 'annotation', id: annotation.id }
+    const target = topLevel({ kind: 'annotation', id: annotation.id }, 'annotations')
+    if (!target) continue
+    // A grouped note shows its text only when the text is allowed, never revealed by selection or hover.
+    const revealed = target.kind === 'annotation'
+      && (annotation.id === revealedAnnotationId || annotation.id === hoveredAnnotationId)
+    if (isPointInAnnotationPresentation(annotation, point, viewportScale, revealed, detail.annotationIds.has(annotation.id))) return target
   }
 
-  let closestPlant: ScenePlantEntity | null = null
+  let closestPlant: SceneDesignObjectTarget | null = null
   let closestDistance = Infinity
   for (let i = scene.plants.length - 1; i >= 0; i -= 1) {
     const plant = scene.plants[i]!
-    if (groupedMemberKeys.has(sceneTargetKey({ kind: 'plant', id: plant.id }))) continue
-    if (!isLayerHitEligible(scene, 'plants')) continue
+    const target = topLevel({ kind: 'plant', id: plant.id }, 'plants')
+    if (!target) continue
     const distance = (plant.position.x - point.x) ** 2 + (plant.position.y - point.y) ** 2
     if (distance < closestDistance && hitTestPlant(plant, point, plantContext)) {
-      closestPlant = plant
+      closestPlant = target
       closestDistance = distance
     }
   }
-  if (closestPlant) return { kind: 'plant', id: closestPlant.id }
+  if (closestPlant) return closestPlant
 
   for (let i = scene.measurementGuides.length - 1; i >= 0; i -= 1) {
     const guide = scene.measurementGuides[i]!
@@ -138,52 +144,29 @@ function hitTestTopLevelWithLayerFilter(
 
   for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
     const zone = scene.zones[i]!
-    if (groupedMemberKeys.has(sceneTargetKey({ kind: 'zone', id: zone.id }))) continue
-    if (!isLayerHitEligible(scene, 'zones')) continue
-    if (hitZone(zone, point, viewportScale)) return { kind: 'zone', id: zone.id }
+    const target = topLevel({ kind: 'zone', id: zone.id }, 'zones')
+    if (target && hitZone(zone, point, viewportScale, pointer)) return target
   }
 
   return null
 }
 
-/**
- * The topmost filled zone (a polygon, rectangle or ellipse, not a line) whose fill contains `point`, on an interactive
- * layer, as its top-level target: the zone, or its group when the zone is a group member. Object-locked zones count (the
- * caller rejects them). Select's fill click (spec §3.2, HitFilter.fill). With `selected`, the topmost such target in
- * that selection, looking past the fills above it (the menu's selected fill, Q4).
- */
-export function hitTestZoneFill(
+/** Each grouped member's key to its group's target, or to null when the group cannot be picked (a member's layer). */
+function memberGroups(
   scene: ScenePersistedState,
-  point: ScenePoint,
-  selected?: SceneDesignObjectSelection,
-): SceneDesignObjectTarget | null {
-  if (!isSceneLayerEditable(scene, 'zones')) return null
-  for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
-    const zone = scene.zones[i]!
-    const outline = zoneFillOutline(zone)
-    if (!outline || !pointInOrOnPolygon(point, outline)) continue
-    const target = zoneFillTarget(scene, zone)
-    if (!selected) return target
-    if (target && includesSceneDesignObjectTarget(selected, target)) return target
+  isLayerHitEligible: (scene: ScenePersistedState, layerName: string) => boolean,
+): Map<string, SceneDesignObjectTarget | null> {
+  const eligible = new Map<string, boolean>()
+  const groups = new Map<string, SceneDesignObjectTarget | null>()
+  for (const [key, groupId] of getSceneGroupedMemberKeys(scene)) {
+    if (!eligible.has(groupId)) {
+      const group = scene.groups.find((entry) => entry.id === groupId)
+      eligible.set(groupId, !!group
+        && isGroupLayerHitEligible(scene, isLayerHitEligible, resolveSceneObjectGroupMembers(scene, group)))
+    }
+    groups.set(key, eligible.get(groupId) ? { kind: 'group', id: groupId } : null)
   }
-  return null
-}
-
-function zoneFillTarget(scene: ScenePersistedState, zone: SceneZoneEntity): SceneDesignObjectTarget | null {
-  const target = { kind: 'zone', id: zone.id } as const
-  const group = scene.groups.find((entry) =>
-    resolveSceneObjectGroupMembers(scene, entry).some((member) => sceneTargetKey(member) === sceneTargetKey(target)))
-  if (!group) return target
-  return isGroupLayerHitEligible(scene, isSceneLayerEditable, resolveSceneObjectGroupMembers(scene, group))
-    ? { kind: 'group', id: group.id }
-    : null
-}
-
-function zoneFillOutline(zone: SceneZoneEntity): readonly ScenePoint[] | null {
-  if (zone.zoneType === 'rect' && zone.points.length >= 4) return getRectangularZoneCorners(zone)
-  if (zone.zoneType === 'ellipse' && zone.points.length >= 2) return getEllipticalZonePolygon(zone)
-  if (zone.zoneType === 'polygon' && zone.points.length >= 3) return zone.points
-  return null
+  return groups
 }
 
 function isGroupLayerHitEligible(
@@ -271,7 +254,8 @@ interface QueryPolygon {
   readonly bounds: SimpleRect
 }
 
-/** The zone edge nearest a point, within a screen tolerance ("Turn view to this edge", spec §4.16). */
+/** The zone edge nearest a point, within the pointer's PICK_TOLERANCE_PX ("Turn view to this edge", spec §4.16; Select's
+ *  double-click that adds a corner). */
 interface ZoneEdgeHit {
   readonly zoneId: string
   readonly edgeIndex: number
@@ -279,17 +263,18 @@ interface ZoneEdgeHit {
 }
 
 /**
- * The polygon, rectangle (its turned corners) or line zone edge nearest `point` within `tolerancePx` at `viewportScale`
- * px/m, or null. Zones on hidden layers are left out; locked zones, locked layers and grouped zones count, since the
+ * The polygon, rectangle (its turned corners) or line zone edge nearest `point` within PICK_TOLERANCE_PX[pointer] at
+ * `viewportScale` px/m, or null. Zones on hidden layers are left out; locked zones, locked layers and grouped zones count, since the
  * entry only turns the view. Ellipses have no edges.
  */
 export function hitZoneEdge(
   scene: ScenePersistedState,
   point: ScenePoint,
-  tolerancePx: number,
+  pointer: PointerKind,
   viewportScale: number,
 ): ZoneEdgeHit | null {
   if (!isLayerVisible(scene, 'zones')) return null
+  const tolerancePx = PICK_TOLERANCE_PX[pointer]
   const scale = Math.max(viewportScale, 1e-6)
   let best: ZoneEdgeHit | null = null
   for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
@@ -321,12 +306,15 @@ function zoneEdges(zone: SceneZoneEntity): ReadonlyArray<readonly [ScenePoint, S
   return []
 }
 
+/** Line zones and guides, for every pointer: they keep their picking (canopi-qd2k). */
 const LINE_HIT_TOLERANCE_PX = 6
 const ELLIPSE_BOUNDARY_MAX_SAGITTA_PX = LINE_HIT_TOLERANCE_PX / 2
 const MIN_ELLIPSE_BOUNDARY_SEGMENTS = 48
 
-function hitZone(zone: SceneZoneEntity, point: ScenePoint, viewportScale: number): boolean {
-  const toleranceWorld = LINE_HIT_TOLERANCE_PX / Math.max(viewportScale, 1e-6)
+/** A closed zone near its outline (PICK_TOLERANCE_PX for the pointer), a line zone near its line; never by its inside. */
+function hitZone(zone: SceneZoneEntity, point: ScenePoint, viewportScale: number, pointer: PointerKind): boolean {
+  const scale = Math.max(viewportScale, 1e-6)
+  const toleranceWorld = PICK_TOLERANCE_PX[pointer] / scale
 
   if (zone.zoneType === 'rect' && zone.points.length >= 4) {
     const corners = getRectangularZoneCorners(zone)
@@ -343,22 +331,24 @@ function hitZone(zone: SceneZoneEntity, point: ScenePoint, viewportScale: number
   }
 
   if (zone.zoneType === 'line' && zone.points.length >= 2) {
-    return pointNearSegment(point, zone.points[0]!, zone.points[1]!, toleranceWorld)
+    return pointNearSegment(point, zone.points[0]!, zone.points[1]!, LINE_HIT_TOLERANCE_PX / scale)
   }
 
-  const bounds = zoneBounds(zone)
-  return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height
+  // A shape too short of points for its kind: the outline of its bounds.
+  return pointNearPolygonBoundary(point, rectCorners(zoneBounds(zone)), toleranceWorld)
 }
 
+/** A band selects a zone when it crosses one of its lines or holds it whole: by its outline, never by its inside, so a
+ *  band wholly inside a zone leaves the zone out (canopi-qd2k). */
 function zoneIntersectsPolygon(zone: SceneZoneEntity, area: QueryPolygon): boolean {
   if (zone.zoneType === 'rect' && zone.points.length >= 4) {
     const corners = getRectangularZoneCorners(zone)
-    return corners ? polygonsIntersect(corners, area) : false
+    return corners ? outlineIntersectsPolygon(corners, area) : false
   }
 
   if (zone.zoneType === 'ellipse' && zone.points.length >= 2) {
     const polygon = getEllipticalZonePolygon(zone)
-    return polygon ? polygonsIntersect(polygon, area) : false
+    return polygon ? outlineIntersectsPolygon(polygon, area) : false
   }
 
   if (zone.zoneType === 'line' && zone.points.length >= 2) {
@@ -366,11 +356,17 @@ function zoneIntersectsPolygon(zone: SceneZoneEntity, area: QueryPolygon): boole
   }
 
   if (zone.zoneType === 'polygon' && zone.points.length >= 3) {
-    return polygonsIntersect(zone.points, area)
+    return outlineIntersectsPolygon(zone.points, area)
   }
 
-  const bounds = zoneBounds(zone)
-  return polygonsIntersect(rectCorners(bounds), area)
+  return outlineIntersectsPolygon(rectCorners(zoneBounds(zone)), area)
+}
+
+/** A closed outline and the band's polygon: a corner of the outline inside the band, or crossing edges. */
+function outlineIntersectsPolygon(outline: readonly ScenePoint[], area: QueryPolygon): boolean {
+  if (outline.length === 0 || !rectsIntersect(area.bounds, pointsBounds(outline))) return false
+  if (outline.some((point) => pointInOrOnPolygon(point, area.points))) return true
+  return edgesCross(outline, area.points)
 }
 
 function hitMeasurementGuide(
@@ -396,8 +392,12 @@ function polygonsIntersect(polygon: readonly ScenePoint[], area: QueryPolygon): 
   if (polygon.length === 0 || !rectsIntersect(area.bounds, pointsBounds(polygon))) return false
   if (polygon.some((point) => pointInOrOnPolygon(point, area.points))) return true
   if (area.points.some((corner) => pointInOrOnPolygon(corner, polygon))) return true
-  return edgesOf(polygon).some(([start, end]) => edgesOf(area.points)
-    .some(([areaStart, areaEnd]) => segmentsIntersect(start, end, areaStart, areaEnd)))
+  return edgesCross(polygon, area.points)
+}
+
+function edgesCross(a: readonly ScenePoint[], b: readonly ScenePoint[]): boolean {
+  return edgesOf(a).some(([start, end]) => edgesOf(b)
+    .some(([otherStart, otherEnd]) => segmentsIntersect(start, end, otherStart, otherEnd)))
 }
 
 function segmentIntersectsPolygon(start: ScenePoint, end: ScenePoint, area: QueryPolygon): boolean {

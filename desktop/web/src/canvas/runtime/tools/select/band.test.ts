@@ -105,25 +105,25 @@ describe('Select band', () => {
     busy.abort()
   })
 
-  it("a drag in a zone's fill draws a band", () => {
+  it('(canopi-qd2k) a drag inside a zone draws a band that selects only the plants it holds, never the zone', () => {
     const bed = rectZone('bed', [{ x: 10, y: 10 }, { x: 200, y: 10 }, { x: 200, y: 200 }, { x: 10, y: 200 }])
     const h = harness({ scene: { ...orchard(), zones: [bed] } })
     h.select(plant('c'))
 
-    // The press in the fill keeps the selection until the band's release replaces it; the zone never moves.
+    // Inside a zone, away from its outline, is empty ground: the press clears the selection; the zone never moves.
     h.press({ x: 30, y: 30 })
-    expect(h.store.session.selectedTargets).toEqual([plant('c')])
+    expect(h.store.session.selectedTargets).toEqual([])
     h.move({ x: 60, y: 60 })
     expect(h.renderer.lastDraft()?.shapes[0]).toMatchObject({ kind: 'quad' })
     h.move({ x: 100, y: 100 })
     h.release()
 
     expect(h.store.persisted.zones[0]!.points).toEqual(bed.points)
-    expect(h.store.session.selectedTargets).toEqual([plant('a'), plant('b'), { kind: 'zone', id: 'bed' }])
+    expect(h.store.session.selectedTargets).toEqual([plant('a'), plant('b')])
     expect(h.history.canUndo.value).toBe(false)
   })
 
-  it("a band dragged out and back to its press on a zone's fill selects the zone, and with Alt keeps it: a band never removes (A9)", () => {
+  it('(canopi-qd2k) a band dragged out and back inside a zone selects nothing; one across its line selects it, and with Alt keeps it: a band never removes (A9)', () => {
     const bed = rectZone('bed', [{ x: 10, y: 10 }, { x: 200, y: 10 }, { x: 200, y: 200 }, { x: 10, y: 200 }])
     const h = harness({ scene: { ...orchard(), zones: [bed] } })
     h.select(plant('c'))
@@ -132,11 +132,13 @@ describe('Select band', () => {
     h.move({ x: 70, y: 30 })
     h.move({ x: 30, y: 30 })
     h.release()
+    expect(h.store.session.selectedTargets).toEqual([])
+
+    h.drag({ x: 150, y: 150 }, { x: 250, y: 170 })
     expect(h.store.session.selectedTargets).toEqual([{ kind: 'zone', id: 'bed' }])
 
-    h.press({ x: 30, y: 30 }, { mods: { alt: true } })
-    h.move({ x: 70, y: 30 }, { alt: true })
-    h.move({ x: 30, y: 30 }, { alt: true })
+    h.press({ x: 150, y: 150 }, { mods: { alt: true } })
+    h.move({ x: 250, y: 170 }, { alt: true })
     h.release(undefined, { alt: true })
     expect(h.store.session.selectedTargets).toEqual([{ kind: 'zone', id: 'bed' }])
   })

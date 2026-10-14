@@ -67,6 +67,10 @@ const OPTIONS: UnusedCodeOptions = {
 const KEPT: Readonly<Record<string, string>> = {
   'src/app/lidar/sampler.ts#createSiteSampler': 'Test seam: the app keeps one sampler (siteSampler); sampler.test.ts and '
     + 'profile.test.ts drive the real one over a faked command (canopi-f47t.42, d943a93e).',
+  'src/canvas/runtime/tools/hit-testing.ts#PICK_TOLERANCE_PX': 'Test seam: the pick contract '
+    + '(hit-testing.pick.test.ts) asserts the user\'s 6/16 px table (canopi-qd2k).',
+  'src/canvas/runtime/tools/tool-host.ts#contextMenuTargetAt': 'Test seam: the pick contract '
+    + '(hit-testing.pick.test.ts) checks the menu targets what a click selects (canopi-qd2k).',
 }
 const KEPT_REASON = /\bcanopi-[a-z0-9]+(?:\.\d+)*\b/
 

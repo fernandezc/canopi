@@ -1,9 +1,10 @@
 // canvas/runtime/tools/select/band.ts
 //
-// Owns Select's band: a press on empty ground clears the selection unless the
-// press is additive, and the drag draws a screen-aligned box from the press to the pointer (the band's `quad` draft:
+// Owns Select's band: a press on empty ground (inside a zone away from its outline too, canopi-qd2k) clears the
+// selection unless the press is additive, and the drag draws a screen-aligned box from the press to the pointer (the band's `quad` draft:
 // the selection stroke at 2 px over the selection fill). The release selects every object the box touches, tested
-// against its world quad (turned with the view, never widened to its world box; spec §4.9), the locked ones left out,
+// against its world quad (turned with the view, never widened to its world box; spec §4.9; a zone by its outline, so a
+// box wholly inside a zone leaves it out: hit-testing.ts), the locked ones left out,
 // added to the selection when the press was additive, never removed from it (an Alt band adds what it touches). Only a
 // drag makes a band, whatever its size: the recogniser's slop tells it from a click (A9). The release runs when the
 // scene is settled (CanvasTool.settledRelease).

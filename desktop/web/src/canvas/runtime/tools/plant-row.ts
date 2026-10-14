@@ -313,7 +313,7 @@ export function createPlantRowTool(): CanvasTool {
     const tool = context()
     const persisted = tool.scene.persisted
     // Today's hitTestTopLevel: object locks come back and are refused here.
-    const hit = tool.scene.hitAt(point.world)
+    const hit = tool.scene.hitAt(point.world, { pointer: point.pointer })
     const target = hit?.kind === 'object' ? hit.target : null
     const plant = target?.kind === 'plant' && !isSceneDesignObjectLocked(persisted, target)
       ? persisted.plants.find((entry) => entry.id === target.id)

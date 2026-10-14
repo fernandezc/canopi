@@ -2688,8 +2688,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
 
     // A press on corner 1 focuses it and makes it the selected corner; Tab then moves focus to corner 3.
@@ -2726,8 +2726,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 50 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 50 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = container.querySelector<HTMLElement>('[data-canvas-handle="vertex:polygon-1:1"]')!
     events.pointerDown({ x: 120, y: 20 }, { button: 0, target: corner })
     events.pointerUp({ x: 120, y: 20 }, { button: 0 })
@@ -2755,8 +2755,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
     const active = () => container.querySelector('[data-canvas-handle-active="true"]')?.getAttribute('data-canvas-handle') ?? null
 
@@ -2785,9 +2785,9 @@ describe('SceneInteractionSession', () => {
     expect(document.activeElement).toBe(corner(0))
     expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
 
-    // A press in the fill keeps the zone selected and clears the corner.
-    events.pointerDown({ x: 130, y: 80 }, { button: 0 })
-    events.pointerUp({ x: 130, y: 80 }, { button: 0 })
+    // A press on the zone's outline keeps it selected and clears the corner.
+    events.pointerDown({ x: 122, y: 80 }, { button: 0 })
+    events.pointerUp({ x: 122, y: 80 }, { button: 0 })
     expect(session.keyboard.command({ kind: 'delete-handle' })).toBe(false)
     expect(active()).toBeNull()
     expect(store.persisted.zones[0]!.points).toEqual(hexagon.slice(1, 4))
@@ -2813,8 +2813,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
 
     // Tab-focused corner 3.
@@ -2830,10 +2830,10 @@ describe('SceneInteractionSession', () => {
     expect(store.persisted.zones[0]!.points).toEqual([pentagon[0], pentagon[2], pentagon[4]])
     expect(keyCommands).not.toHaveBeenCalledWith('canvas.deleteSelected')
 
-    // A press in the fill clears the corner selected after the removal (U37); with no corner focused or selected the
-    // selection goes, as before.
-    events.pointerDown({ x: 50, y: 60 }, { button: 0 })
-    events.pointerUp({ x: 50, y: 60 }, { button: 0 })
+    // A press on the zone's outline clears the corner selected after the removal (U37); with no corner focused or
+    // selected the selection goes, as before.
+    events.pointerDown({ x: 50, y: 78 }, { button: 0 })
+    events.pointerUp({ x: 50, y: 78 }, { button: 0 })
     events.keyDown({ key: 'Backspace', code: 'Backspace' })
     expect(keyCommands).toHaveBeenCalledWith('canvas.deleteSelected')
     session.dispose()
@@ -2893,8 +2893,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
 
     // Esc (the menu's restoring close): focus is back on corner 1, and Delete removes it.
@@ -2930,8 +2930,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
 
     // The app's menu closes with focus restored, then runs the command (ActionMenu.activate).
@@ -2970,8 +2970,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView, { contextMenu: menu.adapter })
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const corner = (index: number) => container.querySelector<HTMLElement>(`[data-canvas-handle="vertex:polygon-1:${index}"]`)!
     const pressInMenu = (key: string) => events.keyDown({ key, code: key, cancelable: true, target: document.activeElement! })
     const openOnCorner = (index: number) => {
@@ -3019,8 +3019,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const handle = (id: string) => container.querySelector<HTMLElement>(`[data-canvas-handle="${id}"]`)!
     const rightClick = (at: ScenePoint, id: string) => {
       events.pointerDown(at, { button: 2, target: handle(id) })
@@ -3155,8 +3155,8 @@ describe('SceneInteractionSession', () => {
     const deps = createInteractionDeps(container, store, testView, { nudge })
     const session = createTestSession(deps)
     session.setTool('select')
-    events.pointerDown({ x: 70, y: 70 }, { button: 0 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    events.pointerDown({ x: 70, y: 22 }, { button: 0 })
+    events.pointerUp({ x: 70, y: 22 }, { button: 0 })
     const before = testView.viewport()
 
     for (const handle of ['vertex:polygon-1:1', 'edge-mid:polygon-1:0']) {
@@ -3630,7 +3630,9 @@ describe('SceneInteractionSession', () => {
     session.dispose()
   })
 
-  it('selects a Zone by its outline or a click in its fill, and a drag in its fill bands without moving it', () => {
+  // The guard of canopi-c7k8, restored for canopi-qd2k: the user's decision (2026-10-14) is that a zone is picked by its
+  // outline only. Rewriting this test needs the user's word, cited in the commit.
+  it('(canopi-qd2k) selects a Zone by its outline only: a click inside picks what lies beneath or clears, and a drag inside bands without moving it', () => {
     const corners = [
       { x: 10, y: 10 },
       { x: 110, y: 10 },
@@ -3639,29 +3641,32 @@ describe('SceneInteractionSession', () => {
     ]
     store.updatePersisted((draft) => {
       draft.zones = [makeRectZone('zone-1', corners)]
+      draft.plants = [makePlant('plant-1', 'Malus domestica', { x: 80, y: 60 })]
     })
     const deps = createInteractionDeps(container, store, testView)
     const session = createTestSession(deps)
     session.setTool('select')
 
-    events.pointerDown({ x: 60, y: 50 }, { button: 0 })
-    events.pointerUp({ x: 60, y: 50 }, { button: 0 })
-    expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
-
-    events.pointerDown({ x: 200, y: 200 }, { button: 0 })
-    events.pointerUp({ x: 200, y: 200 }, { button: 0 })
-    expect(currentCanvasSelection.value).toEqual(new Set())
-
     events.pointerDown({ x: 10, y: 50 }, { button: 0 })
     events.pointerUp({ x: 10, y: 50 }, { button: 0 })
     expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
 
-    // A drag from inside the selected zone's fill bands: the press clears, the band selects what it touches.
-    events.pointerDown({ x: 40, y: 40 }, { button: 0 })
-    events.pointerMove({ x: 70, y: 70 }, { buttons: 1 })
-    events.pointerUp({ x: 70, y: 70 }, { button: 0 })
+    // Inside, away from the outline: empty ground clears the selection.
+    events.pointerDown({ x: 40, y: 50 }, { button: 0 })
+    events.pointerUp({ x: 40, y: 50 }, { button: 0 })
+    expect(currentCanvasSelection.value).toEqual(new Set())
+
+    // Inside, on a plant: the plant alone.
+    events.pointerDown({ x: 80, y: 60 }, { button: 0 })
+    events.pointerUp({ x: 80, y: 60 }, { button: 0 })
+    expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
+
+    // A drag from inside the zone bands: the press clears, the band selects only what it holds, never the zone.
+    events.pointerDown({ x: 30, y: 30 }, { button: 0 })
+    events.pointerMove({ x: 95, y: 75 }, { buttons: 1 })
+    events.pointerUp({ x: 95, y: 75 }, { button: 0 })
     expect(store.persisted.zones[0]!.points).toEqual(corners)
-    expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
+    expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
     session.dispose()
   })
 

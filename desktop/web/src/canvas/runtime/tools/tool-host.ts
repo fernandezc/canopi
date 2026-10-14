@@ -20,7 +20,7 @@ import { CanvasRuntimeCleanupError, runCanvasRuntimeCleanups } from '../cleanup'
 import type { Gesture, MenuSource, PressTarget } from '../input/gestures'
 import type { TargetClass } from '../input/raw-input'
 import { createCanvasContextMenu } from '../interaction/canvas-context-menu'
-import type { ContextMenuPort, GestureOutcome, PointerWorld, ToolHost, ToolHostDeps } from '../interaction-ports'
+import type { ContextMenuPick, ContextMenuPort, GestureOutcome, PointerWorld, ToolHost, ToolHostDeps } from '../interaction-ports'
 import type { CancelReason, CanvasDropPayload, Modifiers, PointerKind, ToolHandleId, ToolId } from '../interaction-types'
 import type { CanvasDesignObjectSelectionModel } from '../runtime'
 import {
@@ -77,11 +77,10 @@ const REFUSED_DRAGOVER: GestureOutcome = Object.freeze({ quarantine: true, dropE
 const DROP_CUE_PX = 12
 const NO_HANDLES: readonly ToolHandle[] = Object.freeze([])
 const NO_SNAP: SnapSettings = Object.freeze({ grid: false })
-/** How near a zone's edge a pointer menu offers "Turn view to this edge" (spec §4.16): a mouse 8 px, a long press 22 px
- *  (half a 44 px finger target, ADR 0010). The keyboard menu has no point. */
-const MENU_EDGE_TOLERANCE_PX: Partial<Record<MenuSource, number>> = Object.freeze({
-  mouse: 8,
-  'long-press': 22,
+/** The pointer a menu's pick is for: a long press is a finger's; the keyboard menu has no point. */
+const MENU_POINTER: Partial<Record<MenuSource, PointerKind>> = Object.freeze({
+  mouse: 'mouse',
+  'long-press': 'touch',
 })
 /** Arrow-key nudge steps, in session-plane metres. */
 const NUDGE_STEP_M = 0.1
@@ -132,10 +131,10 @@ export type ContextMenuPortOptions = Parameters<typeof createCanvasContextMenu>[
 }
 
 /**
- * ToolHostDeps.menu over the menu controller. The host hits and retargets the selection first; open() then rebuilds
- * one of three menu states: the selection's menu from the keyboard, the empty-map menu, and a right-clicked object's menu
- * (an already selected zone's fill counts as the zone), disabled when the object is on a locked layer or locked through
- * its group (contextMenuTargetAt). A
+ * ToolHostDeps.menu over the menu controller. The host picks (contextMenuTargetAt, the click's pick: canopi-qd2k) and
+ * retargets the selection first, and the request carries its pick; open() then rebuilds one of three menu states: the
+ * selection's menu from the keyboard, the empty-map menu (no pick), and a right-clicked object's menu, disabled when the
+ * object is on a locked layer or locked through its group. A
  * pointer menu carries the host's "Turn view to this edge" onto the app's request. A menu opened during the host's
  * re-origin hold (U39) kept the selection: an object hit gets the kept selection's menu, or the empty map's with none.
  * A point menu (A16) opens at its point with its own entries and no selection.
@@ -164,7 +163,7 @@ export function createContextMenuPort(options: ContextMenuPortOptions): ContextM
         return
       }
       const screen = request.screen ?? controllerOptions.view().worldToScreen(request.at)
-      const { visible, target } = contextMenuTargetAt(scene, request.at)
+      const { visible, target } = request.pick ?? NOTHING_PICKED
       const selection = target ? selectionModel() : null
       const kept = request.holdsSelectionDeletes && selection
         && selection.editableTargets.length + selection.lockedTargets.length === 0 ? null : selection
@@ -505,8 +504,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     return { world, free, constrained, snapped, modifiers, pointer }
   }
 
-  function hitAt(world: WorldPoint): HitTarget | null {
-    return deps.scene.hitAt(world)
+  function hitAt(world: WorldPoint, pointer: PointerKind): HitTarget | null {
+    return deps.scene.hitAt(world, { pointer })
   }
 
   // ── Drafts, handles, guidance, cursor ────────────────────────────────────────────────────────────────────────────
@@ -611,8 +610,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   /** The passive hover: the restyle (a directly locked object shows the locked hover stroke) and the plant tooltip. */
-  function passiveHover(world: WorldPoint, at: ScreenPoint): void {
-    const visible = objectTarget(deps.scene.hitAt(world, { includeLocked: true }))
+  function passiveHover(world: WorldPoint, at: ScreenPoint, pointer: PointerKind): void {
+    const visible = objectTarget(deps.scene.hitAt(world, { pointer, includeLocked: true }))
     deps.hover(visible)
     deps.chrome.setTooltip(visible?.kind === 'plant' ? { target: visible, at } : null)
   }
@@ -620,12 +619,12 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   /** The tool's hover, then the passive hover unless the tool handled it. */
   function deliverHover(tool: CanvasTool, at: ScreenPoint, mods: Modifiers, pointer: PointerKind): void {
     if (toolHover(tool, at, mods, pointer) === 'handled') clearPassiveHover()
-    else passiveHoverAt(at)
+    else passiveHoverAt(at, pointer)
   }
 
   function toolHover(tool: CanvasTool, at: ScreenPoint, mods: Modifiers, pointer: PointerKind): ToolReply {
     const point = pointAt(at, mods, pointer)
-    return callTool(() => tool.gesture({ kind: 'hover', point, hit: hitAt(point.world) }))
+    return callTool(() => tool.gesture({ kind: 'hover', point, hit: hitAt(point.world, pointer) }))
   }
 
   // ── Gestures ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -733,7 +732,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       return false
     }
     if (commitsNote) return false
-    const hit = hitAt(point.world)
+    const hit = hitAt(point.world, g.pointer)
     live = liveGesture(g, 'tool', point, hit)
     callTool(() => tool.gesture({ kind: 'press', point, hit, clickCount: g.clickCount }))
     clearPassiveHoverForEdit()
@@ -829,13 +828,13 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
       // A move the tool passes is none of its press's (Plant a row's missed press, a stamp with nothing held, a polygon
       // press that added no corner): it is a hover with the button down, as today's press that cleared its gesture left
       // the next moves to _updateHover. A tool that keeps its press answers 'handled' (ToolReply).
-      if (passive && kind !== 'drag-end' && reply === 'pass') passiveHoverAt(gesture.lastScreen)
+      if (passive && kind !== 'drag-end' && reply === 'pass') passiveHoverAt(gesture.lastScreen, gesture.pointer)
     }
   }
 
   /** The passive hover at a screen point, cleared off the map. */
-  function passiveHoverAt(at: ScreenPoint): void {
-    if (insideScreen(at, frame().view.screen)) passiveHover(frame().view.screenToWorld(at), at)
+  function passiveHoverAt(at: ScreenPoint, pointer: PointerKind): void {
+    if (insideScreen(at, frame().view.screen)) passiveHover(frame().view.screenToWorld(at), at, pointer)
     else clearPassiveHover()
   }
 
@@ -863,7 +862,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
           const point = pointAt(g.at, g.mods, g.pointer)
           // The tool that hears the tap decides the pin, not the one it may arm (Profile requests Select as it finishes).
           const heardBy = currentId
-          callTool(() => tool.gesture({ kind: 'tap', point, hit: hitAt(point.world), clickCount: g.clickCount }))
+          callTool(() => tool.gesture({ kind: 'tap', point, hit: hitAt(point.world, g.pointer), clickCount: g.clickCount }))
           pinAfterTap(heardBy, gesture, point.world)
         }
       } finally {
@@ -874,14 +873,15 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
 
   /**
    * The Site data pin (spec §3.8, fixture J10; U49 Q17): a tap no tool uses pins its point once the tool has heard it, and
-   * claims nothing. That is a Select tap whose press hit nothing, not even a zone's fill (Select cleared the selection), or
+   * claims nothing. That is a Select tap whose press hit nothing (Select cleared the selection; inside a zone away from its
+   * outline is empty ground, canopi-qd2k), or
    * any Pan-tool tap; never another tool, a handle, a drag or overview. `heardBy` is the tool the tap reached, read before
    * the tool ran. deps.pin is absent on Web and while the Site data panel is closed.
    */
   function pinAfterTap(heardBy: ToolId, gesture: LiveGesture, world: WorldPoint): void {
     if (!deps.pin || frame().mode !== 'site') return
     const pins = heardBy === 'hand'
-      || (heardBy === 'select' && gesture.startHit === null && deps.scene.hitAt(gesture.start.world, { fill: true }) === null)
+      || (heardBy === 'select' && gesture.startHit === null)
     if (pins) deps.pin(world)
   }
 
@@ -1183,17 +1183,19 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   /** Hit, retarget the selection to the object under the pointer (history-free), then open the menu, with "Finish shape"
    *  when the armed tool can finish its draft and "Turn view to this edge" when the pointer is on a zone's edge. During the
    *  re-origin hold (`held`, U39) the selection is kept and the menu disables Cut and Delete. */
-  function openMenuAt(at: ScreenPoint, source: MenuSource, held: boolean): void {
+  function openMenuAt(at: ScreenPoint, pointer: PointerKind, held: boolean): void {
     const world = frame().view.screenToWorld(at)
-    const { target } = contextMenuTargetAt(deps.scene, world)
+    const pick = contextMenuTargetAt(deps.scene, world, pointer)
+    const { target } = pick
     if (!held && target && !includesSceneDesignObjectTarget(deps.scene.selection(), target)) {
       deps.setSelection([target])
       notifySceneChanged()
     }
-    const turnViewToEdge = edgeTurnAt(world, source)
+    const turnViewToEdge = edgeTurnAt(world, pointer)
     deps.menu.open({
       at: world,
       screen: at,
+      pick,
       ...toolMenuEntries(held),
       ...(turnViewToEdge ? { turnViewToEdge } : {}),
     })
@@ -1280,14 +1282,12 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   /**
-   * "Turn view to this edge" (spec §4.16): the nearest polygon, rectangle or line zone edge within the source's
-   * tolerance, locked zones included, turned level on screen by the smaller angle. Pointer menus only: the keyboard
+   * "Turn view to this edge" (spec §4.16): the nearest polygon, rectangle or line zone edge within the pointer's pick
+   * tolerance (hit-testing.ts PICK_TOLERANCE_PX), locked zones included, turned level on screen by the smaller angle. Pointer menus only: the keyboard
    * menu has no point (the keyboard turns the view with Shift ← and Shift →).
    */
-  function edgeTurnAt(world: WorldPoint, source: MenuSource): (() => void) | null {
-    const tolerancePx = MENU_EDGE_TOLERANCE_PX[source]
-    if (tolerancePx === undefined) return null
-    const hit = deps.scene.hitAt(world, { toleranceScreenPx: tolerancePx })
+  function edgeTurnAt(world: WorldPoint, pointer: PointerKind): (() => void) | null {
+    const hit = deps.scene.hitAt(world, { pointer, zoneEdge: true })
     if (hit?.kind !== 'zone-edge') return null
     const zone = deps.scene.persisted.zones.find((entry) => entry.id === hit.zoneId)
     const edge = zone ? zoneEdgeSegment(zone, hit.edgeIndex) : null
@@ -1466,7 +1466,7 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
         // A press, a tool transient or an entry its commit left open keeps the selection and its deletes (U39).
         const held = holdsReorigin()
         if (at === 'selection') deps.menu.open({ at, screen: null, ...toolMenuEntries(held) })
-        else openMenuAt(at, source, held)
+        else openMenuAt(at, MENU_POINTER[source] ?? 'mouse', held)
         return true
       }, false)
       return !admitted || duringEdit ? QUARANTINE : NOTHING
@@ -1668,19 +1668,18 @@ function objectTarget(hit: HitTarget | null): SceneDesignObjectTarget | null {
   return hit?.kind === 'object' ? hit.target : null
 }
 
+const NOTHING_PICKED: ContextMenuPick = Object.freeze({ visible: null, target: null })
+
 /**
- * What a menu at `world` acts on (today's _retargetContextMenuSelection): `target` is the object to retarget the selection
- * to; with none, a `visible` hit (on a locked layer, or locked through its group) gets the disabled menu, and the empty map
- * gets the map's.
+ * What a menu at `world` acts on (today's _retargetContextMenuSelection): exactly what a click there picks (canopi-qd2k),
+ * for the menu's pointer. `target` is the object to retarget the selection to; with none, a `visible` hit (on a locked
+ * layer, or locked through its group) gets the disabled menu, and the empty map gets the map's.
  */
-function contextMenuTargetAt(
-  scene: ToolScene,
-  world: WorldPoint,
-): { readonly visible: SceneDesignObjectTarget | null; readonly target: SceneDesignObjectTarget | null } {
+export function contextMenuTargetAt(scene: ToolScene, world: WorldPoint, pointer: PointerKind): ContextMenuPick {
   const persisted = scene.persisted
-  const visible = objectTarget(scene.hitAt(world, { includeLocked: true }))
+  const visible = objectTarget(scene.hitAt(world, { pointer, includeLocked: true }))
   if (visible && isContextMenuTargetStructurallyBlocked(persisted, visible)) return { visible, target: null }
-  const hit = objectTarget(scene.hitAt(world, { fill: 'selected' }))
+  const hit = objectTarget(scene.hitAt(world, { pointer }))
   if (!hit || isContextMenuTargetStructurallyBlocked(persisted, hit)) return { visible, target: null }
   return { visible: visible ?? hit, target: hit }
 }

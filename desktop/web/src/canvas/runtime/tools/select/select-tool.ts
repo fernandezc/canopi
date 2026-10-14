@@ -48,13 +48,11 @@ import {
   type RotationDrag,
 } from './rotate-handle'
 
-/** A double-click this close to the selected polygon's edge adds a corner there: the outline's own hit tolerance. */
-const EDGE_DOUBLE_CLICK_PX = 6
 type ZoneEdgeHit = Extract<HitTarget, { kind: 'zone-edge' }>
 
 /** What the press started, from the press to its release or cancel. */
 type SelectGesture =
-  | { readonly kind: 'band'; readonly band: Band; readonly press: SelectPress }
+  | { readonly kind: 'band'; readonly band: Band }
   | { readonly kind: 'move'; readonly drag: MoveDrag; readonly press: SelectPress }
   | { readonly kind: 'rotate'; readonly drag: RotationDrag }
   | { readonly kind: 'reshape'; readonly drag: PointHandleDrag<SceneZoneEntity> }
@@ -157,7 +155,7 @@ export function createSelectTool(): CanvasTool {
     switch (result.kind) {
       case 'band':
         // The band draws from its drag: a tap (a finger's held press resolves at its lift) draws none.
-        gesture = { kind: 'band', band: { start: point.world, additive: result.additive }, press: result }
+        gesture = { kind: 'band', band: { start: point.world, additive: result.additive } }
         break
       case 'move':
         gesture = {
@@ -177,9 +175,9 @@ export function createSelectTool(): CanvasTool {
     refreshHandles()
   }
 
-  /** The zone edge within EDGE_DOUBLE_CLICK_PX of the press, or null. */
+  /** The zone edge within the outline's own pick tolerance for the pointer (hit-testing.ts PICK_TOLERANCE_PX), or null. */
   function zoneEdgeAt(point: ToolPoint): ZoneEdgeHit | null {
-    const edge = ctx().scene.hitAt(point.world, { toleranceScreenPx: EDGE_DOUBLE_CLICK_PX })
+    const edge = ctx().scene.hitAt(point.world, { pointer: point.pointer, zoneEdge: true })
     return edge?.kind === 'zone-edge' ? edge : null
   }
 
@@ -213,8 +211,6 @@ export function createSelectTool(): CanvasTool {
     try {
       if (current.kind === 'band') {
         if (dragged) c.effects.setSelection(bandSelection(c, current.band, point.world))
-        // Only a fill press's click selects.
-        else clickSelection(c, current.press)
       } else if (current.kind === 'move') {
         // The release reads the last move: the pointer's travel since then moves nothing.
         if (hasMoved(current.drag)) {

@@ -60,7 +60,7 @@ describe('SceneInteractionSession: the Site data pin', () => {
 
   const world = (at: ScenePoint) => testView.view().screenToWorld(at)
 
-  it('a Select click on empty ground clears the selection and pins; a click on a plant or a zone\'s fill selects only', () => {
+  it('(canopi-qd2k) a Select click on empty ground, inside a zone too, clears the selection and pins; a click on a plant or a zone\'s outline selects only', () => {
     store.updatePersisted((draft) => {
       draft.plants = [makePlant('plant-1', 'Malus domestica', { x: 20, y: 30 })]
       draft.zones = [makeRectZone('zone-1', [{ x: 200, y: 150 }, { x: 280, y: 150 }, { x: 280, y: 210 }, { x: 200, y: 210 }])]
@@ -70,7 +70,7 @@ describe('SceneInteractionSession: the Site data pin', () => {
 
     click({ x: 20, y: 30 }, 0)
     expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
-    click({ x: 240, y: 180 }, 1000)
+    click({ x: 240, y: 152 }, 1000)
     expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
     expect(pinAt).not.toHaveBeenCalled()
 
@@ -78,6 +78,13 @@ describe('SceneInteractionSession: the Site data pin', () => {
     expect(currentCanvasSelection.value.size).toBe(0)
     expect(pinAt).toHaveBeenCalledTimes(1)
     expect(pinAt).toHaveBeenCalledWith(world({ x: 120, y: 260 }))
+
+    // Inside the zone, away from its outline, is empty ground: it pins (the user's decision of 2026-10-14).
+    click({ x: 240, y: 152 }, 3000)
+    click({ x: 240, y: 180 }, 4000)
+    expect(currentCanvasSelection.value.size).toBe(0)
+    expect(pinAt).toHaveBeenCalledTimes(2)
+    expect(pinAt).toHaveBeenLastCalledWith(world({ x: 240, y: 180 }))
     session.dispose()
   })
 

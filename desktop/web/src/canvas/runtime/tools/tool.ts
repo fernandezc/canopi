@@ -64,19 +64,17 @@ export interface ToolPoint {
 export type HitTarget =
   | { readonly kind: 'object'; readonly target: SceneDesignObjectTarget }                          // scene/design-object-targets.ts
   | { readonly kind: 'zone-edge'; readonly zoneId: string; readonly edgeIndex: number; readonly distancePx: number }
-/** No filter is today's hitTestTopLevel exactly: interactive layers, a group as the top-level target, guides, the revealed
- *  (selected or hovered) note, and object-locked objects, which the caller rejects itself. */
+/** What a hit asks for. The pick is hit-testing.ts's (canopi-qd2k): the topmost drawn object on interactive layers, a group
+ *  as the top-level target, closed zones by their outline only within PICK_TOLERANCE_PX[pointer], the revealed (selected or
+ *  hovered) note, and object-locked objects, which the caller rejects itself. */
 export interface HitFilter {
+  /** The pointer the hit is for: it sets the outline tolerance (a finger's is wider). Required, so no hit forgets it. */
+  readonly pointer: PointerKind
   /** hitAt: also locked layers that are visible (hitTestVisibleTopLevel, the host's hover). */
   readonly includeLocked?: boolean
-  /** hitAt: answers only the nearest zone edge within this many CSS px ("Turn view to this edge", spec §4.16), converted at
-   *  the frame's pixelsPerMetre. hitAt only: a band has no tolerance. */
-  readonly toleranceScreenPx?: number
-  /** hitAt: when nothing else hits, the topmost zone whose fill holds the point (or its group). Read by Select (spec §3.2).
-   *  `'selected'`: the topmost selected one, past unselected fills drawn above it; the menu target reads it, so a selected
-   *  zone's fill opens its menu even under an overlapping zone and an unselected zone's fill gives the empty map's menu
-   *  (Q4). The other hitAt callers (stamp pick, hover) keep outline hits. */
-  readonly fill?: true | 'selected'
+  /** hitAt: answers only the nearest zone edge within the pointer's tolerance ("Turn view to this edge", spec §4.16;
+   *  Select's double-click that adds a corner). hitAt only: a band has no tolerance. */
+  readonly zoneEdge?: true
 }
 /** The selection read model: today's CanvasDesignObjectSelectionModel (canvas/runtime/runtime.ts:48), unchanged. */
 export type SelectionReadModel = CanvasDesignObjectSelectionModel
@@ -164,7 +162,7 @@ export interface ToolView {
 /** Read-only scene queries: in 0B a façade over today's linear hit tests at the frame's pixelsPerMetre (the index comes later). */
 export interface ToolScene {
   readonly persisted: Readonly<ScenePersistedState>
-  hitAt(world: WorldPoint, filter?: HitFilter): HitTarget | null
+  hitAt(world: WorldPoint, filter: HitFilter): HitTarget | null
   hitInQuad(quad: WorldQuad): readonly HitTarget[]
   nearestPlant(world: WorldPoint): { readonly plant: ScenePlantEntity; readonly distanceM: number } | null
   /** How the scene presents a plant now: the name in today's order (localised, stored common,

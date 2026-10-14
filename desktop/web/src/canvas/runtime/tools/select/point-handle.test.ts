@@ -260,7 +260,8 @@ describe('polygon corners (spec §3.2, U33: every corner route)', () => {
     expect(radii('midpoint')).toEqual([8, 8, 8, 8])
     expect(radii('rotate')).toEqual([14])
 
-    h.click({ x: 150, y: 150 }, { pointer: 'touch' })
+    // A finger's tap 8 px inside the outline: within its 16 px, it keeps the polygon (canopi-qd2k).
+    h.click({ x: 150, y: 108 }, { pointer: 'touch' })
     expect(h.store.session.selectedTargets).toEqual([POLY])
     expect(radii('vertex')).toEqual([22, 22, 22, 22])
     expect(radii('midpoint')).toEqual([])
@@ -317,7 +318,7 @@ describe('polygon corners (spec §3.2, U33: every corner route)', () => {
     expect(corners(h)).toEqual(SQUARE)
   })
 
-  it('a double tap whose first press was in the fill adds no corner (U42)', () => {
+  it('a double tap whose first press was inside the polygon adds no corner (U42)', () => {
     const h = polygonHarness()
 
     h.click({ x: 130, y: 180 })
