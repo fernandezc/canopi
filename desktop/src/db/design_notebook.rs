@@ -196,11 +196,13 @@ pub fn remove_design_reference_from_section(
     Ok(())
 }
 
+/// `updated_at` is an RFC 3339 UTC instant: the table stores SQLite's `datetime('now')`, UTC without a zone
+/// marker, which a reader would take for local time.
 pub fn get_design_notebook_entries_with_sections(
     conn: &Connection,
 ) -> Result<Vec<DesignNotebookEntry>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT e.path, e.name, e.updated_at, e.plant_count, m.section_id, e.sort_order
+        "SELECT e.path, e.name, strftime('%Y-%m-%dT%H:%M:%SZ', e.updated_at), e.plant_count, m.section_id, e.sort_order
          FROM design_notebook_entries e
          LEFT JOIN design_notebook_section_memberships m ON m.path = e.path
          ORDER BY e.sort_order ASC, e.last_opened DESC, e.created_at DESC, e.path ASC",
@@ -240,6 +242,22 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         crate::db::user_db::initialize_connection(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn listed_entries_say_when_they_were_saved_as_a_utc_instant() {
+        // SQLite's datetime('now') is UTC with no zone marker; the Design notebook read it as local time, so near
+        // midnight a Design showed the wrong day (canopi-f47t.61's neighbour).
+        let conn = test_db();
+        super::record_design_reference(&conn, "/garden.canopi", "Garden", 1).unwrap();
+        conn.execute(
+            "UPDATE design_notebook_entries SET updated_at = '2026-10-13 23:11:59'",
+            [],
+        )
+        .unwrap();
+
+        let entries = super::get_design_notebook_entries_with_sections(&conn).unwrap();
+        assert_eq!(entries[0].updated_at, "2026-10-13T23:11:59Z");
     }
 
     #[test]
