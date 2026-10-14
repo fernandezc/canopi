@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
-import { expectHitAtCentre } from '../support/layout'
+import { expectHitAtCentre, openFixture } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const SIZES = [
@@ -151,3 +151,33 @@ for (const size of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, {
     })
   })
 }
+
+test.describe('390×844 reloading a Draft', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  test('(canopi-u85o) a reload restoring a Draft keeps its context bar in the sheet while the Design waits to show', async ({ page }) => {
+    // Only a Design opened from the start screen keeps the start screen's layout while it waits; a reload shows no start
+    // screen, so the sheet keeps the Design's bar from the first frame and does not jump when the Design shows.
+    await openFixture(page, FIXTURE, { keepOnReload: true })
+    await page.route('https://tiles.openfreemap.org/styles/**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await route.fallback()
+    })
+    await page.addInitScript(() => {
+      const samples: string[] = []
+      ;(window as unknown as { __barSamples: string[] }).__barSamples = samples
+      const sample = () => {
+        const bar = document.querySelector('[data-phone-context-bar]')
+        if (bar && document.querySelector('[data-design-hidden]')) samples.push(getComputedStyle(bar).display)
+        requestAnimationFrame(sample)
+      }
+      requestAnimationFrame(sample)
+    })
+    await page.reload()
+    await expect(startScreen(page)).toHaveCount(0)
+    await expect(page.locator('[data-design-hidden]')).toHaveCount(0)
+    const samples = await page.evaluate(() => (window as unknown as { __barSamples: string[] }).__barSamples)
+    expect(samples.length, 'frames were sampled while the restored Design waited').toBeGreaterThan(0)
+    expect(samples.filter((display) => display === 'none'), 'the context bar is laid out while the Design waits').toEqual([])
+  })
+})

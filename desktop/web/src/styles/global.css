@@ -397,7 +397,8 @@ html[data-story-presenting] [data-hover-tooltip] {
    inside chrome the start screen keeps (the sheet's peek): while the Design
    waits to show it takes no room, so the sheet, and the start screen's
    clearance above it, keep their start-screen size (its map notice row
-   included; e2e/canvas/start-screen.spec.ts). */
-:root:has([data-design-hidden]) [data-phone-context-bar] {
+   included; e2e/canvas/start-screen.spec.ts). A reload restoring a Draft
+   shows no start screen, so its bar keeps its room from the first frame. */
+:root:has([data-design-hidden] [data-start-screen]) [data-phone-context-bar] {
   display: none;
 }
