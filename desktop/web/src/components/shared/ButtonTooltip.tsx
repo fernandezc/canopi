@@ -1,6 +1,7 @@
 import { createPortal } from 'preact/compat'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'preact/hooks'
-import { keyboardFocus, placeTooltip, tooltipLayer, watchInputModality, type TooltipSide } from '../../utils/tooltip-layer'
+import { lastInputWasKey } from '../../app/keyboard/input-modality'
+import { placeTooltip, tooltipLayer, type TooltipSide } from '../../utils/tooltip-layer'
 import styles from './ButtonTooltip.module.css'
 
 interface ButtonTooltipProps {
@@ -38,10 +39,9 @@ export function ButtonTooltip({
   useEffect(() => {
     const button = marker.current?.closest('button')
     if (!button) return
-    watchInputModality()
     const enter = (event: PointerEvent) => { if (event.pointerType === 'mouse' || event.pointerType === 'pen') setHovered(true) }
     const leave = () => setHovered(false)
-    const focusIn = () => setFocused(keyboardFocus(button))
+    const focusIn = () => setFocused(focusVisible(button) || lastInputWasKey())
     const focusOut = () => setFocused(false)
     const press = () => { setHovered(false); setFocused(false) }
     button.addEventListener('pointerenter', enter)
@@ -115,4 +115,13 @@ export function ButtonTooltip({
       )}
     </>
   )
+}
+
+/** The engine's keyboard focus; WebKit misses focus a script moves on a key, so callers add `lastInputWasKey`. */
+function focusVisible(button: HTMLElement): boolean {
+  try {
+    return button.matches(':focus-visible')
+  } catch {
+    return button.matches(':focus')
+  }
 }

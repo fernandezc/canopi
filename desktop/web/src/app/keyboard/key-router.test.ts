@@ -7,6 +7,7 @@ import type { CanvasInspectionHandle } from '../../canvas/inspection'
 import { setCurrentCanvasSession } from '../../canvas/session'
 import { InspectionLens } from '../../components/canvas/InspectionLens'
 import type { CanvasEscapeLayer, CanvasKeyboardPort, CanvasKeyCommand, CanvasKeyState, CanvasKeyVerdict } from '../../canvas/runtime/runtime'
+import { lastInputWasKey } from './input-modality'
 import { installKeyRouter, type KeyRouterDeps, type KeyRouterHandle } from './key-router'
 import { CANVAS_KEYMAP_ROWS, pushKeyScope, type KeymapRow } from './keymap'
 
@@ -133,6 +134,16 @@ describe('key router', () => {
     expect(space.defaultPrevented).toBe(true)
     expect(fake.port.command).not.toHaveBeenCalled()
     expect(run).not.toHaveBeenCalled()
+  })
+
+  it('records whether the last input was a key or a pointer press, for a tooltip on keyboard focus (canopi-xpqt)', () => {
+    install()
+    press({ key: 'ArrowDown' }, document.body)
+    expect(lastInputWasKey()).toBe(true)
+    host.focus()
+    expect(lastInputWasKey(), 'a focus move is no pointer press').toBe(true)
+    host.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    expect(lastInputWasKey()).toBe(false)
   })
 
   it('with nothing focused, the canvas keys act only when the last press landed on the map', () => {

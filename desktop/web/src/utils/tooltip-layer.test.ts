@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { keyboardFocus, placeTooltip, tooltipLayer, watchInputModality } from './tooltip-layer'
+import { placeTooltip, tooltipLayer } from './tooltip-layer'
 
 const WINDOW = { width: 1000, height: 800 }
 const TIP = { width: 120, height: 30 }
@@ -59,18 +59,5 @@ describe('tooltipLayer', () => {
     const again = tooltipLayer()
     expect(again).not.toBe(layer)
     expect(document.querySelectorAll('[data-tooltip-layer]')).toHaveLength(1)
-  })
-})
-
-describe('keyboardFocus', () => {
-  it('reads focus after a key press as keyboard focus, and after a pointer press as not', () => {
-    watchInputModality()
-    const button = document.createElement('button')
-    document.body.append(button)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
-    expect(keyboardFocus(button)).toBe(true)
-    document.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse' }))
-    expect(keyboardFocus(button)).toBe(false)
-    button.remove()
   })
 })

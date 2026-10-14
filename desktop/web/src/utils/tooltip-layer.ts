@@ -75,28 +75,3 @@ export function tooltipLayer(): HTMLElement {
   return layer
 }
 
-let watching = false
-let keyboardLast = false
-
-/**
- * Whether focus that arrives now is keyboard focus: the engine's `:focus-visible`, or a key press as the last input.
- * WebKit's `:focus-visible` misses focus a script moves on a key (a rail's arrows, a menu closing on Esc), where a
- * keyboard user still wants the button's tooltip. Call `watchInputModality` first.
- */
-export function keyboardFocus(element: Element): boolean {
-  let visible: boolean
-  try {
-    visible = element.matches(':focus-visible')
-  } catch {
-    visible = false
-  }
-  return visible || keyboardLast
-}
-
-/** Starts recording whether the last input was a key or a pointer press (once per page, on the first tooltip). */
-export function watchInputModality(): void {
-  if (watching) return
-  watching = true
-  document.addEventListener('keydown', () => { keyboardLast = true }, true)
-  document.addEventListener('pointerdown', () => { keyboardLast = false }, true)
-}
