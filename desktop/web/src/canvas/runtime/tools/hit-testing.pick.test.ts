@@ -92,6 +92,8 @@ interface Row {
   readonly pointer: PointerKind
   /** 'kind:id', or null for nothing. */
   readonly pick: string | null
+  /** The pick came through a plant, not its group's zone line: no edge for "Turn view to this edge". */
+  readonly noEdge?: true
 }
 
 const BED_LEFT = { x: -300, y: -210 }
@@ -106,6 +108,9 @@ const GUIDE = { x: 220, y: 100 }
 const SHED_LEFT = { x: 150, y: 240 }
 const WEST_RIGHT = { x: -230, y: 240 }
 const EAST_LEFT = { x: -220, y: 240 }
+
+/** The picks whose zone has edges for "Turn view to this edge": every zone but the pond (an ellipse); g, by its plot. */
+const PICKS_WITH_EDGES: ReadonlySet<string | null> = new Set(['zone:bed', 'zone:field', 'zone:plot', 'zone:inner', 'zone:hedge', 'zone:shed', 'zone:west', 'zone:east', 'group:g'])
 
 const both = (row: Omit<Row, 'pointer'>): Row[] => [{ ...row, pointer: 'mouse' }, { ...row, pointer: 'touch' }]
 
@@ -132,7 +137,7 @@ const ROWS: readonly Row[] = [
   ...both({ name: 'a plant on a zone\'s line', at: { x: -180, y: -230 }, pick: 'plant:pear' }),
   ...both({ name: 'a plant on a grouped zone\'s line', at: { x: -240, y: -50 }, pick: 'plant:fig' }),
   ...both({ name: 'near a grouped zone\'s line', at: { x: -296, y: -10 }, pick: 'group:g' }),
-  ...both({ name: 'a grouped plant inside its grouped zone', at: { x: -270, y: 0 }, pick: 'group:g' }),
+  ...both({ name: 'a grouped plant inside its grouped zone', at: { x: -270, y: 0 }, pick: 'group:g', noEdge: true }),
   ...both({ name: 'inside a grouped zone, away from its lines', at: { x: -220, y: 0 }, pick: null }),
   ...both({ name: 'a note over a zone\'s line', at: { x: -98, y: -203 }, pick: 'annotation:note' }),
   ...both({ name: 'inside the outer zone, 4 px from the inner one\'s line', at: { from: INNER_LEFT, toward: { x: -100, y: 30 }, px: 4 }, pick: 'zone:inner' }),
@@ -182,7 +187,7 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
   for (const scale of SCALES) {
     for (const bearingDeg of BEARINGS) {
       describe(`at ${scale} px/m, bearing ${bearingDeg}°`, () => {
-        it.each(ROWS)('$pointer: $name picks $pick, and the click and the menu agree', ({ at, pointer, pick }) => {
+        it.each(ROWS)('$pointer: $name picks $pick, and the click and the menu agree', ({ at, pointer, pick, noEdge }) => {
           const { h, scene, screenAt } = setup(scale, bearingDeg)
           expect(h.view.view().pixelsPerMetre).toBeCloseTo(scale, 6)
           const screen = screenAt(at)
@@ -201,6 +206,8 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
           h.menu(screen, pointer === 'touch' ? 'long-press' : 'mouse')
           expect(key(h.record.menus.at(-1)?.pick?.target)).toBe(pick)
           expect(h.store.session.selectedTargets.map(key)).toEqual(pick ? [pick] : ['plant:apple'])
+          // "Turn view to this edge" is offered only on an edge of the zone it picks (an ellipse has none).
+          expect(h.record.menus.at(-1)?.turnViewToEdge !== undefined).toBe(PICKS_WITH_EDGES.has(pick) && !noEdge)
 
           // A mouse hover highlights what its click picks.
           if (pointer !== 'touch') {
@@ -280,6 +287,33 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
     expect(h.store.session.selectedTargets).toEqual([])
     h.hover(screen)
     expect(h.record.hovers.at(-1)).toEqual({ kind: 'zone', id: 'bed' })
+    // Nor does its menu offer the bed's edge.
+    h.menu(screen, 'mouse')
+    expect(h.record.menus.at(-1)!.turnViewToEdge).toBeUndefined()
+  })
+
+  it('"Turn view to this edge" turns to the edge of the zone a long press picks, never a nearer line it does not reach', () => {
+    // A long press 8 px from a fence (a line zone, 6 px reach) and 12 px from the bed's left line (16 px reach): the bed.
+    const h = createToolHarness({
+      scene: {
+        zones: [
+          rectZone('bed', [{ x: -100, y: -100 }, { x: 100, y: -100 }, { x: 100, y: 100 }, { x: -100, y: 100 }], { zoneType: 'rect' }),
+          rectZone('fence', [{ x: -300, y: 8 }, { x: -105, y: 8 }], { zoneType: 'line' }),
+        ],
+      },
+      screen: { width: 1000, height: 1000 },
+      camera: { zoom: stageScaleToMapZoom(1, 0), bearingDeg: 0 },
+    })
+    harnesses.push(h)
+    const screen = h.view.view().worldToScreen({ x: -112, y: 0 })
+    h.menu(screen, 'long-press')
+    expect(key(h.record.menus.at(-1)?.pick?.target)).toBe('zone:bed')
+    const turn = h.record.menus.at(-1)!.turnViewToEdge
+    expect(turn).toBeTypeOf('function')
+    turn!()
+    h.advance(1000)
+    // The bed's left line runs north-south: turned level, the view's bearing is a quarter turn (the fence's would keep 0).
+    expect(Math.abs((((h.view.view().camera.bearingDeg % 180) + 180) % 180) - 90)).toBeLessThan(0.5)
   })
 
   it('"Turn view to this edge" follows the same table: 6 px from a mouse menu, 16 px from a long press', () => {

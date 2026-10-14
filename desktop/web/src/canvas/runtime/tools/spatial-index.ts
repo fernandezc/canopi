@@ -3,8 +3,8 @@
 // Owns createToolScene: the ToolScene tools and the ToolHost query (spec §1.2a, §1.4, §4.9). A façade over the linear
 // hit tests (hit-testing.ts) at the frame's pixelsPerMetre, read at every query; nothing is cached, and an index is
 // later work. hitAt is hitTestTopLevel for the filter's pointer, object locks included (the tool rejects them);
-// `includeLocked` is hitTestVisibleTopLevel (the host's hover); `zoneEdge` answers only the nearest zone edge within the
-// pointer's tolerance (hitZoneEdge, "Turn view to this edge"). hitInQuad tests the band's world quad as a polygon, never
+// `includeLocked` is hitTestVisibleTopLevel (the host's hover); `zoneEdge` answers only the picked zone's edge nearest the
+// point (hitZoneEdge, "Turn view to this edge"). hitInQuad tests the band's world quad as a polygon, never
 // its world box. nearestPlant is today's Place plants scan (today's (a4c86d39)
 // interaction/plant-placement-preview.ts): the first plant in scene order wins a tie.
 // tools/tool-host.ts re-exports the factory.
@@ -29,7 +29,16 @@ export function createToolScene(source: ToolSceneSource): ToolScene {
     },
     hitAt(world: WorldPoint, filter: HitFilter): HitTarget | null {
       if (filter.zoneEdge) {
-        const edge = hitZoneEdge(persisted(), world, filter.pointer, source.pixelsPerMetre())
+        const edge = hitZoneEdge(
+          persisted(),
+          world,
+          source.pixelsPerMetre(),
+          filter.pointer,
+          source.speciesCache(),
+          source.plantContext,
+          source.selection(),
+          source.store.session.hoveredTarget,
+        )
         return edge ? { kind: 'zone-edge', ...edge } : null
       }
       const hitTest = filter.includeLocked ? hitTestVisibleTopLevel : hitTestTopLevel

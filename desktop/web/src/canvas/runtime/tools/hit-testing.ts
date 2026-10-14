@@ -63,7 +63,7 @@ export function hitTestTopLevel(
     isSceneLayerEditable,
     getRevealedAnnotationId(selection),
     hoverTarget?.kind === 'annotation' ? hoverTarget.id : null,
-  )
+  )?.target ?? null
 }
 
 /** The same pick on visible layers, locked ones included: the passive hover's. */
@@ -87,7 +87,13 @@ export function hitTestVisibleTopLevel(
     isLayerVisible,
     getRevealedAnnotationId(selection),
     hoverTarget?.kind === 'annotation' ? hoverTarget.id : null,
-  )
+  )?.target ?? null
+}
+
+/** A pick's top-level target, with the zone whose line it was picked by (null when it was picked otherwise). */
+interface TopLevelPick {
+  readonly target: SceneDesignObjectTarget
+  readonly zone: SceneZoneEntity | null
 }
 
 function hitTestTopLevelWithLayerFilter(
@@ -100,7 +106,7 @@ function hitTestTopLevelWithLayerFilter(
   isLayerHitEligible: (scene: ScenePersistedState, layerName: string) => boolean,
   revealedAnnotationId: string | null,
   hoveredAnnotationId: string | null,
-): SceneDesignObjectTarget | null {
+): TopLevelPick | null {
   const groupOf = memberGroups(scene, isLayerHitEligible)
   const detail = getCanvasDetailLayout(scene, viewportScale)
   const plantContext = { ...plantPresentationContext(getPlantContext, viewportScale, speciesCache), plants: scene.plants }
@@ -118,7 +124,7 @@ function hitTestTopLevelWithLayerFilter(
     // A grouped note shows its text only when the text is allowed, never revealed by selection or hover.
     const revealed = target.kind === 'annotation'
       && (annotation.id === revealedAnnotationId || annotation.id === hoveredAnnotationId)
-    if (isPointInAnnotationPresentation(annotation, point, viewportScale, revealed, detail.annotationIds.has(annotation.id))) return target
+    if (isPointInAnnotationPresentation(annotation, point, viewportScale, revealed, detail.annotationIds.has(annotation.id))) return { target, zone: null }
   }
 
   let closestPlant: SceneDesignObjectTarget | null = null
@@ -133,19 +139,19 @@ function hitTestTopLevelWithLayerFilter(
       closestDistance = distance
     }
   }
-  if (closestPlant) return closestPlant
+  if (closestPlant) return { target: closestPlant, zone: null }
 
   for (let i = scene.measurementGuides.length - 1; i >= 0; i -= 1) {
     const guide = scene.measurementGuides[i]!
     if (!isLayerHitEligible(scene, 'measurement-guides')) continue
     if (hitMeasurementGuide(guide, point, viewportScale)) {
-      return { kind: 'measurement-guide', id: guide.id }
+      return { target: { kind: 'measurement-guide', id: guide.id }, zone: null }
     }
   }
 
-  // Zones whose tolerance bands overlap: the nearest line wins, as hitZoneEdge's, so a tap on one bed's line never picks
-  // the bed beside it; an equal distance (a shared edge) goes to the topmost.
-  let closestZone: SceneDesignObjectTarget | null = null
+  // Zones whose tolerance bands overlap: the nearest line wins, so a tap on one bed's line never picks the bed beside it;
+  // an equal distance (a shared edge) goes to the topmost.
+  let closestZone: TopLevelPick | null = null
   let closestZonePx = Infinity
   for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
     const zone = scene.zones[i]!
@@ -153,7 +159,7 @@ function hitTestTopLevelWithLayerFilter(
     if (!target) continue
     const distancePx = zoneLineDistancePx(zone, point, viewportScale, pointer)
     if (distancePx !== null && distancePx < closestZonePx) {
-      closestZone = target
+      closestZone = { target, zone }
       closestZonePx = distancePx
     }
   }
@@ -263,8 +269,8 @@ interface QueryPolygon {
   readonly bounds: SimpleRect
 }
 
-/** The zone edge nearest a point, within the pointer's PICK_TOLERANCE_PX ("Turn view to this edge", spec §4.16; Select's
- *  double-click that adds a corner). */
+/** The picked zone's edge nearest a point ("Turn view to this edge", spec §4.16; Select's double-click that adds a
+ *  corner). */
 interface ZoneEdgeHit {
   readonly zoneId: string
   readonly edgeIndex: number
@@ -272,30 +278,41 @@ interface ZoneEdgeHit {
 }
 
 /**
- * The polygon, rectangle (its turned corners) or line zone edge nearest `point` within PICK_TOLERANCE_PX[pointer] at
- * `viewportScale` px/m, or null. Zones on hidden layers are left out; locked zones, locked layers and grouped zones count, since the
- * entry only turns the view. Ellipses have no edges.
+ * The edge of the zone the pick (hitTestTopLevel) reaches at `point` by its line, nearest `point`, or null: so the edge
+ * is always the picked object's, with the pick's own layers and tolerances (a line zone 6 px, a closed outline
+ * PICK_TOLERANCE_PX[pointer]). A plant, note or guide picked over a line, a zone on a locked or hidden layer and a point
+ * the pick does not reach give none; an object-locked zone and a grouped zone picked by its line (as its group) give
+ * theirs, since the entry only turns the view. Ellipses have no edges.
  */
 export function hitZoneEdge(
   scene: ScenePersistedState,
   point: ScenePoint,
-  pointer: PointerKind,
   viewportScale: number,
+  pointer: PointerKind,
+  speciesCache: ReadonlyMap<string, SpeciesCacheEntry>,
+  getPlantContext: (viewportScale: number) => PlantPresentationContext,
+  selection: SceneDesignObjectSelection = [],
+  hoverTarget: SceneDesignObjectTarget | null = null,
 ): ZoneEdgeHit | null {
-  if (!isLayerVisible(scene, 'zones')) return null
-  const tolerancePx = PICK_TOLERANCE_PX[pointer]
+  const zone = hitTestTopLevelWithLayerFilter(
+    scene,
+    point,
+    viewportScale,
+    pointer,
+    speciesCache,
+    getPlantContext,
+    isSceneLayerEditable,
+    getRevealedAnnotationId(selection),
+    hoverTarget?.kind === 'annotation' ? hoverTarget.id : null,
+  )?.zone
+  if (!zone) return null
   const scale = Math.max(viewportScale, 1e-6)
   let best: ZoneEdgeHit | null = null
-  for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
-    const zone = scene.zones[i]!
-    const edges = zoneEdges(zone)
-    for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex += 1) {
-      const [start, end] = edges[edgeIndex]!
-      const distancePx = distanceToSegment(point, start, end) * scale
-      if (distancePx <= tolerancePx + GEOMETRY_EPSILON && (!best || distancePx < best.distancePx)) {
-        best = { zoneId: zone.id, edgeIndex, distancePx }
-      }
-    }
+  const edges = zoneEdges(zone)
+  for (let edgeIndex = 0; edgeIndex < edges.length; edgeIndex += 1) {
+    const [start, end] = edges[edgeIndex]!
+    const distancePx = distanceToSegment(point, start, end) * scale
+    if (!best || distancePx < best.distancePx) best = { zoneId: zone.id, edgeIndex, distancePx }
   }
   return best
 }

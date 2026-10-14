@@ -1282,8 +1282,8 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   /**
-   * "Turn view to this edge" (spec §4.16): the nearest polygon, rectangle or line zone edge within the pointer's pick
-   * tolerance (hit-testing.ts PICK_TOLERANCE_PX), locked zones included, turned level on screen by the smaller angle. Pointer menus only: the keyboard
+   * "Turn view to this edge" (spec §4.16): the edge, nearest the point, of the polygon, rectangle or line zone the pick
+   * reaches by its line (hit-testing.ts hitZoneEdge), object-locked zones included, turned level on screen by the smaller angle. Pointer menus only: the keyboard
    * menu has no point (the keyboard turns the view with Shift ← and Shift →).
    */
   function edgeTurnAt(world: WorldPoint, pointer: PointerKind): (() => void) | null {

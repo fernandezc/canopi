@@ -348,15 +348,14 @@ describe('scene hit testing', () => {
     expect(hit(10.0016, 0)).toBeNull()
   })
 
-  it('within the pointer\'s pick tolerance, the nearest polygon, rectangle or line edge', () => {
+  it('the edge, nearest the point, of the polygon, rectangle or line zone the pick reaches by its line', () => {
     const zone = (id: string, zoneType: SceneZoneEntity['zoneType'], points: ScenePoint[], rotationDeg = 0): SceneZoneEntity =>
       ({ kind: 'zone', id, name: null, locked: false, zoneType, points, rotationDeg, fillColor: null, notes: null })
     const scene = createScene()
     scene.plants = []
     scene.layers = [
       { kind: 'layer', name: 'plants', visible: true, locked: false, opacity: 1 },
-      // A locked layer still offers its edges: turning the view moves no object.
-      { kind: 'layer', name: 'zones', visible: true, locked: true, opacity: 1 },
+      { kind: 'layer', name: 'zones', visible: true, locked: false, opacity: 1 },
     ]
     scene.zones = [
       zone('triangle', 'polygon', [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 0, y: 20 }]),
@@ -365,7 +364,7 @@ describe('scene hit testing', () => {
       zone('hedge', 'line', [{ x: 40, y: 0 }, { x: 40, y: 20 }]),
       zone('pond', 'ellipse', [{ x: 70, y: 10 }, { x: 5, y: 3 }]),
     ]
-    const at = (x: number, y: number, pointer: PointerKind = 'mouse', scale = 2) => hitZoneEdge(scene, { x, y }, pointer, scale)
+    const at = (x: number, y: number, pointer: PointerKind = 'mouse', scale = 2) => hitZoneEdge(scene, { x, y }, scale, pointer, new Map(), getPlantContext)
 
     // The hypotenuse (edge 1) is nearer than the bottom edge (edge 0); 2 px/m: distances read in pixels.
     expect(at(10, 9)).toEqual({ zoneId: 'triangle', edgeIndex: 1, distancePx: expect.closeTo(Math.SQRT2, 6) })
@@ -382,12 +381,17 @@ describe('scene hit testing', () => {
     expect(b.x).toBeCloseTo(7, 6)
     expect(Math.abs(b.y - a.y)).toBeCloseTo(10, 6)
     expect(at(41, 10)).toEqual({ zoneId: 'hedge', edgeIndex: 0, distancePx: expect.closeTo(2, 6) })
+    // A line zone keeps its 6 px pick for a finger too: 8 px from it, no edge.
+    expect(at(44, 10, 'touch')).toBeNull()
     expect(zoneEdgeSegment(scene.zones[2]!, 0)).toEqual([{ x: 40, y: 0 }, { x: 40, y: 20 }])
     // An ellipse has no edge.
     expect(at(75, 10)).toBeNull()
     expect(zoneEdgeSegment(scene.zones[3]!, 0)).toBeNull()
 
-    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, visible: false } : layer)
+    // A locked layer, which the pick skips, offers no edge; nor does a hidden one.
+    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: true } : layer)
+    expect(at(10, 9)).toBeNull()
+    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: false, visible: false } : layer)
     expect(at(10, 9)).toBeNull()
   })
 })

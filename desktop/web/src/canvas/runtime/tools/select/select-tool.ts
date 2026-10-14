@@ -175,7 +175,7 @@ export function createSelectTool(): CanvasTool {
     refreshHandles()
   }
 
-  /** The zone edge within the outline's own pick tolerance for the pointer (hit-testing.ts PICK_TOLERANCE_PX), or null. */
+  /** The picked zone's edge nearest the point (hit-testing.ts hitZoneEdge), or null. */
   function zoneEdgeAt(point: ToolPoint): ZoneEdgeHit | null {
     const edge = ctx().scene.hitAt(point.world, { pointer: point.pointer, zoneEdge: true })
     return edge?.kind === 'zone-edge' ? edge : null
