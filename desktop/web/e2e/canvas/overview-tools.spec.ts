@@ -1,9 +1,10 @@
 // Tools in overview (canopi-n2cg; ADR 0015 and 0018, amended 2026-10-14): zoomed out past 0.1 px/m every tool stays
 // enabled; picking a drawing tool by its rail button or its key fits the Design, as Fit to Design does, then arms it;
 // the Design pin is a button that fits the Design; a plant dragged from the catalog onto the overview fits the Design,
-// places nothing and stays picked for Place plants; an empty Design zooms in about the view centre, not the origin.
-// Both engines, DOM assertions only. The e2e catalog is always 404 (support/offline.ts), so the drop is a synthetic
-// dragover and drop carrying the catalog's drag data.
+// places nothing and stays picked for Place plants; an empty Design zooms in about the view centre, not the origin;
+// a drop on the pin itself is taken as on the map. Both engines, DOM assertions only. The e2e catalog is always 404
+// (support/offline.ts), so the drag is synthetic dragenter, dragover and drop events carrying the catalog's drag data,
+// each sent to the element under the point as the browser does.
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import { designMap } from '../support/canvas'
@@ -112,38 +113,28 @@ test('a plant dropped from the catalog on the overview fits the Design, places n
   const undo = page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Undo' })
   await expect(undo).toBeDisabled()
 
-  const defaultPrevented = await mapHost(page).evaluate((host, { mime, at }) => {
-    const data = new Map<string, string>([[mime, JSON.stringify({
-      canonical_name: 'Pyrus communis', common_name: 'Pear', stratum: 'mid', width_max_m: 3,
-    })]])
-    const dataTransfer = {
-      effectAllowed: 'copy',
-      dropEffect: 'none',
-      get types() { return Array.from(data.keys()) },
-      setData(type: string, value: string) { data.set(type, value) },
-      getData(type: string) { return data.get(type) ?? '' },
-    }
-    const fire = (type: string) => {
-      const event = new Event(type, { bubbles: true, cancelable: true })
-      Object.defineProperties(event, {
-        clientX: { value: at.x },
-        clientY: { value: at.y },
-        dataTransfer: { value: dataTransfer },
-      })
-      host.dispatchEvent(event)
-      return event
-    }
-    const over = fire('dragover')
-    const effect = dataTransfer.dropEffect
-    const drop = fire('drop')
-    return { over: over.defaultPrevented, effect, drop: drop.defaultPrevented }
-  }, { mime: PLANT_STAMP_MIME, at: NEUTRAL })
+  // Bare map beside the pin (the fixture's origin, so its pin, sits at NEUTRAL in overview).
+  const pin = await designPin(page).boundingBox()
+  if (!pin) throw new Error('no Design pin')
+  const defaultPrevented = await dragPlantOnto(page, { x: pin.x + pin.width + 120, y: pin.y + pin.height / 2 + 120 })
 
   expect(defaultPrevented, 'the overview takes the drag, so the browser fires the drop').toEqual({ over: true, effect: 'copy', drop: true })
   await expectFitted(page, 'the drop')
   await expect(tool(page, 'Place plants'), 'the drop arms Place plants').toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('[data-tool-card]'), 'the dropped plant stays picked').toContainText('Pear')
   await expect(undo, 'the drop placed nothing').toBeDisabled()
+})
+
+test('a plant dragged onto the Design pin is taken as on the map: the Design fits and the plant stays picked', async ({ page }) => {
+  await openOverview(page)
+  const box = await designPin(page).boundingBox()
+  if (!box) throw new Error('no Design pin')
+  const defaultPrevented = await dragPlantOnto(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+
+  expect(defaultPrevented, 'the drag over the pin reaches the map, so the browser fires the drop').toEqual({ over: true, effect: 'copy', drop: true })
+  await expectFitted(page, 'the drop on the pin')
+  await expect(tool(page, 'Place plants'), 'the drop arms Place plants').toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-tool-card]'), 'the dropped plant stays picked').toContainText('Pear')
 })
 
 test('an empty Design picked from overview zooms in about the view centre, not the origin', async ({ page }) => {
@@ -185,4 +176,43 @@ async function lastView(page: Page): Promise<{ lon: number, lat: number, zoom: n
     const view = raw ? (JSON.parse(raw) as { settings?: { last_view?: { lon: number, lat: number, zoom: number } } }).settings?.last_view : null
     return view ?? null
   })
+}
+
+/**
+ * Drags the catalog's Pear to `at` as the browser does: each drag step's events go to the element under the point (hit
+ * testing, so chrome over the map is in the way), dragenter first, a frame between steps. Returns what the page did.
+ */
+async function dragPlantOnto(page: Page, at: { x: number, y: number }): Promise<{ over: boolean, effect: string, drop: boolean }> {
+  const fire = (type: string) => page.evaluate(({ mime, at, type }) => {
+    const store = window as unknown as { __e2eDragData?: Map<string, string>, __e2eDropEffect?: string }
+    store.__e2eDragData ??= new Map<string, string>([[mime, JSON.stringify({
+      canonical_name: 'Pyrus communis', common_name: 'Pear', stratum: 'mid', width_max_m: 3,
+    })]])
+    const data = store.__e2eDragData
+    const dataTransfer = {
+      effectAllowed: 'copy',
+      get dropEffect() { return store.__e2eDropEffect ?? 'none' },
+      set dropEffect(value: string) { store.__e2eDropEffect = value },
+      get types() { return Array.from(data.keys()) },
+      setData(type: string, value: string) { data.set(type, value) },
+      getData(type: string) { return data.get(type) ?? '' },
+    }
+    const event = new Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperties(event, {
+      clientX: { value: at.x },
+      clientY: { value: at.y },
+      dataTransfer: { value: dataTransfer },
+    })
+    const target = document.elementFromPoint(at.x, at.y)
+    if (!target) throw new Error('nothing under the drag')
+    if (type === 'dragover') store.__e2eDropEffect = 'none'
+    target.dispatchEvent(event)
+    return { prevented: event.defaultPrevented, effect: dataTransfer.dropEffect }
+  }, { mime: PLANT_STAMP_MIME, at, type })
+  await fire('dragenter')
+  await nextFrames(page)
+  const over = await fire('dragover')
+  await nextFrames(page)
+  const drop = await fire('drop')
+  return { over: over.prevented, effect: over.effect, drop: drop.prevented }
 }

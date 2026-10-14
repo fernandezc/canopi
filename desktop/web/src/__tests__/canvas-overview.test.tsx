@@ -63,6 +63,24 @@ describe('CanvasOverview', () => {
     expect(returnToDesign).toHaveBeenCalledTimes(2)
   })
 
+  it('lets a panel drag that enters the pin through to the map until the drag ends', async () => {
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+      queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
+    }))
+    await act(async () => render(<CanvasOverview />, container))
+    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
+    const resting = pin().className
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    expect(pin().className, 'the pin goes transparent to the drag').not.toBe(resting)
+    await act(async () => { window.dispatchEvent(new Event('dragend')) })
+    expect(pin().className, 'the drag ended: the pin takes clicks again').toBe(resting)
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { document.body.dispatchEvent(new Event('drop', { bubbles: true })) })
+    expect(pin().className, 'a drop anywhere ends it too').toBe(resting)
+  })
+
   it('omits an offscreen marker while retaining the notice action', async () => {
     const returnToDesign = vi.fn()
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
