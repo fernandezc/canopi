@@ -63,9 +63,10 @@ describe("settings bootstrap theme lifecycle", () => {
     const { initTheme } = await import("../utils/theme");
 
     initTheme();
+    expect(document.documentElement.getAttribute("data-theme"), "the 1.x cache is not read").toBe("light");
+    theme.value = "dark";
     theme.value = "light";
 
-    expect(theme.value).toBe("light");
-    expect(localStorage.getItem("canopi-theme")).toBe("dark");
+    expect(localStorage.getItem("canopi-theme"), "nor written").toBe("dark");
   });
 });
