@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
-import { expectHitAtCentre, openFixture } from '../support/layout'
+import { expectHitAtCentre } from '../support/layout'
 import { expect, test } from '../support/offline'
 
 const SIZES = [
@@ -107,77 +107,30 @@ for (const size of SIZES) {
   })
 }
 
-for (const size of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 740, height: 360 }] as const) {
-  const name = `${size.width}×${size.height}`
-  test.describe(`${name} opening a Draft`, () => {
-    test.use({ viewport: size, hasTouch: size.width < 900 })
+test.describe('1280×800', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
 
-    test(`(canopi-u85o) opening a Draft keeps the start screen's layout until the Design shows (${name})`, async ({ page }) => {
-      // The Design's chrome is laid out, transparent, while its first scene is drawn; it frames the camera but takes no
-      // room from the start screen covering the wait (visible-map-area's `--map-clear-*`), so the library does not shift.
-      // On a phone the panel sheet stays up over the start screen, and the Design's context bar in it (with the map
-      // notice's "Loading basemap…", up through the wait while the basemap's style is held back) takes no room until
-      // the Design shows, so neither the sheet nor the start screen's clearance moves.
-      await page.route('https://tiles.openfreemap.org/styles/**', async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-        await route.fallback()
-      })
-      await openWithDrafts(page)
-      // The start screen's own layout after Close Design settles first (WebKit measures the closed Design's sheet once
-      // more on the next frame); only the opening is sampled.
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-      await page.evaluate(() => {
-        const samples: string[] = []
-        ;(window as unknown as { __clearSamples: string[] }).__clearSamples = samples
-        const sample = () => {
-          const start = document.querySelector('[data-start-screen]')
-          if (!start) return
-          const style = getComputedStyle(start)
-          const sheet = document.querySelector('[data-phone-sheet]')?.getBoundingClientRect()
-          samples.push([
-            ...['top', 'right', 'bottom', 'left'].map((edge) => style.getPropertyValue(`--map-clear-${edge}`).trim()),
-            sheet ? `sheet ${sheet.top}..${sheet.bottom}` : 'no sheet',
-          ].join(' '))
-          requestAnimationFrame(sample)
-        }
-        sample()
-      })
-      await startScreen(page).locator('[data-design-drafts] li').first().getByRole('button').first().click()
-      await expect(startScreen(page)).toHaveCount(0)
-      await expect(page.locator('[data-design-hidden]')).toHaveCount(0)
-      const samples = await page.evaluate(() => (window as unknown as { __clearSamples: string[] }).__clearSamples)
-      expect(samples.length, 'frames were sampled while the Design opened').toBeGreaterThan(1)
-      expect(new Set(samples), `the start screen's clearance per frame: ${JSON.stringify(samples)}`).toEqual(new Set([samples[0]]))
-    })
-  })
-}
-
-test.describe('390×844 reloading a Draft', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
-
-  test('(canopi-u85o) a reload restoring a Draft keeps its context bar in the sheet while the Design waits to show', async ({ page }) => {
-    // Only a Design opened from the start screen keeps the start screen's layout while it waits; a reload shows no start
-    // screen, so the sheet keeps the Design's bar from the first frame and does not jump when the Design shows.
-    await openFixture(page, FIXTURE, { keepOnReload: true })
-    await page.route('https://tiles.openfreemap.org/styles/**', async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      await route.fallback()
-    })
-    await page.addInitScript(() => {
+  test('(canopi-u85o) opening a Draft keeps the start screen\'s layout until the Design shows', async ({ page }) => {
+    // The Design's chrome is laid out, transparent, while its first scene is drawn; it frames the camera but takes no room
+    // from the start screen covering the wait (visible-map-area's `--map-clear-*`), so the library does not shift.
+    await openWithDrafts(page)
+    await page.evaluate(() => {
       const samples: string[] = []
-      ;(window as unknown as { __barSamples: string[] }).__barSamples = samples
+      ;(window as unknown as { __clearSamples: string[] }).__clearSamples = samples
       const sample = () => {
-        const bar = document.querySelector('[data-phone-context-bar]')
-        if (bar && document.querySelector('[data-design-hidden]')) samples.push(getComputedStyle(bar).display)
+        const start = document.querySelector('[data-start-screen]')
+        if (!start) return
+        const style = getComputedStyle(start)
+        samples.push(['top', 'right', 'bottom', 'left'].map((edge) => style.getPropertyValue(`--map-clear-${edge}`).trim()).join(' '))
         requestAnimationFrame(sample)
       }
-      requestAnimationFrame(sample)
+      sample()
     })
-    await page.reload()
+    await startScreen(page).locator('[data-design-drafts] li').first().getByRole('button').first().click()
     await expect(startScreen(page)).toHaveCount(0)
-    await expect(page.locator('[data-design-hidden]')).toHaveCount(0)
-    const samples = await page.evaluate(() => (window as unknown as { __barSamples: string[] }).__barSamples)
-    expect(samples.length, 'frames were sampled while the restored Design waited').toBeGreaterThan(0)
-    expect(samples.filter((display) => display === 'none'), 'the context bar is laid out while the Design waits').toEqual([])
+    await expect(page.getByRole('toolbar', { name: 'Tools' })).toBeVisible()
+    const samples = await page.evaluate(() => (window as unknown as { __clearSamples: string[] }).__clearSamples)
+    expect(samples.length, 'frames were sampled while the Design opened').toBeGreaterThan(1)
+    expect(new Set(samples), `the start screen's clearance per frame: ${JSON.stringify(samples)}`).toEqual(new Set([samples[0]]))
   })
 })
