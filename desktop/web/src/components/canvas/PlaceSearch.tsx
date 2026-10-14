@@ -193,7 +193,7 @@ export function PlaceCombobox({ variant, onPick, disabled = false, autoFocus = f
           : <kbd className={styles.key} aria-hidden="true">{formatShortcut('Ctrl+K', t)}</kbd>)}
         {variant === 'dialog' && <kbd className={styles.key} aria-hidden="true">{t('shortcutKeys.enter')}</kbd>}
       </label>
-      <div className={listVisible ? styles.popup : styles.popupHidden}>
+      <div className={listVisible ? styles.popup : styles.popupHidden} data-popup={listVisible ? '' : undefined}>
         {statusText && <p className={styles.status} role="status">{statusText}</p>}
         {hintShown && <p id={hintId} className={styles.hint} data-place-search-hint>{t('canvas.placeSearch.enterHint')}</p>}
         <ul id={listId} role="listbox" aria-label={t('canvas.placeSearch.results')} className={styles.results}>

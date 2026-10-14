@@ -48,14 +48,13 @@ describe('stacking order', () => {
     expect(popover).toBeLessThan(tooltip)
   })
 
-  // The canvas hover card names what the pointer rests on; whatever the user opens over the map covers it, by its layer's
-  // place in the scale alone, with no list of surfaces to hide it under (canopi-xpqt).
+  // The canvas hover card names what the pointer rests on: its layer sits above the canvas chrome and under every
+  // full-window surface, toast, dialog and popup (canopi-xpqt).
   it('puts the canvas hover card above the canvas chrome and under every full-window surface, toast, dialog and popup', () => {
     const card = token(global, '--z-hover-card')
     expect(token(global, '--z-canvas-inspection-lens')).toBeLessThan(card)
     expect(card).toBeLessThan(token(global, '--z-full-window'))
     expect(global).toMatch(/\[data-hover-card-layer\]\s*\{(?=[^}]*position:\s*fixed)(?=[^}]*z-index:\s*var\(--z-hover-card\))[^}]*\}/)
-    expect(global, 'no selector list hides the card under chosen surfaces').not.toMatch(/:has\([^)]*\)\s*\[data-hover-tooltip\]/)
   })
 
   it('draws an open inspection lens above the tool card in its slot, and both under every popup (canopi-n54g)', () => {
@@ -104,6 +103,46 @@ describe('the tooltip layer', () => {
     )
     const users = sources(SRC).filter((path) => /var\(--z-tooltip\)/.test(readFileSync(path, 'utf8'))).map(relative)
     expect(users).toEqual(['styles/global.css'])
+  })
+
+  // A menu drawn inside a low stacking context (the title bar's menus at z 100, the map scale menu at z 60) sits under the
+  // card's layer whatever its own z-index, so the card hides while any menu, dialog or popup is open (the user's decision
+  // of 2026-10-14, canopi-xpqt). Every popup role and every popup a trigger announces (aria-haspopup) must count.
+  it('hides the canvas hover card while any menu, dialog or popup in src is open', () => {
+    const css = read('../styles/global.css')
+    const rule = /body:has\(([^)]*)\)\s*\[data-hover-card-layer\]\s*\{[^}]*display:\s*none\s*!important[^}]*\}/.exec(css)
+    expect(rule, 'the hide rule beside the card layer').not.toBeNull()
+    const hides = rule![1]!.split(',').map((entry) => entry.trim().replace(/"/g, "'"))
+    const covers = (role: string) => hides.includes(`[role='${role}']`)
+    for (const required of ["[aria-modal='true']", '[data-popup]']) expect(hides).toContain(required)
+
+    // Popup roles (WAI-ARIA aria-haspopup values and the dialogs): menu, dialog and alertdialog are only mounted while
+    // open, so they count by role. A listbox, tree or grid may be a list that stays in a panel, so an open popup of
+    // those carries data-popup, or lies in a file whose dialog or menu holds it.
+    const POPUP_ROLES = ['menu', 'dialog', 'alertdialog', 'listbox', 'tree', 'grid']
+    const INLINE_LISTS = new Map([
+      ['components/panels/lidar/DataLibraryView.tsx', 'the data library\'s list stays in its panel'],
+      ['components/panels/CalendarSpeciesPicker.tsx', 'drawn inside the calendar editor\'s role="dialog" (CalendarPanel.tsx)'],
+    ])
+    const missing: string[] = []
+    for (const path of sources(SRC).filter((entry) => /\.tsx?$/.test(entry))) {
+      const source = readFileSync(path, 'utf8')
+      const file = relative(path)
+      const roles = [...source.matchAll(/(?<!\[)role=["{']+([a-z]+)/g)].map((match) => match[1]!)
+      const announced = [...source.matchAll(/aria-haspopup=["{']+([a-z]+)/g)].map((match) => match[1]!)
+      for (const role of new Set([...roles, ...announced])) {
+        if (!POPUP_ROLES.includes(role) || covers(role)) continue
+        const held = roles.some((entry) => entry !== role && covers(entry))
+        if (!held && !/data-popup\b/.test(source) && !INLINE_LISTS.has(file)) missing.push(`${file}: role ${role}`)
+      }
+    }
+    for (const role of ['menu', 'dialog', 'alertdialog']) expect(covers(role), `[role='${role}'] hides the card`).toBe(true)
+    expect(missing, 'each popup hides the card by its role or data-popup').toEqual([])
+
+    // Popups with no popup role, or a listbox mounted while closed, mark themselves while open.
+    for (const file of ['components/plant-db/MoreFiltersPanel.tsx', 'components/canvas/PlaceSearch.tsx', 'components/shared/Dropdown.tsx']) {
+      expect(read(`../${file}`), `${file} marks its open popup`).toMatch(/data-popup\b/)
+    }
   })
 
   it('draws every role="tooltip" through ButtonTooltip, which portals into the layer, and the hover card in its own layer', () => {

@@ -1,7 +1,7 @@
 // Window-level tooltip layers (canopi-xpqt; design check fixes20-dc-tooltips). Every button tooltip is drawn in one
 // body-level layer at --z-tooltip and the canvas hover card in another at --z-hover-card, placed from their anchor so the
 // whole box is inside the window, and on top of every frame: the blurred rails, the tool card, the dock and the WebGL
-// map; the hover card stays under every menu, popover and dialog the user opens. The probe below
+// map; the hover card stays under every menu, popover and dialog the user opens, and hides while one is open. The probe below
 // (stream commit 0) checks the engine assumption the layer rests on; the tests after it check each tooltip.
 // "On top" is read with elementFromPoint at points inset from the box's rounded corners and at its centre, with the
 // tooltip's pointer-events switched on for the read (it takes no pointer otherwise, so elementFromPoint skips it).
@@ -228,12 +228,12 @@ for (const layout of LAYOUTS) {
         await expect(menu).toBeVisible()
         await expectCardUnder(card, menu, 'the menu')
 
-        // Its Plant color entry opens the non-modal popover; the pointer back on the plant shows the card again.
+        // Its Plant color entry opens the non-modal popover; the pointer back on the plant keeps the card hidden.
         await menu.getByRole('menuitem', { name: /^Plant color/ }).click()
         const popover = page.locator('[role="dialog"][data-preserve-overlays="true"]')
         await expect(popover).toBeVisible()
         await showHoverCard(page, layout.plant)
-        await expect(card).toBeVisible()
+        await expect(card).toBeHidden()
         await expectCardUnder(card, popover, 'the Plant color popover')
         await page.keyboard.press('Escape')
         await expect(popover).toHaveCount(0)
@@ -252,6 +252,24 @@ for (const layout of LAYOUTS) {
           document.body.appendChild(dialog)
         })
         await expectCardUnder(card, page.locator('[data-probe-dialog]'), 'the dialog')
+      })
+
+      test('the canvas hover card hides while a menu drawn in a low stacking context is open (the map scale menu)', async ({ page }) => {
+        await openFixture(page, FIXTURE)
+        const card = page.locator('[data-hover-card-layer] [data-hover-tooltip]')
+        await page.locator('[data-zoom-group] button[aria-haspopup="menu"]').click()
+        const menu = page.locator('[data-zoom-group] [role="menu"]')
+        await expect(menu).toBeVisible()
+        await showHoverCard(page, layout.plant)
+        // The runtime shows the card for the plant (its inline display); the open menu hides it.
+        await expect.poll(() => card.evaluate((element: HTMLElement) => element.style.display)).toBe('block')
+        await expect(menu).toBeVisible()
+        await expect(card).toBeHidden()
+        await expectCardUnder(card, menu, 'the map scale menu')
+        await page.keyboard.press('Escape')
+        await expect(menu).toHaveCount(0)
+        await showHoverCard(page, layout.plant)
+        await expect(card, 'the card shows again once the menu closes').toBeVisible()
       })
     }
   })

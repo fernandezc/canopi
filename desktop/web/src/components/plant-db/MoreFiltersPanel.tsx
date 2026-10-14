@@ -58,7 +58,7 @@ export function MoreFiltersPanel({ open, onClose }: Props) {
   const query = searchQuery.value.toLowerCase()
 
   return (
-    <div className={styles.overlay}>
+    <div className={styles.overlay} data-popup>
       <div ref={panelRef} className={styles.panel}>
         {/* Header */}
         <div className={styles.header}>
