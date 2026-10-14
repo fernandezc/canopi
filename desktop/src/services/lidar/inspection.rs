@@ -336,7 +336,7 @@ fn read_cells(
         )),
     };
     for run in cell_runs(cells) {
-        let window = reader.read_window(library, &target.grid, run.window, cancel)?;
+        let window = reader.read_window(library, run.window, cancel)?;
         for index in run.points {
             let Some((x, y)) = cells[index] else {
                 continue;

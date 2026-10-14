@@ -8,7 +8,7 @@ import {
 } from '../app/document-session/continuous-save'
 import {
   createDesignSessionStoreTestFixture,
-  createMemoryDesignSessionStore,
+  createDesignSessionStore,
   type DesignSessionStoreTestFixture,
   type PersistenceCapableDesignSessionStore,
 } from '../app/document-session/store'
@@ -79,7 +79,7 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  store = createMemoryDesignSessionStore()
+  store = createDesignSessionStore()
   fixture = createDesignSessionStoreTestFixture(store)
   writes = []
   writeHome = vi.fn((home: DesignHome) => {

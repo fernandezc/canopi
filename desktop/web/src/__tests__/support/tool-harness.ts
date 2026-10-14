@@ -295,7 +295,7 @@ export function useStubTools(...tools: readonly CanvasTool[]): void {
   for (const tool of tools) registry[tool.id] = () => tool
 }
 
-export const NO_MODIFIERS: Modifiers = Object.freeze({ shift: false, ctrl: false, alt: false, meta: false })
+const NO_MODIFIERS: Modifiers = Object.freeze({ shift: false, ctrl: false, alt: false, meta: false })
 
 export interface ToolHarnessOptions {
   readonly scene?: Partial<ScenePersistedState>

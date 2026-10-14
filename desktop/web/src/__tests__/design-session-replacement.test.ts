@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { effect, signal } from "@preact/signals";
 import { createDesignSessionReplacement } from "../app/document-session/replacement";
-import { createMemoryDesignSessionStore } from "../app/document-session/store";
+import { createDesignSessionStore } from "../app/document-session/store";
 import type { DesignSessionWorkflowRunner } from "../app/document-session/workflow-runner";
 import {
   CanvasDocumentReplacementNotAdmittedError,
@@ -20,7 +20,7 @@ describe("Design Session replacement", () => {
   it.each(["resumePendingCanvasReplacement", "settlePendingCanvasReplacementForHandoff"] as const)(
     "%s preserves newer Design edits using the retained authorization", (settle) => {
       const events: string[] = [];
-      const store = createMemoryDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
+      const store = createDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
       const canvas = makeCanvas(events);
       const finalized = vi.fn();
       let baselineCurrent = true;
@@ -47,7 +47,7 @@ describe("Design Session replacement", () => {
 
   it.each(["resumePendingCanvasReplacement", "settlePendingCanvasReplacementForHandoff"] as const)(
     "%s retains applied finalization and refuses another Canvas identity", (settle) => {
-      const store = createMemoryDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
+      const store = createDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
       const canvas = makeCanvas([]);
       const finalized = vi.fn();
       let baselineCurrent = true;
@@ -76,7 +76,7 @@ describe("Design Session replacement", () => {
   );
 
   it("retains renewed explicit authorization after a second interrupted attempt", () => {
-    const store = createMemoryDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
+    const store = createDesignSessionStore({ file: makeFile("Previous"), path: null, name: "Previous" });
     const canvas = makeCanvas([]);
     vi.mocked(canvas.replaceDocument)
       .mockImplementationOnce(() => { throw new Error("interrupted"); })
@@ -96,7 +96,7 @@ describe("Design Session replacement", () => {
   });
 
   it("changes the public session identity only when the Design is replaced", () => {
-    const store = createMemoryDesignSessionStore({ file: makeFile("Garden"), path: null, name: "Garden" });
+    const store = createDesignSessionStore({ file: makeFile("Garden"), path: null, name: "Garden" });
     const identity = store.sessionIdentity.value;
     editDesignSessionForTest(store, (file) => ({ ...file, description: "Changed" }));
     expect(store.isDesignDirty()).toBe(true);
@@ -108,7 +108,7 @@ describe("Design Session replacement", () => {
   it("attaches the current Design without replacing identity or dirty baselines", () => {
     const events: string[] = [];
     const file = makeFile("Existing");
-    const store = createMemoryDesignSessionStore({ file, path: "/existing.canopi", name: "Existing" });
+    const store = createDesignSessionStore({ file, path: "/existing.canopi", name: "Existing" });
     store.markCanvasDetachedDirty(true);
     const replaceState = vi.spyOn(store, "replaceCurrentDesignState");
     const resetBaselines = vi.spyOn(store, "resetDirtyBaselines");
@@ -131,7 +131,7 @@ describe("Design Session replacement", () => {
 
   it("attaches an empty Design Session without hydrating the canvas", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore();
+    const store = createDesignSessionStore();
     const canvas = makeCanvas(events);
     const replacement = createDesignSessionReplacement({ store, workflowRunner: makeWorkflowRunner(events) });
 
@@ -145,7 +145,7 @@ describe("Design Session replacement", () => {
 
   it("does not install workflows when empty canvas attachment fails", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore();
+    const store = createDesignSessionStore();
     const canvas = makeCanvas(events);
     vi.mocked(canvas.hideCanvasChrome).mockImplementation(() => {
       events.push("canvas.hide-chrome");
@@ -160,7 +160,7 @@ describe("Design Session replacement", () => {
 
   it("normalizes and applies an attached new Design in authority-safe order", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -202,7 +202,7 @@ describe("Design Session replacement", () => {
 
   it("normalizes a detached loaded Design while preserving future fields", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore();
+    const store = createDesignSessionStore();
     recordStoreEvents(store, events);
     const replacement = createDesignSessionReplacement({ store, workflowRunner: makeWorkflowRunner(events) });
     const raw = {
@@ -234,7 +234,7 @@ describe("Design Session replacement", () => {
 
   it("resumes an equivalent normalized replacement after Scene hydration publication fails", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -314,7 +314,7 @@ describe("Design Session replacement", () => {
   it("drops a replacement the Canvas did not admit to hydration", () => {
     const events: string[] = [];
     const previous = makeFile("Previous");
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: previous,
       path: "/previous.canopi",
       name: "Previous",
@@ -352,7 +352,7 @@ describe("Design Session replacement", () => {
 
   it("preserves edits made after Design identity applied but its publication threw", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -419,7 +419,7 @@ describe("Design Session replacement", () => {
     "workflow installation",
   ] as const)("resumes after %s fails without replacing the applied Design", (failureStage) => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -485,7 +485,7 @@ describe("Design Session replacement", () => {
 
   it("resumes detached workflow installation without replacing the applied Design", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -527,7 +527,7 @@ describe("Design Session replacement", () => {
 
   it("preserves a Scene command admitted when hydration releases", () => {
     const events: string[] = [];
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeFile("Previous"),
       path: "/previous.canopi",
       name: "Previous",
@@ -600,7 +600,7 @@ describe("Design Session replacement", () => {
 });
 
 function recordStoreEvents(
-  store: ReturnType<typeof createMemoryDesignSessionStore>,
+  store: ReturnType<typeof createDesignSessionStore>,
   events: string[],
 ): void {
   const replace = store.replaceCurrentDesignState.bind(store);

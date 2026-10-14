@@ -307,7 +307,7 @@ function readViewport(map: MapBackgroundMap): SatelliteViewport {
 
 /**
  * One attribution control per map. It lists every visible source's
- * attribution (the OpenFreeMap TileJSON credit) and the Google satellite
+ * attribution (the OpenFreeMap TileJSON credit, the terrain sources' credit) and the Google satellite
  * copyright as custom attribution. Options are fixed when MapLibre adds a
  * control, so a new credit or fold remounts it.
  */

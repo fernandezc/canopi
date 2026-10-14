@@ -735,12 +735,12 @@ describe('the interaction session', () => {
     // A press on a panel or a map control dragged across the map: today's lens skipped every move with a button held (the
     // held-button move that inspection-lens-ui.test.tsx dispatched on the host before the lens read subscribePointerWorld).
     events.pointerMove({ x: 120, y: 120 }, { target: container, buttons: 1 })
-    // Under LEGACY a right press opens no session, so its moves are hovers; the lens keeps its point through them too.
+    // A right drag pans or turns the map, so the lens ignores its moves and keeps its point through them too.
     events.pointerDown({ x: 140, y: 140 }, { button: 2 })
     events.pointerMove({ x: 180, y: 160 }, { target: container, buttons: 2 })
     events.pointerUp({ x: 180, y: 160 }, { button: 2 })
     expect(points).toHaveLength(1)
-    // A pen hovering with its barrel or eraser held: LEGACY ignores both as presses, yet today's lens saw the button.
+    // A pen hovering with its barrel (the secondary button) or eraser held: the lens ignores both moves too.
     events.pointerMove({ x: 130, y: 130 }, { target: container, pointerType: 'pen', pointerId: 9, buttons: 2 })
     events.pointerMove({ x: 135, y: 130 }, { target: container, pointerType: 'pen', pointerId: 9, buttons: 32 })
     expect(points).toHaveLength(1)

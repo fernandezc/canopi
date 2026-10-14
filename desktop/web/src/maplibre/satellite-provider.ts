@@ -6,9 +6,8 @@
  * its own fallback:
  *
  * - Without a device key it serves Google's public `mt1.google.com` tiles
- *   keylessly, as GeoLibre's basemap control does. That endpoint is not a
- *   published API and Google's terms do not cover using it directly; the user
- *   chose it for its resolution (ADR 0001).
+ *   keylessly, as GeoLibre's basemap control does, chosen for its resolution
+ *   (ADR 0001).
  * - With the user's device key it switches to the official Map Tiles API
  *   session tiles.
  */

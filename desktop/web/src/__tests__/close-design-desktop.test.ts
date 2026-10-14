@@ -66,7 +66,7 @@ import {
   type DesignSessionStateMachine,
 } from '../app/document-session/state-machine'
 import {
-  createMemoryDesignSessionStore,
+  createDesignSessionStore,
   type PersistenceCapableDesignSessionStore,
 } from '../app/document-session/store'
 import { closeDesign } from '../app/document-session/actions'
@@ -174,7 +174,7 @@ let machine: DesignSessionStateMachine
 let session: SceneSession
 
 function openCurrent(file = makeFile('Current', 2)): void {
-  store = createMemoryDesignSessionStore({ file, path: '/designs/current.canopi', name: 'Current' })
+  store = createDesignSessionStore({ file, path: '/designs/current.canopi', name: 'Current' })
   session = makeSceneSession(file)
   machine = createDesignSessionStateMachine({
     store,
@@ -324,7 +324,7 @@ describe('Desktop Close Design', () => {
   })
 
   it('closes a Design while no Canvas is attached', async () => {
-    store = createMemoryDesignSessionStore({ file: makeFile('Detached'), path: null, name: 'Detached' })
+    store = createDesignSessionStore({ file: makeFile('Detached'), path: null, name: 'Detached' })
     machine = createDesignSessionStateMachine({
       store,
       getCurrentSession: () => null,

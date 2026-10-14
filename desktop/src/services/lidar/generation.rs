@@ -47,9 +47,6 @@ pub(super) struct LatticeWindow {
 /// Resolved values and exact validity for one window.
 #[derive(Debug)]
 pub(super) struct ResolvedWindow {
-    // Production callers read `samples`/`valid`; tests assert the grid.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub grid: RasterGrid,
     pub samples: Vec<f32>,
     pub valid: Vec<u8>,
 }
@@ -119,11 +116,7 @@ pub(super) fn resolve_window(
         }
     }
     check_cancel(cancel)?;
-    Ok(ResolvedWindow {
-        grid: window_grid(lattice, window)?,
-        samples,
-        valid,
-    })
+    Ok(ResolvedWindow { samples, valid })
 }
 
 /// Occupied spatial chunks of an ordered sequence, in chunk coordinates.
@@ -237,12 +230,11 @@ impl GenerationReader {
     pub(super) fn read_window(
         &self,
         library: &super::LidarLibrary,
-        lattice: &RasterGrid,
         window: LatticeWindow,
         cancel: &AtomicBool,
     ) -> Result<ResolvedWindow, String> {
         match self {
-            Self::Chunks(owner) => owner.read_window(library, lattice, window, cancel),
+            Self::Chunks(owner) => owner.read_window(library, window, cancel),
             Self::Collection(collection) => collection.read_window(window, cancel),
         }
     }
@@ -360,7 +352,6 @@ pub(super) fn publish_test_chunk(
 #[cfg(test)]
 pub(super) fn read_persisted_window(
     chunks: &[PersistedChunk],
-    lattice: &RasterGrid,
     window: LatticeWindow,
     cancel: &AtomicBool,
 ) -> Result<ResolvedWindow, String> {
@@ -368,11 +359,7 @@ pub(super) fn read_persisted_window(
     let mut samples = vec![f32::NAN; cells];
     let mut valid = vec![0u8; cells];
     read_chunk_records(chunks, window, cancel, &mut samples, &mut valid)?;
-    Ok(ResolvedWindow {
-        grid: window_grid(lattice, window)?,
-        samples,
-        valid,
-    })
+    Ok(ResolvedWindow { samples, valid })
 }
 
 /// Read the intersecting portion of each given record into an existing buffer.
@@ -514,7 +501,6 @@ impl GenerationChunkReader {
     pub(super) fn read_window(
         &self,
         library: &super::LidarLibrary,
-        lattice: &RasterGrid,
         window: LatticeWindow,
         cancel: &AtomicBool,
     ) -> Result<ResolvedWindow, String> {
@@ -536,11 +522,7 @@ impl GenerationChunkReader {
             }
         }
         check_cancel(cancel)?;
-        Ok(ResolvedWindow {
-            grid: window_grid(lattice, window)?,
-            samples,
-            valid,
-        })
+        Ok(ResolvedWindow { samples, valid })
     }
 }
 
@@ -580,11 +562,10 @@ fn persisted_chunk(
 #[cfg(test)]
 pub(super) fn read_quality_chunks_window(
     chunks: &[PersistedChunk],
-    lattice: &RasterGrid,
     window: LatticeWindow,
     cancel: &AtomicBool,
 ) -> Result<ResolvedWindow, String> {
-    let resolved = read_persisted_window(chunks, lattice, window, cancel)?;
+    let resolved = read_persisted_window(chunks, window, cancel)?;
     let mut samples = vec![0f32; resolved.samples.len()];
     for (index, value) in resolved.samples.iter().enumerate() {
         if resolved.valid[index] == 0 {
@@ -601,7 +582,6 @@ pub(super) fn read_quality_chunks_window(
         };
     }
     Ok(ResolvedWindow {
-        grid: resolved.grid,
         samples,
         valid: vec![1u8; resolved.valid.len()],
     })
@@ -878,8 +858,9 @@ mod tests {
         upper.ordinal = 0;
         let window = full_window(-2, -2, 4, 4);
         let resolved = resolve_window(&[upper.clone()], &lattice, window, &cancellation()).unwrap();
-        assert_eq!(resolved.grid.geotransform[0], -2.0);
-        assert_eq!(resolved.grid.geotransform[3], 2.0);
+        let window_grid = window_grid(&lattice, window).unwrap();
+        assert_eq!(window_grid.geotransform[0], -2.0);
+        assert_eq!(window_grid.geotransform[3], 2.0);
         assert_eq!(
             resolved.valid,
             vec![1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -1082,27 +1063,20 @@ mod tests {
 
         // A window inside the first chunk.
         let first =
-            read_persisted_window(&chunks, &lattice, full_window(0, 0, 4, 3), &cancellation())
-                .unwrap();
+            read_persisted_window(&chunks, full_window(0, 0, 4, 3), &cancellation()).unwrap();
         assert_eq!(first.valid, vec![1; 12]);
         assert!(first.samples.iter().all(|value| *value == 1.0));
 
         // The gap between chunk 0 and chunk 2 has no row: exact invalid mask,
         // and no member replay or absent-coordinate walk produces coverage.
-        let gap = read_persisted_window(
-            &chunks,
-            &lattice,
-            full_window(1024, 0, 4, 3),
-            &cancellation(),
-        )
-        .unwrap();
+        let gap =
+            read_persisted_window(&chunks, full_window(1024, 0, 4, 3), &cancellation()).unwrap();
         assert!(gap.valid.iter().all(|valid| *valid == 0));
         assert!(gap.samples.iter().all(|value| value.is_nan()));
 
         // The distant chunk reads its own persisted bytes.
         let far = read_persisted_window(
             &chunks,
-            &lattice,
             full_window(2 * CHUNK_SIDE, 0, 4, 3),
             &cancellation(),
         )
@@ -1114,13 +1088,8 @@ mod tests {
         let path = corrupted[0].asset.path.clone();
         let bytes = std::fs::read(&path).unwrap();
         std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
-        let error = read_persisted_window(
-            &corrupted,
-            &lattice,
-            full_window(0, 0, 4, 3),
-            &cancellation(),
-        )
-        .expect_err("a corrupt chunk must fail the read");
+        let error = read_persisted_window(&corrupted, full_window(0, 0, 4, 3), &cancellation())
+            .expect_err("a corrupt chunk must fail the read");
         assert!(!error.is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1147,12 +1116,7 @@ mod tests {
         std::fs::remove_file(&unwanted.path).unwrap();
         let owner = GenerationChunkReader::new("generation-c", RESULT_ROLE);
         let resolved = owner
-            .read_window(
-                &library,
-                &lattice(),
-                full_window(0, 0, 4, 4),
-                &cancellation(),
-            )
+            .read_window(&library, full_window(0, 0, 4, 4), &cancellation())
             .unwrap();
         assert!(resolved.samples.iter().all(|value| *value == 7.0));
         assert!(resolved.valid.iter().all(|valid| *valid == 1));
@@ -1161,7 +1125,7 @@ mod tests {
         // file instead of empty coverage.
         let distant = full_window(9 * CHUNK_SIDE, 9 * CHUNK_SIDE, 4, 4);
         let error = owner
-            .read_window(&library, &lattice(), distant, &cancellation())
+            .read_window(&library, distant, &cancellation())
             .expect_err("a missing committed file is an error");
         assert!(!error.is_empty());
         // Cancellation before the first page publishes nothing and a later
@@ -1169,16 +1133,11 @@ mod tests {
         let cancelled = AtomicBool::new(true);
         assert!(
             owner
-                .read_window(&library, &lattice(), full_window(0, 0, 4, 4), &cancelled)
+                .read_window(&library, full_window(0, 0, 4, 4), &cancelled)
                 .is_err()
         );
         let resolved = owner
-            .read_window(
-                &library,
-                &lattice(),
-                full_window(0, 0, 4, 4),
-                &cancellation(),
-            )
+            .read_window(&library, full_window(0, 0, 4, 4), &cancellation())
             .unwrap();
         assert!(resolved.samples.iter().all(|value| *value == 7.0));
         // The window page loads the one intersecting record and no other.

@@ -47,6 +47,12 @@ export const DEM_TILES_URL =
   'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
 export const DEM_MAX_ZOOM = 15
 export const DEM_ENCODING = 'terrarium' as const
+/**
+ * The credit the Terrain Tiles ask for: Mapzen's tiles and the public elevation sources they merge, listed on
+ * the linked page. Every source drawn from them carries it, so the map credits show it only while one draws.
+ */
+export const TERRAIN_DATA_ATTRIBUTION =
+  '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain Tiles © Mapzen and its sources</a>'
 
 /**
  * Return the contour protocol URL and source configuration for MapLibre.
@@ -57,7 +63,7 @@ export const DEM_ENCODING = 'terrarium' as const
 export function getContourSourceConfig(
   contourProtocolUrl: DemSource['contourProtocolUrl'],
   userInterval: number,
-): { tiles: string[]; type: 'vector'; maxzoom: number } {
+): { tiles: string[]; type: 'vector'; maxzoom: number; attribution: string } {
   const thresholds = userInterval > 0
     ? thresholdsForInterval(userInterval)
     : DEFAULT_THRESHOLDS
@@ -74,6 +80,7 @@ export function getContourSourceConfig(
     tiles: [url],
     type: 'vector' as const,
     maxzoom: DEM_MAX_ZOOM + 1,
+    attribution: TERRAIN_DATA_ATTRIBUTION,
   }
 }
 

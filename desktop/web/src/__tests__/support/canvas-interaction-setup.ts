@@ -169,7 +169,7 @@ export const contextMenuHost = {
   },
 }
 
-export function contextMenuEntryOptions() {
+function contextMenuEntryOptions() {
   return {
     translate: t,
     characterKeyShortcuts: true,

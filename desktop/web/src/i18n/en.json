@@ -548,7 +548,6 @@
         "back": "Back",
         "addToDesign": "Add to Design",
         "addAria": "Add {{name}} to this Design",
-        "rename": "Rename",
         "progressAria": "Import progress for {{name}}",
         "cancel": "Cancel",
         "retry": "Retry",
@@ -1660,7 +1659,6 @@
         "step": "Use steps of {{step}}.",
         "noOutputs": "Choose at least one result."
       },
-      "introLibrary": "From {{name}}. Results are saved to your library; add them to any Design.",
       "source": "Source",
       "intro": "Results are added under their source in Site data and kept in your library.",
       "introLibraryOnly": "Results are kept in your library. This Design doesn’t show their source, so they aren’t added to Site data.",

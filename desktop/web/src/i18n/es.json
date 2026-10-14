@@ -548,7 +548,6 @@
         "back": "Volver",
         "addToDesign": "Añadir al diseño",
         "addAria": "Añadir {{name}} a este diseño",
-        "rename": "Renombrar",
         "progressAria": "Progreso de importación de {{name}}",
         "cancel": "Cancelar",
         "retry": "Reintentar",
@@ -1660,7 +1659,6 @@
         "step": "Usa pasos de {{step}}.",
         "noOutputs": "Elige al menos un resultado."
       },
-      "introLibrary": "De {{name}}. Los resultados se guardan en tu biblioteca; añádelos a cualquier diseño.",
       "source": "Origen",
       "intro": "Los resultados se añaden bajo su origen en Datos del lugar y se guardan en tu biblioteca.",
       "introLibraryOnly": "Los resultados se guardan en tu biblioteca. Este diseño no muestra su origen, así que no se añaden a Datos del lugar.",

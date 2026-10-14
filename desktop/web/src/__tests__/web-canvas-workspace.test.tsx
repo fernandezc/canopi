@@ -2,7 +2,7 @@ import { effect, signal } from '@preact/signals'
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import { currentCanvasSession } from '../canvas/session'
 import { CanvasRuntimeCleanupError } from '../canvas/runtime/cleanup'
 import type {
@@ -57,7 +57,7 @@ describe('Web Edition canvas workspace', () => {
     async (outcome) => {
       container = document.createElement('div')
       document.body.appendChild(container)
-      const store = createMemoryDesignSessionStore()
+      const store = createDesignSessionStore()
       const controller = createBrowserDesignSessionController({
         store,
         appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -125,7 +125,7 @@ describe('Web Edition canvas workspace', () => {
   it('does not attach or publish a composition whose start is cancelled', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -164,7 +164,7 @@ describe('Web Edition canvas workspace', () => {
   it('does not continue initialization after publication synchronously releases the runtime', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -244,7 +244,7 @@ describe('Web Edition canvas workspace', () => {
   it('releases the old owner before a refreshed composition mounts', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -292,7 +292,7 @@ describe('Web Edition canvas workspace', () => {
   it('does not construct or publish a successor until the prior release settles', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -339,7 +339,7 @@ describe('Web Edition canvas workspace', () => {
   it('releases a composition without attaching or publishing after unmount during initialization', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -377,7 +377,7 @@ describe('Web Edition canvas workspace', () => {
   it('releases a composition returned by a factory that unmounts reentrantly', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -408,7 +408,7 @@ describe('Web Edition canvas workspace', () => {
   it('waits for a reentrant browser attachment to return its disposer before teardown', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -444,7 +444,7 @@ describe('Web Edition canvas workspace', () => {
   it('shows a desktop-style browser-safe welcome screen without recent files when no Design is active', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const fileAdapter: BrowserDesignFileAdapter = {
       openCanopiFile: vi.fn(async () => null),
       downloadCanopiFile: vi.fn(async () => undefined),
@@ -494,7 +494,7 @@ describe('Web Edition canvas workspace', () => {
   it('does not replace live canvas-owned state after a non-canvas Design edit', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -529,7 +529,7 @@ describe('Web Edition canvas workspace', () => {
   it('mounts the shared floating chrome once a Design is open', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -556,7 +556,7 @@ describe('Web Edition canvas workspace', () => {
   it('releases a runtime whose Design attachment fails', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -602,7 +602,7 @@ describe('Web Edition canvas workspace', () => {
   it('does not replace or clear an existing Canvas publication when attachment is rejected', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -643,7 +643,7 @@ describe('Web Edition canvas workspace', () => {
   it('retries a failed Canvas handoff before mounting a replacement runtime', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -719,7 +719,7 @@ describe('Web Edition canvas workspace', () => {
   it('releases the lifecycle after reporting exhaustive post-handoff cleanup failures', async () => {
     container = document.createElement('div')
     document.body.appendChild(container)
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),

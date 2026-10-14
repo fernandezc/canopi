@@ -9,7 +9,7 @@ import { retryDesignSave } from '../app/document-session/actions'
 import { createDesignSessionPersistence } from '../app/document-session/persistence'
 import { createDesignSessionReplacement } from '../app/document-session/replacement'
 import { createDesignSessionStateMachine } from '../app/document-session/state-machine'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import {
   prepareDesignWriteDestination,
   prepareSynchronousDesignWriteDestination,
@@ -74,7 +74,7 @@ afterEach(async () => {
 
 /** A live runtime on a map of `screen` whose clean state reaches `store`. */
 function liveHost(
-  store: ReturnType<typeof createMemoryDesignSessionStore>,
+  store: ReturnType<typeof createDesignSessionStore>,
   screen = { width: 1200, height: 800 },
 ): CanvasRuntimeHost {
   const host = createLiveTestCanvasRuntimeHost({
@@ -92,8 +92,8 @@ function liveHost(
 function openOrchard(
   file: CanopiFile = orchard(),
   screen = { width: 1200, height: 800 },
-): { host: CanvasRuntimeHost; store: ReturnType<typeof createMemoryDesignSessionStore> } {
-  const store = createMemoryDesignSessionStore({ file: null })
+): { host: CanvasRuntimeHost; store: ReturnType<typeof createDesignSessionStore> } {
+  const store = createDesignSessionStore({ file: null })
   const host = liveHost(store, screen)
   const replacement = createDesignSessionReplacement({ store, workflowRunner: { install: vi.fn(), dispose: vi.fn() } })
   replacement.replace({ file, kind: 'loaded', path: PATH, name: file.name }, host.surfaces.documents, () => true)
@@ -252,7 +252,7 @@ const SAVE_AS_PATH = '/designs/orchard-copy.canopi'
  * A write records its content when it starts and settles once `settle` (when given) resolves.
  */
 async function openOnDesktop(file: CanopiFile = orchard(), settle?: () => Promise<void>) {
-  const store = createMemoryDesignSessionStore({ file: null })
+  const store = createDesignSessionStore({ file: null })
   const host = liveHost(store)
   const writes: { path: string; content: CanopiFile }[] = []
   const requestSaveDecision = vi.fn(async () => 'cancel')
@@ -299,7 +299,7 @@ function openOnWeb() {
     },
   })
   appDataStore.saveDraft({ id: 'draft-orchard', file: orchard(), now: '2026-10-05T08:00:00.000Z' })
-  const store = createMemoryDesignSessionStore()
+  const store = createDesignSessionStore()
   const host = liveHost(store)
   const requestSaveDecision = vi.fn(async () => 'cancel')
   const controller = createBrowserDesignSessionController({

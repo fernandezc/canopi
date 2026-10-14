@@ -18,7 +18,7 @@ import {
 } from '../app/document-session/write-admission'
 import {
   createDesignSessionStoreTestFixture,
-  createMemoryDesignSessionStore,
+  createDesignSessionStore,
 } from '../app/document-session/store'
 import { captureDesignSessionPersistenceState } from '../app/document-session/persistence-capability'
 import {
@@ -122,7 +122,7 @@ describe('purpose-aware Design persistence operations', () => {
   }
 
   it('invalidates an empty-session replacement guard across authority rollover', () => {
-    const operationStore = createMemoryDesignSessionStore()
+    const operationStore = createDesignSessionStore()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const guard = persistence.beginReplacementGuard().guard
     expect(guard?.isCurrent()).toBe(true)
@@ -134,7 +134,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('writes captures to one durable resource in issue order', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -175,7 +175,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('stays dirty when a successful write predates committed reconciliation', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -218,7 +218,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('invalidates an exact replacement guard when an older write latches divergence', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -246,7 +246,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('latches divergence when clean acknowledgement reactively reconciles content', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -282,7 +282,7 @@ describe('purpose-aware Design persistence operations', () => {
   it('does not apply an old acknowledgement latch to a reactively installed successor', async () => {
     const original = makeDesign('Original')
     const successor = makeDesign('Successor')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -311,7 +311,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('does not overwrite a reentrantly newer exact acknowledgement', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -343,7 +343,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('executes Save As only after a destination has been prepared', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       name: 'Garden Plan',
     })
@@ -369,7 +369,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('starts writes to different durable resources concurrently', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       name: 'Garden Plan',
     })
@@ -405,7 +405,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('skips queued writes whose Design Session was replaced', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Predecessor'),
       path: '/designs/shared.canopi',
       name: 'Predecessor',
@@ -439,7 +439,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('skips a queued capture after its Canvas attachment lease changes', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -469,7 +469,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('releases a durable-resource lane after its writer fails', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       path: '/designs/shared.canopi',
       name: 'Garden Plan',
@@ -497,7 +497,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('retries exact settlement without repeating a successful write', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       path: '/designs/garden-plan.canopi',
       name: 'Garden Plan',
@@ -526,7 +526,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('reserves one operation execution before its writer reenters', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -550,7 +550,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects synchronous same-operation reentry with a typed busy error', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       name: original.name,
     })
@@ -576,7 +576,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('exports a browser download without acknowledging the Design home', async () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       name: 'Garden Plan',
     })
@@ -599,7 +599,7 @@ describe('purpose-aware Design persistence operations', () => {
   })
 
   it('executes browser draft storage synchronously without exposing captured content', () => {
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: makeDesign('Garden Plan'),
       name: 'Garden Plan',
     })
@@ -621,7 +621,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('acknowledges only the captured revisions and preserves later Design edits', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -648,7 +648,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('does not discard a requested snapshot when its exact Scene checkpoint later diverges', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     let checkpointCurrent = true
     vi.mocked(capture.session.captureForPersistence).mockImplementation((metadata, document) => ({
@@ -670,7 +670,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('makes a completion inert after Design replacement', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const operation = persistence.beginSaveAs()
 
@@ -686,7 +686,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects an empty Save As destination before acknowledging captured state', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     persistence.attachCanvas(capture.session)
@@ -704,7 +704,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('returns stale when saved-baseline publication reentrantly replaces the Design', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -734,7 +734,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('finishes an irreversible settlement when clean publication issues a newer save', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     markDesignSessionDirtyForTest(operationStore)
     const older = persistence.beginSaveAs()
@@ -760,7 +760,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('orders overlapping Save As destinations by issue order, not completion order', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const first = persistence.beginSaveAs()
     const second = persistence.beginSaveAs()
@@ -774,7 +774,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('does not let an old-path Save supersede a pending Save As', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -792,7 +792,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects a captured canvas checkpoint after detach and reattach', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const first = checkpointSession()
     const second = checkpointSession()
@@ -809,7 +809,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects a second Canvas attachment until the current lease is released', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const first = checkpointSession()
     const second = checkpointSession()
@@ -828,7 +828,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects handoff from a stale Canvas without displacing the current lease', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const first = checkpointSession()
     const second = checkpointSession()
@@ -848,7 +848,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('finishes Canvas acknowledgement before a reentrantly issued save takes over', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     persistence.attachCanvas(capture.session)
@@ -869,7 +869,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('retries a started settlement after acknowledgement issues a newer save and throws', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     persistence.attachCanvas(capture.session)
@@ -899,7 +899,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('retries every Save As settlement phase without repeating external I/O', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     capture.acknowledgeSaved
       .mockImplementationOnce(() => {
@@ -945,7 +945,7 @@ describe('purpose-aware Design persistence operations', () => {
     const causes = Array.from({ length: 4 }, (_, index) =>
       new Error(`settlement failure ${index + 1}`))
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     capture.acknowledgeSaved.mockImplementation(() => {
       throw causes[capture.acknowledgeSaved.mock.calls.length - 1]
@@ -969,7 +969,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('reserves save issue order before Canvas composition can reenter persistence', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     let nested: ReturnType<ReturnType<typeof createDesignSessionPersistence>['beginSaveAs']> | null = null
     let nestedIssued = false
     let persistence!: ReturnType<typeof createDesignSessionPersistence>
@@ -995,7 +995,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('defensively owns the exact Canvas-composed snapshot', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capturedPlant = { id: 'captured-plant' } as CanopiFile['plants'][number]
     const capture = checkpointSession((metadata, design) => ({
       ...design,
@@ -1026,7 +1026,7 @@ describe('purpose-aware Design persistence operations', () => {
       ...makeDesign('Original'),
       plants: [{ id: 'captured-plant' } as CanopiFile['plants'][number]],
     }
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     persistence.attachCanvas(capture.session)
@@ -1052,7 +1052,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('cleans a store-authoritative Canvas baseline while attachment is still hydrating', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     vi.mocked(capture.session.hasLoadedDocument).mockReturnValue(false)
     const persistence = createDesignSessionPersistence({ store: operationStore })
@@ -1068,7 +1068,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('makes an unloaded Canvas capture stale when hydration admits a later Scene edit', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     let loaded = false
     vi.mocked(capture.session.hasLoadedDocument).mockImplementation(() => loaded)
@@ -1087,7 +1087,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('makes a detached capture stale when a newer canvas handoff replaces its snapshot', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -1106,7 +1106,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('invalidates detached captures before publishing a newer handoff snapshot', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({
+    const operationStore = createDesignSessionStore({
       file: original,
       path: '/designs/original.canopi',
       name: original.name,
@@ -1136,7 +1136,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('keeps a Design dirty when its Browser Draft write fails', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     markDesignSessionDirtyForTest(operationStore)
     const persistence = createDesignSessionPersistence({ store: operationStore })
     const operation = persistence.beginBrowserDraft()
@@ -1150,7 +1150,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('captures handoff and diagnostic content without advancing a baseline', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
     persistence.attachCanvas(capture.session)
@@ -1165,7 +1165,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('rejects diagnostic observation through a foreign or detached Canvas identity', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const attached = checkpointSession()
     const foreign = checkpointSession()
     const persistence = createDesignSessionPersistence({ store: operationStore })
@@ -1180,7 +1180,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('recaptures a handoff instead of overwriting a Design edit made during Canvas composition', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     let editDuringFirstCapture = true
     const capture = checkpointSession((metadata, document) => {
       if (editDuringFirstCapture) {
@@ -1205,7 +1205,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('invalidates a replacement guard when its exact Canvas checkpoint diverges', () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     let canvasCheckpointCurrent = true
     const capture = checkpointSession()
     vi.mocked(capture.session.captureForPersistence).mockImplementation((metadata, document) => ({
@@ -1224,7 +1224,7 @@ describe('purpose-aware Design persistence operations', () => {
 
   it('retries Canvas acknowledgement publication before consuming success', async () => {
     const original = makeDesign('Original')
-    const operationStore = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const operationStore = createDesignSessionStore({ file: original, name: original.name })
     const capture = checkpointSession()
     capture.acknowledgeSaved
       .mockImplementationOnce(() => {

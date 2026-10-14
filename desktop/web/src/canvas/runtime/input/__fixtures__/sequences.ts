@@ -673,7 +673,7 @@ export const SEQUENCES = {
     ...moves([100, 100], [130, 100], 3, { buttons: 1 }),
     up(130, 100),
   ]),
-  // No visibilitychange listener under LEGACY: the hidden step never reaches the recogniser, so Space stays held.
+  // There is no visibilitychange listener: the hidden step never reaches the recogniser, so Space stays held.
   G5: seq('G5 Stale Space', WINDOWS, [
     keyState(true),
     down(100, 100),

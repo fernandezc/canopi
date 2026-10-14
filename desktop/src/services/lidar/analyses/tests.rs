@@ -1194,13 +1194,11 @@ fn result_window(
     let head = catalogue::derived_head(&connection, item_id)
         .unwrap()
         .unwrap();
-    let manifest = read_derived_manifest(&head.manifest_json).unwrap();
     let paths = &library.inner.paths;
     let cancel = AtomicBool::new(false);
     let values = generation::read_persisted_window(
         &generation::persisted_chunks(&connection, paths, &head.id, generation::RESULT_ROLE)
             .unwrap(),
-        &manifest.grid,
         window,
         &cancel,
     )
@@ -1208,7 +1206,6 @@ fn result_window(
     let quality = generation::read_quality_chunks_window(
         &generation::persisted_chunks(&connection, paths, &head.id, generation::QUALITY_ROLE)
             .unwrap(),
-        &manifest.grid,
         window,
         &cancel,
     )

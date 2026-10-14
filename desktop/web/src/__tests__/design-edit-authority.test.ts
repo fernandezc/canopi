@@ -4,7 +4,7 @@ import { createDesignSessionPersistence } from '../app/document-session/persiste
 import { captureDesignSessionPersistenceState } from '../app/document-session/persistence-capability'
 import {
   createDesignSessionStoreTestFixture,
-  createMemoryDesignSessionStore,
+  createDesignSessionStore,
 } from '../app/document-session/store'
 import { prepareDesignWriteDestination } from '../app/document-session/write-admission'
 import type { CanopiFile } from '../types/design'
@@ -14,7 +14,7 @@ describe('Design Edit authority', () => {
   it('resets one store lifetime without reviving predecessor captures', () => {
     const predecessor = design('Predecessor')
     const successor = design('Successor')
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: predecessor,
       path: '/predecessor.canopi',
       name: predecessor.name,
@@ -54,7 +54,7 @@ describe('Design Edit authority', () => {
 
   it('invalidates captures, guards and pending writes across an authority lifetime rollover', async () => {
     const original = design('Original')
-    const store = createMemoryDesignSessionStore({ file: original, name: original.name })
+    const store = createDesignSessionStore({ file: original, name: original.name })
     const persistence = createDesignSessionPersistence({ store })
     const capture = captureDesignSessionPersistenceState(store)
     const guard = persistence.beginReplacementGuard().guard

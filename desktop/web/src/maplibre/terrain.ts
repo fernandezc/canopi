@@ -1,6 +1,7 @@
 import {
   DEM_ENCODING,
   DEM_MAX_ZOOM,
+  TERRAIN_DATA_ATTRIBUTION,
   type DemSource,
   getContourLayerConfigs,
   getContourSourceConfig,
@@ -79,6 +80,7 @@ export function createTerrainSources(
         maxzoom: DEM_MAX_ZOOM,
         tileSize: 256,
         encoding: DEM_ENCODING,
+        attribution: TERRAIN_DATA_ATTRIBUTION,
       },
     })
   }

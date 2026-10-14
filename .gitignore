@@ -30,8 +30,6 @@ desktop/gen/
 # Claude / plugin caches
 .agents/
 .cache/
-.claude-plugins/
-.claude.local.md
 
 # OS
 .DS_Store
@@ -58,6 +56,7 @@ desktop/web/dist-web-artifacts/
 .dolt/
 *.db
 .beads-credential-key
+/.beads.gate.lock
 
 # Pinned PDF font assets prepared for both edition packages
 desktop/web/public/pdf-fonts/

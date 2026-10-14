@@ -548,7 +548,6 @@
         "back": "Terug",
         "addToDesign": "Aan ontwerp toevoegen",
         "addAria": "{{name}} aan dit ontwerp toevoegen",
-        "rename": "Hernoemen",
         "progressAria": "Importvoortgang van {{name}}",
         "cancel": "Annuleren",
         "retry": "Opnieuw proberen",
@@ -1660,7 +1659,6 @@
         "step": "Gebruik stappen van {{step}}.",
         "noOutputs": "Kies ten minste één resultaat."
       },
-      "introLibrary": "Uit {{name}}. Resultaten worden in je bibliotheek bewaard; voeg ze aan elk ontwerp toe.",
       "source": "Bron",
       "intro": "Resultaten worden in Terreindata onder hun bron toegevoegd en in je bibliotheek bewaard.",
       "introLibraryOnly": "Resultaten worden in je bibliotheek bewaard. Dit ontwerp toont hun bron niet, dus ze worden niet aan Terreindata toegevoegd.",
