@@ -120,6 +120,7 @@
       "title": "Loupe d’inspection",
       "close": "Fermer la loupe",
       "hint": "Survolez le canevas pour inspecter · Glissez ici pour explorer",
+      "hintTouch": "Touchez la carte pour inspecter · Glissez ici pour explorer",
       "empty": "Aucune plante ici. Déplacez ou élargissez la loupe.",
       "unavailable": "Aperçu indisponible. Les noms restent à la position des plantes.",
       "locate": "Centrer la loupe sur {{name}}",

@@ -120,6 +120,7 @@
       "title": "Inspectieloep",
       "close": "Inspectieloep sluiten",
       "hint": "Beweeg over het canvas om te inspecteren · Sleep hier om te verkennen",
+      "hintTouch": "Tik op de kaart om te inspecteren · Sleep hier om te verkennen",
       "empty": "Geen planten hier. Sleep of verbreed de loep.",
       "unavailable": "Voorbeeld niet beschikbaar. Namen blijven op de plantposities staan.",
       "locate": "Loep centreren op {{name}}",

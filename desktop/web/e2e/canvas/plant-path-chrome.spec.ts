@@ -2,8 +2,8 @@
 // plan section 4 "2.0 plant along a path", amendment A8; design check section 5c's matrix), as
 // map-notice-layout.spec.ts does for the map notice. Per layout and locale: place an Apple in the visible map beside
 // the tool card (clear of its slot down to its max-height, as a user draws), arm Plant a row, pick it and add two
-// points beside it (at 1440x900 with the inspection lens open, in the card's slot), then close a loop; each time the
-// card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection chip, the
+// points beside it, then close a loop (an open inspection lens draws above the card, canopi-n54g: inspection-lens.spec.ts);
+// each time the card shares no pixel with the rail, the top chip slot's chips, the zoom group, the view chip, the selection chip, the
 // map notice, the legend, the inspection lens button and the phone sheet's peek; its bottom is inside the visible map;
 // its check button and the row's count and length take the click at their centre without a scroll, the check button as
 // a 44 px target after a tap; the spacing field and the mode switch show whole and do once scrolled into view (the
@@ -30,14 +30,12 @@ interface Layout {
   readonly touch: boolean
   /** The labelled tool rail (1440x900 named rail) instead of icons. */
   readonly namedRail?: boolean
-  /** The inspection lens is open first: it shares the card's slot, and the card stacks above it (design check 5c). */
-  readonly lensOpen?: boolean
   readonly name?: string
 }
 
 const LAYOUTS: readonly Layout[] = [
-  { width: 1440, height: 900, locales: ['en', 'de', 'fr', 'ru', 'ja'], touch: false, lensOpen: true, name: 'icon rail' },
-  { width: 1440, height: 900, locales: ['en', 'de'], touch: false, namedRail: true, lensOpen: true, name: 'named rail' },
+  { width: 1440, height: 900, locales: ['en', 'de', 'fr', 'ru', 'ja'], touch: false, name: 'icon rail' },
+  { width: 1440, height: 900, locales: ['en', 'de'], touch: false, namedRail: true, name: 'named rail' },
   { width: 1024, height: 768, locales: ['en', 'de', 'ru'], touch: true },
   { width: 768, height: 1024, locales: ['en', 'fr'], touch: false },
   { width: 761, height: 700, locales: ['en', 'de', 'ru'], touch: false },
@@ -92,10 +90,6 @@ async function openBase(page: Page, layout: Layout, locale: string): Promise<voi
     locale,
     settings: { snap_to_grid: false, tool_names_visible: layout.namedRail === true },
   })
-  if (!layout.lensOpen) return
-  const launcher = page.locator('[data-inspection-launcher]')
-  await launcher.click()
-  await expect(launcher, 'the inspection lens is open').toBeHidden()
 }
 
 /** A tap where the layout is touch (apart in time, so taps never make a double tap), else a click. */

@@ -48,7 +48,7 @@ Plant color ▸ and Plant symbol ▸ open popovers beside the menu (Esc returns 
 
 ## Inspection lens
 
-A view-only magnified preview with recentre, widen and magnify, collision-aware labels, keyboard pan and an ochre source rectangle on the map.
+A view-only magnified preview above the tool card: recentre, widen, magnify, labels clear of its centre crosshair, keyboard pan, an ochre source box.
 
 ## Presenting a story
 

@@ -120,6 +120,7 @@
       "title": "Inspection lens",
       "close": "Close inspection lens",
       "hint": "Move over canvas to inspect · Drag here to explore",
+      "hintTouch": "Tap the map to inspect · Drag here to explore",
       "empty": "No plants here. Drag or widen the lens.",
       "unavailable": "Preview unavailable. Names remain at their plant positions.",
       "locate": "Centre lens on {{name}}",

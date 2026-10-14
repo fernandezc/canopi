@@ -120,6 +120,7 @@
       "title": "Lupa de inspección",
       "close": "Cerrar lupa",
       "hint": "Mueve el puntero sobre el lienzo para inspeccionar · Arrastra aquí para explorar",
+      "hintTouch": "Toca el mapa para inspeccionar · Arrastra aquí para explorar",
       "empty": "No hay plantas aquí. Arrastra o amplía la lupa.",
       "unavailable": "Vista previa no disponible. Los nombres permanecen en las posiciones de las plantas.",
       "locate": "Centrar la lupa en {{name}}",

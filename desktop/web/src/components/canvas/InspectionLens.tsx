@@ -14,6 +14,7 @@ import { leftChromeCrowdsMap, visibleMapFrame } from '../../app/shell/visible-ma
 import { t } from '../../i18n'
 import { ControlIcon } from '../shared/ControlIcon'
 import { ButtonTooltip } from '../shared/ButtonTooltip'
+import { useCoarsePointer } from '../shared/useCoarsePointer'
 import { useMapOccluder, useUnderRail } from '../shared/useMapChrome'
 import styles from './InspectionLens.module.css'
 
@@ -22,6 +23,12 @@ const ARROW_STEP_PX = 20
 const LARGE_ARROW_STEP_PX = 60
 const MOD_IS_CMD = typeof navigator !== 'undefined'
   && modKeyIsCmd(detectPlatform(navigator, window as unknown as { readonly GestureEvent?: unknown }))
+
+/**
+ * The hollow crosshair on the preview's centre, the inspected point: four arms 4 px clear of the centre, so the point
+ * itself stays visible. inspection-layout.ts keeps plant names off it.
+ */
+const CENTRE_MARK = 'M0 -10V-4M0 4V10M-10 0H-4M4 0H10'
 
 /** Whether the lens is open: its one launcher (floating, or on a phone a button of the zoom column) toggles it. */
 const lensOpen = signal(false)
@@ -90,6 +97,7 @@ function InspectionPanel({ id, documents, queries, canvasRef, onClose }: {
   const panel = useRef<HTMLElement>(null)
   const handle = useSignal<CanvasInspectionHandle | null>(null)
   const failed = useSignal(false)
+  const coarsePointer = useCoarsePointer()
   // The open panel covers the map's left edge: Home, Fit and framing land right of it (canopi-f47t.28), when it leaves
   // the labelled tool rail's least map width before the right chrome. With less (a phone, a tablet, a window beside the
   // open dock) it stays out, or the chips would squeeze off screen and framing would fall back to the whole window.
@@ -192,6 +200,10 @@ function InspectionPanel({ id, documents, queries, canvasRef, onClose }: {
             y2={Math.max(plant.label.y, Math.min(plant.label.y + plant.label.height, plant.screenPosition.y))} />}
           {highlighted === plant.id && <circle cx={plant.screenPosition.x} cy={plant.screenPosition.y} r="11" fill="none" stroke="var(--color-primary)" stroke-width="2" />}
         </g>)}
+        <g className={styles.centre} data-inspection-centre transform={`translate(${state.frame.width / 2} ${state.frame.height / 2})`}>
+          <path className={styles.centreHalo} d={CENTRE_MARK} />
+          <path className={styles.centreInk} d={CENTRE_MARK} />
+        </g>
       </svg>}
       {state?.plants.map(plant => plant.label && <button key={plant.id} type="button" data-plant-id={plant.id}
         className={styles.plantName} style={{ left: plant.label.x, top: plant.label.y, width: plant.label.width, height: plant.label.height }}
@@ -206,7 +218,8 @@ function InspectionPanel({ id, documents, queries, canvasRef, onClose }: {
     {(failed.value || state?.previewAvailable === false) && <p role="status">{t('canvas.inspection.unavailable')}</p>}
 
     <div className={styles.controls}>
-      <span role="status">{t('canvas.inspection.namesCount', { shown: state?.plants.filter(plant => plant.label).length ?? 0, total: state?.plants.length ?? 0 })}</span>
+      {/* Read on demand: it changes on every pointer move, so a live region would chatter. */}
+      <span aria-live="off">{t('canvas.inspection.namesCount', { shown: state?.plants.filter(plant => plant.label).length ?? 0, total: state?.plants.length ?? 0 })}</span>
       <button type="button" disabled={!handle.value} aria-label={t('canvas.inspection.recenter')} onClick={() => handle.value?.centerOnCanvas()}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="4" stroke="currentColor" /><path d="M8 1v4m0 6v4M1 8h4m6 0h4" stroke="currentColor" /></svg>
         <ButtonTooltip label={t('canvas.inspection.recenter')} side="top" />
@@ -222,7 +235,7 @@ function InspectionPanel({ id, documents, queries, canvasRef, onClose }: {
       </button>
     </div>
     {state?.plants.length === 0 && <p>{t('canvas.inspection.empty')}</p>}
-    <p>{t('canvas.inspection.hint')}</p>
+    <p>{t(coarsePointer ? 'canvas.inspection.hintTouch' : 'canvas.inspection.hint')}</p>
   </section></>
 }
 

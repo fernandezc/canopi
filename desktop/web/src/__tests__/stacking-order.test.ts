@@ -48,6 +48,13 @@ describe('stacking order', () => {
     expect(popover).toBeLessThan(tooltip)
   })
 
+  it('draws an open inspection lens above the tool card in its slot, and both under every popup (canopi-n54g)', () => {
+    const card = token(global, '--z-canvas-tool-card')
+    const lens = token(global, '--z-canvas-inspection-lens')
+    expect(card).toBeLessThan(lens)
+    expect(lens).toBeLessThan(token(global, '--z-full-window'))
+  })
+
   it('layers dialogs, popups and full-window surfaces only through the scale tokens', () => {
     for (const [name, path] of Object.entries(FILES)) {
       const css = read(path)

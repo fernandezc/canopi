@@ -70,13 +70,16 @@ describe('floating chrome layering', () => {
     }
   })
 
-  it('stacks the tool card above the inspection lens and the rails beside it, under the dock, chips and phone sheet (U58)', () => {
+  it('stacks the inspection lens above the tool card that shares its slot, and the card above the rails beside it, under the dock, and both under the chips and phone sheet (canopi-n54g)', () => {
+    // The user's call (2026-10-14) reverses U58's card-over-lens order: an open lens is never hidden by the armed tool's card.
     const toolCard = classZIndex('components/canvas/ToolCard.module.css', 'card')
-    // Through the stacking scale: the card's layer is a token, not a number of its own.
+    const lens = classZIndex('components/canvas/InspectionLens.module.css', 'panel')
+    // Through the stacking scale: each layer is a token, not a number of its own.
     expect(ruleBody('components/canvas/ToolCard.module.css', '.card')).toMatch(/z-index:\s*var\(--z-canvas-tool-card\)/)
-    // The lens's launcher and panel share one rule.
-    const lens = /\.launcher,\s*\.panel\s*\{[^}]*z-index:\s*(\d+)/.exec(readCssSource('components/canvas/InspectionLens.module.css'))
-    expect(toolCard).toBeGreaterThan(Number(lens?.[1]))
+    expect(ruleBody('components/canvas/InspectionLens.module.css', '.panel')).toMatch(/z-index:\s*var\(--z-canvas-inspection-lens\)/)
+    expect(lens).toBeGreaterThan(toolCard)
+    // The lens's launcher floats with the rails.
+    expect(classZIndex('components/canvas/InspectionLens.module.css', 'launcher')).toBeLessThan(toolCard)
     for (const [file, name] of [
       ['components/canvas/ToolRail.module.css', 'rail'],
       ['components/canvas/ZoomControls.module.css', 'group'],
@@ -90,6 +93,7 @@ describe('floating chrome layering', () => {
       ['components/shared/PhoneSheet.module.css', 'sheet'],
     ] as const) {
       expect(classZIndex(file, name)).toBeGreaterThan(toolCard)
+      if (name !== 'dock') expect(classZIndex(file, name)).toBeGreaterThan(lens)
     }
   })
 

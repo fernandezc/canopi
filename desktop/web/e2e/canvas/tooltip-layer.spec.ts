@@ -92,7 +92,7 @@ const LAYOUTS: readonly Layout[] = [
 /** The buttons to check per layout: a tool strip, map control, right panel and top bar button. */
 function buttons(page: Page, layout: Layout): Array<[string, Locator]> {
   return [
-    ['the tool strip\'s Place plants', page.locator('[data-tool-rail] [data-rail-tool]').nth(2)],
+    ['the tool strip\'s third tool', page.locator('[data-tool-rail] [data-rail-tool]').nth(2)],
     ['the tool strip\'s first tool', page.locator('[data-tool-rail] [data-rail-item]').first()],
     ['the first map control', page.locator('[data-zoom-group] button').first()],
     ['the last map control (Reset north)', page.locator('[data-zoom-group] button').last()],
