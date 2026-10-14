@@ -360,7 +360,7 @@ describe('the interaction session', () => {
     enterOverview(testView)
     const stamp = { version: 2, anchor: { x: 0, y: 0 }, plants: [], zones: [], annotations: [], groups: [] }
     dispatchDrag('drop', { x: 60, y: 60 }, (transfer) => writeSavedObjectStampDragData(transfer, {
-      id: 'stamp-1', name: 'Bed', sort_order: 0, created_at: '2026-06-19T09:00:00Z', updated_at: '2026-06-19T09:00:00Z',
+      id: 'stamp-1', name: '  Bed ', sort_order: 0, created_at: '2026-06-19T09:00:00Z', updated_at: '2026-06-19T09:00:00Z',
       payload_json: JSON.stringify(stamp),
     }))
     expect(returnToDesign).toHaveBeenCalledTimes(2)
@@ -368,6 +368,14 @@ describe('the interaction session', () => {
     expect(readSavedObjectStampName(), 'the tool card names the dropped stamp, as when it is picked with Place').toBe('Bed')
     expect(session.tool).toBe('saved-object-stamp')
     expect(store.persisted.zones).toHaveLength(0)
+
+    // A blank name reads as none, as with Place (stamp.name.trim() || null).
+    enterOverview(testView)
+    dispatchDrag('drop', { x: 60, y: 60 }, (transfer) => writeSavedObjectStampDragData(transfer, {
+      id: 'stamp-2', name: '   ', sort_order: 1, created_at: '2026-06-19T09:00:00Z', updated_at: '2026-06-19T09:00:00Z',
+      payload_json: JSON.stringify(stamp),
+    }))
+    expect(readSavedObjectStampName()).toBeNull()
   })
 
   it('a registered tool\'s transient history and spacing field go through the host', () => {

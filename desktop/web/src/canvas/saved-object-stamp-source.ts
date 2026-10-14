@@ -63,7 +63,7 @@ export function writeSavedObjectStampDragData(
   dataTransfer.setData(LEGACY_TEXT_MIME, serialized)
   dataTransfer.effectAllowed = 'copy'
   activeSavedObjectStampDragSource.value = payload
-  activeSavedObjectStampDragName.value = stamp.name
+  activeSavedObjectStampDragName.value = stamp.name.trim() || null
   return payload
 }
 
