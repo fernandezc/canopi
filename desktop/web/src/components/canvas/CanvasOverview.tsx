@@ -13,30 +13,41 @@ import styles from './CanvasOverview.module.css'
  * edge); the pin is a button that fits the Design, as Return to Design does (canopi-n2cg). Its notice is a top chip
  * (OverviewNotice, in CanvasChrome's top-centre slot). The pin sits over the map host, not in it, so a panel drag that
  * enters it lets the pin go transparent to the pointer until the drag ends: the map host under it takes the dragover and
- * drop, as on bare map (a plant dropped on the overview fits the Design and stays picked).
+ * drop, as on bare map (a plant dropped on the overview fits the Design and stays picked). Pass-through ends with the
+ * drag: on dragend or drop, on a dragleave out of the window (a file dragged from the desktop and released outside
+ * fires neither), or with the overview itself, since the pin's state lives in DesignPin, which unmounts with it.
  */
 export function CanvasOverview() {
-  const [dragThrough, setDragThrough] = useState(false)
-  useEffect(() => {
-    if (!dragThrough) return
-    const ended = (): void => setDragThrough(false)
-    window.addEventListener('dragend', ended, true)
-    window.addEventListener('drop', ended, true)
-    return () => {
-      window.removeEventListener('dragend', ended, true)
-      window.removeEventListener('drop', ended, true)
-    }
-  }, [dragThrough])
   const view = currentCanvasQuerySurface.value?.view
   if (!view || view.mode.value !== 'overview') return null
   const marker = view.designPin.value
   if (!marker) return null
+  return <DesignPin x={marker.x} y={marker.y} />
+}
+
+function DesignPin({ x, y }: { x: number; y: number }) {
+  const [dragThrough, setDragThrough] = useState(false)
+  useEffect(() => {
+    if (!dragThrough) return
+    const ended = (): void => setDragThrough(false)
+    const left = (event: DragEvent): void => {
+      if (event.relatedTarget === null) setDragThrough(false)
+    }
+    window.addEventListener('dragend', ended, true)
+    window.addEventListener('drop', ended, true)
+    window.addEventListener('dragleave', left, true)
+    return () => {
+      window.removeEventListener('dragend', ended, true)
+      window.removeEventListener('drop', ended, true)
+      window.removeEventListener('dragleave', left, true)
+    }
+  }, [dragThrough])
   const name = visibleDesignName(designName.value)
   return (
     <button
       type="button"
       className={dragThrough ? `${styles.pin} ${styles.dragThrough}` : styles.pin}
-      style={{ left: `${marker.x}px`, top: `${marker.y}px` }}
+      style={{ left: `${x}px`, top: `${y}px` }}
       aria-label={t('canvas.overview.designPin', { name })}
       onClick={returnToDesign}
       onDragEnter={() => setDragThrough(true)}

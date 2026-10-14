@@ -87,6 +87,31 @@ describe('CanvasOverview', () => {
     expect(pin().className, 'a drop anywhere ends it too').toBe(resting)
   })
 
+  it('ends pass-through when a drag from outside the page leaves the window or the overview ends', async () => {
+    const mode = signal<'overview' | 'site'>('overview')
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+      queries: {
+        ...createTestCanvasQuerySurface(),
+        view: { ...createTestViewReadSurface(), mode, designPin: signal<ScreenPoint | null>({ x: 100, y: 100 }) },
+      },
+    }))
+    await act(async () => render(<CanvasOverview />, container))
+    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
+    const resting = pin().className
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: container })) })
+    expect(pin().className, 'a drag moving within the page stays let through').not.toBe(resting)
+    // A file dragged from the desktop and released outside the window fires no dragend or drop on the page.
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: null })) })
+    expect(pin().className, 'the drag left the window: the pin takes clicks again').toBe(resting)
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { mode.value = 'site' })
+    await act(async () => { mode.value = 'overview' })
+    expect(pin().className, 'leaving the overview ends pass-through').toBe(resting)
+  })
+
   it('omits an offscreen marker while retaining the notice action', async () => {
     const returnToDesign = vi.fn()
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
