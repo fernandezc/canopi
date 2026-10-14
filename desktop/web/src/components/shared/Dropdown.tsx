@@ -150,6 +150,7 @@ export function Dropdown<T>({
       className={`${styles.menu} ${menuDirClass}${floating ? ` ${styles.menuFloating}` : ''}${menuClassName ? ` ${menuClassName}` : ''}`}
       role="listbox"
       aria-label={ariaLabel}
+      data-popup
       data-floating-popup={floating ? 'true' : undefined}
       data-preserve-overlays={floating || preserveOverlays ? 'true' : undefined}
       onKeyDown={(event) => {

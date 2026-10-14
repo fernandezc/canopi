@@ -180,7 +180,22 @@
   cursor: pointer;
 }
 
-.retryButton:hover {
+.retryButton:hover:not(:disabled) {
   background: var(--color-danger);
   color: var(--color-bg);
+}
+
+/* A retry in progress: the button waits. */
+.retryButton:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

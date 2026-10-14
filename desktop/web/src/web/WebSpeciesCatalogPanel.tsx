@@ -43,6 +43,10 @@ export function WebSpeciesCatalogPanel({ mode }: WebSpeciesCatalogPanelProps) {
     commonName: item.common_name,
   })), [favoritesView.items, sidebar.recentlyViewed]))
   const title = isCatalog ? t('plantDb.title') : t('nav.favorites')
+  // One Retry reloads both lists, so both wait while either loads; one alert announces each failed attempt.
+  const favoritesFailed = favoritesView.failed && favoritesView.items.length === 0
+  const recentFailed = sidebar.recentlyViewedFailed && sidebar.recentlyViewed.length === 0
+  const listsLoading = favoritesView.loading || sidebar.recentlyViewedLoading
 
   const mainRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLDivElement>(null)
@@ -67,7 +71,8 @@ export function WebSpeciesCatalogPanel({ mode }: WebSpeciesCatalogPanelProps) {
           <div className={styles.header}><SurfaceSearch value={favoriteSearch} onChange={setFavoriteSearch} label={t('favorites.search')} /></div>
           <div className={styles.list}>
             <h3 className={styles.sectionTitle}>{t('canvas.layers.plants')}</h3>
-            {favoritesView.failed && !favoritesView.loading && favoritesView.items.length === 0 ? <LoadFailed /> : (
+            <div className={styles.srOnly} role="alert">{(favoritesFailed || recentFailed) && !listsLoading ? t('plantDb.loadFailed') : ''}</div>
+            {favoritesFailed ? <LoadFailed pending={listsLoading} /> : (
               <SpeciesList
                 items={visibleItems}
                 englishNames={englishNames}
@@ -76,7 +81,7 @@ export function WebSpeciesCatalogPanel({ mode }: WebSpeciesCatalogPanelProps) {
               />
             )}
             <h3 className={styles.sectionTitle}>{t('plantDb.recentlyViewed')}</h3>
-            {sidebar.recentlyViewedFailed && sidebar.recentlyViewed.length === 0 ? <LoadFailed /> : <div className={styles.recentList} role="list">
+            {recentFailed ? <LoadFailed pending={listsLoading} /> : <div className={styles.recentList} role="list">
               {sidebar.recentlyViewed.length === 0 ? (
                 <div className={styles.empty}>{t('plantDb.noRecentlyViewed')}</div>
               ) : (
@@ -160,12 +165,13 @@ function webSpeciesFacts(detail: SpeciesCatalogDetail, currentLocale: string): S
   ]
 }
 
-/** A Favorites or Recently viewed list the catalog could not load: the translated message and Retry (canopi-etzh). */
-function LoadFailed() {
+/** A Favorites or Recently viewed list the catalog could not load: the translated message and Retry, disabled while a
+ *  load is pending; the panel's one alert announces the failure (canopi-etzh). */
+function LoadFailed({ pending }: { readonly pending: boolean }) {
   return (
-    <div className={styles.loadFailed} role="alert">
+    <div className={styles.loadFailed} data-list-load-failed aria-busy={pending}>
       <span>{t('plantDb.loadFailed')}</span>
-      <button type="button" className={styles.retryButton} onClick={() => speciesCatalogWorkbench.retryFavorites()}>
+      <button type="button" className={styles.retryButton} disabled={pending} onClick={() => speciesCatalogWorkbench.retryFavorites()}>
         {t('plantDb.retry')}
       </button>
     </div>

@@ -105,6 +105,8 @@ export interface SpeciesCatalogSidebarView {
   readonly recentlyViewed: readonly SpeciesListItem[]
   /** The last Recently viewed load failed, as `SpeciesCatalogFavoritesView.failed`. */
   readonly recentlyViewedFailed: boolean
+  /** Recently viewed is loading, as `SpeciesCatalogFavoritesView.loading` (its Retry waits). */
+  readonly recentlyViewedLoading: boolean
 }
 
 export interface SpeciesCatalogDetailImage {
@@ -298,6 +300,7 @@ export function createSpeciesCatalogWorkbench({
   const favoriteItemsLoading = signal(false)
   const favoriteItemsFailed = signal(false)
   const recentlyViewedFailed = signal(false)
+  const recentlyViewedLoading = signal(false)
   const favoriteItemsRevision = signal(0)
   const recentlyViewed = signal<SpeciesListItem[]>([])
   const projectedResults = computed<PlantSearchResultState>(() => {
@@ -353,6 +356,7 @@ export function createSpeciesCatalogWorkbench({
     favoriteNames: favoriteNames.value,
     recentlyViewed: recentlyViewed.value,
     recentlyViewedFailed: recentlyViewedFailed.value,
+    recentlyViewedLoading: recentlyViewedLoading.value,
   }))
 
   let favoriteItemsGeneration = 0
@@ -491,6 +495,7 @@ export function createSpeciesCatalogWorkbench({
     const generation = ++sidebarListsGeneration
     const favoriteGeneration = includeFavorites ? ++favoriteNamesGeneration : favoriteNamesGeneration
     const currentLocale = localeSignal.value
+    recentlyViewedLoading.value = true
     try {
       const [favorites, recent] = await Promise.all([
         includeFavorites && hasAuthoritativeFavoritesAdapter
@@ -511,6 +516,9 @@ export function createSpeciesCatalogWorkbench({
       if (disposed || generation !== sidebarListsGeneration || currentLocale !== localeSignal.value) return
       recordCatalogFailure(error)
       recentlyViewedFailed.value = true
+    } finally {
+      // The newest load ends the pending state; a superseded one leaves it to its successor.
+      if (!disposed && generation === sidebarListsGeneration) recentlyViewedLoading.value = false
     }
   }
 

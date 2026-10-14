@@ -72,8 +72,9 @@ export interface HitFilter {
   readonly pointer: PointerKind
   /** hitAt: also locked layers that are visible (hitTestVisibleTopLevel, the host's hover). */
   readonly includeLocked?: boolean
-  /** hitAt: answers only the nearest zone edge within the pointer's tolerance ("Turn view to this edge", spec §4.16;
-   *  Select's double-click that adds a corner). hitAt only: a band has no tolerance. */
+  /** hitAt: answers only the edge, nearest the point, of the zone the pick names (hit-testing.ts hitZoneEdge): with
+   *  `includeLocked` the visible pick's ("Turn view to this edge", spec §4.16), else the editable pick's (Select's
+   *  double-click that adds a corner). hitAt only: a band has no tolerance. */
   readonly zoneEdge?: true
 }
 /** The selection read model: today's CanvasDesignObjectSelectionModel (canvas/runtime/runtime.ts:48), unchanged. */

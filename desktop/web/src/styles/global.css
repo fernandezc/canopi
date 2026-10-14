@@ -386,12 +386,20 @@ mark {
 }
 
 /* The canvas hover card's window-level layer (utils/tooltip-layer.ts): above every frame over the map, and under every
-   full-window surface, toast, dialog, menu and popover, so whatever the user opens covers the card by stacking alone. */
+   full-window surface, toast, dialog, menu and popover. */
 [data-hover-card-layer] {
   position: fixed;
   inset: 0;
   z-index: var(--z-hover-card);
   pointer-events: none;
+}
+
+/* The hover card names what the pointer rests on, so it hides while any menu, dialog or popup is open: a menu drawn in
+   a low stacking context (the title bar's menus, the map scale menu) sits under the card's layer. A popup with no menu
+   or dialog role carries data-popup while open; stacking-order.test.ts keeps every popup role and surface here
+   (canopi-xpqt). */
+body:has([role='menu'], [role='dialog'], [role='alertdialog'], [aria-modal='true'], [data-popup]) [data-hover-card-layer] {
+  display: none !important;
 }
 
 /* A presented story shows the map without the hover chrome the runtime places
