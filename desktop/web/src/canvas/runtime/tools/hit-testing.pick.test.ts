@@ -1,11 +1,12 @@
 // The pick contract (canopi-qd2k, the user's decision of 2026-10-14): every closed zone (polygon, rectangle, ellipse) is
 // picked by its outline only, within PICK_TOLERANCE_PX of it in screen pixels (6 for a mouse or a pen, 16 for a finger) at
 // every zoom and bearing; a click picks the one topmost drawn object (notes over plants over guides over zones), so a
-// click inside a zone picks what lies beneath or nothing; the context menu (right-click, long press) targets exactly what
-// a click would select; the passive hover highlights what a mouse click would pick; a band selects a zone when it
-// crosses one of its lines or holds it whole, and a band wholly inside a zone selects only what it touches there. Lines,
-// guides and plants keep their own picking. This contract replaced the fill picking of canopi-f47t.2 (A25) and
-// canopi-f47t.40, which had reversed canopi-c7k8's outline rule: rewriting it needs the user's word.
+// click inside a zone picks what lies beneath or nothing, and among zones in reach the nearest line wins; the context
+// menu (right-click, long press) targets exactly what a click would select; the passive hover highlights what a mouse
+// click would pick; a band selects a zone when it crosses one of its lines or holds it whole, and a band wholly inside a
+// zone selects only what it touches there. Lines, guides and plants keep their own picking. This contract replaced the
+// fill picking of canopi-f47t.2 (A25) and canopi-f47t.40, which had reversed canopi-c7k8's outline rule: rewriting it
+// needs the user's word.
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { stageScaleToMapZoom } from '../../projection'
@@ -54,6 +55,7 @@ function plant(id: string, at: Px, scale: number) {
  * bed: a rectangle with the Apple inside and the Pear on its right edge. field: a polygon. pond: an ellipse. plot: a
  * rectangle grouped (g) with the Plum inside it, the ungrouped Fig on its top edge. outer and inner: nested rectangles.
  * hedge: a line zone. guide: a measurement guide. shed: an object-locked rectangle. note: a note on the field's left edge.
+ * west and east: side-by-side rectangles whose facing edges are 10 px apart, east drawn over west.
  */
 function layout(scale: number): Partial<ScenePersistedState> {
   return {
@@ -72,6 +74,8 @@ function layout(scale: number): Partial<ScenePersistedState> {
       rect('inner', -50, 0, 50, 100, scale),
       zone('hedge', 'line', [{ x: 150, y: 0 }, { x: 300, y: 0 }], scale),
       rect('shed', 150, 200, 300, 280, scale, true),
+      rect('west', -300, 200, -230, 280, scale),
+      rect('east', -220, 200, -150, 280, scale),
     ],
     measurementGuides: [measurementGuide('guide', metres({ x: 150, y: 100 }, scale), metres({ x: 300, y: 100 }, scale))],
     annotations: [textNote('note', metres({ x: -100, y: -205 }, scale), 'Herbs')],
@@ -100,6 +104,8 @@ const INNER_LEFT = { x: -50, y: 30 }
 const HEDGE = { x: 220, y: 0 }
 const GUIDE = { x: 220, y: 100 }
 const SHED_LEFT = { x: 150, y: 240 }
+const WEST_RIGHT = { x: -230, y: 240 }
+const EAST_LEFT = { x: -220, y: 240 }
 
 const both = (row: Omit<Row, 'pointer'>): Row[] => [{ ...row, pointer: 'mouse' }, { ...row, pointer: 'touch' }]
 
@@ -136,6 +142,9 @@ const ROWS: readonly Row[] = [
   { name: '10 px from a line zone', at: { from: HEDGE, toward: { x: 220, y: 50 }, px: 10 }, pointer: 'touch', pick: null },
   ...both({ name: '4 px from a guide', at: { from: GUIDE, toward: { x: 220, y: 150 }, px: 4 }, pick: 'measurement-guide:guide' }),
   { name: '10 px from a guide', at: { from: GUIDE, toward: { x: 220, y: 150 }, px: 10 }, pointer: 'touch', pick: null },
+  ...both({ name: 'on a zone\'s line, 10 px from a zone drawn over it', at: WEST_RIGHT, pick: 'zone:west' }),
+  ...both({ name: '4 px from a zone\'s line, 6 px from a zone drawn over it', at: { from: WEST_RIGHT, toward: EAST_LEFT, px: 4 }, pick: 'zone:west' }),
+  ...both({ name: 'on the line of a zone drawn over another 10 px away', at: EAST_LEFT, pick: 'zone:east' }),
   ...both({ name: '4 px inside an object-locked zone', at: { from: SHED_LEFT, toward: { x: 225, y: 240 }, px: 4 }, pick: 'zone:shed' }),
 ]
 

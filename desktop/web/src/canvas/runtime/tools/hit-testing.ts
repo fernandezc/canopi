@@ -36,7 +36,8 @@ import {
  * The pick rule's one owner (canopi-qd2k, the user's decision of 2026-10-14; contract: hit-testing.pick.test.ts), reached
  * through ToolScene.hitAt. A point picks the one topmost drawn object, in draw order: notes, plants, guides, zones; a
  * grouped member answers as its group in its own kind's pass. A closed zone (polygon, rectangle, ellipse) is picked by its
- * outline only, within PICK_TOLERANCE_PX[pointer] screen pixels, so a point inside one picks what lies beneath or nothing.
+ * outline only, within PICK_TOLERANCE_PX[pointer] screen pixels, so a point inside one picks what lies beneath or nothing;
+ * among zones in reach, the nearest line wins.
  * Line zones and guides keep LINE_HIT_TOLERANCE_PX; plants keep their drawn footprint.
  */
 export const PICK_TOLERANCE_PX: Readonly<Record<PointerKind, number>> = Object.freeze({ mouse: 6, pen: 6, touch: 16 })
@@ -142,13 +143,21 @@ function hitTestTopLevelWithLayerFilter(
     }
   }
 
+  // Zones whose tolerance bands overlap: the nearest line wins, as hitZoneEdge's, so a tap on one bed's line never picks
+  // the bed beside it; an equal distance (a shared edge) goes to the topmost.
+  let closestZone: SceneDesignObjectTarget | null = null
+  let closestZonePx = Infinity
   for (let i = scene.zones.length - 1; i >= 0; i -= 1) {
     const zone = scene.zones[i]!
     const target = topLevel({ kind: 'zone', id: zone.id }, 'zones')
-    if (target && hitZone(zone, point, viewportScale, pointer)) return target
+    if (!target) continue
+    const distancePx = zoneLineDistancePx(zone, point, viewportScale, pointer)
+    if (distancePx !== null && distancePx < closestZonePx) {
+      closestZone = target
+      closestZonePx = distancePx
+    }
   }
-
-  return null
+  return closestZone
 }
 
 /** Each grouped member's key to its group's target, or to null when the group cannot be picked (a member's layer). */
@@ -311,31 +320,24 @@ const LINE_HIT_TOLERANCE_PX = 6
 const ELLIPSE_BOUNDARY_MAX_SAGITTA_PX = LINE_HIT_TOLERANCE_PX / 2
 const MIN_ELLIPSE_BOUNDARY_SEGMENTS = 48
 
-/** A closed zone near its outline (PICK_TOLERANCE_PX for the pointer), a line zone near its line; never by its inside. */
-function hitZone(zone: SceneZoneEntity, point: ScenePoint, viewportScale: number, pointer: PointerKind): boolean {
+/** How far `point` lies from a zone's line in screen pixels when within its pick tolerance (PICK_TOLERANCE_PX for a
+ *  closed zone's outline, LINE_HIT_TOLERANCE_PX for a line zone), else null; never by its inside. */
+function zoneLineDistancePx(zone: SceneZoneEntity, point: ScenePoint, viewportScale: number, pointer: PointerKind): number | null {
   const scale = Math.max(viewportScale, 1e-6)
-  const toleranceWorld = PICK_TOLERANCE_PX[pointer] / scale
-
-  if (zone.zoneType === 'rect' && zone.points.length >= 4) {
-    const corners = getRectangularZoneCorners(zone)
-    return corners ? pointNearPolygonBoundary(point, corners, toleranceWorld) : false
-  }
-
-  if (zone.zoneType === 'ellipse' && zone.points.length >= 2) {
-    const polygon = getEllipticalZonePolygon(zone, ellipseBoundarySegmentCount(zone, viewportScale))
-    return polygon ? pointNearPolygonBoundary(point, polygon, toleranceWorld) : false
-  }
-
-  if (zone.zoneType === 'polygon' && zone.points.length >= 3) {
-    return pointNearPolygonBoundary(point, zone.points, toleranceWorld)
-  }
-
+  let outline: readonly ScenePoint[] | null
   if (zone.zoneType === 'line' && zone.points.length >= 2) {
-    return pointNearSegment(point, zone.points[0]!, zone.points[1]!, LINE_HIT_TOLERANCE_PX / scale)
+    const distancePx = distanceToSegment(point, zone.points[0]!, zone.points[1]!) * scale
+    return distancePx <= LINE_HIT_TOLERANCE_PX + GEOMETRY_EPSILON ? distancePx : null
   }
-
+  if (zone.zoneType === 'rect' && zone.points.length >= 4) outline = getRectangularZoneCorners(zone)
+  else if (zone.zoneType === 'ellipse' && zone.points.length >= 2) {
+    outline = getEllipticalZonePolygon(zone, ellipseBoundarySegmentCount(zone, viewportScale))
+  } else if (zone.zoneType === 'polygon' && zone.points.length >= 3) outline = zone.points
   // A shape too short of points for its kind: the outline of its bounds.
-  return pointNearPolygonBoundary(point, rectCorners(zoneBounds(zone)), toleranceWorld)
+  else outline = rectCorners(zoneBounds(zone))
+  if (!outline) return null
+  const distancePx = distanceToOutline(point, outline) * scale
+  return distancePx <= PICK_TOLERANCE_PX[pointer] + GEOMETRY_EPSILON ? distancePx : null
 }
 
 /** A band selects a zone when it crosses one of its lines or holds it whole: by its outline, never by its inside, so a
@@ -452,18 +454,12 @@ function pointOnPolygonBoundary(point: ScenePoint, polygon: readonly ScenePoint[
   return false
 }
 
-function pointNearPolygonBoundary(
-  point: ScenePoint,
-  polygon: readonly ScenePoint[],
-  tolerance: number,
-): boolean {
+function distanceToOutline(point: ScenePoint, polygon: readonly ScenePoint[]): number {
+  let distance = Infinity
   for (let index = 0; index < polygon.length; index += 1) {
-    if (pointNearSegment(point, polygon[index]!, polygon[(index + 1) % polygon.length]!, tolerance)) {
-      return true
-    }
+    distance = Math.min(distance, distanceToSegment(point, polygon[index]!, polygon[(index + 1) % polygon.length]!))
   }
-
-  return false
+  return distance
 }
 
 function rectCorners(rect: SimpleRect): ScenePoint[] {
