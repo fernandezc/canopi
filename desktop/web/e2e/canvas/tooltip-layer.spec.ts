@@ -1,6 +1,7 @@
-// One window-level tooltip layer (canopi-xpqt; design check fixes20-dc-tooltips). Every button tooltip and the canvas
-// hover card are drawn in one body-level layer at --z-tooltip, placed from their anchor so the whole box is inside the
-// window, and on top of every frame: the blurred rails, the tool card, the dock and the WebGL map. The probe below
+// Window-level tooltip layers (canopi-xpqt; design check fixes20-dc-tooltips). Every button tooltip is drawn in one
+// body-level layer at --z-tooltip and the canvas hover card in another at --z-hover-card, placed from their anchor so the
+// whole box is inside the window, and on top of every frame: the blurred rails, the tool card, the dock and the WebGL
+// map; the hover card stays under every menu, popover and dialog the user opens. The probe below
 // (stream commit 0) checks the engine assumption the layer rests on; the tests after it check each tooltip.
 // "On top" is read with elementFromPoint at points inset from the box's rounded corners and at its centre, with the
 // tooltip's pointer-events switched on for the read (it takes no pointer otherwise, so elementFromPoint skips it).
@@ -104,7 +105,7 @@ function buttons(page: Page, layout: Layout): Array<[string, Locator]> {
 
 /** Rests the pointer on the plant near `plant` until its hover card shows (the engines' framing may differ by a pixel or two). */
 async function showHoverCard(page: Page, plant: { readonly x: number, readonly y: number }): Promise<void> {
-  const showing = () => page.evaluate(() => document.querySelector<HTMLElement>('[data-tooltip-layer] [data-hover-tooltip]')?.style.display === 'block')
+  const showing = () => page.evaluate(() => document.querySelector<HTMLElement>('[data-hover-card-layer] [data-hover-tooltip]')?.style.display === 'block')
   await page.mouse.move(plant.x - 30, plant.y - 30)
   for (const radius of [0, 4, 8, 12, 16]) {
     for (const dx of [-radius, 0, radius]) {
@@ -114,6 +115,25 @@ async function showHoverCard(page: Page, plant: { readonly x: number, readonly y
       }
     }
   }
+}
+
+/**
+ * Expects `surface` to draw over the hover card where they meet: the card is moved onto the surface's centre (its
+ * pointer-events switched on for the read), and elementFromPoint there still reaches the surface.
+ */
+async function expectCardUnder(card: Locator, surface: Locator, name: string): Promise<void> {
+  const box = await surface.boundingBox()
+  if (!box) throw new Error(`${name} has no box`)
+  const hit = await card.evaluate((element: HTMLElement, at) => {
+    element.style.left = `${at.x - 20}px`
+    element.style.top = `${at.y - 10}px`
+    element.style.pointerEvents = 'auto'
+    const found = document.elementFromPoint(at.x, at.y)
+    element.style.pointerEvents = 'none'
+    return found === null ? 'nothing' : element.contains(found) ? 'the hover card' : 'other'
+  }, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  expect(hit, `${name} draws over the hover card`).toBe('other')
+  expect(await surface.evaluate((element, at) => element.contains(document.elementFromPoint(at.x, at.y)), { x: box.x + box.width / 2, y: box.y + box.height / 2 }), `${name} is on top at its centre`).toBe(true)
 }
 
 /** The top bar's shown buttons that carry a tooltip (the menu bar's named menus carry none). */
@@ -188,29 +208,38 @@ for (const layout of LAYOUTS) {
       await openFixture(page, FIXTURE)
       // At 1440x900 the open dock is beside the plant, where its card opens.
       if (layout.width >= 1440) await page.locator('[data-panel-rail] [data-panel="layers"]').click()
-      const card = page.locator('[data-tooltip-layer] [data-hover-tooltip]')
+      const card = page.locator('[data-hover-card-layer] [data-hover-tooltip]')
       await showHoverCard(page, layout.plant)
       await expect(card).toHaveText(/\p{L}/u)
       await expectWholeOnTop(card, 'the hover card')
     })
 
     if (layout.name === 'desktop') {
-      test('the canvas hover card gives way to a menu and to a dialog opened while it shows', async ({ page }) => {
+      test('the canvas hover card never covers a menu, a popover or a dialog opened while it shows', async ({ page }) => {
         await openFixture(page, FIXTURE)
-        const card = page.locator('[data-tooltip-layer] [data-hover-tooltip]')
+        const card = page.locator('[data-hover-tooltip]')
         await showHoverCard(page, layout.plant)
         await expect(card).toBeVisible()
 
         // A right-click where the pointer rests opens the plant's menu at the pointer, where the card was.
         await page.mouse.down({ button: 'right' })
         await page.mouse.up({ button: 'right' })
-        await expect(page.locator('[role="menu"]')).toBeVisible()
-        await expect(card, 'no card over the menu').toBeHidden()
-        await page.keyboard.press('Escape')
-        await expect(page.locator('[role="menu"]')).toHaveCount(0)
+        const menu = page.locator('[role="menu"]')
+        await expect(menu).toBeVisible()
+        await expectCardUnder(card, menu, 'the menu')
 
-        // A shortcut opens a dialog while the pointer rests on the plant: the Desktop command palette (Ctrl+Shift+P),
-        // which the Web build has not, so a modal with its role is added the way a dialog mounts.
+        // Its Plant color entry opens the non-modal popover; the pointer back on the plant shows the card again.
+        await menu.getByRole('menuitem', { name: /^Plant color/ }).click()
+        const popover = page.locator('[role="dialog"][data-preserve-overlays="true"]')
+        await expect(popover).toBeVisible()
+        await showHoverCard(page, layout.plant)
+        await expect(card).toBeVisible()
+        await expectCardUnder(card, popover, 'the Plant color popover')
+        await page.keyboard.press('Escape')
+        await expect(popover).toHaveCount(0)
+
+        // A dialog a shortcut opens while the pointer rests on the plant (the Desktop command palette, which the Web build
+        // has not): a modal at the dialog level is added the way a dialog mounts.
         await showHoverCard(page, layout.plant)
         await expect(card).toBeVisible()
         await page.evaluate(() => {
@@ -218,12 +247,11 @@ for (const layout of LAYOUTS) {
           dialog.setAttribute('role', 'dialog')
           dialog.setAttribute('aria-modal', 'true')
           dialog.dataset.probeDialog = 'true'
+          dialog.style.cssText = 'position:fixed;left:200px;top:200px;width:400px;height:300px;background:#fff;z-index:var(--z-dialog)'
           dialog.textContent = 'Dialog'
           document.body.appendChild(dialog)
         })
-        await expect(card, 'no card over the dialog').toBeHidden()
-        await page.evaluate(() => document.querySelector('[data-probe-dialog]')?.remove())
-        await expect(card, 'the card is back once the dialog closes, the pointer still on the plant').toBeVisible()
+        await expectCardUnder(card, page.locator('[data-probe-dialog]'), 'the dialog')
       })
     }
   })

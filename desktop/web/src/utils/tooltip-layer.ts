@@ -1,6 +1,7 @@
-// The window-level tooltip layer (canopi-xpqt). Every button tooltip (components/shared/ButtonTooltip.tsx) and the
-// canvas hover card (canvas/runtime/chrome/hover-tooltip.ts) are drawn in one element on <body> at --z-tooltip
-// (styles/global.css `[data-tooltip-layer]`), placed from their anchor's window box. A tooltip drawn inside its frame
+// The window-level tooltip layers (canopi-xpqt). Every button tooltip (components/shared/ButtonTooltip.tsx) is drawn in
+// one element on <body> at --z-tooltip (styles/global.css `[data-tooltip-layer]`), above popups, and the canvas hover
+// card (canvas/runtime/chrome/hover-tooltip.ts) in another at --z-hover-card (`[data-hover-card-layer]`), under every
+// surface the user opens; each is placed from its anchor's window box. A tooltip drawn inside its frame
 // is trapped in that frame's stacking context and clipped by its overflow, whatever its own z-index; the stacking
 // policy test (src/__tests__/stacking-order.test.ts) keeps every tooltip here. Framework-free, so the canvas runtime
 // may use it.
@@ -61,17 +62,28 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
 }
 
-let layer: HTMLElement | null = null
+const layers = new Map<string, HTMLElement>()
 
-/** The one tooltip layer on <body>, created at the first tooltip (and again if a test emptied the body). */
-export function tooltipLayer(): HTMLElement {
-  if (layer?.isConnected) return layer
-  layer = document.body.querySelector<HTMLElement>(':scope > [data-tooltip-layer]')
+/** The layer on <body> marked by `attribute`, created at its first use (and again if a test emptied the body). */
+function bodyLayer(attribute: 'data-tooltip-layer' | 'data-hover-card-layer'): HTMLElement {
+  const known = layers.get(attribute)
+  if (known?.isConnected) return known
+  let layer = document.body.querySelector<HTMLElement>(`:scope > [${attribute}]`)
   if (!layer) {
     layer = document.createElement('div')
-    layer.dataset.tooltipLayer = ''
+    layer.setAttribute(attribute, '')
     document.body.appendChild(layer)
   }
+  layers.set(attribute, layer)
   return layer
 }
 
+/** The one tooltip layer on <body>, above popups. */
+export function tooltipLayer(): HTMLElement {
+  return bodyLayer('data-tooltip-layer')
+}
+
+/** The canvas hover card's layer on <body>, under every popup, dialog and full-window surface. */
+export function hoverCardLayer(): HTMLElement {
+  return bodyLayer('data-hover-card-layer')
+}

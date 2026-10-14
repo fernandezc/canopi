@@ -48,6 +48,16 @@ describe('stacking order', () => {
     expect(popover).toBeLessThan(tooltip)
   })
 
+  // The canvas hover card names what the pointer rests on; whatever the user opens over the map covers it, by its layer's
+  // place in the scale alone, with no list of surfaces to hide it under (canopi-xpqt).
+  it('puts the canvas hover card above the canvas chrome and under every full-window surface, toast, dialog and popup', () => {
+    const card = token(global, '--z-hover-card')
+    expect(token(global, '--z-canvas-inspection-lens')).toBeLessThan(card)
+    expect(card).toBeLessThan(token(global, '--z-full-window'))
+    expect(global).toMatch(/\[data-hover-card-layer\]\s*\{(?=[^}]*position:\s*fixed)(?=[^}]*z-index:\s*var\(--z-hover-card\))[^}]*\}/)
+    expect(global, 'no selector list hides the card under chosen surfaces').not.toMatch(/:has\([^)]*\)\s*\[data-hover-tooltip\]/)
+  })
+
   it('draws an open inspection lens above the tool card in its slot, and both under every popup (canopi-n54g)', () => {
     const card = token(global, '--z-canvas-tool-card')
     const lens = token(global, '--z-canvas-inspection-lens')
@@ -96,13 +106,13 @@ describe('the tooltip layer', () => {
     expect(users).toEqual(['styles/global.css'])
   })
 
-  it('draws every role="tooltip" through ButtonTooltip, which portals into the layer, and the hover card in the layer', () => {
+  it('draws every role="tooltip" through ButtonTooltip, which portals into the layer, and the hover card in its own layer', () => {
     const owners = sources(SRC).filter((path) => /role=["{']+tooltip/.test(readFileSync(path, 'utf8'))).map(relative)
     expect(owners).toEqual(['components/shared/ButtonTooltip.tsx'])
     const tooltip = read('../components/shared/ButtonTooltip.tsx')
     expect(tooltip).toMatch(/createPortal\([\s\S]*tooltipLayer\(\)/)
     const hoverCard = read('../canvas/runtime/chrome/hover-tooltip.ts')
-    expect(hoverCard).toMatch(/tooltipLayer\(\)/)
+    expect(hoverCard).toMatch(/hoverCardLayer\(\)/)
     expect(hoverCard).not.toMatch(/container\.appendChild/)
   })
 
