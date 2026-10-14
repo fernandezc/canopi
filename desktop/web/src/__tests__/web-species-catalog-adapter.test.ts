@@ -474,6 +474,7 @@ describe('Web Edition reduced Species Catalog adapter', () => {
         favoriteNames: ['Malus domestica'],
         recentlyViewed: [makeSpeciesListItem('Melissa officinalis')],
         recentlyViewedFailed: false,
+        recentlyViewedLoading: false,
       })
       expect(workbench.favorites.value.failed).toBe(false)
     })
@@ -481,6 +482,47 @@ describe('Web Edition reduced Species Catalog adapter', () => {
     expect(getFilterOptions).toHaveBeenCalledTimes(2)
     expect(getFavorites).toHaveBeenCalledTimes(2)
     expect(getRecentlyViewed).toHaveBeenCalledTimes(2)
+    unmount()
+    workbench.dispose()
+  })
+
+  it('retryFavorites shows both lists pending and recovers both on success (canopi-etzh)', async () => {
+    const favoritesAnswer = deferred<ReturnType<typeof makeSpeciesListItem>[]>()
+    const recentAnswer = deferred<ReturnType<typeof makeSpeciesListItem>[]>()
+    const getFavorites = vi.fn()
+      .mockRejectedValueOnce(new Error('catalog unavailable'))
+      .mockImplementationOnce(() => favoritesAnswer.promise)
+      .mockResolvedValue([makeSpeciesListItem('Malus domestica')])
+    const getRecentlyViewed = vi.fn()
+      .mockRejectedValueOnce(new Error('catalog unavailable'))
+      .mockImplementationOnce(() => recentAnswer.promise)
+      .mockResolvedValue([makeSpeciesListItem('Melissa officinalis')])
+    const workbench = createSpeciesCatalogWorkbench({
+      search: async () => ({ items: [], next_cursor: null, total_estimate: 0 }),
+      getFavorites,
+      getRecentlyViewed,
+      favoritesIncludeRecentlyViewed: true,
+      textDebounceMs: 0,
+    })
+    const unmount = workbench.mount('favorites')
+    await vi.waitFor(() => {
+      expect(workbench.favorites.value).toMatchObject({ failed: true, loading: false })
+      expect(workbench.sidebar.value).toMatchObject({ recentlyViewedFailed: true, recentlyViewedLoading: false })
+    })
+
+    workbench.retryFavorites()
+    // Both lists are pending while the retry loads.
+    expect(workbench.favorites.value.loading).toBe(true)
+    expect(workbench.sidebar.value.recentlyViewedLoading).toBe(true)
+
+    favoritesAnswer.resolve([makeSpeciesListItem('Malus domestica')])
+    recentAnswer.resolve([makeSpeciesListItem('Melissa officinalis')])
+    await vi.waitFor(() => {
+      expect(workbench.favorites.value).toMatchObject({ failed: false, loading: false })
+      expect(workbench.favorites.value.items.map((item) => item.canonical_name)).toEqual(['Malus domestica'])
+      expect(workbench.sidebar.value).toMatchObject({ recentlyViewedFailed: false, recentlyViewedLoading: false })
+      expect(workbench.sidebar.value.recentlyViewed.map((item) => item.canonical_name)).toEqual(['Melissa officinalis'])
+    })
     unmount()
     workbench.dispose()
   })

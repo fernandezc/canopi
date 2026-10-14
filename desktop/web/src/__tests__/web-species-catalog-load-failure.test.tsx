@@ -102,30 +102,54 @@ describe('Web plant catalog load failure', () => {
     })
   }
 
-  it('Favorites and Recently viewed show the same message and Retry, never an empty list, when the catalog cannot load', async () => {
+  it('Favorites and Recently viewed show the message and Retry, announced once per failed attempt, with Retry disabled while it loads', async () => {
     const fetch = await mountPanel('network', 'favorites')
+    const alerts = () => Array.from(container.querySelectorAll<HTMLElement>('[role="alert"]'))
+    const failures = () => Array.from(container.querySelectorAll<HTMLElement>('[data-list-load-failed]'))
+    const retries = () => failures().map((failure) => Array.from(failure.querySelectorAll('button')).find((button) => button.textContent === 'Retry')!)
+    const settle = async () => { await act(async () => { await Promise.resolve() }) }
+
+    // Both lists say the catalog couldn't load, each with Retry; one alert announces the failed attempt.
     await vi.waitFor(async () => {
-      await act(async () => { await Promise.resolve() })
-      expect(container.querySelectorAll('[role="alert"]')).toHaveLength(2)
+      await settle()
+      expect(failures()).toHaveLength(2)
+      expect(alerts().map((alert) => alert.textContent)).toEqual([LOAD_FAILED])
     })
-    const alerts = Array.from(container.querySelectorAll<HTMLElement>('[role="alert"]'))
-    for (const alert of alerts) {
-      expect(alert.textContent).toContain(LOAD_FAILED)
-      expect(alert.textContent).not.toMatch(RAW.network)
+    for (const failure of failures()) {
+      expect(failure.textContent).toContain(LOAD_FAILED)
+      expect(failure.textContent).not.toMatch(RAW.network)
     }
+    expect(retries().map((button) => button.disabled)).toEqual([false, false])
     expect(container.textContent).not.toContain('No favorites yet')
     expect(container.textContent).not.toContain('No recently viewed plants yet')
     expect(diagnostics.recentFrontendDiagnostics().some((entry) => entry.source === 'plant-catalog' && RAW.network.test(entry.message))).toBe(true)
     expect(consoleError).not.toHaveBeenCalled()
 
-    const before = fetch.mock.calls.length
-    const retry = Array.from(alerts[0]!.querySelectorAll('button')).find((button) => button.textContent === 'Retry')!
-    await act(async () => { retry.click() })
-    await vi.waitFor(() => expect(fetch.mock.calls.length).toBeGreaterThan(before))
-    await vi.waitFor(async () => {
-      await act(async () => { await Promise.resolve() })
-      expect(container.querySelectorAll('[role="alert"]')).toHaveLength(2)
+    // The retry is pending: both Retry buttons are disabled and the alert is quiet.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => { release = resolve })
+    const failNetwork = fetch.getMockImplementation()!
+    fetch.mockImplementation(async (...args: Parameters<typeof failNetwork>) => {
+      await held
+      return failNetwork(...args)
     })
+    const before = fetch.mock.calls.length
+    await act(async () => { retries()[1]!.click() })
+    await vi.waitFor(async () => {
+      await settle()
+      expect(fetch.mock.calls.length).toBeGreaterThan(before)
+      expect(retries().map((button) => button.disabled)).toEqual([true, true])
+      expect(alerts().map((alert) => alert.textContent)).toEqual([''])
+    })
+
+    // The retry fails again: announced again, once, and Retry is offered again.
+    release()
+    await vi.waitFor(async () => {
+      await settle()
+      expect(alerts().map((alert) => alert.textContent)).toEqual([LOAD_FAILED])
+      expect(retries().map((button) => button.disabled)).toEqual([false, false])
+    })
+    expect(consoleError).not.toHaveBeenCalled()
   })
 
   it('the species panel shows the same message and Retry when a species cannot load', async () => {
