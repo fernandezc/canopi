@@ -25,22 +25,17 @@ use tauri::Manager;
 
 pub struct AppHealth(pub SubsystemHealth);
 
-const PLANT_DB_BUNDLED_PATHS: &[&str] = &["resources/canopi-core.db", "canopi-core.db"];
+const PLANT_DB_BUNDLED_PATH: &str = "resources/canopi-core.db";
 
 fn resolve_plant_db_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> Option<std::path::PathBuf> {
-    // Tauri resource resolution must use the same relative path syntax as
-    // `tauri.conf.json > bundle > resources`. Because the config bundles
-    // `resources/canopi-core.db`, packaged apps must resolve that path first.
-    PLANT_DB_BUNDLED_PATHS
-        .iter()
-        .find_map(|resource_path| {
-            app.path()
-                .resolve(resource_path, tauri::path::BaseDirectory::Resource)
-                .ok()
-                .filter(|path| path.exists())
-        })
+    // Tauri resource resolution uses the same relative path as
+    // `tauri.conf.json > bundle > resources`, which keeps the `resources/` prefix.
+    app.path()
+        .resolve(PLANT_DB_BUNDLED_PATH, tauri::path::BaseDirectory::Resource)
+        .ok()
+        .filter(|path| path.exists())
         .or_else(dev_plant_db_path)
 }
 

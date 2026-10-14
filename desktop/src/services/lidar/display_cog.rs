@@ -615,7 +615,6 @@ impl LidarLibrary {
                 }
                 let window = reader.reader.read_window(
                     self,
-                    &reader.lattice,
                     generation::LatticeWindow {
                         x: chunk_x * side,
                         y: chunk_y * side,
