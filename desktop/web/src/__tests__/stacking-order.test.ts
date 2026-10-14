@@ -128,8 +128,8 @@ describe('the tooltip layer', () => {
     for (const path of sources(SRC).filter((entry) => /\.tsx?$/.test(entry))) {
       const source = readFileSync(path, 'utf8')
       const file = relative(path)
-      const roles = [...source.matchAll(/(?<!\[)role=["{']+([a-z]+)/g)].map((match) => match[1]!)
-      const announced = [...source.matchAll(/aria-haspopup=["{']+([a-z]+)/g)].map((match) => match[1]!)
+      const roles = attributeValues(source, 'role')
+      const announced = attributeValues(source, 'aria-haspopup')
       for (const role of new Set([...roles, ...announced])) {
         if (!POPUP_ROLES.includes(role) || covers(role)) continue
         const held = roles.some((entry) => entry !== role && covers(entry))
@@ -143,6 +143,13 @@ describe('the tooltip layer', () => {
     for (const file of ['components/plant-db/MoreFiltersPanel.tsx', 'components/canvas/PlaceSearch.tsx', 'components/shared/Dropdown.tsx']) {
       expect(read(`../${file}`), `${file} marks its open popup`).toMatch(/data-popup\b/)
     }
+  })
+
+  it('reads every literal value of a role or aria-haspopup attribute, whatever expression holds it', () => {
+    const source = `<a role="menu" /><b role={ 'dialog' } /><c role={open ? "listbox" : undefined} />
+      <d aria-haspopup={sub ? 'menu' : opens ? 'tree' : undefined} /><e role={role} /> css('[role="grid"]')`
+    expect(attributeValues(source, 'role')).toEqual(['menu', 'dialog', 'listbox'])
+    expect(attributeValues(source, 'aria-haspopup')).toEqual(['menu', 'tree'])
   })
 
   it('draws every role="tooltip" through ButtonTooltip, which portals into the layer, and the hover card in its own layer', () => {
@@ -181,3 +188,12 @@ describe('the tooltip layer', () => {
     expect(document.querySelector('[role="tooltip"]'), 'it leaves with its button').toBeNull()
   })
 })
+
+/** Every literal value of a JSX attribute: a quoted value, or each quoted word in its `{…}` expression (a selector string
+ *  such as '[role="menu"]' is not an attribute). */
+function attributeValues(source: string, name: string): string[] {
+  const attribute = new RegExp(`(?<![\\[\\w-])${name}=(?:"([^"]*)"|'([^']*)'|\\{([^}]*)\\})`, 'g')
+  return [...source.matchAll(attribute)].flatMap((match) => match[3] === undefined
+    ? [match[1] ?? match[2]!]
+    : [...match[3].matchAll(/["']([a-z]+)["']/g)].map((literal) => literal[1]!))
+}

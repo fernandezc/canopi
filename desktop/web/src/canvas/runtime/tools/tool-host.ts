@@ -64,6 +64,8 @@ export { createToolScene } from './spatial-index'
 
 const NOTHING: GestureOutcome = Object.freeze({})
 const QUARANTINE: GestureOutcome = Object.freeze({ quarantine: true })
+/** A Design pin tap: the rest of its click series reaches no tool (canopi-n2cg). */
+const CONSUME_CLICK_SERIES: GestureOutcome = Object.freeze({ consumeClickSeries: true })
 /** A press the scene refused: quarantined, and its recogniser session ends with no gesture. */
 const REFUSED_PRESS: GestureOutcome = Object.freeze({ quarantine: true, rejectSession: true })
 /** A press whose capture was lost while it was taken (a synchronous lostpointercapture): its recogniser session ends with
@@ -870,8 +872,10 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
     // In overview a primary press pans in the recogniser, and one released within its slop is a tap no tool hears: on
     // the Design pin it fits the Design (canopi-n2cg); elsewhere it does nothing.
     if (frame().mode === 'overview') {
-      if (deps.designPin.contains(g.at)) deps.designPin.tapped()
-      return NOTHING
+      if (!deps.designPin.contains(g.at)) return NOTHING
+      deps.designPin.tapped()
+      // The fit is instant, so the series' next press would land in site mode on the armed tool.
+      return CONSUME_CLICK_SERIES
     }
     if (!gesture) {
       // A press the tool never heard (a new note's committing click): its release is none of the tool's.

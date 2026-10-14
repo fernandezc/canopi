@@ -102,7 +102,7 @@ describe('Web plant catalog load failure', () => {
     })
   }
 
-  it('Favorites and Recently viewed show the message and Retry, announced once per failed attempt, with Retry disabled while it loads', async () => {
+  it('Favorites and Recently viewed show the message and Retry, announced once per failed attempt, with Retry keeping keyboard focus while it waits and after it fails', async () => {
     const fetch = await mountPanel('network', 'favorites')
     const alerts = () => Array.from(container.querySelectorAll<HTMLElement>('[role="alert"]'))
     const failures = () => Array.from(container.querySelectorAll<HTMLElement>('[data-list-load-failed]'))
@@ -119,13 +119,14 @@ describe('Web plant catalog load failure', () => {
       expect(failure.textContent).toContain(LOAD_FAILED)
       expect(failure.textContent).not.toMatch(RAW.network)
     }
-    expect(retries().map((button) => button.disabled)).toEqual([false, false])
+    expect(retries().map((button) => button.getAttribute('aria-disabled'))).toEqual([null, null])
     expect(container.textContent).not.toContain('No favorites yet')
     expect(container.textContent).not.toContain('No recently viewed plants yet')
     expect(diagnostics.recentFrontendDiagnostics().some((entry) => entry.source === 'plant-catalog' && RAW.network.test(entry.message))).toBe(true)
     expect(consoleError).not.toHaveBeenCalled()
 
-    // The retry is pending: both Retry buttons are disabled and the alert is quiet.
+    // The retry is pending: both Retry buttons wait (aria-disabled, never disabled, so the focused one keeps keyboard
+    // focus) and ignore clicks, and the alert is quiet.
     let release!: () => void
     const held = new Promise<void>((resolve) => { release = resolve })
     const failNetwork = fetch.getMockImplementation()!
@@ -134,21 +135,30 @@ describe('Web plant catalog load failure', () => {
       return failNetwork(...args)
     })
     const before = fetch.mock.calls.length
-    await act(async () => { retries()[1]!.click() })
+    const focused = retries()[1]!
+    focused.focus()
+    await act(async () => { focused.click() })
     await vi.waitFor(async () => {
       await settle()
       expect(fetch.mock.calls.length).toBeGreaterThan(before)
-      expect(retries().map((button) => button.disabled)).toEqual([true, true])
+      expect(retries().map((button) => button.getAttribute('aria-disabled'))).toEqual(['true', 'true'])
       expect(alerts().map((alert) => alert.textContent)).toEqual([''])
     })
+    expect(retries().map((button) => button.disabled)).toEqual([false, false])
+    expect(document.activeElement).toBe(focused)
+    const pendingCalls = fetch.mock.calls.length
+    await act(async () => { focused.click() })
+    await settle()
+    expect(fetch.mock.calls.length).toBe(pendingCalls)
 
     // The retry fails again: announced again, once, and Retry is offered again.
     release()
     await vi.waitFor(async () => {
       await settle()
       expect(alerts().map((alert) => alert.textContent)).toEqual([LOAD_FAILED])
-      expect(retries().map((button) => button.disabled)).toEqual([false, false])
+      expect(retries().map((button) => button.getAttribute('aria-disabled'))).toEqual([null, null])
     })
+    expect(document.activeElement).toBe(focused)
     expect(consoleError).not.toHaveBeenCalled()
   })
 

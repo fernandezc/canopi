@@ -882,6 +882,24 @@ describe('recognise: 5.7 middle button and Space', () => {
     expect(left.gestures.some((gesture) => gesture.kind === 'tap')).toBe(false)
   })
 
+  it('a consumed click series: its later presses, by count or detail, reach nothing until they lift; a fresh click presses (canopi-n2cg)', () => {
+    const result = run(seq('pin double-click', WINDOWS, [
+      down(100, 100, { t: 0 }),
+      up(100, 100, { t: 40 }),
+      { t: 40, raw: { kind: 'consume-click-series' } },
+      configure({ tool: 'plant-stamp', mode: 'site', pointingDevice: 'mouse' }),
+      down(100, 100, { t: 150, detail: 0 }),
+      move(130, 100, { t: 160, buttons: 1 }),
+      up(130, 100, { t: 190 }),
+      down(400, 300, { t: 300, detail: 3 }),
+      up(400, 300, { t: 340 }),
+      down(100, 100, { t: 2000 }),
+    ], { mode: 'overview' }))
+    expect(result.steps.slice(4, 9).flatMap((step) => step.gestures)).toEqual([])
+    expect(result.steps[4]!.effects).toEqual([{ kind: 'prevent-default' }, { kind: 'capture', pointerId: 1 }])
+    expect(kinds(result.steps[9]!.gestures)).toEqual(['press'])
+  })
+
   it('G7 Overview pinch: no tap, whichever finger stays still or lifts first (canopi-n2cg)', () => {
     for (const [still, moving, firstUp] of [[1, 2, 2], [1, 2, 1], [2, 1, 2], [2, 1, 1]] as const) {
       const at = (id: number): [number, number] => (id === 1 ? [100, 100] : [200, 100])

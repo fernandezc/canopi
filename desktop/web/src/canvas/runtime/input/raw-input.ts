@@ -27,6 +27,7 @@ export type RawInput =
   | At & { kind: 'leave' }                                                    // host pointerleave: hover-end (the host's passive hover; the tool decides on its preview)
   | At & { kind: 'focus-out' }                                                // host focusout: the host ends the nudge series
   | At & { kind: 'reject'; id: number }                                       // the session, on a GestureOutcome.rejectSession: ends that session with no gesture
+  | At & { kind: 'consume-click-series' }                                     // the session, on a GestureOutcome.consumeClickSeries: the series' later presses do nothing
   | At & { kind: 'wheel'; at: ScreenPoint; dxPx: number; dyPx: number; mods: Modifiers; target: TargetClass }
   | At & { kind: 'platform-gesture'; phase: 'start' | 'change' | 'end'; at: ScreenPoint; rotationDeg: number }
   | At & { kind: 'key-state'; space: boolean; mods: Modifiers }               // from the KeyRouter
@@ -56,6 +57,8 @@ export interface RecogniserState {
   readonly held: { readonly space: boolean }                    // the only gesture-state record of a held key (ADR 0017)
   readonly trackpadTwistDeg: number                             // WebKit gesture rotation accumulated before the 10° threshold
   readonly deadlines: { readonly longPressAt: number | null }
-  readonly lastPrimaryPress: { readonly t: number; readonly at: ScreenPoint; readonly pointer: PointerKind; readonly count: number } | null  // the click count's previous press
+  readonly lastPrimaryPress: {                                  // the click count's previous press; `consumed`: its series' later presses do nothing
+    readonly t: number; readonly at: ScreenPoint; readonly pointer: PointerKind; readonly count: number; readonly consumed: boolean
+  } | null
   readonly context: { readonly tool: ToolId; readonly mode: 'site' | 'overview'; readonly pointingDevice: 'mouse' | 'trackpad' }
 }

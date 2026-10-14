@@ -165,13 +165,19 @@ function webSpeciesFacts(detail: SpeciesCatalogDetail, currentLocale: string): S
   ]
 }
 
-/** A Favorites or Recently viewed list the catalog could not load: the translated message and Retry, disabled while a
- *  load is pending; the panel's one alert announces the failure (canopi-etzh). */
+/** A Favorites or Recently viewed list the catalog could not load: the translated message and Retry, which waits while a
+ *  load is pending (aria-disabled and ignoring clicks, never `disabled`, so a focused Retry keeps keyboard focus through a
+ *  pending and a failed attempt); the panel's one alert announces the failure (canopi-etzh). */
 function LoadFailed({ pending }: { readonly pending: boolean }) {
   return (
     <div className={styles.loadFailed} data-list-load-failed aria-busy={pending}>
       <span>{t('plantDb.loadFailed')}</span>
-      <button type="button" className={styles.retryButton} disabled={pending} onClick={() => speciesCatalogWorkbench.retryFavorites()}>
+      <button
+        type="button"
+        className={styles.retryButton}
+        aria-disabled={pending || undefined}
+        onClick={() => { if (!pending) speciesCatalogWorkbench.retryFavorites() }}
+      >
         {t('plantDb.retry')}
       </button>
     </div>

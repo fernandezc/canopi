@@ -11,7 +11,7 @@
 // stepped while mod is held; no native contextmenu reaches it (the DOM source's listener prevents them); a middle drag, a
 // press with Space held (on a handle too), a primary press in overview and the Pan tool's primary drag pan, a pointer pan
 // carrying the pointer's point and a Pan-tool press ending with cancel('navigate') after its drag; an overview press, which
-// no tool hears, released within its slop ending in a tap with no press (the Design pin's, canopi-n2cg); a Shift+middle drag
+// no tool hears, released within its slop ending in a tap with no press (the Design pin's, canopi-n2cg, whose fit consumes the rest of its click series); a Shift+middle drag
 // rotating about its press once it passes 3 px (silent before, so a still click turns nothing), stepped while mod is
 // held, with the wheel ignored while a pointer rotate lives;
 // a button-less move over owned chrome, the text entry or a handle ends the hover; wheels, over the map or a handle, zoom
@@ -122,6 +122,11 @@ export function recognise(
     case 'up': up(step, input, config); break
     case 'cancel': cancel(step, input); break
     case 'reject': reject(step, input.id); break
+    case 'consume-click-series': {
+      const previous = step.state.lastPrimaryPress
+      if (previous) step.state = { ...step.state, lastPrimaryPress: { ...previous, consumed: true } }
+      break
+    }
     case 'leave': step.gestures.push({ kind: 'hover-end' }); break
     case 'escape':
       endLiveSessions(step, 'escape')
@@ -164,7 +169,20 @@ function down(step: Step, input: RawOf<'down'>, config: RecogniserConfig): void 
   // One pointer session at a time: a second pointer is ignored for the rest of the session.
   if (step.state.sessions.size > 0) return
 
+  const consumed = step.state.lastPrimaryPress?.consumed === true
   const clickCount = clickCountOf(step, input, config)
+  if (consumed && input.role === 'primary' && clickCount > 1) {
+    // A later press of a click series the host consumed (the Design pin's fit, canopi-n2cg): captured, it does nothing
+    // until it lifts, and the series stays consumed.
+    step.state = { ...step.state, lastPrimaryPress: { ...step.state.lastPrimaryPress!, consumed: true } }
+    step.effects.push({ kind: 'prevent-default' }, { kind: 'capture', pointerId: input.id })
+    putSession(step, {
+      pointerId: input.id, pointer: input.pointer, role: input.role, start: input.at, last: input.at, slopPassed: false,
+      clickCount, buttonBit: BUTTON_BITS.primary, heldPress: null, pressHandle: null, mode: 'spent', captured: true,
+      navigation: null, pressed: false,
+    })
+    return
+  }
   const { context, held } = step.state
   const base = {
     pointerId: input.id,
@@ -495,7 +513,7 @@ function clickCountOf(step: Step, input: RawOf<'down'>, config: RecogniserConfig
     && input.t - previous.t <= config.thresholds.multiClickMs
     && Math.hypot(input.at.x - previous.at.x, input.at.y - previous.at.y) <= config.thresholds.multiClickSlopPx[input.pointer]
   const count = Math.max(input.detail, follows ? previous.count + 1 : 1)
-  step.state = { ...step.state, lastPrimaryPress: { t: input.t, at: input.at, pointer: input.pointer, count } }
+  step.state = { ...step.state, lastPrimaryPress: { t: input.t, at: input.at, pointer: input.pointer, count, consumed: false } }
   return count
 }
 
