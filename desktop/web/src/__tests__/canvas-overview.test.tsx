@@ -11,6 +11,7 @@ import { createTestCanvasCommandSurface, createTestCanvasRuntimeSurfaces } from 
 import { createTestCanvasQuerySurface, createTestViewReadSurface } from './support/canvas-query-surface'
 import { createTestView, type TestView } from './support/test-view'
 
+import { focusOwner } from '../app/keyboard/focus-owner'
 import { CanvasOverview, OverviewNotice } from '../components/canvas/CanvasOverview'
 
 describe('CanvasOverview', () => {
@@ -39,6 +40,7 @@ describe('CanvasOverview', () => {
 
   it('shows the Design as a named pin button and offers Return to Design, both fitting the Design', async () => {
     const returnToDesign = vi.fn()
+    const focusMap = vi.spyOn(focusOwner, 'focusMap').mockImplementation(() => {})
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
       queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
       commands: createTestCanvasCommandSurface({ viewport: { returnToDesign } }),
@@ -51,6 +53,8 @@ describe('CanvasOverview', () => {
     const returnButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Return to Design')!
     returnButton.click()
     expect(returnToDesign).toHaveBeenCalledOnce()
+    // The button leaves with the overview, so the map takes focus and its keys work at once.
+    expect(focusMap).toHaveBeenCalledOnce()
 
     // The pin is a button that fits the Design, named for it, with a tooltip saying so (canopi-n2cg).
     const pin = container.querySelector<HTMLButtonElement>('[data-overview-pin]')!
@@ -61,6 +65,8 @@ describe('CanvasOverview', () => {
     expect(pin.style.left).toBe('200px')
     pin.click()
     expect(returnToDesign).toHaveBeenCalledTimes(2)
+    expect(focusMap, 'the pin leaves with the overview: the map takes focus').toHaveBeenCalledTimes(2)
+    focusMap.mockRestore()
   })
 
   it('lets a panel drag that enters the pin through to the map until the drag ends', async () => {

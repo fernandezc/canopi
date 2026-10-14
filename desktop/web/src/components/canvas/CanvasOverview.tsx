@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { designName } from '../../app/document-session/store'
+import { focusOwner } from '../../app/keyboard/focus-owner'
 import { currentCanvasQuerySurface, currentCanvasViewportCommandSurface } from '../../canvas/session'
 import { t } from '../../i18n'
 import { visibleDesignName } from '../shared/DesignNameField'
@@ -37,7 +38,7 @@ export function CanvasOverview() {
       className={dragThrough ? `${styles.pin} ${styles.dragThrough}` : styles.pin}
       style={{ left: `${marker.x}px`, top: `${marker.y}px` }}
       aria-label={t('canvas.overview.designPin', { name })}
-      onClick={() => currentCanvasViewportCommandSurface.value?.returnToDesign()}
+      onClick={returnToDesign}
       onDragEnter={() => setDragThrough(true)}
       data-overview-pin
     >
@@ -46,6 +47,13 @@ export function CanvasOverview() {
       <ButtonTooltip label={t('canvas.overview.designPinHint')} side="bottom" />
     </button>
   )
+}
+
+/** The pin and Return to Design leave the overview, unmounting the button pressed, so the map takes focus and its keys
+ *  work at once, as after a tool picked in overview. */
+function returnToDesign(): void {
+  currentCanvasViewportCommandSurface.value?.returnToDesign()
+  focusOwner.focusMap()
 }
 
 /** In overview, a top chip explains that plants are hidden and offers the one Return to Design action. */
@@ -58,7 +66,7 @@ export function OverviewNotice() {
       <button
         type="button"
         className={styles.returnButton}
-        onClick={() => currentCanvasViewportCommandSurface.value?.returnToDesign()}
+        onClick={returnToDesign}
       >
         {t('canvas.overview.returnToDesign')}
       </button>

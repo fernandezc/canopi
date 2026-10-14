@@ -106,6 +106,13 @@ test('the Design pin is a button that fits the Design', async ({ page }) => {
   await designPin(page).click()
   await expectFitted(page, 'the pin')
   await expect(tool(page, 'Select'), 'the pin arms no tool').toHaveAttribute('aria-pressed', 'true')
+
+  // From the keyboard: the pin leaves with the overview, so the map takes focus and its keys work at once.
+  await zoomOutToOverview(page)
+  await designPin(page).focus()
+  await page.keyboard.press('Enter')
+  await expectFitted(page, 'the pin from the keyboard')
+  await expect(designMap(page), 'the map has focus').toBeFocused()
 })
 
 test('a plant dropped from the catalog on the overview fits the Design, places nothing and stays picked', async ({ page }) => {
