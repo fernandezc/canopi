@@ -64,7 +64,7 @@
     "removeFavorite": "Remover dos favoritos",
     "place": "Colocar",
     "placeSpecies": "Colocar {{name}}",
-    "error": "Erro",
+    "loadFailed": "Não foi possível carregar o catálogo de plantas.",
     "retry": "Tentar novamente",
     "sunTolerance_full_sun": "Pleno sol",
     "sunTolerance_semi_shade": "Meia-sombra",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "Aproxime para editar. As plantas ficam ocultas nesta escala.",
       "returnToDesign": "Voltar ao design",
-      "designPin": "Design: {{name}}"
+      "designPin": "Ir para o design: {{name}}",
+      "designPinHint": "Ajustar todo o design à tela"
     },
     "plantColor": {
       "label": "Cor da planta",

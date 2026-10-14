@@ -904,13 +904,18 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   /**
-   * Today's _onDragOver: in overview or while the scene is busy the dragover is refused ('none', quarantined);
-   * otherwise its effect comes from the payload kind and the open layers, read when settled. Every refusal and every
-   * 'none' clears the preview.
+   * Today's _onDragOver: in overview a plant or saved stamp is taken ('copy', so the browser fires the drop) with no
+   * preview, anything else refused; while the scene is busy the dragover is refused ('none', quarantined); otherwise its
+   * effect comes from the payload kind and the open layers, read when settled. Every refusal and every 'none' clears the
+   * preview.
    */
   function dragOver(at: ScreenPoint, payload: CanvasDropPayload): GestureOutcome {
     hideDraftUntilHover()
-    if (frame().mode === 'overview') return refuseDragOver()
+    if (frame().mode === 'overview') {
+      if (payload.kind === 'unknown') return refuseDragOver()
+      setDropPreview(null)
+      return DROP_COPY
+    }
     let preview: readonly DraftShape[] | null | undefined
     try {
       // undefined: the scene was too busy to read.
@@ -950,11 +955,18 @@ export function createToolHost(deps: ToolHostDeps): ToolHost {
   }
 
   /**
-   * Today's _onDrop: the preview clears; in overview, or while the scene does not admit it, the drop is quarantined.
+   * Today's _onDrop: the preview clears; in overview a plant or saved stamp places nothing and goes to the session
+   * (ToolHostDeps.overviewDrop: fit the Design, keep it picked), anything else is quarantined; while the scene does not
+   * admit it, the drop is quarantined.
    */
   function dropAt(at: ScreenPoint, payload: CanvasDropPayload): GestureOutcome {
     setDropPreview(null)
-    if (frame().mode === 'overview') return QUARANTINE
+    if (frame().mode === 'overview') {
+      if (payload.kind === 'saved-stamp') deps.overviewDrop(payload)
+      else if (payload.kind === 'species' && payload.species) deps.overviewDrop({ kind: 'species', species: payload.species })
+      else return QUARANTINE
+      return NOTHING
+    }
     const admitted = deps.admission.runWhenSettled(() => {
       placeDrop(at, payload)
       return true

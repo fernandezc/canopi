@@ -22,6 +22,7 @@ import type {
   CancelReason,
   CanvasDropPayload,
   Modifiers,
+  OverviewDropPayload,
   PointerKind,
   ToolHandleId,
   ToolId,
@@ -342,6 +343,8 @@ export interface ToolHarnessRecord {
   readonly captures: number[]
   /** The drops the host placed (ToolHostDeps.dropped), in order. */
   readonly drops: ('species' | 'saved-stamp')[]
+  /** The drops the host took in overview (ToolHostDeps.overviewDrop), in order. */
+  readonly overviewDrops: OverviewDropPayload[]
 }
 
 /** The open text entry: its request, the host's submit and onCancel, the text typed into it (its initial text until typeText),
@@ -474,6 +477,7 @@ export function createToolHarness(options: ToolHarnessOptions = {}): ToolHarness
     nudges: [],
     captures: [],
     drops: [],
+    overviewDrops: [],
   }
   const chrome = {
     handles: [] as readonly ToolHandle[],
@@ -585,6 +589,9 @@ export function createToolHarness(options: ToolHarnessOptions = {}): ToolHarness
     },
     dropped(kind) {
       record.drops.push(kind)
+    },
+    overviewDrop(payload) {
+      record.overviewDrops.push(payload)
     },
   })
   host.subscribePointerWorld((point) => {

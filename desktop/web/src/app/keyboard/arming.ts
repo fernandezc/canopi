@@ -7,15 +7,22 @@
 // module read models first (canvas/plant-stamp-source.ts, canvas/saved-object-stamp-source.ts: what the tool card,
 // recents and choosers show, and what the session reads when the tool activates), selects the canvas panel for the
 // command and Start-card callers, sets the tool on the live canvas session and focuses the map for every `from` but a
-// shortcut, which leaves focus where it is. A drop arms in the runtime, with no `from`. Rail learning is not recorded
-// here: it stays an effect on every tool change (app/tool-rail/learning.ts).
+// shortcut, which leaves focus where it is. In overview a drawing tool first fits the Design as Return to Design does (an
+// empty or too-large Design zooms in about the view centre), so every path that picks a tool leaves overview before the
+// tool activates (canopi-n2cg); Select and Pan work in overview as they are. A drop arms in the runtime, with no `from`.
+// Rail learning is not recorded here: it stays an effect on every tool change (app/tool-rail/learning.ts).
 
 import type { CanvasCommandFrom } from '../canvas-commands'
 import type { ToolId } from '../../canvas/runtime/interaction-types'
 import type { ToolSource } from '../../canvas/runtime/tools/tool'
 import { selectPlantStampSource } from '../../canvas/plant-stamp-source'
 import { selectSavedObjectStampSource } from '../../canvas/saved-object-stamp-source'
-import { currentCanvasToolCommandSurface, setCurrentCanvasTool } from '../../canvas/session'
+import {
+  currentCanvasQuerySurface,
+  currentCanvasToolCommandSurface,
+  currentCanvasViewportCommandSurface,
+  setCurrentCanvasTool,
+} from '../../canvas/session'
 import { activePanel, selectPanel } from '../shell/state'
 import { focusOwner } from './focus-owner'
 
@@ -46,6 +53,10 @@ export function armCanvasTool(
   }
   // Never short-circuited for the tool already armed: arming it again takes the new source (and Copy an object on the
   // map arms Select, then Place a stamp, to drop the stamp it held).
+  if (tool !== 'select' && tool !== 'hand' && currentCanvasQuerySurface.peek()?.view.mode.peek() === 'overview') {
+    // Fit first, so the tool's first configure sees site mode (the fit jumps; the mode is current on return).
+    currentCanvasViewportCommandSurface.peek()?.returnToDesign({ around: 'view-centre' })
+  }
   setCurrentCanvasTool(tool)
   if (from !== 'shortcut') focusOwner.focusMap()
   return true

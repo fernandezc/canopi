@@ -26,7 +26,7 @@ Boundaries of the design surface: MapLibre draws the background and holds the ca
 - A view change never routes through a scene render or rebuilds retained scene geometry; the custom layer reads the camera frame in its own `render` ([ADR 0019](../adr/0019-rendering-and-the-view-transform.md)). (`scene-runtime/render-scheduler.test.ts`)
 - Design object identity is the typed pair `{ kind, id }`; ids repeat across kinds (`scene-runtime-boundaries.test.ts`); `currentCanvasSelection` is a notification, never authority (advice).
 - Abort restores only persisted scene state and transaction-owned selection; nothing retries; an accepted commit is never recorded twice. `captureForPersistence()` is the only save seam, busy in replay, hydration, replacement or a failed open. (`scene-runtime/transactions.test.ts`, `scene-persistence-authority.test.ts`)
-- Overview (below 0.1 CSS px/m, `canvas/workspace-camera-policy.ts`) is presentation: the Design is one pin and mutation commands are unavailable, selection or not. (`canvas-overview.test.tsx`, `canvas/runtime/scene-runtime.test.ts`)
+- Overview (below 0.1 CSS px/m, `canvas/workspace-camera-policy.ts`) is presentation: the Design is one pin; mutation commands are unavailable, tools never: a tool picked (`armCanvasTool`), the pin or a drop fits the Design. (`canvas-overview.test.tsx`, `arming.test.ts`, `scene-runtime.test.ts`)
 - Species Focus, panel Target hover and selection, story overrides and thumbnails create no Scene Edit, history or dirty state (advice; `target-presentation.test.ts`); map presentation reads `app/story-presentation/overrides.ts`, never the controller (policy test).
 - Tools take world-space gestures through one tool host and never reach camera, DOM, MapLibre or `SceneStore` ([ADR 0018](../adr/0018-narrow-tool-interface.md)); creation tools guard hidden or locked layers at the mutation boundary. A locked object is selectable; on a mixed selection edits act on the unlocked part, but Group and Rotate need all unlocked (U59). (policy test P5–P5c; `scene-runtime-boundaries.test.ts`, `scene-runtime/mutations.test.ts`, `edit-availability.test.ts`)
 - A drag-to-create tool holds one Scene Edit from gesture start to commit or cancel; a nudge series (0.1 m or the large step, 800 ms idle) is one undo; cancellation runs once, in capture phase. (the `canvas-interaction-e2e` suites)
@@ -44,7 +44,7 @@ Boundaries of the design surface: MapLibre draws the background and holds the ca
 - Publish a raw `SceneCanvasRuntime` or cast it to a role; tests use `createTestCanvasRuntimeSurfaces()` (policy test).
 - Read the plane origin from the document; use `CanvasQuerySurface.sessionPlane`.
 - Fit with a map-only `fitBounds`, call MapLibre camera methods outside the camera driver, project through a workspace map (P2), or convert world to screen outside the view transform.
-- Await or return an owner operation from a child setup or disposal callback: the cycle never settles, and nothing checks it at run time (advice).
+- Await or return an owner operation from a child setup or disposal callback: the cycle never settles (advice).
 - Claim a contribution was omitted while parts remain (a failed rollback is a core failure).
 - Mirror Target geometry or layer rows into map state.
 - Add a tile proxy, offline tile store, bulk download or service-worker cache.

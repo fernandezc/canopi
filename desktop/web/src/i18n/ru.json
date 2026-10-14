@@ -64,7 +64,7 @@
     "removeFavorite": "Удалить из избранного",
     "place": "Разместить",
     "placeSpecies": "Разместить {{name}}",
-    "error": "Ошибка",
+    "loadFailed": "Не удалось загрузить каталог растений.",
     "retry": "Повторить",
     "sunTolerance_full_sun": "Полное солнце",
     "sunTolerance_semi_shade": "Полутень",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "Увеличьте масштаб для редактирования. При этом масштабе растения скрыты.",
       "returnToDesign": "Вернуться к проекту",
-      "designPin": "Проект: {{name}}"
+      "designPin": "Перейти к проекту: {{name}}",
+      "designPinHint": "Показать весь проект на экране"
     },
     "plantColor": {
       "label": "Цвет растения",

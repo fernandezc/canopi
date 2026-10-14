@@ -168,6 +168,17 @@ describe('view navigation', () => {
     view.dispose()
   })
 
+  it('zooms an empty overview in to the site frame about the view centre when asked', () => {
+    // The ground at the screen centre (200, 150) is (18800, 13200) m before and after.
+    const view = sceneView(400, 300, emptyScene(), { x: 12, y: 18, scale: 0.01 })
+
+    view.navigation.returnToDesign({ around: 'view-centre' })
+
+    expectPlacement(placement(view), { x: 200 - 18_800 * 3, y: 150 - 13_200 * 3, scale: 3, bearingDeg: 0 })
+    expect(frameOf(view).mode).toBe('site')
+    view.dispose()
+  })
+
   it('returns ordinary content with the existing fit policy', () => {
     const scene = createScene()
     const expectedView = sceneView(1000, 800, scene, { x: 100, y: 0, scale: 8 })

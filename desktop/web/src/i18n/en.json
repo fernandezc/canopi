@@ -64,7 +64,7 @@
     "removeFavorite": "Remove from favorites",
     "place": "Place",
     "placeSpecies": "Place {{name}}",
-    "error": "Error",
+    "loadFailed": "The plant catalog couldn’t load.",
     "retry": "Retry",
     "sunTolerance_full_sun": "Full sun",
     "sunTolerance_semi_shade": "Semi-shade",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "Zoom in to edit. Plants are hidden at this scale.",
       "returnToDesign": "Return to Design",
-      "designPin": "Design: {{name}}"
+      "designPin": "Go to Design: {{name}}",
+      "designPinHint": "Fit the whole Design on screen"
     },
     "plantColor": {
       "label": "Plant color",

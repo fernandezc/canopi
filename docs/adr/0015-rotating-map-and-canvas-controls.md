@@ -1,6 +1,6 @@
 # Rotating map and canvas controls
 
-Status: Accepted (2026-09-29, Canopi v2); amended 2026-10-01, 2026-10-03 (phase-1 design check: stamp starts, line zones, Print Areas), 2026-10-04 (reopening restores the saved view, U28), 2026-10-05 (U33: rulers removed; no last-bearing fallback) and 2026-10-06 (U34: turns jump; a native menu with no pointer press opens nothing; U36: overview left-drag pans)
+Status: Accepted (2026-09-29, Canopi v2); amended 2026-10-01, 2026-10-03 (phase-1 design check: stamp starts, line zones, Print Areas), 2026-10-04 (reopening restores the saved view, U28), 2026-10-05 (U33: rulers removed; no last-bearing fallback) and 2026-10-06 (U34: turns jump; a native menu with no pointer press opens nothing; U36: overview left-drag pans) and 2026-10-14 (canopi-n2cg: tools are never disabled by zoom; picking one in overview, the Design pin or a catalog drop there fits the Design)
 
 Amends [ADR 0010](0010-map-first-interface.md) (single-key shortcut scope, compass in the zoom group) and [ADR 0001](0001-geolocated-map-canvas.md), [0004](0004-one-renderer.md), [0008](0008-canvas-pdf-export.md) and [0011](0011-analyses-provenance-and-stories.md) where they assumed north-up or a tool that switches navigation off. The architecture that carries these rules is in ADRs [0016](0016-one-view-transform.md) to [0020](0020-focus-and-keyboard-ownership.md).
 
@@ -23,6 +23,7 @@ The canvas was north-up and left-drag panned in some modes but selected in other
 
 **Controls (user).**
 - Left click and left drag always select or draw; left-drag never pans (the Pan tool and overview excepted) and Shift+drag is never box zoom. Overview draws no zones or notes, so its left drag pans and nothing is selectable there (user, 2026-10-06, U36).
+- No tool is disabled by zoom (user, 2026-10-14, canopi-n2cg, replacing U36's disabled tools). In overview, picking a drawing tool by any path fits the Design as Fit to Design does, then arms it; Select and Pan keep the overview; an empty Design zooms in to working scale about the view centre (a Design whose fit stays in overview too: convention). The Design pin is a button that fits the Design. A plant or saved stamp dragged onto the overview fits the Design, places nothing and stays picked for its stamp tool.
 - Right-drag pans in every tool, as do middle-drag and Space+drag; a still right-click opens the canvas menu on release (release on every OS: convention). A native context menu with no right, pen-barrel or Mac Control press opens nothing; the Menu key and Shift+F10 reach the selection menu (user, 2026-10-06, U34). Wheel zoom and keys stay live during a drawing drag; a right or middle press during it is ignored (user, 2026-10-01).
 - The Pan tool (H) stays for barrel-less pens and one-finger users, off the main rail: View and Tools menus, palette, phone strip.
 - A "Pointing device: Mouse / Trackpad" setting reuses the stored `scroll_wheel` field. Linux trackpad pinch is unsupported for now (Ctrl+scroll zooms).

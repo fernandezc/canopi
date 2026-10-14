@@ -64,7 +64,7 @@
     "removeFavorite": "Retirer des favoris",
     "place": "Placer",
     "placeSpecies": "Placer {{name}}",
-    "error": "Erreur",
+    "loadFailed": "Le catalogue des plantes n’a pas pu se charger.",
     "retry": "Réessayer",
     "sunTolerance_full_sun": "Plein soleil",
     "sunTolerance_semi_shade": "Mi-ombre",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "Zoomez pour modifier. Les plantes sont masquées à cette échelle.",
       "returnToDesign": "Revenir au Design",
-      "designPin": "Design : {{name}}"
+      "designPin": "Aller au Design : {{name}}",
+      "designPinHint": "Afficher tout le Design à l’écran"
     },
     "plantColor": {
       "label": "Couleur de plante",

@@ -9,6 +9,7 @@ import {
   createTestCanvasKeyboardPort,
   createTestCanvasRuntimeSurfaces,
 } from '../../__tests__/support/canvas-runtime-surfaces'
+import { createTestCanvasQuerySurface } from '../../__tests__/support/canvas-query-surface'
 import { installDesktopKeys } from '../../__tests__/support/desktop-key-router'
 import { TEST_KEY_PLATFORM } from '../../__tests__/support/key-router'
 import { readPlantStampSource, clearPlantStampSource, recentPlantStampSources } from '../../canvas/plant-stamp-source'
@@ -147,6 +148,35 @@ describe('armCanvasTool', () => {
     const stamp = parseSavedObjectStampPayload(PEAR.payload_json)!
     expect(armCanvasTool('saved-object-stamp', { from: 'panel', source: { kind: 'saved-stamp', stamp, name: 'Pear guild' } })).toBe(false)
     expect(readSavedObjectStampSource()).toBeNull()
+  })
+
+  it('in overview a drawing tool fits the Design first, about the view centre when the Design is empty', () => {
+    const queries = createTestCanvasQuerySurface({ placement: { x: 0, y: 0, scale: 0.01 } })
+    const order: string[] = []
+    const returnToDesign = vi.fn((options?: { readonly around?: string }) => {
+      order.push(`fit:${options?.around}`)
+      queries.setPlacement({ x: 0, y: 0, scale: 3 })
+    })
+    setTool.mockImplementation((name) => { order.push(`arm:${name}`) })
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+      commands: createTestCanvasCommandSurface({ tools: { setTool }, viewport: { returnToDesign } }),
+      queries,
+      keyboard: createTestCanvasKeyboardPort({ host }),
+    }))
+    for (const from of ['rail', 'shortcut', 'menu', 'palette', 'panel', 'card', 'start-card'] as const) {
+      queries.setPlacement({ x: 0, y: 0, scale: 0.01 })
+      order.length = 0
+      expect(armCanvasTool('polygon', { from })).toBe(true)
+      expect(order, from).toEqual(['fit:view-centre', 'arm:polygon'])
+    }
+    // Select and Pan work in overview as they are; site scale needs no fit.
+    order.length = 0
+    queries.setPlacement({ x: 0, y: 0, scale: 0.01 })
+    armCanvasTool('select', { from: 'rail' })
+    armCanvasTool('hand', { from: 'rail' })
+    queries.setPlacement({ x: 0, y: 0, scale: 3 })
+    armCanvasTool('plant-stamp', { from: 'panel' })
+    expect(order).toEqual(['arm:select', 'arm:hand', 'arm:plant-stamp'])
   })
 
   it('writes the source before arming, and arms the same tool again', () => {

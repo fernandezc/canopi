@@ -64,7 +64,7 @@
     "removeFavorite": "お気に入りから削除",
     "place": "配置",
     "placeSpecies": "{{name}} を配置",
-    "error": "エラー",
+    "loadFailed": "植物カタログを読み込めませんでした。",
     "retry": "再試行",
     "sunTolerance_full_sun": "日なた",
     "sunTolerance_semi_shade": "半日陰",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "編集するには拡大してください。この縮尺では植物は表示されません。",
       "returnToDesign": "デザインに戻る",
-      "designPin": "デザイン: {{name}}"
+      "designPin": "デザインへ移動: {{name}}",
+      "designPinHint": "デザイン全体を画面に合わせる"
     },
     "plantColor": {
       "label": "植物の色",

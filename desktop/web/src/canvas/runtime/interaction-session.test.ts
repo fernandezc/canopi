@@ -23,6 +23,8 @@ import {
 import {
   clearSavedObjectStampSource,
   readSavedObjectStampDragPreviewSource,
+  readSavedObjectStampName,
+  readSavedObjectStampSource,
   selectSavedObjectStampSource,
   writeSavedObjectStampDragData,
 } from '../saved-object-stamp-source'
@@ -334,6 +336,46 @@ describe('the interaction session', () => {
 
     expect(store.persisted.plants).toHaveLength(1)
     expect(readSavedObjectStampDragPreviewSource(hiddenData)).toBeNull()
+  })
+
+  it('a plant or saved stamp dropped on the overview fits the Design, places nothing and stays picked (canopi-n2cg)', async () => {
+    useStubTools(stubTool('rectangle'), stubTool('plant-stamp'), stubTool('saved-object-stamp'))
+    const returnToDesign = vi.fn(testView.navigation.returnToDesign)
+    const { session } = createSession({ viewNavigation: { ...testView.navigation, returnToDesign } })
+    session.setTool('rectangle')
+    enterOverview(testView)
+    const species = (transfer: DataTransferLike) => writePlantStampDragData(transfer, PEAR)
+
+    expect(dispatchDrag('dragover', { x: 60, y: 60 }, species).dataTransfer!.dropEffect).toBe('copy')
+    const drop = dispatchDrag('drop', { x: 60, y: 60 }, species)
+
+    expect(drop.defaultPrevented).toBe(true)
+    expect(returnToDesign).toHaveBeenCalledExactlyOnceWith({ around: 'view-centre' })
+    expect(testView.viewport().scale).toBeGreaterThanOrEqual(0.1)
+    expect(store.persisted.plants).toHaveLength(0)
+    expect(readPlantStampSource()?.canonical_name).toBe('Pyrus communis')
+    expect(session.tool).toBe('plant-stamp')
+
+    // A saved stamp follows the plant rule.
+    enterOverview(testView)
+    const stamp = { version: 2, anchor: { x: 0, y: 0 }, plants: [], zones: [], annotations: [], groups: [] }
+    dispatchDrag('drop', { x: 60, y: 60 }, (transfer) => writeSavedObjectStampDragData(transfer, {
+      id: 'stamp-1', name: '  Bed ', sort_order: 0, created_at: '2026-06-19T09:00:00Z', updated_at: '2026-06-19T09:00:00Z',
+      payload_json: JSON.stringify(stamp),
+    }))
+    expect(returnToDesign).toHaveBeenCalledTimes(2)
+    expect(readSavedObjectStampSource()).not.toBeNull()
+    expect(readSavedObjectStampName(), 'the tool card names the dropped stamp, as when it is picked with Place').toBe('Bed')
+    expect(session.tool).toBe('saved-object-stamp')
+    expect(store.persisted.zones).toHaveLength(0)
+
+    // A blank name reads as none, as with Place (stamp.name.trim() || null).
+    enterOverview(testView)
+    dispatchDrag('drop', { x: 60, y: 60 }, (transfer) => writeSavedObjectStampDragData(transfer, {
+      id: 'stamp-2', name: '   ', sort_order: 1, created_at: '2026-06-19T09:00:00Z', updated_at: '2026-06-19T09:00:00Z',
+      payload_json: JSON.stringify(stamp),
+    }))
+    expect(readSavedObjectStampName()).toBeNull()
   })
 
   it('a registered tool\'s transient history and spacing field go through the host', () => {

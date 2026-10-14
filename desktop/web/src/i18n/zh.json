@@ -64,7 +64,7 @@
     "removeFavorite": "取消收藏",
     "place": "放置",
     "placeSpecies": "放置 {{name}}",
-    "error": "错误",
+    "loadFailed": "无法加载植物目录。",
     "retry": "重试",
     "sunTolerance_full_sun": "全日照",
     "sunTolerance_semi_shade": "半阴",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "放大以编辑。此比例下植物已隐藏。",
       "returnToDesign": "返回设计",
-      "designPin": "设计：{{name}}"
+      "designPin": "前往设计：{{name}}",
+      "designPinHint": "将整个设计适配到屏幕"
     },
     "plantColor": {
       "label": "植物颜色",

@@ -102,7 +102,7 @@ export interface CanvasCommandProjectionState {
   readonly activeTool: string
   /** A canvas runtime is mounted. */
   readonly canvasAvailable: boolean
-  /** False in overview, where Design objects are hidden and cannot change. */
+  /** False in overview, where Design objects are hidden and cannot change (the mutating edits); tools stay enabled. */
   readonly spatialEditingAvailable: boolean
   /** What the selection's commands can do; null with nothing selected. */
   readonly selection: CanvasEditSelectionAvailability | null
@@ -379,8 +379,9 @@ export function isCanvasCommandDisabled(
 ): boolean {
   switch (intent.type) {
     case 'select-tool':
-      // Choosing a tool before the canvas mounts primes the tool it starts with.
-      return !state.spatialEditingAvailable && !isNavigationTool(intent.tool)
+      // Never disabled: before the canvas mounts a tool primes the one it starts with, and in overview arming fits the
+      // Design first (app/keyboard/arming.ts).
+      return false
     case 'undo':
       return !state.canUndo
     case 'redo':
@@ -402,10 +403,6 @@ export function isCanvasCommandDisabled(
         canPaste: true,
       })
   }
-}
-
-function isNavigationTool(toolId: CanvasToolId): boolean {
-  return toolId === 'select' || toolId === 'hand'
 }
 
 interface CreateCanvasCommandProjectionOptions {

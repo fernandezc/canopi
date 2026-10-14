@@ -64,7 +64,7 @@
     "removeFavorite": "Rimuovi dai preferiti",
     "place": "Posiziona",
     "placeSpecies": "Posiziona {{name}}",
-    "error": "Errore",
+    "loadFailed": "Impossibile caricare il catalogo delle piante.",
     "retry": "Riprova",
     "sunTolerance_full_sun": "Pieno sole",
     "sunTolerance_semi_shade": "Mezz’ombra",
@@ -202,7 +202,8 @@
     "overview": {
       "zoomInToEdit": "Ingrandisci per modificare. A questa scala le piante sono nascoste.",
       "returnToDesign": "Torna al progetto",
-      "designPin": "Progetto: {{name}}"
+      "designPin": "Vai al progetto: {{name}}",
+      "designPinHint": "Adatta l’intero progetto allo schermo"
     },
     "plantColor": {
       "label": "Colore della pianta",

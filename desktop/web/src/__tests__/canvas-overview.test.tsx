@@ -11,6 +11,7 @@ import { createTestCanvasCommandSurface, createTestCanvasRuntimeSurfaces } from 
 import { createTestCanvasQuerySurface, createTestViewReadSurface } from './support/canvas-query-surface'
 import { createTestView, type TestView } from './support/test-view'
 
+import { focusOwner } from '../app/keyboard/focus-owner'
 import { CanvasOverview, OverviewNotice } from '../components/canvas/CanvasOverview'
 
 describe('CanvasOverview', () => {
@@ -37,8 +38,9 @@ describe('CanvasOverview', () => {
     testView = null
   })
 
-  it('shows the Design as a named pin and offers one Return to Design action', async () => {
+  it('shows the Design as a named pin button and offers Return to Design, both fitting the Design', async () => {
     const returnToDesign = vi.fn()
+    const focusMap = vi.spyOn(focusOwner, 'focusMap').mockImplementation(() => {})
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
       queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
       commands: createTestCanvasCommandSurface({ viewport: { returnToDesign } }),
@@ -48,14 +50,66 @@ describe('CanvasOverview', () => {
     const notice = container.querySelector('[data-overview-notice]')!
     expect(notice.getAttribute('role')).toBe('status')
     expect(notice.textContent).toContain('Zoom in to edit. Plants are hidden at this scale.')
-    const pin = container.querySelector<HTMLElement>('[data-overview-pin]')!
-    expect(pin.getAttribute('role')).toBe('img')
-    expect(pin.getAttribute('aria-label')).toMatch(/^Design: /)
-    expect(pin.style.left).toBe('200px')
-    const buttons = container.querySelectorAll('button')
-    expect([...buttons].map((button) => button.textContent)).toEqual(['Return to Design'])
-    ;(buttons[0] as HTMLButtonElement).click()
+    const returnButton = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Return to Design')!
+    returnButton.click()
     expect(returnToDesign).toHaveBeenCalledOnce()
+    // The button leaves with the overview, so the map takes focus and its keys work at once.
+    expect(focusMap).toHaveBeenCalledOnce()
+
+    // The pin is a button that fits the Design, named for it, with a tooltip saying so (canopi-n2cg).
+    const pin = container.querySelector<HTMLButtonElement>('[data-overview-pin]')!
+    expect(pin.tagName).toBe('BUTTON')
+    expect(pin.type).toBe('button')
+    expect(pin.getAttribute('aria-label')).toMatch(/^Go to Design: /)
+    expect(pin.querySelector('[role="tooltip"]')?.textContent).toBe('Fit the whole Design on screen')
+    expect(pin.style.left).toBe('200px')
+    pin.click()
+    expect(returnToDesign).toHaveBeenCalledTimes(2)
+    expect(focusMap, 'the pin leaves with the overview: the map takes focus').toHaveBeenCalledTimes(2)
+    focusMap.mockRestore()
+  })
+
+  it('lets a panel drag that enters the pin through to the map until the drag ends', async () => {
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+      queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
+    }))
+    await act(async () => render(<CanvasOverview />, container))
+    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
+    const resting = pin().className
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    expect(pin().className, 'the pin goes transparent to the drag').not.toBe(resting)
+    await act(async () => { window.dispatchEvent(new Event('dragend')) })
+    expect(pin().className, 'the drag ended: the pin takes clicks again').toBe(resting)
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { document.body.dispatchEvent(new Event('drop', { bubbles: true })) })
+    expect(pin().className, 'a drop anywhere ends it too').toBe(resting)
+  })
+
+  it('ends pass-through when a drag from outside the page leaves the window or the overview ends', async () => {
+    const mode = signal<'overview' | 'site'>('overview')
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
+      queries: {
+        ...createTestCanvasQuerySurface(),
+        view: { ...createTestViewReadSurface(), mode, designPin: signal<ScreenPoint | null>({ x: 100, y: 100 }) },
+      },
+    }))
+    await act(async () => render(<CanvasOverview />, container))
+    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
+    const resting = pin().className
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: container })) })
+    expect(pin().className, 'a drag moving within the page stays let through').not.toBe(resting)
+    // A file dragged from the desktop and released outside the window fires no dragend or drop on the page.
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: null })) })
+    expect(pin().className, 'the drag left the window: the pin takes clicks again').toBe(resting)
+
+    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
+    await act(async () => { mode.value = 'site' })
+    await act(async () => { mode.value = 'overview' })
+    expect(pin().className, 'leaving the overview ends pass-through').toBe(resting)
   })
 
   it('omits an offscreen marker while retaining the notice action', async () => {

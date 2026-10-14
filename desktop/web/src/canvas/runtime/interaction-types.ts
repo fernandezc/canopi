@@ -15,4 +15,8 @@ export type CanvasDropPayload =
   | { readonly kind: 'species'; readonly species: PlantStampSourceInput | null }   // null on dragover: the browser hides the data until the drop; the MIME type says species
   | { readonly kind: 'saved-stamp'; readonly stamp: SavedObjectStampPayload }
   | { readonly kind: 'unknown' }                                // over the map but not ours: no drop cue
+/** A plant or saved stamp dropped on the overview: it fits the Design and stays picked, placing nothing (canopi-n2cg). */
+export type OverviewDropPayload =
+  | { readonly kind: 'species'; readonly species: PlantStampSourceInput }
+  | { readonly kind: 'saved-stamp'; readonly stamp: SavedObjectStampPayload }
 // PlantStampSourceInput (canvas/plant-stamp-source.ts) and SavedObjectStampPayload are type-only imports.
