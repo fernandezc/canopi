@@ -44,7 +44,7 @@ class DocumentationChecks(unittest.TestCase):
             guide = root / "docs/guides/editions.md"
             guide.parent.mkdir(parents=True)
             guide.write_text("# Editions\n" + ("short line\n" * 1200), encoding="utf-8")
-            self.assertTrue(any("exceeds its 14000-byte budget" in e for e in check_document(guide, root)))
+            self.assertTrue(any("exceeds its 12000-byte budget" in e for e in check_document(guide, root)))
             guide.write_text("# Editions\n" + "x" * 601 + "\n| " + "y" * 700 + " |\n", encoding="utf-8")
             errors = check_document(guide, root)
             self.assertEqual(len(errors), 1)
