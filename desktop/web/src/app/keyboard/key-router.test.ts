@@ -146,6 +146,18 @@ describe('key router', () => {
     expect(lastInputWasKey()).toBe(false)
   })
 
+  it('forgets a key pressed before the window was left, so focus coming back with the window shows no tooltip (canopi-xpqt)', () => {
+    install()
+    // Alt+Tab: the page hears the Alt before the system takes the window away.
+    press({ key: 'Alt', code: 'AltLeft', altKey: true }, document.body)
+    expect(lastInputWasKey()).toBe(true)
+    window.dispatchEvent(new Event('blur'))
+    expect(lastInputWasKey(), 'after a window blur').toBe(false)
+    press({ key: 'Tab' }, document.body)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(lastInputWasKey(), 'after the page hides').toBe(false)
+  })
+
   it('with nothing focused, the canvas keys act only when the last press landed on the map', () => {
     install()
     const dock = document.createElement('section')

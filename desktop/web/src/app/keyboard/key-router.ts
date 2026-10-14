@@ -79,7 +79,12 @@ export function installKeyRouter(deps: KeyRouterDeps): KeyRouterHandle {
     if (port) port.keyState(keyState(event as KeyboardEventLike, 'keyup', at(port, event as KeyboardEventLike)))
     if (event.key === 'Meta') letGo()
   }
-  const onLeave = (): void => letGo()
+  // A window left behind takes the keys held and the key flag with it: a key the page heard on the way out (Alt of
+  // Alt+Tab) is no keyboard focus when the window comes back.
+  const onLeave = (): void => {
+    letGo()
+    notePointerPress()
+  }
   const onPressOrFocus = (event: Event): void => {
     if (event.type === 'pointerdown') notePointerPress()
     const host = deps.canvas()?.host
