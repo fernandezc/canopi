@@ -3,7 +3,9 @@ import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  bottomChromeCoverOver,
   mapAttributionFolded,
+  measureBottomCoverOver,
   measureBottomBandRoom,
   measureRailRoom,
   measureVisibleMapFrame,
@@ -686,6 +688,43 @@ describe('visible map area', () => {
       releaseArea()
     }
     expect(visibleMapFrame.value.left).toBe(0)
+  })
+
+  // The Web edition's desktop layout under 761 px: the open dock is a bottom sheet over the pinned-names legend's place
+  // beside the tool rail, which must then stand above it rather than cover the left edge unseen.
+  it('measures how far bottom chrome covers a column of the map: the sheet over the legend\'s place, not the view chip beside it', () => {
+    const map = rect({ left: 0, top: 0, width: 720, height: 700 })
+    const viewChip = { rect: rect({ left: 12, top: 640, width: 150, height: 48 }), side: 'bottom' as const }
+    const zoom = { rect: rect({ left: 400, top: 644, width: 308, height: 44 }), side: 'bottom' as const }
+    const sheet = { rect: rect({ left: 12, top: 252, width: 696, height: 384 }), side: 'bottom' as const }
+    const legendColumn = [76, 240] as const
+    expect(measureBottomCoverOver(map, [viewChip, zoom], ...legendColumn)).toBe(60)
+    expect(measureBottomCoverOver(map, [viewChip, zoom, sheet], ...legendColumn)).toBe(448)
+    // Chrome on another edge, or beside the column, covers none of it.
+    expect(measureBottomCoverOver(map, [{ rect: rect({ left: 76, top: 72, width: 164, height: 560 }), side: 'left' }], ...legendColumn)).toBe(0)
+    expect(measureBottomCoverOver(map, [zoom], ...legendColumn)).toBe(0)
+  })
+
+  it('reads the registered framing chrome\'s bottom cover over a column, without status chrome or chrome on other edges', () => {
+    const area = element({ left: 0, top: 0, width: 720, height: 700 })
+    const sheet = element({ left: 12, top: 252, width: 696, height: 384 })
+    const notice = element({ left: 60, top: 560, width: 400, height: 40 })
+    const legend = element({ left: 76, top: 500, width: 164, height: 136 })
+    const releases = [
+      registerMapArea(area),
+      registerMapOccluder(notice, 'bottom', { frames: false }),
+      registerMapOccluder(legend, 'left'),
+    ]
+    try {
+      expect(bottomChromeCoverOver(76, 240)).toBe(0)
+      const releaseSheet = registerMapOccluder(sheet, 'bottom')
+      expect(bottomChromeCoverOver(76, 240)).toBe(448)
+      releaseSheet()
+      expect(bottomChromeCoverOver(76, 240)).toBe(0)
+    } finally {
+      for (const release of releases.reverse()) release()
+    }
+    expect(bottomChromeCoverOver(76, 240)).toBe(0)
   })
 
   it('lets the labelled tool rail give way when it would crowd the map', () => {
