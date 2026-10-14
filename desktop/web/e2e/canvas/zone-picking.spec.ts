@@ -3,9 +3,9 @@
 // menu", and restored canopi-c7k8. Rewriting a case here needs the user's word, cited in the commit. The pick rule's
 // contract is canvas/runtime/tools/hit-testing.pick.test.ts (6 px for a mouse, 16 px for a finger, at two zooms and two
 // bearings); this spec drives what the user does: a click or tap inside a zone picks what lies beneath or clears, near
-// the outline it selects the zone, a drag from inside draws a band that selects only the plants it holds, a band across
-// a line or around the zone selects it, the menu targets what the click would select, and a mouse near the outline
-// highlights the line.
+// the outline it selects the zone, a plant on the line wins over the zone, a drag from inside draws a band that selects
+// only the plants it holds, a band across a line or around the zone selects it, the menu targets what the click would
+// select, and a mouse near the outline highlights the line.
 //
 // The base fixture at 1024x768, both engines with a mouse. Touch: Chromium through CDP (Fingers) for taps, the drag and
 // the long press; WebKit taps through page.touchscreen.tap, since Playwright's WebKit drives no touch drag or long press
@@ -92,6 +92,17 @@ async function expectMenu(page: Page, name: string | RegExp, what: string): Prom
   await expect(page.getByRole('menu')).toHaveCount(0)
 }
 
+/** Drags the Apple with the mouse onto the rectangle's left edge, level with where it was, and clears the selection:
+ *  the plant on the line. Returns where it now lies. */
+async function appleOnTheLine(page: Page, rect: Rect): Promise<Point> {
+  const onLine: Point = { x: rect.x0, y: APPLE.y }
+  await mouseDrag(page, APPLE, onLine)
+  await expect(selectionChip(page), 'the drag moves the Apple').toHaveText('Apple')
+  await page.mouse.click(GROUND.x, GROUND.y)
+  await expectNothingSelected(page, 'the ground click clears')
+  return onLine
+}
+
 function samePixels(a: Pixels, b: Pixels): boolean {
   return a.data.length === b.data.length && a.data.every((value, index) => value === b.data[index])
 }
@@ -117,6 +128,17 @@ test.describe('(canopi-qd2k) a mouse picks zones by their outline', () => {
     await page.mouse.click(at.left(10).x, at.left(10).y)
     await expectNothingSelected(page, '10 px inside, past a mouse\'s 6 px, clears the selected zone')
     await expect(undo(page), 'a click edits nothing').toBeDisabled()
+  })
+
+  test('a plant on the line wins: a click or right-click on it picks the plant, not the zone', async ({ page }) => {
+    const rect = await openBase(page)
+    const onLine = await appleOnTheLine(page, rect)
+
+    await page.mouse.click(onLine.x, onLine.y)
+    await expect(selectionChip(page), 'a click on the Apple on the line selects the Apple').toHaveText('Apple')
+    await page.mouse.click(GROUND.x, GROUND.y)
+    await page.mouse.click(onLine.x, onLine.y, { button: 'right' })
+    await expectMenu(page, 'Apple', 'a right-click on the Apple on the line opens its menu')
   })
 
   test('a drag from inside draws a band of the plants only; a band across a line or around the zone selects it', async ({ page }) => {
@@ -190,6 +212,20 @@ test.describe('(canopi-qd2k) a finger picks zones by their outline (Chromium)', 
     await fingers.drag(...at.bandAroundApple)
     await expect(selectionChip(page), 'a finger\'s drag inside draws a band that selects only the Apple').toHaveText('Apple')
     await expect(undo(page), 'the drag moved no zone').toBeDisabled()
+
+    await expect(undo(page)).toBeDisabled()
+  })
+
+  test('a plant on the line wins: a tap or a long press on it picks the plant, not the zone', async ({ page }) => {
+    const rect = await openBase(page)
+    const onLine = await appleOnTheLine(page, rect)
+    const fingers = await Fingers.of(page)
+
+    await fingers.tap(onLine)
+    await expect(selectionChip(page), 'a tap on the Apple on the line selects the Apple').toHaveText('Apple')
+    await fingers.tap(GROUND)
+    await fingers.tap(onLine, { holdMs: 600 })
+    await expectMenu(page, 'Apple', 'a long press on the Apple on the line opens its menu')
   })
 
   test('a long press inside opens the empty map\'s menu; near the outline the zone\'s', async ({ page }) => {
@@ -220,5 +256,13 @@ test.describe('(canopi-qd2k) a finger picks zones by their outline (WebKit)', ()
     await expectNothingSelected(page, 'a tap inside clears')
     await page.touchscreen.tap(APPLE.x, APPLE.y)
     await expect(selectionChip(page), 'a tap on the Apple inside selects it').toHaveText('Apple')
+  })
+
+  test('a plant on the line wins: a tap on it picks the plant, not the zone', async ({ page }) => {
+    const rect = await openBase(page)
+    const onLine = await appleOnTheLine(page, rect)
+
+    await page.touchscreen.tap(onLine.x, onLine.y)
+    await expect(selectionChip(page), 'a tap on the Apple on the line selects the Apple').toHaveText('Apple')
   })
 })
