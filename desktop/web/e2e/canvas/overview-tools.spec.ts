@@ -1,10 +1,10 @@
 // Tools in overview (canopi-n2cg; ADR 0015 and 0018, amended 2026-10-14): zoomed out past 0.1 px/m every tool stays
 // enabled; picking a drawing tool by its rail button or its key fits the Design, as Fit to Design does, then arms it;
-// the Design pin is a button that fits the Design; a plant dragged from the catalog onto the overview fits the Design,
-// places nothing and stays picked for Place plants; an empty Design zooms in about the view centre, not the origin;
-// a drop on the pin itself is taken as on the map. Both engines, DOM assertions only. The e2e catalog is always 404
-// (support/offline.ts), so the drag is synthetic dragenter, dragover and drop events carrying the catalog's drag data,
-// each sent to the element under the point as the browser does.
+// a click on the Design pin or Enter on it fits the Design, while a wheel or a drag that starts on it is the map's; a
+// plant dragged from the catalog onto the overview fits the Design, places nothing and stays picked for Place plants;
+// an empty Design zooms in about the view centre, not the origin; a drop on the pin itself is taken as on the map. Both
+// engines, DOM assertions only. The e2e catalog is always 404 (support/offline.ts), so the drag is synthetic dragenter,
+// dragover and drop events carrying the catalog's drag data, each sent to the element under the point as the browser does.
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 import { designMap } from '../support/canvas'
@@ -99,12 +99,15 @@ test('in overview every tool is enabled; a drawing tool\'s button or key fits th
   }
 })
 
-test('the Design pin is a button that fits the Design', async ({ page }) => {
+test('a click on the Design pin or Enter on it fits the Design', async ({ page }) => {
   await openOverview(page)
   await expect(designPin(page)).toBeVisible()
-  await designPin(page).hover()
+  // The pin takes no pointer events itself (the map has every gesture), so the mouse is moved over its box.
+  const box = await designPin(page).boundingBox()
+  if (!box) throw new Error('no Design pin')
+  await page.mouse.move(box.x + box.width - 12, box.y + box.height / 2)
   await expect(await tooltipOf(designPin(page))).toHaveText('Fit the whole Design on screen')
-  await designPin(page).click()
+  await page.mouse.click(box.x + box.width - 12, box.y + box.height / 2)
   await expectFitted(page, 'the pin')
   await expect(tool(page, 'Select'), 'the pin arms no tool').toHaveAttribute('aria-pressed', 'true')
 
@@ -114,6 +117,35 @@ test('the Design pin is a button that fits the Design', async ({ page }) => {
   await page.keyboard.press('Enter')
   await expectFitted(page, 'the pin from the keyboard')
   await expect(designMap(page), 'the map has focus').toBeFocused()
+})
+
+test('a wheel or a drag that starts on the Design pin acts on the map; a press dragged off it fits nothing', async ({ page }) => {
+  await openOverview(page)
+  const pin = await designPin(page).boundingBox()
+  if (!pin) throw new Error('no Design pin')
+  // On the name label, away from the dot: the whole pin is the map's for gestures.
+  const onPin = { x: pin.x + pin.width - 12, y: pin.y + pin.height / 2 }
+
+  const before = await scaleDenominator(page)
+  await page.mouse.move(onPin.x, onPin.y)
+  await page.mouse.wheel(0, 400)
+  await nextFrames(page)
+  await expect.poll(() => scaleDenominator(page), 'a wheel on the pin zooms the map').toBeGreaterThan(before)
+  await expect(overviewNotice(page), 'the wheel out keeps the overview').toBeVisible()
+
+  const start = await designPin(page).boundingBox()
+  if (!start) throw new Error('no Design pin')
+  const grab = { x: start.x + start.width - 12, y: start.y + start.height / 2 }
+  await page.mouse.move(grab.x, grab.y)
+  await page.mouse.down()
+  await page.mouse.move(grab.x - 200, grab.y - 100, { steps: 10 })
+  await page.mouse.up()
+  await nextFrames(page)
+  await expect(overviewNotice(page), 'a drag from the pin pans, it does not fit the Design').toBeVisible()
+  const moved = await designPin(page).boundingBox()
+  if (!moved) throw new Error('no Design pin after the pan')
+  expect(Math.abs(moved.x - (start.x - 200)), 'the drag from the pin panned the map: the pin followed it').toBeLessThan(8)
+  expect(Math.abs(moved.y - (start.y - 100)), 'the drag from the pin panned the map: the pin followed it').toBeLessThan(8)
 })
 
 test('a plant dropped from the catalog on the overview fits the Design, places nothing and stays picked', async ({ page }) => {

@@ -12,6 +12,8 @@
      (canopi-n54g); it stays left of the dock, so their shared level never decides a pixel. */
   --z-canvas-tool-card: 31;
   --z-canvas-inspection-lens: 32;
+  /* The canvas hover card: above every frame over the map, under every surface the user opens (canopi-xpqt). */
+  --z-hover-card: 890;
   --z-full-window: 900;
   --z-toast: 950;
   --z-dialog: 1000;
@@ -374,8 +376,8 @@ mark {
   }
 }
 
-/* The window-level tooltip layer (utils/tooltip-layer.ts): every button tooltip and the canvas hover card, above
-   every frame and popup, placed in window pixels. The only use of --z-tooltip (stacking-order.test.ts). */
+/* The window-level tooltip layer (utils/tooltip-layer.ts): every button tooltip, above every frame and popup, placed
+   in window pixels. The only use of --z-tooltip (stacking-order.test.ts). */
 [data-tooltip-layer] {
   position: fixed;
   inset: 0;
@@ -383,10 +385,13 @@ mark {
   pointer-events: none;
 }
 
-/* The hover card names what the pointer rests on, so it gives way to any menu or dialog opened over the map (a
-   right-click's menu at the pointer, a dialog a shortcut opens) though its layer draws above them. */
-body:has([role='menu'], [aria-modal='true']) [data-hover-tooltip] {
-  display: none !important;
+/* The canvas hover card's window-level layer (utils/tooltip-layer.ts): above every frame over the map, and under every
+   full-window surface, toast, dialog, menu and popover, so whatever the user opens covers the card by stacking alone. */
+[data-hover-card-layer] {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-hover-card);
+  pointer-events: none;
 }
 
 /* A presented story shows the map without the hover chrome the runtime places

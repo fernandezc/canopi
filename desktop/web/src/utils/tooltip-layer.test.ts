@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { placeTooltip, tooltipLayer } from './tooltip-layer'
+import { hoverCardLayer, placeTooltip, tooltipLayer } from './tooltip-layer'
 
 const WINDOW = { width: 1000, height: 800 }
 const TIP = { width: 120, height: 30 }
@@ -59,5 +59,14 @@ describe('tooltipLayer', () => {
     const again = tooltipLayer()
     expect(again).not.toBe(layer)
     expect(document.querySelectorAll('[data-tooltip-layer]')).toHaveLength(1)
+  })
+
+  it('keeps the hover card\'s layer apart: its own element on <body>', () => {
+    const tooltips = tooltipLayer()
+    const cards = hoverCardLayer()
+    expect(cards).not.toBe(tooltips)
+    expect(cards.parentElement).toBe(document.body)
+    expect(cards.hasAttribute('data-hover-card-layer')).toBe(true)
+    expect(hoverCardLayer()).toBe(cards)
   })
 })

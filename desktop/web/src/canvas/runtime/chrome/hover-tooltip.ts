@@ -2,10 +2,11 @@
 //
 // Owns the plant tooltip of the ToolHost's passive hover (ToolHostDeps.chrome.setTooltip, spec §1.4): the plant's common and
 // scientific names beside the pointer, with the look it had before v2 (at a4c86d39). It is drawn in the window-level
-// tooltip layer (utils/tooltip-layer.ts), so no frame over the map covers it, and kept inside the window; the element
-// joins the layer at its first show, so a map whose tools never show it adds none.
+// hover card layer (utils/tooltip-layer.ts), so no frame over the map covers it and every menu, popover, dialog or
+// full-window surface the user opens covers it, and kept inside the window; the element joins the layer at its first
+// show, so a map whose tools never show it adds none.
 
-import { tooltipLayer } from '../../../utils/tooltip-layer'
+import { hoverCardLayer } from '../../../utils/tooltip-layer'
 import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 
 export interface HoverTooltipController {
@@ -57,7 +58,7 @@ export function createHoverTooltip(container: HTMLElement): HoverTooltipControll
 
   return {
     show(screenX, screenY, commonName, scientificName) {
-      const layer = tooltipLayer()
+      const layer = hoverCardLayer()
       if (el.parentNode !== layer) layer.appendChild(el)
       commonEl.textContent = commonName || ''
       commonEl.style.display = commonName ? '' : 'none'

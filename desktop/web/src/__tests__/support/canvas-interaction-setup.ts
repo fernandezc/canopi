@@ -453,11 +453,11 @@ export function withoutNativeRandomUUID(action: () => void): void {
 }
 
 /**
- * The plant tooltip the ToolHost's passive hover shows (chrome/hover-tooltip.ts); it joins the window's tooltip layer
- * at its first show.
+ * The plant tooltip the ToolHost's passive hover shows (chrome/hover-tooltip.ts); it joins the window's hover card
+ * layer at its first show.
  */
 export function plantHoverTooltip(): HTMLElement {
-  const tooltip = document.querySelector<HTMLElement>('[data-tooltip-layer] > [data-canvas-chrome="hover-tooltip"]')
+  const tooltip = document.querySelector<HTMLElement>('[data-hover-card-layer] > [data-canvas-chrome="hover-tooltip"]')
   if (!tooltip) throw new Error('Expected Plant Hover Tooltip')
   return tooltip
 }

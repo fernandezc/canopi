@@ -225,7 +225,7 @@ describe('the session\'s chrome', () => {
 
     // The host's is the chrome's, and the window's tooltip layer carries one.
     expect(document.querySelectorAll('[data-hover-tooltip]')).toHaveLength(1)
-    const tooltip = document.querySelector<HTMLElement>('[data-tooltip-layer] > [data-canvas-chrome="hover-tooltip"][data-hover-tooltip]')!
+    const tooltip = document.querySelector<HTMLElement>('[data-hover-card-layer] > [data-canvas-chrome="hover-tooltip"][data-hover-tooltip]')!
     expect(tooltip.style.display).toBe('block')
     expect(tooltip.textContent).toBe('AppleMalus domestica')
   })

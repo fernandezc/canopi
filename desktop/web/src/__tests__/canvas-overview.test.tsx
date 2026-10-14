@@ -10,7 +10,6 @@ import { setCurrentCanvasSession } from '../canvas/session'
 import { createTestCanvasCommandSurface, createTestCanvasRuntimeSurfaces } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface, createTestViewReadSurface } from './support/canvas-query-surface'
 import { createTestView, type TestView } from './support/test-view'
-import { hoveredTooltip } from './support/tooltip'
 
 import { focusOwner } from '../app/keyboard/focus-owner'
 import { CanvasOverview, OverviewNotice } from '../components/canvas/CanvasOverview'
@@ -62,7 +61,6 @@ describe('CanvasOverview', () => {
     expect(pin.tagName).toBe('BUTTON')
     expect(pin.type).toBe('button')
     expect(pin.getAttribute('aria-label')).toMatch(/^Go to Design: /)
-    expect(hoveredTooltip(pin)?.textContent).toBe('Fit the whole Design on screen')
     expect(pin.style.left).toBe('200px')
     pin.click()
     expect(returnToDesign).toHaveBeenCalledTimes(2)
@@ -70,47 +68,60 @@ describe('CanvasOverview', () => {
     focusMap.mockRestore()
   })
 
-  it('lets a panel drag that enters the pin through to the map until the drag ends', async () => {
+  it('lets every gesture through to the map: a still press on the pin fits the Design, a drag from it does not', async () => {
+    const returnToDesign = vi.fn()
+    const focusMap = vi.spyOn(focusOwner, 'focusMap').mockImplementation(() => {})
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
       queries: { ...createTestCanvasQuerySurface(), view: overviewView() },
+      commands: createTestCanvasCommandSurface({ viewport: { returnToDesign } }),
     }))
     await act(async () => render(<CanvasOverview />, container))
-    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
-    const resting = pin().className
+    const pin = container.querySelector<HTMLElement>('[data-overview-pin]')!
+    vi.spyOn(pin, 'getBoundingClientRect').mockReturnValue(new DOMRect(190, 140, 120, 32))
+    // The map host the pointer lands on (the pin itself takes no pointer events), and a control drawn over the pin's box.
+    const map = document.createElement('div')
+    map.setAttribute('role', 'application')
+    const control = document.createElement('button')
+    container.append(map, control)
+    const pointer = (type: string, x: number, y: number, init: PointerEventInit = {}, target: Element = map): void => {
+      act(() => { target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, pointerType: 'mouse', button: 0, ...init })) })
+    }
 
-    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
-    expect(pin().className, 'the pin goes transparent to the drag').not.toBe(resting)
-    await act(async () => { window.dispatchEvent(new Event('dragend')) })
-    expect(pin().className, 'the drag ended: the pin takes clicks again').toBe(resting)
+    // A mouse over the pin's box shows its tooltip although the pin takes no pointer events itself.
+    pointer('pointermove', 250, 150, { buttons: 0 })
+    expect(document.querySelector('[data-tooltip-layer] [role="tooltip"]')?.textContent).toBe('Fit the whole Design on screen')
+    pointer('pointermove', 400, 150, { buttons: 0 })
+    expect(document.querySelector('[data-tooltip-layer] [role="tooltip"]')).toBeNull()
 
-    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
-    await act(async () => { document.body.dispatchEvent(new Event('drop', { bubbles: true })) })
-    expect(pin().className, 'a drop anywhere ends it too').toBe(resting)
-  })
+    // A drag that starts on the pin is the map's pan: it fits nothing.
+    pointer('pointerdown', 250, 150, { buttons: 1 })
+    pointer('pointermove', 300, 180, { buttons: 1 })
+    pointer('pointerup', 300, 180)
+    expect(returnToDesign).not.toHaveBeenCalled()
 
-  it('ends pass-through when a drag from outside the page leaves the window or the overview ends', async () => {
-    const mode = signal<'overview' | 'site'>('overview')
-    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
-      queries: {
-        ...createTestCanvasQuerySurface(),
-        view: { ...createTestViewReadSurface(), mode, designPin: signal<ScreenPoint | null>({ x: 100, y: 100 }) },
-      },
-    }))
-    await act(async () => render(<CanvasOverview />, container))
-    const pin = (): HTMLElement => container.querySelector<HTMLElement>('[data-overview-pin]')!
-    const resting = pin().className
+    // A press on chrome over the pin's box is that chrome's.
+    pointer('pointerdown', 250, 150, { buttons: 1 }, control)
+    pointer('pointerup', 250, 150, {}, control)
+    expect(returnToDesign).not.toHaveBeenCalled()
 
-    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
-    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: container })) })
-    expect(pin().className, 'a drag moving within the page stays let through').not.toBe(resting)
-    // A file dragged from the desktop and released outside the window fires no dragend or drop on the page.
-    await act(async () => { document.body.dispatchEvent(new MouseEvent('dragleave', { bubbles: true, relatedTarget: null })) })
-    expect(pin().className, 'the drag left the window: the pin takes clicks again').toBe(resting)
+    // A press beside the pin fits nothing either.
+    pointer('pointerdown', 400, 150, { buttons: 1 })
+    pointer('pointerup', 400, 150)
+    expect(returnToDesign).not.toHaveBeenCalled()
 
-    await act(async () => { pin().dispatchEvent(new Event('dragenter', { bubbles: true })) })
-    await act(async () => { mode.value = 'site' })
-    await act(async () => { mode.value = 'overview' })
-    expect(pin().className, 'leaving the overview ends pass-through').toBe(resting)
+    // A still press on the pin (within the slop) is a tap: the Design fits and the map takes focus.
+    pointer('pointerdown', 250, 150, { buttons: 1 })
+    pointer('pointermove', 251, 151, { buttons: 1 })
+    pointer('pointerup', 251, 151)
+    expect(returnToDesign).toHaveBeenCalledOnce()
+    expect(focusMap).toHaveBeenCalledOnce()
+
+    // A pointer's click never reaches the pin (the map has the pointer); the keyboard's (detail 0) fits.
+    act(() => { pin.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })) })
+    expect(returnToDesign).toHaveBeenCalledOnce()
+    pin.click()
+    expect(returnToDesign).toHaveBeenCalledTimes(2)
+    focusMap.mockRestore()
   })
 
   it('omits an offscreen marker while retaining the notice action', async () => {
