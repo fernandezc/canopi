@@ -8,7 +8,7 @@ Read the [design system](../system.md) and [canvas navigation](canvas-navigation
 - In a short window the last tools fold, in order, into More tools before Undo and Redo, which never fold. The rail never scrolls or covers the view chip. The panel rail folds the same way and never covers the inspection launcher or the zoom group.
 - View chip: Grid and Snap to grid as pressed toggles with a check icon; only Snap is on by default.
 - Zoom group: scale bar, zoom out, scale ratio (a menu of common scales), zoom in, Fit to Design (Shift F), then the compass. The attribution pill sits left of it, folding into an (i) button only when its band leaves under 360 px.
-- Below 0.1 px/m the Design is one pin ("Return to …"), editing tools are disabled and a top-centre chip says "Zoom in to edit. Plants are hidden at this scale."
+- Below 0.1 px/m the Design is one pin, a "Go to Design: …" button that fits it, as picking a tool does. A top chip says "Zoom in to edit. Plants are hidden at this scale."
 - The map is a keyboard stop with the focus ring inside its edge, one of the four F6 areas. Arrows pan 64 px with nothing selected, else nudge 10 cm (one undo per series); Ctrl or Cmd: 256 px or 1 m; locked objects stay put.
 
 ## Map annotations
