@@ -392,3 +392,12 @@ html[data-story-presenting] [data-hover-tooltip] {
 :root:has([data-design-hidden]) [data-design-chrome] * {
   pointer-events: none !important;
 }
+
+/* The phone sheet's context bar is the one piece of the open Design's chrome
+   inside chrome the start screen keeps (the sheet's peek): while the Design
+   waits to show it takes no room, so the sheet, and the start screen's
+   clearance above it, keep their start-screen size (its map notice row
+   included; e2e/canvas/start-screen.spec.ts). */
+:root:has([data-design-hidden]) [data-phone-context-bar] {
+  display: none;
+}

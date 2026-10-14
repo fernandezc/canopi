@@ -107,30 +107,47 @@ for (const size of SIZES) {
   })
 }
 
-test.describe('1280×800', () => {
-  test.use({ viewport: { width: 1280, height: 800 } })
+for (const size of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 740, height: 360 }] as const) {
+  const name = `${size.width}×${size.height}`
+  test.describe(`${name} opening a Draft`, () => {
+    test.use({ viewport: size, hasTouch: size.width < 900 })
 
-  test('(canopi-u85o) opening a Draft keeps the start screen\'s layout until the Design shows', async ({ page }) => {
-    // The Design's chrome is laid out, transparent, while its first scene is drawn; it frames the camera but takes no room
-    // from the start screen covering the wait (visible-map-area's `--map-clear-*`), so the library does not shift.
-    await openWithDrafts(page)
-    await page.evaluate(() => {
-      const samples: string[] = []
-      ;(window as unknown as { __clearSamples: string[] }).__clearSamples = samples
-      const sample = () => {
-        const start = document.querySelector('[data-start-screen]')
-        if (!start) return
-        const style = getComputedStyle(start)
-        samples.push(['top', 'right', 'bottom', 'left'].map((edge) => style.getPropertyValue(`--map-clear-${edge}`).trim()).join(' '))
-        requestAnimationFrame(sample)
-      }
-      sample()
+    test(`(canopi-u85o) opening a Draft keeps the start screen's layout until the Design shows (${name})`, async ({ page }) => {
+      // The Design's chrome is laid out, transparent, while its first scene is drawn; it frames the camera but takes no
+      // room from the start screen covering the wait (visible-map-area's `--map-clear-*`), so the library does not shift.
+      // On a phone the panel sheet stays up over the start screen, and the Design's context bar in it (with the map
+      // notice's "Loading basemap…", up through the wait while the basemap's style is held back) takes no room until
+      // the Design shows, so neither the sheet nor the start screen's clearance moves.
+      await page.route('https://tiles.openfreemap.org/styles/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        await route.fallback()
+      })
+      await openWithDrafts(page)
+      // The start screen's own layout after Close Design settles first (WebKit measures the closed Design's sheet once
+      // more on the next frame); only the opening is sampled.
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      await page.evaluate(() => {
+        const samples: string[] = []
+        ;(window as unknown as { __clearSamples: string[] }).__clearSamples = samples
+        const sample = () => {
+          const start = document.querySelector('[data-start-screen]')
+          if (!start) return
+          const style = getComputedStyle(start)
+          const sheet = document.querySelector('[data-phone-sheet]')?.getBoundingClientRect()
+          samples.push([
+            ...['top', 'right', 'bottom', 'left'].map((edge) => style.getPropertyValue(`--map-clear-${edge}`).trim()),
+            sheet ? `sheet ${sheet.top}..${sheet.bottom}` : 'no sheet',
+          ].join(' '))
+          requestAnimationFrame(sample)
+        }
+        sample()
+      })
+      await startScreen(page).locator('[data-design-drafts] li').first().getByRole('button').first().click()
+      await expect(startScreen(page)).toHaveCount(0)
+      await expect(page.locator('[data-design-hidden]')).toHaveCount(0)
+      const samples = await page.evaluate(() => (window as unknown as { __clearSamples: string[] }).__clearSamples)
+      expect(samples.length, 'frames were sampled while the Design opened').toBeGreaterThan(1)
+      expect(new Set(samples), `the start screen's clearance per frame: ${JSON.stringify(samples)}`).toEqual(new Set([samples[0]]))
     })
-    await startScreen(page).locator('[data-design-drafts] li').first().getByRole('button').first().click()
-    await expect(startScreen(page)).toHaveCount(0)
-    await expect(page.getByRole('toolbar', { name: 'Tools' })).toBeVisible()
-    const samples = await page.evaluate(() => (window as unknown as { __clearSamples: string[] }).__clearSamples)
-    expect(samples.length, 'frames were sampled while the Design opened').toBeGreaterThan(1)
-    expect(new Set(samples), `the start screen's clearance per frame: ${JSON.stringify(samples)}`).toEqual(new Set([samples[0]]))
   })
-})
+}
