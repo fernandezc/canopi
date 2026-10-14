@@ -71,30 +71,35 @@ export function ButtonTooltip({
     }
   }, [hovered, focused])
 
-  // Placed from the button's window box after every render while open (a new label or a moved button).
+  // While open it follows the button's window box every frame, as a child of the button would: a render, a scroll, a
+  // resize, or CSS alone (a phone sheet dragged moves the zoom column through its top) may move it. It hides while
+  // the button shows nothing (visibility: hidden, or no box under display: none).
   useLayoutEffect(() => {
     if (!open) return
+    let frame = 0
     const place = () => {
       const button = marker.current?.closest('button')
       const element = bubble.current
-      if (!button || !element) return
-      const placed = placeTooltip(
-        button.getBoundingClientRect(),
-        { width: element.offsetWidth, height: element.offsetHeight },
-        { width: window.innerWidth, height: window.innerHeight },
-        side,
-      )
-      element.style.left = `${placed.left}px`
-      element.style.top = `${placed.top}px`
-      element.dataset.side = placed.side
+      if (button && element) {
+        const box = button.getBoundingClientRect()
+        const unseen = (box.width === 0 && box.height === 0) || getComputedStyle(button).visibility !== 'visible'
+        element.style.visibility = unseen ? 'hidden' : ''
+        if (!unseen) {
+          const placed = placeTooltip(
+            box,
+            { width: element.offsetWidth, height: element.offsetHeight },
+            { width: window.innerWidth, height: window.innerHeight },
+            side,
+          )
+          element.style.left = `${placed.left}px`
+          element.style.top = `${placed.top}px`
+          element.dataset.side = placed.side
+        }
+      }
+      frame = requestAnimationFrame(place)
     }
     place()
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    return () => {
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-    }
+    return () => cancelAnimationFrame(frame)
   })
 
   return (
