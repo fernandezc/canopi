@@ -9,8 +9,7 @@
   color: var(--color-accent-ink);
 }
 
-/* Blocked dims the glyph only, not the group's whole button: the tooltip is the button's child, and its reason must
-   stay readable. */
+/* Blocked dims the glyph only, not the group's whole button. */
 .location.location[aria-disabled="true"] {
   opacity: 1;
 }

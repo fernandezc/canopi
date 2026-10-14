@@ -467,7 +467,7 @@ function EmptyLibrary() {
       <p className={styles.muted}>{t('canvas.lidar.import.supported')}</p>
       <button
         type="button"
-        className={`${styles.dialogButton} ${styles.withTooltip}`}
+        className={styles.dialogButton}
         data-focus-target="import"
         disabled={noDesign}
         onClick={() => void beginDataImport()}

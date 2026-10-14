@@ -1038,7 +1038,7 @@ describe('SceneInteractionSession', () => {
 
     // The held moves ran today's hover: the restyle and the plant tooltip.
     expect(setHoveredTarget).toHaveBeenLastCalledWith(plantTarget('plant-1'))
-    expect(plantHoverTooltip(container).style.display).toBe('block')
+    expect(plantHoverTooltip().style.display).toBe('block')
     events.pointerUp({ x: 80, y: 30 }, { button: 0 })
     expect(rowSource('plant-1')).toBe(false)
     session.dispose()
@@ -1075,7 +1075,7 @@ describe('SceneInteractionSession', () => {
         events.pointerMove({ x: 120, y: 30 }, { button: 0 })
 
         expect(setHoveredTarget).not.toHaveBeenCalled()
-        const tooltip = container.querySelector<HTMLElement>('[data-canvas-chrome="hover-tooltip"]')
+        const tooltip = document.querySelector<HTMLElement>('[data-canvas-chrome="hover-tooltip"]')
         expect(tooltip?.style.display ?? 'none').not.toBe('block')
         events.pointerUp({ x: 120, y: 30 }, { button: 0 })
         session.dispose()

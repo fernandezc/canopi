@@ -352,8 +352,6 @@
 }
 
 .finish {
-  /* The tooltip of the icon-only button on phones. */
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -1,9 +1,11 @@
 // canvas/runtime/chrome/hover-tooltip.ts
 //
 // Owns the plant tooltip of the ToolHost's passive hover (ToolHostDeps.chrome.setTooltip, spec §1.4): the plant's common and
-// scientific names beside the pointer, kept inside the map, with the look it had before v2 (at a4c86d39). The element
-// joins the map at its first show, so a map whose tools never show it carries none.
+// scientific names beside the pointer, with the look it had before v2 (at a4c86d39). It is drawn in the window-level
+// tooltip layer (utils/tooltip-layer.ts), so no frame over the map covers it, and kept inside the window; the element
+// joins the layer at its first show, so a map whose tools never show it adds none.
 
+import { tooltipLayer } from '../../../utils/tooltip-layer'
 import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'
 
 export interface HoverTooltipController {
@@ -14,6 +16,8 @@ export interface HoverTooltipController {
 
 const OFFSET_PX = 12
 const MAX_WIDTH_PX = 260
+/** Its distance from the window's edges. */
+const MARGIN_PX = 8
 
 export function createHoverTooltip(container: HTMLElement): HoverTooltipController {
   const el = document.createElement('div')
@@ -22,7 +26,6 @@ export function createHoverTooltip(container: HTMLElement): HoverTooltipControll
   el.style.cssText = [
     'position: absolute',
     'pointer-events: none',
-    'z-index: 20',
     'display: none',
     'padding: var(--space-1) var(--space-2)',
     'background: var(--color-surface)',
@@ -54,7 +57,8 @@ export function createHoverTooltip(container: HTMLElement): HoverTooltipControll
 
   return {
     show(screenX, screenY, commonName, scientificName) {
-      if (el.parentNode !== container) container.appendChild(el)
+      const layer = tooltipLayer()
+      if (el.parentNode !== layer) layer.appendChild(el)
       commonEl.textContent = commonName || ''
       commonEl.style.display = commonName ? '' : 'none'
       scientificEl.textContent = scientificName
@@ -62,16 +66,18 @@ export function createHoverTooltip(container: HTMLElement): HoverTooltipControll
       // Show first so offsetWidth/offsetHeight are accurate for clamping
       el.style.display = 'block'
 
-      let x = screenX + OFFSET_PX
-      let y = screenY + OFFSET_PX
-
-      // Clamp to container bounds
-      const cw = container.clientWidth
-      const ch = container.clientHeight
+      // The pointer in window pixels; below and right of it, else on the side with room, then inside the window.
+      const origin = container.getBoundingClientRect()
+      const pointerX = origin.left + screenX
+      const pointerY = origin.top + screenY
       const ew = el.offsetWidth
       const eh = el.offsetHeight
-      if (x + ew > cw) x = screenX - ew - OFFSET_PX
-      if (y + eh > ch) y = screenY - eh - OFFSET_PX
+      let x = pointerX + OFFSET_PX
+      let y = pointerY + OFFSET_PX
+      if (x + ew > window.innerWidth - MARGIN_PX) x = pointerX - ew - OFFSET_PX
+      if (y + eh > window.innerHeight - MARGIN_PX) y = pointerY - eh - OFFSET_PX
+      x = Math.max(MARGIN_PX, Math.min(x, window.innerWidth - MARGIN_PX - ew))
+      y = Math.max(MARGIN_PX, Math.min(y, window.innerHeight - MARGIN_PX - eh))
 
       el.style.left = `${x}px`
       el.style.top = `${y}px`

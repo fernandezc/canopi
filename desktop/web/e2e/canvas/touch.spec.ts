@@ -10,6 +10,7 @@ import type { Page } from '@playwright/test'
 import { bearing, designMap, expectCanvasDrawn } from '../support/canvas'
 import { Fingers, type Point } from '../support/fingers'
 import { expect, test } from '../support/offline'
+import { tooltipOf } from '../support/tooltip'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 
@@ -436,12 +437,11 @@ test.describe('Chromium touch', () => {
   test('a tapped button keeps its tooltip hidden', async ({ page }) => {
     await openBaseFixture(page, TABLET)
     const button = page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to Design' })
-    const tooltip = button.locator('[role="tooltip"]')
-    await expect(tooltip).toHaveCount(1)
+    const tooltip = await tooltipOf(button)
     await button.tap()
     // Past the tooltip's 400 ms delay and its fade.
     await page.waitForTimeout(1000)
-    expect(await tooltip.evaluate((element) => getComputedStyle(element).visibility), 'the tap leaves no tooltip').toBe('hidden')
+    await expect(tooltip, 'the tap leaves no tooltip').toHaveCount(0)
   })
 })
 

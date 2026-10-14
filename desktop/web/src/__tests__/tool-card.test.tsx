@@ -30,6 +30,7 @@ import {
 } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface } from './support/canvas-query-surface'
 import { createDefaultScenePersistedState } from '../canvas/runtime/scene'
+import { hoveredTooltip } from './support/tooltip'
 
 const locating = vi.hoisted(() => ({ open: null as null | { value: boolean } }))
 vi.mock('../app/site-onboarding/state', async (importOriginal) => {
@@ -647,21 +648,19 @@ describe('Tool card', () => {
       })
 
       it('on phones shows the check button as an icon, named and with its tooltip; elsewhere with its name', async () => {
-        const shown = (button: HTMLButtonElement) => [...button.childNodes]
-          .filter((node) => !(node instanceof Element && node.getAttribute('role') === 'tooltip'))
-          .map((node) => node.textContent).join('')
+        const shown = (button: HTMLButtonElement) => button.textContent
         try {
           phoneLayout.value = 'portrait'
           await choose('plant-spacing', { gesture: true, plantRow: PATH })
           expect(finish()!.getAttribute('aria-label')).toBe('Plant the row')
-          expect(finish()!.querySelector('[role="tooltip"]')?.textContent).toBe('Plant the row')
+          expect(hoveredTooltip(finish()!)?.textContent).toBe('Plant the row')
           expect(shown(finish()!)).toBe('')
           expect(finish()!.querySelector('svg')).not.toBeNull()
         } finally {
           await act(() => { phoneLayout.value = null })
         }
         expect(shown(finish()!)).toBe('Plant the row')
-        expect(finish()!.querySelector('[role="tooltip"]')).toBeNull()
+        expect(hoveredTooltip(finish()!)).toBeNull()
       })
     })
 

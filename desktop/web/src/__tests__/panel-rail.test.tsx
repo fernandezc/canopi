@@ -9,6 +9,7 @@ import { activePanel, sidePanel } from '../app/shell/state'
 import { locale } from '../app/settings/state'
 import { appCommandGraphPanelProjection } from '../commands/registry'
 import { designSessionFixture } from './support/design-session-state'
+import { hoveredTooltip } from './support/tooltip'
 
 /** The rail over the live projection, rendered even without a Design (DesktopPanelRail hides then). */
 function ProjectedRail() {
@@ -93,7 +94,7 @@ describe('Panel rail', () => {
     expect(panelButton('Layers').getAttribute('aria-keyshortcuts')).toBe('Control+1 Meta+1')
     expect(panelButton('Site data').getAttribute('aria-keyshortcuts')).toBe('Control+2 Meta+2')
     expect(panelButton('Plants in this Design').getAttribute('aria-keyshortcuts')).toBe('Control+3 Meta+3')
-    expect(panelButton('Design notebook').querySelector('[role="tooltip"]')?.textContent).toContain('Ctrl 9')
+    expect(hoveredTooltip(panelButton('Design notebook')!)?.textContent).toContain('Ctrl 9')
     expect(panelButton('Stories').hasAttribute('aria-keyshortcuts')).toBe(false)
   })
 
@@ -198,7 +199,7 @@ describe('Panel rail', () => {
       render(<ProjectedRail />, container)
     })
 
-    expect(container.querySelector('button[aria-label="Layers"] [role="tooltip"]')?.textContent)
+    expect(hoveredTooltip(container.querySelector('button[aria-label="Layers"]')!)?.textContent)
       .toContain('Layers')
 
     await act(async () => {
@@ -208,7 +209,7 @@ describe('Panel rail', () => {
 
     const layersButton = container.querySelector('button[aria-label="Calques"]')
     expect(layersButton).not.toBeNull()
-    expect(layersButton?.querySelector('[role="tooltip"]')?.textContent)
+    expect(hoveredTooltip(layersButton!)?.textContent)
       .toContain('Calques')
   })
 

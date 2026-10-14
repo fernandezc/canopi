@@ -4,7 +4,7 @@ Read the [design system](../system.md) and [canvas navigation](canvas-navigation
 
 ## Chrome
 
-- Tool rail: groups separated by rules; the active tool solid ochre with `aria-pressed`; arrows move between tools. Labels and key hints show until a tool's first use (per device), then 52 px icons with tooltips. The labelled rail is 224 px; it keeps to icons when it would leave under 360 px of map or cut a label.
+- Tool rail: groups separated by rules; the active tool solid ochre with `aria-pressed`; arrows move between tools. Labels and key hints show until a tool's first use (per device), then 52 px icons; tooltips in both. The labelled rail is 224 px; it keeps to icons when it would leave under 360 px of map or cut a label.
 - In a short window the last tools fold, in order, into More tools before Undo and Redo, which never fold. The rail never scrolls or covers the view chip. The panel rail folds the same way and never covers the inspection launcher or the zoom group.
 - View chip: Grid and Snap to grid as pressed toggles with a check icon; only Snap is on by default.
 - Zoom group: scale bar, zoom out, scale ratio (a menu of common scales), zoom in, Fit to Design (Shift F), then the compass. The attribution pill sits left of it, folding into an (i) button only when its band leaves under 360 px.

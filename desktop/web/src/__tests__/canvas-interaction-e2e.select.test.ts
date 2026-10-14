@@ -643,7 +643,7 @@ describe('SceneInteractionSession', () => {
     deps.setSelection([plantTarget('plant-1')])
 
     events.pointerMove({ x: 20, y: 30 })
-    const tooltip = plantHoverTooltip(container)
+    const tooltip = plantHoverTooltip()
     expect(tooltip.style.display).toBe('block')
     expect(setHoveredTarget).toHaveBeenCalledWith(plantTarget('plant-1'))
     setHoveredTarget.mockClear()
@@ -669,7 +669,7 @@ describe('SceneInteractionSession', () => {
     session.setTool('select')
 
     events.pointerMove({ x: 20, y: 30 })
-    const tooltip = plantHoverTooltip(container)
+    const tooltip = plantHoverTooltip()
     expect(tooltip.style.display).toBe('block')
     expect(setHoveredTarget).toHaveBeenLastCalledWith(plantTarget('plant-1'))
     setHoveredTarget.mockClear()
@@ -771,7 +771,7 @@ describe('SceneInteractionSession', () => {
 
     deps.setSelection([plantTarget('plant-1')])
     session.refreshMeasurements()
-    const overlay = plantHoverTooltip(container)
+    const overlay = plantHoverTooltip()
 
     events.pointerDown({ x: 20, y: 30 }, { button: 0 })
     const overlayMove = events.pointerMove(
@@ -787,7 +787,7 @@ describe('SceneInteractionSession', () => {
     deps.setSelection([zoneTarget('zone-1')])
     session.refreshMeasurements()
     const handle = rotationHandle(container)!
-    const chromeElement = plantHoverTooltip(container)
+    const chromeElement = plantHoverTooltip()
     const pivot = selectionBoundsCenter(getDesignObjectSelectionFromStore(store, testView))
     const start = rotationHandleCenter(container)
     const end = quarterTurnClockwise(pivot, start)
@@ -823,7 +823,7 @@ describe('SceneInteractionSession', () => {
     events.pointerMove({ x: 360, y: 280 })
     deps.setSelection([plantTarget('plant-1')])
     session.refreshMeasurements()
-    const overlay = plantHoverTooltip(container)
+    const overlay = plantHoverTooltip()
 
     events.pointerDown({ x: 200, y: 150 }, { pointerId: 41, button: 1 })
     events.pointerMove(

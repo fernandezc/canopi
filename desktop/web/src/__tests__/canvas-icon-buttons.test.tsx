@@ -18,16 +18,15 @@ import { SpeciesFocusChip } from '../components/canvas/SpeciesFocusChip'
 import { CanvasOverview, OverviewNotice } from '../components/canvas/CanvasOverview'
 import { LayerPanel, type LayerPanelActions } from '../components/canvas/LayerPanel'
 import { createTestCanvasQuerySurface } from './support/canvas-query-surface'
+import { hoveredTooltip } from './support/tooltip'
 import {
   createTestCanvasDocumentSurface,
   createTestCanvasRuntimeSurfaces,
 } from './support/canvas-runtime-surfaces'
 
-/** A button is icon-only when, ignoring its tooltip, it shows no letters or digits. */
+/** A button is icon-only when it shows no letters or digits (its tooltip is drawn in the window-level layer). */
 function isIconOnly(button: HTMLButtonElement): boolean {
-  const clone = button.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('[role="tooltip"]').forEach((node) => node.remove())
-  return !/[\p{L}\p{N}]/u.test(clone.textContent ?? '')
+  return !/[\p{L}\p{N}]/u.test(button.textContent ?? '')
 }
 
 function expectIconButtonsFollowRules(root: ParentNode, minimum: number): void {
@@ -38,7 +37,7 @@ function expectIconButtonsFollowRules(root: ParentNode, minimum: number): void {
   for (const button of buttons) {
     const label = button.getAttribute('aria-label')?.trim() ?? ''
     expect(label, button.outerHTML).not.toBe('')
-    const tooltip = button.querySelector('[role="tooltip"]')
+    const tooltip = hoveredTooltip(button)
     expect(tooltip, `missing ButtonTooltip: ${label}`).not.toBeNull()
     const name = tooltip!.firstElementChild?.textContent?.trim() ?? ''
     expect(name, `empty tooltip: ${label}`).not.toBe('')

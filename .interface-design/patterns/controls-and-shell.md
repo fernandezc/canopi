@@ -33,7 +33,7 @@ A wide dialog with a section list on the left (`nav`, the current section `aria-
 - Map and imagery: Satellite imagery as a segmented Free imagery / My Google key. The key field is masked and a saved key is never put in the page; Show reveals only what is typed; Save key, Remove key (chooses Free imagery); a note says the key stays on this device. Then Map style and Soften background.
 - Canvas: Pointing device ([canvas navigation](canvas-navigation.md#settings--canvas)).
 - New Designs: Open on satellite, symbol size (50–200 %), labels (None, Codes, Names); applied once when a Design is created.
-- Keyboard: Single-key shortcuts and Show all shortcuts (closes Settings, opens F1); it says remapping is not offered.
+- Keyboard: Single-key shortcuts and Show all shortcuts (closes Settings, opens F1); no remapping.
 - Files and data: Desktop lists the Drafts and Data library paths with Show in folder; Web says Designs and Drafts stay in the browser.
 - About: the version and About Canopi… (closes Settings, opens it).
 
@@ -48,7 +48,7 @@ Pages move on the preview (drag, or arrows on the focused page). No map backgrou
 - Dropdown, never a native `<select>`; its accessible name includes the current value. DatePicker, never `<input type="date">`.
 - Segmented controls are radio groups; the selected segment has an ink edge. Switches are checkboxes with `role="switch"`. Radios are custom with a visible ring.
 - Sliders show their value and carry accessible names.
-- Touch screens: tooltips show only on keyboard focus (Show my location's Blocked or unavailable reason also 4 s after a tap); menu rows are 44 px.
+- Tooltips draw in one layer above every frame, flipped or shifted to stay whole. Touch screens show them only on keyboard focus (Show my location's reason also 4 s after a tap); menu rows are 44 px.
 
 ## Web on phones
 

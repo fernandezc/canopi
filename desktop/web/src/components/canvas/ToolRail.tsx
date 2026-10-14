@@ -18,7 +18,7 @@ import styles from './ToolRail.module.css'
 
 interface ToolRailProps {
   readonly projection: CanvasCommandProjection
-  /** Names and keys beside each tool (first use, or View › Tool names). */
+  /** Names and keys beside each tool (first use, or View › Tool names); every tool keeps its tooltip either way. */
   readonly showNames: boolean
 }
 
@@ -123,14 +123,13 @@ export function ToolRail({ projection, showNames: namesWanted }: ToolRailProps) 
         onClick={() => { if (!command.disabled) command.action('rail') }}
       >
         <ToolIcon name={icon} className={styles.icon} />
-        {showNames ? (
+        {showNames && (
           <>
             <span className={styles.label} data-rail-label>{command.label}</span>
             {command.shortcut && <kbd className={styles.key} aria-hidden="true">{command.shortcut}</kbd>}
           </>
-        ) : (
-          <ButtonTooltip label={command.label} shortcut={command.shortcut} />
         )}
+        <ButtonTooltip label={command.label} shortcut={command.shortcut} />
       </button>
     )
   }
@@ -145,7 +144,7 @@ export function ToolRail({ projection, showNames: namesWanted }: ToolRailProps) 
       tabIndex={focusTarget === MORE_ID ? 0 : -1}
       triggerClassName={styles.button}
       iconSize={20}
-      triggerLabel={showNames ? <span className={styles.label} data-rail-label>{moreLabel}</span> : undefined}
+      triggerLabel={showNames ? <><span className={styles.label} data-rail-label>{moreLabel}</span><ButtonTooltip label={moreLabel} /></> : undefined}
       triggerData={{
         'data-rail-item': '',
         'data-tool-rail-more': '',
