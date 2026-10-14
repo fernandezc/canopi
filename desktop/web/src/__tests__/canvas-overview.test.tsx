@@ -10,6 +10,7 @@ import { setCurrentCanvasSession } from '../canvas/session'
 import { createTestCanvasCommandSurface, createTestCanvasRuntimeSurfaces } from './support/canvas-runtime-surfaces'
 import { createTestCanvasQuerySurface, createTestViewReadSurface } from './support/canvas-query-surface'
 import { createTestView, type TestView } from './support/test-view'
+import { hoveredTooltip } from './support/tooltip'
 
 import { focusOwner } from '../app/keyboard/focus-owner'
 import { CanvasOverview, OverviewNotice } from '../components/canvas/CanvasOverview'
@@ -61,7 +62,7 @@ describe('CanvasOverview', () => {
     expect(pin.tagName).toBe('BUTTON')
     expect(pin.type).toBe('button')
     expect(pin.getAttribute('aria-label')).toMatch(/^Go to Design: /)
-    expect(pin.querySelector('[role="tooltip"]')?.textContent).toBe('Fit the whole Design on screen')
+    expect(hoveredTooltip(pin)?.textContent).toBe('Fit the whole Design on screen')
     expect(pin.style.left).toBe('200px')
     pin.click()
     expect(returnToDesign).toHaveBeenCalledTimes(2)
