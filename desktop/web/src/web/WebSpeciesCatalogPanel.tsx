@@ -67,20 +67,22 @@ export function WebSpeciesCatalogPanel({ mode }: WebSpeciesCatalogPanelProps) {
           <div className={styles.header}><SurfaceSearch value={favoriteSearch} onChange={setFavoriteSearch} label={t('favorites.search')} /></div>
           <div className={styles.list}>
             <h3 className={styles.sectionTitle}>{t('canvas.layers.plants')}</h3>
-            <SpeciesList
-              items={visibleItems}
-              englishNames={englishNames}
-              loading={favoritesView.loading}
-              emptyLabel={t(favoriteSearch ? 'speciesKey.noResults' : 'plantDb.noFavorites')}
-            />
+            {favoritesView.failed && !favoritesView.loading && favoritesView.items.length === 0 ? <LoadFailed /> : (
+              <SpeciesList
+                items={visibleItems}
+                englishNames={englishNames}
+                loading={favoritesView.loading}
+                emptyLabel={t(favoriteSearch ? 'speciesKey.noResults' : 'plantDb.noFavorites')}
+              />
+            )}
             <h3 className={styles.sectionTitle}>{t('plantDb.recentlyViewed')}</h3>
-            <div className={styles.recentList} role="list">
+            {sidebar.recentlyViewedFailed && sidebar.recentlyViewed.length === 0 ? <LoadFailed /> : <div className={styles.recentList} role="list">
               {sidebar.recentlyViewed.length === 0 ? (
                 <div className={styles.empty}>{t('plantDb.noRecentlyViewed')}</div>
               ) : (
                 sidebar.recentlyViewed.map((item) => <SpeciesRow key={item.canonical_name} item={item} englishName={englishNames.get(item.canonical_name)} />)
               )}
-            </div>
+            </div>}
           </div>
         </>
       )}
@@ -156,6 +158,18 @@ function webSpeciesFacts(detail: SpeciesCatalogDetail, currentLocale: string): S
     { id: 'lifeCycle', label: t('filters.lifecycle'), value: lifeCycles.length > 0 ? formatList(lifeCycles, currentLocale) : null },
     { id: 'climateZones', label: t('plantDetail.climateZones'), value: zones.length > 0 ? formatList(zones, currentLocale) : null },
   ]
+}
+
+/** A Favorites or Recently viewed list the catalog could not load: the translated message and Retry (canopi-etzh). */
+function LoadFailed() {
+  return (
+    <div className={styles.loadFailed} role="alert">
+      <span>{t('plantDb.loadFailed')}</span>
+      <button type="button" className={styles.retryButton} onClick={() => speciesCatalogWorkbench.retryFavorites()}>
+        {t('plantDb.retry')}
+      </button>
+    </div>
+  )
 }
 
 function SpeciesList({

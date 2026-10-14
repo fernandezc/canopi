@@ -159,6 +159,16 @@
 .row[data-favorite-row] .botanicalName { font-style: italic; }
 
 /* The detail's Retry, as the results' (PlantDb.module.css `.retryBtn`). */
+.loadFailed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
 .retryButton {
   min-height: var(--control-size-md);
   padding: var(--space-1) var(--space-3);

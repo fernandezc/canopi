@@ -473,7 +473,9 @@ describe('Web Edition reduced Species Catalog adapter', () => {
       expect(workbench.sidebar.value).toEqual({
         favoriteNames: ['Malus domestica'],
         recentlyViewed: [makeSpeciesListItem('Melissa officinalis')],
+        recentlyViewedFailed: false,
       })
+      expect(workbench.favorites.value.failed).toBe(false)
     })
     expect(search).toHaveBeenCalledTimes(2)
     expect(getFilterOptions).toHaveBeenCalledTimes(2)
