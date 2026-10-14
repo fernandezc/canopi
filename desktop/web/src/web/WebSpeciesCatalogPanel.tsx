@@ -123,7 +123,14 @@ function WebSpeciesDetail({ view }: { readonly view: SpeciesCatalogDetailView })
       place={detail ? { canonical_name: detail.canonical_name, common_name: detail.common_name, stratum: null, width_max_m: null } : null}
     >
       {view.loading && <p className={detailStyles.status} aria-live="polite" aria-busy="true">{t('plantDetail.loading')}</p>}
-      {view.error && <p className={detailStyles.statusError} role="alert">{view.error}</p>}
+      {view.error && (
+        <div className={detailStyles.statusError} role="alert" data-species-detail-error>
+          <span>{t('plantDb.loadFailed')}</span>
+          <button type="button" className={styles.retryButton} onClick={() => speciesCatalogWorkbench.retrySpeciesDetail()}>
+            {t('plantDb.retry')}
+          </button>
+        </div>
+      )}
       {detail && (
         <>
           <PhotoViewer model={photoModel} name={title} linkSources={true} />

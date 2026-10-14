@@ -8,6 +8,7 @@ import type {
   SpeciesListItem,
   SpeciesSearchRequest,
 } from '../../types/species'
+import { diagnosticMessageFromError, recordFrontendDiagnostic } from '../problem-report/diagnostics'
 import { speciesSearchAdmission } from '../../utils/species-search-normalization'
 import { createEmptySpeciesFilter, plantFilterModel } from './plant-filter-model'
 
@@ -123,6 +124,15 @@ export function isPlantSearchLoading(status: PlantSearchStatus): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * A catalog request that failed: the raw error goes to the frontend diagnostics only (redacted there), never the
+ * console or the page, which say "The plant catalog couldn’t load." with Retry (canopi-etzh). The error state keeps
+ * the message for the surfaces' own tests and logic.
+ */
+export function recordCatalogFailure(caught: unknown): void {
+  recordFrontendDiagnostic({ level: 'error', source: 'plant-catalog', message: diagnosticMessageFromError(caught) })
 }
 
 function searchTextPolicy(rawText: string): SearchTextPolicy {
@@ -299,6 +309,7 @@ export function createPlantSearchSession({
       })
     } catch (caught) {
       if (generation !== searchGeneration) return
+      recordCatalogFailure(caught)
       batch(() => {
         status.value = 'error'
         error.value = errorMessage(caught)
@@ -393,6 +404,7 @@ export function createPlantSearchSession({
       })
     } catch (caught) {
       if (generation !== searchGeneration) return
+      recordCatalogFailure(caught)
       batch(() => {
         status.value = 'error'
         error.value = errorMessage(caught)
@@ -457,11 +469,7 @@ export function createPlantSearchSession({
       if (disposed) return
 
       const message = errorMessage(caught)
-      console.error('Failed to load dynamic filter options', {
-        locale: currentLocale,
-        fields: uncached,
-        error: message,
-      })
+      recordCatalogFailure(caught)
       dynamicOptionsErrors.value = {
         ...dynamicOptionsErrors.value,
         [currentLocale]: {

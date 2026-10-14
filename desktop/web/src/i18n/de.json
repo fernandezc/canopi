@@ -64,7 +64,7 @@
     "removeFavorite": "Aus Favoriten entfernen",
     "place": "Setzen",
     "placeSpecies": "{{name}} setzen",
-    "error": "Fehler",
+    "loadFailed": "Der Pflanzenkatalog konnte nicht geladen werden.",
     "retry": "Erneut versuchen",
     "sunTolerance_full_sun": "Volle Sonne",
     "sunTolerance_semi_shade": "Halbschatten",

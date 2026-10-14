@@ -64,7 +64,7 @@
     "removeFavorite": "Rimuovi dai preferiti",
     "place": "Posiziona",
     "placeSpecies": "Posiziona {{name}}",
-    "error": "Errore",
+    "loadFailed": "Impossibile caricare il catalogo delle piante.",
     "retry": "Riprova",
     "sunTolerance_full_sun": "Pieno sole",
     "sunTolerance_semi_shade": "Mezz’ombra",

@@ -270,9 +270,7 @@ function FieldRow({ field }: { field: FieldDef }) {
           {isLoading && <span className={styles.loading}>{t('plantDb.loading')}</span>}
           {!isLoading && error && (
             <div className={styles.errorState}>
-              <span className={styles.errorText}>
-                {t('plantDb.error', 'Error')}: {error}
-              </span>
+              <span className={styles.errorText}>{t('plantDb.loadFailed')}</span>
               {canRetry && (
                 <button
                   type="button"

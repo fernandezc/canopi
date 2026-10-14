@@ -64,7 +64,7 @@
     "removeFavorite": "取消收藏",
     "place": "放置",
     "placeSpecies": "放置 {{name}}",
-    "error": "错误",
+    "loadFailed": "无法加载植物目录。",
     "retry": "重试",
     "sunTolerance_full_sun": "全日照",
     "sunTolerance_semi_shade": "半阴",

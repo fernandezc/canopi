@@ -407,7 +407,7 @@ describe('Web Edition Species Catalog panel', () => {
     expect(mockWorkbench.toggleFavorite).not.toHaveBeenCalled()
   })
 
-  it('surfaces catalog load failures with a retry action', async () => {
+  it('surfaces catalog load failures as the translated message with a retry action', async () => {
     mockWorkbench.results.value = {
       items: [],
       nextCursor: null,
@@ -421,9 +421,10 @@ describe('Web Edition Species Catalog panel', () => {
       render(<WebSpeciesCatalogPanel mode="catalog" />, container)
     })
 
-    expect(requiredElement<HTMLElement>('[role="alert"]').textContent).toContain(
-      'Failed to load Web Edition Species Catalog manifest.',
-    )
+    // The translated message, never the raw error (canopi-etzh; web-species-catalog-load-failure.test.tsx).
+    const alert = requiredElement<HTMLElement>('[role="alert"]')
+    expect(alert.textContent).toContain('The plant catalog couldn’t load.')
+    expect(alert.textContent).not.toContain('Failed to load Web Edition Species Catalog manifest.')
 
     await act(async () => { requiredButton('Retry').click() })
 

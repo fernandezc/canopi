@@ -64,7 +64,7 @@
     "removeFavorite": "Удалить из избранного",
     "place": "Разместить",
     "placeSpecies": "Разместить {{name}}",
-    "error": "Ошибка",
+    "loadFailed": "Не удалось загрузить каталог растений.",
     "retry": "Повторить",
     "sunTolerance_full_sun": "Полное солнце",
     "sunTolerance_semi_shade": "Полутень",

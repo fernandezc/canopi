@@ -64,7 +64,7 @@
     "removeFavorite": "즐겨찾기에서 제거",
     "place": "배치",
     "placeSpecies": "{{name}} 배치",
-    "error": "오류",
+    "loadFailed": "식물 카탈로그를 불러올 수 없습니다.",
     "retry": "재시도",
     "sunTolerance_full_sun": "양지",
     "sunTolerance_semi_shade": "반음지",

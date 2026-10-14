@@ -14,20 +14,25 @@ describe('MoreFiltersPanel outside-click behavior', () => {
   let MoreFiltersPanel: typeof import('../components/plant-db/MoreFiltersPanel').MoreFiltersPanel
   let locale: typeof import('../app/settings/state').locale
   let workbench: SpeciesCatalogWorkbench
+  let dynamicOptionsFailure: Error | null
 
   beforeEach(async () => {
     vi.resetModules()
     const settings = await import('../app/settings/state')
     locale = settings.locale
     locale.value = 'en'
+    dynamicOptionsFailure = null
     workbench = await createTestSpeciesCatalogWorkbench({
       locale,
-      loadDynamicFilterOptions: async (fields) => fields.map((field) => ({
+      loadDynamicFilterOptions: async (fields) => {
+        if (dynamicOptionsFailure) throw dynamicOptionsFailure
+        return fields.map((field) => ({
         field,
         field_type: 'numeric',
         values: null,
         range: [1, 13],
-      })),
+        }))
+      },
     })
     vi.doMock('../app/plant-browser', async () => {
       const actual = await vi.importActual<typeof import('../app/plant-browser')>('../app/plant-browser')
@@ -115,6 +120,52 @@ describe('MoreFiltersPanel outside-click behavior', () => {
     const rangeInputs = Array.from(container.querySelectorAll('input[type="range"]'))
     expect(rangeInputs).toHaveLength(2)
     expect(rangeInputs.every((input) => (input as HTMLInputElement).step === '1')).toBe(true)
+  })
+
+  it('a filter whose options cannot load says the plant catalog could not load, with Retry, never the raw error (canopi-etzh)', async () => {
+    const diagnostics = await import('../app/problem-report/diagnostics')
+    diagnostics.resetFrontendDiagnosticsForTests()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    dynamicOptionsFailure = new SyntaxError('JSON.parse: unexpected character at line 1 column 1 of the JSON data')
+    try {
+      await act(async () => {
+        render(<MoreFiltersPanel open onClose={vi.fn()} />, container)
+        await flushEffects()
+      })
+      const button = (text: string) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes(text))!
+      await act(async () => {
+        button('Climate & soil').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+      })
+      await act(async () => {
+        button('Hardiness zone min').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+        await flushEffects()
+      })
+
+      await vi.waitFor(async () => {
+        await act(flushEffects)
+        expect(container.textContent).toContain('The plant catalog couldn’t load.')
+      })
+      expect(container.textContent).not.toContain('JSON.parse')
+      expect(diagnostics.recentFrontendDiagnostics().map((entry) => [entry.source, entry.message]))
+        .toEqual([['plant-catalog', expect.stringContaining('JSON.parse')]])
+      expect(consoleError).not.toHaveBeenCalled()
+
+      dynamicOptionsFailure = null
+      await act(async () => {
+        button('Retry').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+        await flushEffects()
+      })
+      await vi.waitFor(async () => {
+        await act(flushEffects)
+        expect(container.querySelectorAll('input[type="range"]')).toHaveLength(2)
+      })
+      expect(container.textContent).not.toContain('The plant catalog couldn’t load.')
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('leaves Esc to the tool while it waits hidden under a phone tool\'s options, and takes it again once they close', async () => {

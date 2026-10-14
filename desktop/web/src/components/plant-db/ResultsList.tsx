@@ -139,7 +139,7 @@ export function ResultsList({ id, designSpecies, englishNames, highlight, footer
     return (
       <div className={styles.listContainer}>
         <div className={styles.listError} role="alert">
-          <span>{t('plantDb.error')}: {error}</span>
+          <span>{t('plantDb.loadFailed')}</span>
           <button type="button" className={styles.retryBtn} onClick={() => speciesCatalogWorkbench.retrySearch()}>
             {t('plantDb.retry')}
           </button>

@@ -12,6 +12,7 @@ import {
   DYNAMIC_OPTIONS_BACKEND_MISMATCH_ERROR,
   isActiveSpeciesSearchText,
   isPlantSearchLoading,
+  recordCatalogFailure,
   type DynamicFilterOptionsAdapter,
   type SpeciesBrowseSort,
   type PlantSearchAdapter,
@@ -158,6 +159,8 @@ export interface SpeciesCatalogWorkbench {
   removeExtraFilter(field: string): void
   loadDynamicOptions(fields: string[]): Promise<void>
   selectSpecies(canonicalName: string): void
+  /** Loads the open species' detail again, after a failure (its Retry). */
+  retrySpeciesDetail(): void
   closeSpeciesDetail(): void
   toggleFavorite(canonicalName: string): Promise<void>
   isFavorite(canonicalName: string): boolean
@@ -629,6 +632,7 @@ export function createSpeciesCatalogWorkbench({
       }
     } catch (error) {
       if (disposed || generation !== detailGeneration || selectedCanonicalName.value !== canonicalName) return
+      recordCatalogFailure(error)
       detail.value = {
         canonicalName,
         detail: null,
@@ -778,6 +782,12 @@ export function createSpeciesCatalogWorkbench({
       } catch {
         // Non-fatal: selection should still open even if recents persistence fails.
       }
+    },
+
+    retrySpeciesDetail() {
+      if (disposed) return
+      const canonicalName = selectedCanonicalName.peek()
+      if (canonicalName) void loadSpeciesDetail(canonicalName)
     },
 
     closeSpeciesDetail() {

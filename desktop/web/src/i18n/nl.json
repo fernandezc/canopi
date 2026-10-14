@@ -64,7 +64,7 @@
     "removeFavorite": "Verwijderen uit favorieten",
     "place": "Plaatsen",
     "placeSpecies": "{{name}} plaatsen",
-    "error": "Fout",
+    "loadFailed": "De plantencatalogus kon niet worden geladen.",
     "retry": "Opnieuw proberen",
     "sunTolerance_full_sun": "Volle zon",
     "sunTolerance_semi_shade": "Halfschaduw",
