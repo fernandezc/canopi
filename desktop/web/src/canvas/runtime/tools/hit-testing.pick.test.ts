@@ -272,7 +272,7 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
     expect(h.store.session.selectedTargets.map(key)).toEqual(['zone:pond'])
   })
 
-  it('a zone on a locked layer is picked by neither a click nor the menu; the hover still highlights its line', () => {
+  it('a zone on a locked layer is picked by neither a click nor the menu; the hover still highlights its line and the menu turns to its edge', () => {
     const { h, scene, screenAt } = setup(1, 0)
     h.store.updatePersisted((draft) => {
       draft.layers = draft.layers.map((layer) => (layer.name === 'zones' ? { ...layer, locked: true } : layer))
@@ -287,9 +287,10 @@ describe('(canopi-qd2k) zones are picked by their outline only (user decision 20
     expect(h.store.session.selectedTargets).toEqual([])
     h.hover(screen)
     expect(h.record.hovers.at(-1)).toEqual({ kind: 'zone', id: 'bed' })
-    // Nor does its menu offer the bed's edge.
+    // Its menu names the bed (the visible pick), so it offers the bed's edge: turning the view moves no object.
     h.menu(screen, 'mouse')
-    expect(h.record.menus.at(-1)!.turnViewToEdge).toBeUndefined()
+    expect(h.record.menus.at(-1)!.turnViewToEdge).toBeTypeOf('function')
+    expect(scene.hitAt(world, { pointer: 'mouse', zoneEdge: true })).toMatchObject({ kind: 'zone-edge', zoneId: 'bed' })
   })
 
   it('"Turn view to this edge" turns to the edge of the zone a long press picks, never a nearer line it does not reach', () => {

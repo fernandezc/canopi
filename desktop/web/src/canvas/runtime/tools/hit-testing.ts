@@ -278,11 +278,12 @@ interface ZoneEdgeHit {
 }
 
 /**
- * The edge of the zone the pick (hitTestTopLevel) reaches at `point` by its line, nearest `point`, or null: so the edge
- * is always the picked object's, with the pick's own layers and tolerances (a line zone 6 px, a closed outline
- * PICK_TOLERANCE_PX[pointer]). A plant, note or guide picked over a line, a zone on a locked or hidden layer and a point
- * the pick does not reach give none; an object-locked zone and a grouped zone picked by its line (as its group) give
- * theirs, since the entry only turns the view. Ellipses have no edges.
+ * The edge of the zone the visible pick (hitTestVisibleTopLevel, the object the menu names) reaches at `point` by its
+ * line, nearest `point`, or null: so the edge is always the named object's, with the pick's own layers and tolerances (a
+ * line zone 6 px, a closed outline PICK_TOLERANCE_PX[pointer]). A plant, note or guide picked over a line, a zone on a
+ * hidden layer and a point the pick does not reach give none; a zone on a locked layer, an object-locked zone and a
+ * grouped zone picked by its line (as its group) give theirs, since the entry only turns the view. Select's double-click
+ * corner reads it only for its selected, editable zone. Ellipses have no edges.
  */
 export function hitZoneEdge(
   scene: ScenePersistedState,
@@ -301,7 +302,7 @@ export function hitZoneEdge(
     pointer,
     speciesCache,
     getPlantContext,
-    isSceneLayerEditable,
+    isLayerVisible,
     getRevealedAnnotationId(selection),
     hoverTarget?.kind === 'annotation' ? hoverTarget.id : null,
   )?.zone

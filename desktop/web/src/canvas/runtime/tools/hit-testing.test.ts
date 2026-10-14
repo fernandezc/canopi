@@ -348,7 +348,7 @@ describe('scene hit testing', () => {
     expect(hit(10.0016, 0)).toBeNull()
   })
 
-  it('the edge, nearest the point, of the polygon, rectangle or line zone the pick reaches by its line', () => {
+  it('the edge, nearest the point, of the polygon, rectangle or line zone the visible pick reaches by its line', () => {
     const zone = (id: string, zoneType: SceneZoneEntity['zoneType'], points: ScenePoint[], rotationDeg = 0): SceneZoneEntity =>
       ({ kind: 'zone', id, name: null, locked: false, zoneType, points, rotationDeg, fillColor: null, notes: null })
     const scene = createScene()
@@ -388,9 +388,10 @@ describe('scene hit testing', () => {
     expect(at(75, 10)).toBeNull()
     expect(zoneEdgeSegment(scene.zones[3]!, 0)).toBeNull()
 
-    // A locked layer, which the pick skips, offers no edge; nor does a hidden one.
+    // A locked layer still offers its edges, as the menu still names its zone (the visible pick): turning the view moves
+    // no object. A hidden layer offers none.
     scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: true } : layer)
-    expect(at(10, 9)).toBeNull()
+    expect(at(10, 9)).toEqual({ zoneId: 'triangle', edgeIndex: 1, distancePx: expect.closeTo(Math.SQRT2, 6) })
     scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: false, visible: false } : layer)
     expect(at(10, 9)).toBeNull()
   })
