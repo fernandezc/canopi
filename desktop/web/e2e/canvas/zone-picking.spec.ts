@@ -7,11 +7,11 @@
 // only the plants it holds, a band across a line or around the zone selects it, the menu targets what the click would
 // select, and a mouse near the outline highlights the line.
 //
-// The base fixture at 1024x768, both engines with a mouse. Touch: Chromium through CDP (Fingers) for taps, the drag and
-// the long press; WebKit taps through page.touchscreen.tap, since Playwright's WebKit drives no touch drag or long press
-// (touch.spec.ts): canvas-interaction-e2e.touch.test.ts covers those in jsdom. One size: the pick tolerance is in screen
-// pixels whatever the viewport, and the phone chrome has its own specs. DOM assertions and pixel differences only, no
-// baselines.
+// The base fixture at 1024x768, both engines with a mouse. Touch: Chromium through CDP (Fingers) for taps, drags, bands
+// and long presses; WebKit taps only, through page.touchscreen.tap, since Playwright's WebKit drives no touch drag or
+// long press (touch.spec.ts). That WebKit gap (a finger's band and long press) is covered in jsdom by
+// canvas-interaction-e2e.touch.test.ts and hit-testing.pick.test.ts. One size: the pick tolerance is in screen pixels
+// whatever the viewport, and the phone chrome has its own specs. DOM assertions and pixel differences only, no baselines.
 import { fileURLToPath } from 'node:url'
 import type { Locator, Page } from '@playwright/test'
 import { expectCanvasDrawn } from '../support/canvas'
@@ -213,6 +213,12 @@ test.describe('(canopi-qd2k) a finger picks zones by their outline (Chromium)', 
     await expect(selectionChip(page), 'a finger\'s drag inside draws a band that selects only the Apple').toHaveText('Apple')
     await expect(undo(page), 'the drag moved no zone').toBeDisabled()
 
+    await fingers.drag(...at.bandAcrossEdge)
+    await expect(selectionChip(page), 'a finger\'s band across the left edge selects the zone').toHaveText(RECT_ZONE_CHIP)
+    // Cleared first: a selected zone's 44 px finger handles would take a press beside its corner.
+    await fingers.tap(GROUND)
+    await fingers.drag(...at.bandAround)
+    await expect(selectionChip(page), 'a finger\'s band around the zone selects it with the Apple').toHaveText('2 selected · 1 plant · 1 zone')
     await expect(undo(page)).toBeDisabled()
   })
 
