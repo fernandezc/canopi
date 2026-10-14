@@ -11,7 +11,7 @@ import { expect, test } from '../support/offline'
 
 const FIXTURE = fileURLToPath(new URL('../fixtures/canvas-base.canopi', import.meta.url))
 /** The Web Edition's settings record (web/browser-app-data.ts). */
-const SETTINGS_KEY = 'canopi:web-app-data:v2:settings'
+const SETTINGS_KEY = 'canopi:web-app-data:v3:settings'
 const TEST_KEY = 'AIzaTestKeyNeverLogged-0123456789'
 const GOOGLE = 'https://tile.googleapis.com/'
 const COPYRIGHT = 'Imagery ©2026 Test Google'
@@ -64,7 +64,7 @@ test('a rejected Google key shows the Satellite notice, and Retry brings the ima
   // Satellite on, the Basemap hidden beneath it; the key goes in through Settings › Map and imagery.
   await page.addInitScript(({ key }) => {
     localStorage.clear()
-    localStorage.setItem(key, JSON.stringify({ version: 2, settings: { locale: 'en', satellite_visible: true } }))
+    localStorage.setItem(key, JSON.stringify({ version: 3, settings: { locale: 'en', satellite_visible: true } }))
   }, { key: SETTINGS_KEY })
   await page.goto('')
   await page.locator('[data-start-screen]').getByRole('button', { name: 'Settings…' }).click()

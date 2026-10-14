@@ -280,7 +280,7 @@ async function openBaseFixture(page: Page, locale?: string): Promise<void> {
     await page.addInitScript((chosen) => {
       localStorage.clear()
       // The Web Edition's settings record (web/browser-app-data.ts), with the language chosen.
-      localStorage.setItem('canopi:web-app-data:v2:settings', JSON.stringify({ version: 2, settings: { locale: chosen } }))
+      localStorage.setItem('canopi:web-app-data:v3:settings', JSON.stringify({ version: 3, settings: { locale: chosen } }))
     }, locale)
   }
   await page.goto('')

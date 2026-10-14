@@ -11,7 +11,7 @@ test.use({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebK
 test('every F1 key box stays inside its section in French on a Mac with trackpad gestures', async ({ page }) => {
   await page.addInitScript(() => {
     // The Web Edition's settings record (web/browser-app-data.ts), with French chosen.
-    localStorage.setItem('canopi:web-app-data:v2:settings', JSON.stringify({ version: 2, settings: { locale: 'fr' } }))
+    localStorage.setItem('canopi:web-app-data:v3:settings', JSON.stringify({ version: 3, settings: { locale: 'fr' } }))
     // WebKit's gesture events, which the twist row is shown for.
     const page = window as unknown as { GestureEvent?: unknown }
     page.GestureEvent ??= class GestureEvent extends UIEvent {}

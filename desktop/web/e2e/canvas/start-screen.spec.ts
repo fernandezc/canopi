@@ -36,12 +36,12 @@ async function openWithDrafts(page: Page): Promise<void> {
     updatedAt: new Date(Date.UTC(2026, 9, 1 + index)).toISOString(),
   }))
   const record = {
-    version: 2,
+    version: 3,
     drafts,
     draftFiles: Object.fromEntries(drafts.map(({ id, name }) => [id, { ...file, name }])),
   }
   await page.goto('')
-  await page.evaluate((value) => localStorage.setItem('canopi:web-app-data:v2:drafts', value), JSON.stringify(record))
+  await page.evaluate((value) => localStorage.setItem('canopi:web-app-data:v3:drafts', value), JSON.stringify(record))
   await page.reload()
   const compact = page.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu' })
   if (await compact.isVisible()) await compact.click()

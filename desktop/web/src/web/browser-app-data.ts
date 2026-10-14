@@ -2,19 +2,29 @@ import { encodeCanopiDesign } from "../app/contracts/canopi-design-wire";
 import { decodeCanopiDesign } from "../app/contracts/design-ingestion";
 import type { CanopiFile } from "../types/design";
 
-// Canopi 2.0 reads only these records and migrates nothing (ADR 0021). Browser
-// data from before 2.0 (the single `canopi:web-app-data:v1` document of the
-// released Web Edition, and Drafts in an older `.canopi` format) stays under
-// its key, unread and unchanged, so 1.x still opens it.
-const RECORD_VERSION = 2 as const;
-const V1_KEY = "canopi:web-app-data:v1";
+// Canopi 2.0 keeps its records under the `v3` keys and migrates nothing
+// (ADR 0021). Web Edition 1.x wrote the `v1` document and then moved it into
+// the `v2:*` keys (1.0.1 to 1.2.0); 2.0 never reads, writes or deletes any of
+// them, so 1.x still opens them. It only checks whether one exists, to tell the
+// user once that they were not opened.
+const RECORD_VERSION = 3 as const;
+const EARLIER_KEYS: readonly string[] = [
+  "canopi:web-app-data:v1",
+  "canopi:web-app-data:v2:drafts",
+  "canopi:web-app-data:v2:settings",
+  "canopi:web-app-data:v2:species",
+  "canopi:web-app-data:v2:saved-object-stamps",
+  "canopi:web-app-data:v2:authority",
+  "canopi:web-app-data:v2:migration-progress",
+  "canopi:web-app-data:v2:authority-reservation",
+];
 /** Set once the user has been told that the 1.x data was left in place. */
 const KEPT_IN_PLACE_NOTICE_KEY = "canopi:web-app-data:before-2.0-kept-in-place-notice";
 const STORAGE_KEYS = {
-  drafts: "canopi:web-app-data:v2:drafts",
-  settings: "canopi:web-app-data:v2:settings",
-  species: "canopi:web-app-data:v2:species",
-  stamps: "canopi:web-app-data:v2:saved-object-stamps",
+  drafts: "canopi:web-app-data:v3:drafts",
+  settings: "canopi:web-app-data:v3:settings",
+  species: "canopi:web-app-data:v3:species",
+  stamps: "canopi:web-app-data:v3:saved-object-stamps",
 } as const;
 
 export interface BrowserStorageAdapter {
@@ -41,7 +51,7 @@ interface BrowserSavedObjectStampRecord {
 
 
 interface BrowserDraftsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly drafts: readonly BrowserDraftSummary[];
   readonly draftFiles: Record<string, CanopiFile>;
   /**
@@ -57,18 +67,18 @@ interface RefusedDrafts {
 }
 
 interface BrowserSettingsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly settings: Record<string, unknown> | null;
 }
 
 interface BrowserSpeciesRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly favoriteSpecies: readonly string[];
   readonly recentlyViewedSpecies: readonly string[];
 }
 
 interface BrowserSavedObjectStampsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly savedObjectStamps: readonly BrowserSavedObjectStampRecord[];
 }
 
@@ -147,8 +157,8 @@ export interface BrowserAppDataStore {
   listSavedObjectStamps(): readonly BrowserSavedObjectStampRecord[];
   /**
    * True when the user should now be told that browser data from before
-   * Canopi 2.0 was not opened: the first start that finds the 1.x document
-   * (U59; Drafts of a 2.0 preview alone are not told). Nothing but the
+   * Canopi 2.0 was not opened: the first start that finds any 1.x key
+   * (U59). Nothing but the
    * notice marker is written; when even that does not fit, the notice repeats
    * on later starts.
    */
@@ -332,7 +342,7 @@ export function createBrowserAppDataStore({
     takeEarlierDataNotice(now) {
       let found: boolean;
       try {
-        found = storage.getItem(V1_KEY) !== null;
+        found = EARLIER_KEYS.some((key) => storage.getItem(key) !== null);
       } catch {
         return false;
       }
@@ -376,28 +386,28 @@ function browserLocalStorageAdapter(): BrowserStorageAdapter {
 }
 
 function isSupportedDraftsRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && Array.isArray(value.drafts)
     && isRecord(value.draftFiles);
 }
 
 function isSupportedSettingsRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && (value.settings === null || isRecord(value.settings));
 }
 
 function isSupportedSpeciesRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && Array.isArray(value.favoriteSpecies)
     && Array.isArray(value.recentlyViewedSpecies);
 }
 
 function isSupportedStampsRecord(value: unknown): boolean {
-  return isV2Record(value) && Array.isArray(value.savedObjectStamps);
+  return isCurrentRecord(value) && Array.isArray(value.savedObjectStamps);
 }
 
 function normalizeDraftsRecord(value: unknown): BrowserDraftsRecord {
-  if (!isV2Record(value)) return emptyDraftsRecord();
+  if (!isCurrentRecord(value)) return emptyDraftsRecord();
   const { decoded: draftFiles, refused: refusedFiles } = decodeDraftFiles(value.draftFiles);
   const validDraftIds = new Set(Object.keys(draftFiles));
   const summaries: readonly unknown[] = Array.isArray(value.drafts) ? value.drafts : [];
@@ -419,7 +429,7 @@ function normalizeDraftsRecord(value: unknown): BrowserDraftsRecord {
 }
 
 function normalizeSettingsRecord(value: unknown): BrowserSettingsRecord {
-  if (!isV2Record(value)) return emptySettingsRecord();
+  if (!isCurrentRecord(value)) return emptySettingsRecord();
   return {
     version: RECORD_VERSION,
     settings: isRecord(value.settings) ? { ...value.settings } : null,
@@ -427,7 +437,7 @@ function normalizeSettingsRecord(value: unknown): BrowserSettingsRecord {
 }
 
 function normalizeSpeciesRecord(value: unknown): BrowserSpeciesRecord {
-  if (!isV2Record(value)) return emptySpeciesRecord();
+  if (!isCurrentRecord(value)) return emptySpeciesRecord();
   return {
     version: RECORD_VERSION,
     favoriteSpecies: Array.isArray(value.favoriteSpecies)
@@ -440,7 +450,7 @@ function normalizeSpeciesRecord(value: unknown): BrowserSpeciesRecord {
 }
 
 function normalizeStampsRecord(value: unknown): BrowserSavedObjectStampsRecord {
-  if (!isV2Record(value)) return emptyStampsRecord();
+  if (!isCurrentRecord(value)) return emptyStampsRecord();
   return {
     version: RECORD_VERSION,
     savedObjectStamps: Array.isArray(value.savedObjectStamps)
@@ -469,7 +479,7 @@ function emptyStampsRecord(): BrowserSavedObjectStampsRecord {
   return { version: RECORD_VERSION, savedObjectStamps: [] };
 }
 
-function isV2Record(value: unknown): value is Record<string, unknown> & { version: 2 } {
+function isCurrentRecord(value: unknown): value is Record<string, unknown> & { version: typeof RECORD_VERSION } {
   return isRecord(value) && value.version === RECORD_VERSION;
 }
 

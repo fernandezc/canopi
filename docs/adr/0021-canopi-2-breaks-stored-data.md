@@ -16,7 +16,7 @@ Canopi has two users, and the maintainer converts their `.canopi` files by hand.
   - Desktop user database (Favorites, Recent Designs, Design notebook, saved stamps, settings): schema 1 to 8, or tables without a version, is renamed `<file>.before-2.0-<unix-seconds>` with its journal files, since 2.0 needs that path. A newer schema is refused untouched; a damaged file is renamed `<file>.corrupt-<unix-seconds>`.
   - Desktop Drafts in an older format and the retired 1.x autosave store stay where they are, unread.
   - LiDAR library: an older or damaged catalogue is set aside under `lidar-library.set-aside/` and rebuilt from the originals it keeps (recovery, not migration); a newer one is refused.
-  - Web: the 1.x record and older-format Drafts stay under their keys, unread, so 1.x Web still opens them.
+  - Web: 2.0 stores under new keys (`canopi:web-app-data:v3:*`); the 1.x keys (`canopi:web-app-data:v1` and `v2:*`, Drafts included) stay unread and unchanged, so 1.x Web still opens them.
 - **Saved stamps.** Only payload version 2 is read.
 - **Settings.** New fields have defaults; an unreadable record is set aside under `settings.set-aside`. That is not a migration and stays.
 - **Additive `.canopi` changes** (amended 2026-10-03 with U21, whose camera-zoom fallback for a view without the ground size U33 replaced on 2026-10-05: the field is required). An optional additive field, or the removal of a field nothing reads, does not move the version: admission has no `deny_unknown_fields` and the schema allows extra properties, so files on either side of the change still open.

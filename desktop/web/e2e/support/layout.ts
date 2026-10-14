@@ -5,7 +5,7 @@ import type { Locator, Page } from '@playwright/test'
 import { expect } from './offline'
 
 /** The Web Edition's settings record (web/browser-app-data.ts); its settings are merged over the defaults. */
-const SETTINGS_KEY = 'canopi:web-app-data:v2:settings'
+const SETTINGS_KEY = 'canopi:web-app-data:v3:settings'
 
 export interface Box { readonly x: number, readonly y: number, readonly width: number, readonly height: number }
 
@@ -36,7 +36,7 @@ export async function openFixture(page: Page, fixture: string, options: OpenOpti
   const stored = { key: SETTINGS_KEY, values: { ...settings, locale, ...(basemapHidden ? { basemap_visible: false } : {}) } }
   const write = (record: typeof stored) => {
     localStorage.clear()
-    localStorage.setItem(record.key, JSON.stringify({ version: 2, settings: record.values }))
+    localStorage.setItem(record.key, JSON.stringify({ version: 3, settings: record.values }))
   }
   if (keepOnReload) {
     await page.goto('')

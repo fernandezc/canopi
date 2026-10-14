@@ -227,7 +227,7 @@ for (const { locale, selectTool, textTool, placeholder } of [
   test(`an empty note entry shows its whole placeholder in ${locale}`, async ({ page }) => {
     await page.addInitScript((chosen) => {
       // The Web Edition's settings record (web/browser-app-data.ts), with the language chosen.
-      localStorage.setItem('canopi:web-app-data:v2:settings', JSON.stringify({ version: 2, settings: { locale: chosen } }))
+      localStorage.setItem('canopi:web-app-data:v3:settings', JSON.stringify({ version: 3, settings: { locale: chosen } }))
     }, locale)
     await openBaseFixture(page, selectTool)
     await openNewNote(page, textTool)
