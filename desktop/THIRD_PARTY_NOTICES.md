@@ -1,6 +1,6 @@
 # Third-party notices
 
-Canopi is licensed under the GNU AGPL-3.0 (see `LICENSE`). The Desktop raster
+Canopi is licensed under the GNU AGPL-3.0-or-later (see `LICENSE`). The Desktop raster
 engine, raster display and slope analysis ship the following third-party
 components, each under its own license. Versions are the exact ones this
 build pins.
@@ -50,7 +50,7 @@ own `Cargo.toml` declares AGPL-3.0-or-later although the `whitebox-wasm`
 package README lists it under MIT OR Apache-2.0 (verified at
 9c0ff4fdf3513f27b89c78e294610c3b418b3a4f: `crates/wbspatialstats/Cargo.toml`;
 every other crate there declares MIT OR Apache-2.0). Canopi treats it as AGPL-3.0-or-later, which is compatible
-with Canopi's AGPL-3.0.
+with Canopi's AGPL-3.0-or-later.
 
 Corresponding Source: the complete source of the GeoLibre CLI sidecar and the
 `whitebox-wasm` module is the `geolibre-rust` and `whitebox-wasm` repositories

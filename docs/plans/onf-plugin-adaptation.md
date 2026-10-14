@@ -282,7 +282,7 @@ They do not need forest-inventory scaffolding, stem diameters or research voxel 
 | Canopi native rules | Natural fit: executor-backed `Local` job, heavy lease, a cancel token checked at bounded loop points, admission by cells and points, no child process | Child process through the bounded runner; cancel = kill; progress by parsing; file IPC | Same as (b), plus an unverifiable exit code (always 0), French logs, version-bound XML | Existing |
 | Maintenance vs upstream | Upstream is unmaintained: the pinned commit is final and Canopi owns the port; each port is a small hand translation | Easier diffs, but the stubs follow Computree API churn (the v5→v6 migration was huge) | Pinned templates per Computree version | Upstream GeoLibre |
 | Testability | `cargo test` with checked-in goldens; no engine needed in CI | Needs the binary in CI (like the `lidar-native` lane) | Local only | Existing lane |
-| Licence | Ported files stay LGPL-3.0-or-later in their own crate, combined into AGPL-3.0-only Canopi (§4.3) | Separate LGPL program; Qt/OpenCV notices | None shipped | MIT/Apache plus AGPL `wbspatialstats` (already) |
+| Licence | Ported files stay LGPL-3.0-or-later in their own crate, combined into AGPL-3.0-or-later Canopi (§4.3) | Separate LGPL program; Qt/OpenCV notices | None shipped | MIT/Apache plus AGPL `wbspatialstats` (already) |
 | Verdict | **Recommended** | Rejected: the "minimal extraction" is really a rewrite, and it keeps two heavy C++ dependencies and a fifth toolchain | Rejected: see the spike | Contradicts the user's choice; still valid for slope and hydrology |
 
 ### 4.2 Recommendation (a), in detail
@@ -327,7 +327,7 @@ They do not need forest-inventory scaffolding, stem diameters or research voxel 
 
 ### 4.3 Licence mechanics (not legal advice)
 
-- **LGPL-3.0-or-later → Canopi (AGPL-3.0-only).**
+- **LGPL-3.0-or-later → Canopi (AGPL-3.0-or-later).**
   - LGPLv3 is GPLv3 plus additional permissions.
   - A Rust translation is a derivative work of the LGPL files. It may be distributed under LGPL-3.0-or-later (keeping it that way is simplest), or as GPL-3.0-or-later by removing the additional permissions (GPLv3 §7).
   - GPLv3 §13 and AGPLv3 §13 allow combining GPLv3-family code with AGPLv3 code into one work. Each part keeps its licence; the combination is conveyed under AGPL terms, including the network clause.

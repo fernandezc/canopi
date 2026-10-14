@@ -71,4 +71,4 @@ Start at the [documentation map](docs/README.md). Agents follow [AGENTS.md](AGEN
 
 ## License
 
-[AGPL-3.0](LICENSE) -- Copyright 2026 Jean-Pierre Yin
+[AGPL-3.0-or-later](LICENSE) -- Copyright 2026 Canopi contributors
