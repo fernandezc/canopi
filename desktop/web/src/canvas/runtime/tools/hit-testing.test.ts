@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import type { PointerKind } from '../interaction-types'
 import type { PlantPresentationContext } from '../plant-presentation'
 import type { ScenePersistedState, ScenePoint, SceneZoneEntity } from '../scene'
 import { hitTestTopLevel, hitTestVisibleTopLevel, hitZoneEdge, queryQuadTopLevel, zoneEdgeSegment } from './hit-testing'
@@ -56,15 +57,15 @@ describe('scene hit testing', () => {
     const scene = createScene()
     scene.annotations = [{ kind: 'annotation', id: 'note', annotationType: 'text',
       position: { x: 0, y: 20 }, text: 'A long note over the plant', fontSize: 16, rotationDeg: null, locked: false }]
-    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 20, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 20, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'plant', id: 'plant-1' })
-    expect(hitTestTopLevel(scene, { x: 0, y: 20 }, 20, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 0, y: 20 }, 20, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'annotation', id: 'note' })
     expect(queryQuadTopLevel(scene, box({ x: 5, y: 20, width: .1, height: .1 }), 20, new Map(), getPlantContext))
       .toEqual([])
-    expect(hitTestTopLevel(scene, { x: 5, y: 20 }, 20, new Map(), getPlantContext, [], { kind: 'annotation', id: 'note' }))
+    expect(hitTestTopLevel(scene, { x: 5, y: 20 }, 20, 'mouse', new Map(), getPlantContext, [], { kind: 'annotation', id: 'note' }))
       .toEqual({ kind: 'annotation', id: 'note' })
-    expect(hitTestVisibleTopLevel(scene, { x: 5, y: 20 }, 20, new Map(), getPlantContext, [], { kind: 'annotation', id: 'note' }))
+    expect(hitTestVisibleTopLevel(scene, { x: 5, y: 20 }, 20, 'mouse', new Map(), getPlantContext, [], { kind: 'annotation', id: 'note' }))
       .toEqual({ kind: 'annotation', id: 'note' })
   })
 
@@ -74,7 +75,7 @@ describe('scene hit testing', () => {
       { ...scene.plants[0]!, id: 'a', position: { x: 0, y: 0 } },
       { ...scene.plants[0]!, id: 'b', position: { x: .27, y: 0 } },
     ]
-    expect(hitTestTopLevel(scene, { x: 0, y: 0 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 0, y: 0 }, 10, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'plant', id: 'a' })
     expect(queryQuadTopLevel(scene, box({ x: -.3, y: 0, width: .01, height: .01 }), 10, new Map(), getPlantContext))
       .toEqual([])
@@ -84,9 +85,9 @@ describe('scene hit testing', () => {
     const scene = createScene()
     scene.annotations = [{ kind: 'annotation', id: 'note', annotationType: 'text',
       position: { x: 0, y: 20 }, text: 'A long note over the plant', fontSize: 16, rotationDeg: null, locked: false }]
-    expect(hitTestTopLevel(scene, { x: -6, y: 20 }, 1, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: -6, y: 20 }, 1, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'annotation', id: 'note' })
-    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 1, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 1, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'plant', id: 'plant-1' })
     expect(queryQuadTopLevel(scene, box({ x: 30, y: 22, width: 2, height: 2 }), 1, new Map(), getPlantContext))
       .toEqual([])
@@ -109,9 +110,9 @@ describe('scene hit testing', () => {
     const scene = createScene()
     scene.layers = [{ kind: 'layer', name: 'plants', visible: true, locked: true, opacity: 1 }]
 
-    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
-    expect(hitTestVisibleTopLevel(scene, { x: 10, y: 20 }, 10, new Map(), getPlantContext))
+    expect(hitTestVisibleTopLevel(scene, { x: 10, y: 20 }, 10, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'plant', id: 'plant-1' })
   })
 
@@ -119,9 +120,9 @@ describe('scene hit testing', () => {
     const scene = createScene()
     scene.layers = [{ kind: 'layer', name: 'plants', visible: false, locked: false, opacity: 1 }]
 
-    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 10, y: 20 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
-    expect(hitTestVisibleTopLevel(scene, { x: 10, y: 20 }, 10, new Map(), getPlantContext))
+    expect(hitTestVisibleTopLevel(scene, { x: 10, y: 20 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
   })
 
@@ -144,15 +145,15 @@ describe('scene hit testing', () => {
       notes: null,
     }]
 
-    expect(hitTestTopLevel(scene, { x: 6.4, y: 0.6 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 6.4, y: 0.6 }, 10, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'zone', id: 'zone-1' })
-    expect(hitTestTopLevel(scene, { x: 5, y: 2 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 5, y: 2 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
-    expect(hitTestTopLevel(scene, { x: -5, y: -5 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: -5, y: -5 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
   })
 
-  it('band-selects rotated Rectangular Zones by their oriented geometry', () => {
+  it('band-selects rotated Rectangular Zones by their oriented outline', () => {
     const scene = createScene()
     scene.plants = []
     scene.zones = [{
@@ -171,8 +172,11 @@ describe('scene hit testing', () => {
       notes: null,
     }]
 
-    expect(queryQuadTopLevel(scene, box({ x: 5, y: 2, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
+    // (canopi-qd2k) By its outline: a band around a turned corner selects it, a band wholly inside it does not.
+    expect(queryQuadTopLevel(scene, box({ x: 6.6, y: 6.6, width: 1, height: 1 }), 1, new Map(), getPlantContext))
       .toEqual([{ kind: 'zone', id: 'zone-1' }])
+    expect(queryQuadTopLevel(scene, box({ x: 5, y: 2, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
+      .toEqual([])
     expect(queryQuadTopLevel(scene, box({ x: 1, y: 1, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
       .toEqual([])
   })
@@ -194,11 +198,11 @@ describe('scene hit testing', () => {
       notes: null,
     }]
 
-    expect(hitTestTopLevel(scene, { x: 0, y: 4 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 0, y: 4 }, 10, 'mouse', new Map(), getPlantContext))
       .toEqual({ kind: 'zone', id: 'zone-1' })
-    expect(hitTestTopLevel(scene, { x: 0, y: 0 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 0, y: 0 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
-    expect(hitTestTopLevel(scene, { x: 3, y: 0 }, 10, new Map(), getPlantContext))
+    expect(hitTestTopLevel(scene, { x: 3, y: 0 }, 10, 'mouse', new Map(), getPlantContext))
       .toBeNull()
   })
 
@@ -227,12 +231,12 @@ describe('scene hit testing', () => {
         y: Math.sin(midpointBetweenFixedSamplesRad) * 100,
       },
       100,
-      new Map(),
+      'mouse', new Map(),
       getPlantContext,
     )).toEqual({ kind: 'zone', id: 'zone-1' })
   })
 
-  it('band-selects rotated Elliptical Zones by their oriented geometry', () => {
+  it('band-selects rotated Elliptical Zones by their oriented outline', () => {
     const scene = createScene()
     scene.plants = []
     scene.zones = [{
@@ -249,8 +253,11 @@ describe('scene hit testing', () => {
       notes: null,
     }]
 
-    expect(queryQuadTopLevel(scene, box({ x: 0, y: 3, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
+    // (canopi-qd2k) By its outline: a band across its turned end selects it, a band wholly inside it does not.
+    expect(queryQuadTopLevel(scene, box({ x: -0.5, y: 3.5, width: 1, height: 1 }), 1, new Map(), getPlantContext))
       .toEqual([{ kind: 'zone', id: 'zone-1' }])
+    expect(queryQuadTopLevel(scene, box({ x: 0, y: 3, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
+      .toEqual([])
     expect(queryQuadTopLevel(scene, box({ x: 3, y: 0, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext))
       .toEqual([])
   })
@@ -269,9 +276,9 @@ describe('scene hit testing', () => {
       rotationDeg: 90,
     }]
 
-    expect(hitTestTopLevel(scene, { x: 0, y: 30 }, 1, new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
+    expect(hitTestTopLevel(scene, { x: 0, y: 30 }, 1, 'mouse', new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
       .toEqual({ kind: 'annotation', id: 'annotation-1' })
-    expect(hitTestTopLevel(scene, { x: 20, y: 25 }, 1, new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
+    expect(hitTestTopLevel(scene, { x: 20, y: 25 }, 1, 'mouse', new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
       .toBeNull()
     expect(queryQuadTopLevel(scene, box({ x: 0, y: 30, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
       .toEqual([{ kind: 'annotation', id: 'annotation-1' }])
@@ -286,7 +293,7 @@ describe('scene hit testing', () => {
     scene.annotations = [{ kind: 'annotation', id: 'note', locked: false, annotationType: 'text',
       position: { x: 10, y: 20 }, text: 'ABCD', fontSize: 10, rotationDeg: 0 }]
     const selected = [{ kind: 'annotation' as const, id: 'note' }]
-    const hit = (x: number, y: number) => hitTestTopLevel(scene, { x, y }, 1, new Map(), getPlantContext, selected)
+    const hit = (x: number, y: number) => hitTestTopLevel(scene, { x, y }, 1, 'mouse', new Map(), getPlantContext, selected)
 
     for (const inside of [{ x: 6.5, y: 26 }, { x: 37.5, y: 26 }, { x: 20, y: 18.5 }, { x: 20, y: 34 }]) {
       expect(hit(inside.x, inside.y), `(${inside.x}, ${inside.y})`).toEqual({ kind: 'annotation', id: 'note' })
@@ -310,7 +317,7 @@ describe('scene hit testing', () => {
       rotationDeg: 45,
     }]
 
-    expect(hitTestTopLevel(scene, { x: 16, y: 2 }, 1, new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
+    expect(hitTestTopLevel(scene, { x: 16, y: 2 }, 1, 'mouse', new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
       .toBeNull()
     expect(queryQuadTopLevel(scene, box({ x: 16, y: 2, width: 0.01, height: 0.01 }), 1, new Map(), getPlantContext, [{ kind: 'annotation', id: 'annotation-1' }]))
       .toEqual([])
@@ -324,7 +331,7 @@ describe('scene hit testing', () => {
     // At 10 000 px/m the 6 px line tolerance is 0.6 mm.
     const scale = 10_000
     const hit = (x: number, y: number) =>
-      hitTestTopLevel(scene, { x, y }, scale, new Map(), getPlantContext)
+      hitTestTopLevel(scene, { x, y }, scale, 'mouse', new Map(), getPlantContext)
 
     // A guide pressed out without a drag: its two ends meet.
     scene.measurementGuides = [{ kind: 'measurement-guide', id: 'dot', locked: false, start: { x: 0, y: 0 }, end: { x: 0, y: 0 } }]
@@ -341,15 +348,14 @@ describe('scene hit testing', () => {
     expect(hit(10.0016, 0)).toBeNull()
   })
 
-  it('with a pixel tolerance, the nearest polygon, rectangle or line edge', () => {
+  it('the edge, nearest the point, of the polygon, rectangle or line zone the pick reaches by its line', () => {
     const zone = (id: string, zoneType: SceneZoneEntity['zoneType'], points: ScenePoint[], rotationDeg = 0): SceneZoneEntity =>
       ({ kind: 'zone', id, name: null, locked: false, zoneType, points, rotationDeg, fillColor: null, notes: null })
     const scene = createScene()
     scene.plants = []
     scene.layers = [
       { kind: 'layer', name: 'plants', visible: true, locked: false, opacity: 1 },
-      // A locked layer still offers its edges: turning the view moves no object.
-      { kind: 'layer', name: 'zones', visible: true, locked: true, opacity: 1 },
+      { kind: 'layer', name: 'zones', visible: true, locked: false, opacity: 1 },
     ]
     scene.zones = [
       zone('triangle', 'polygon', [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 0, y: 20 }]),
@@ -358,14 +364,15 @@ describe('scene hit testing', () => {
       zone('hedge', 'line', [{ x: 40, y: 0 }, { x: 40, y: 20 }]),
       zone('pond', 'ellipse', [{ x: 70, y: 10 }, { x: 5, y: 3 }]),
     ]
-    const at = (x: number, y: number, tolerancePx = 8, scale = 2) => hitZoneEdge(scene, { x, y }, tolerancePx, scale)
+    const at = (x: number, y: number, pointer: PointerKind = 'mouse', scale = 2) => hitZoneEdge(scene, { x, y }, scale, pointer, new Map(), getPlantContext)
 
     // The hypotenuse (edge 1) is nearer than the bottom edge (edge 0); 2 px/m: distances read in pixels.
     expect(at(10, 9)).toEqual({ zoneId: 'triangle', edgeIndex: 1, distancePx: expect.closeTo(Math.SQRT2, 6) })
     expect(at(10, -3)).toEqual({ zoneId: 'triangle', edgeIndex: 0, distancePx: expect.closeTo(6, 6) })
-    // Beyond the tolerance, or deep inside a zone: no edge.
+    // Beyond a mouse's 6 px, within a finger's 16 px; deep inside a zone: no edge.
     expect(at(10, -5)).toBeNull()
-    expect(at(6, 6, 4, 1)).toBeNull()
+    expect(at(10, -5, 'touch')).toEqual({ zoneId: 'triangle', edgeIndex: 0, distancePx: expect.closeTo(10, 6) })
+    expect(at(6, 6)).toBeNull()
     // The rectangle by its turned corners.
     const bedEdge = at(7.5, 32)!
     expect(bedEdge).toMatchObject({ zoneId: 'bed', distancePx: expect.closeTo(1, 6) })
@@ -374,12 +381,17 @@ describe('scene hit testing', () => {
     expect(b.x).toBeCloseTo(7, 6)
     expect(Math.abs(b.y - a.y)).toBeCloseTo(10, 6)
     expect(at(41, 10)).toEqual({ zoneId: 'hedge', edgeIndex: 0, distancePx: expect.closeTo(2, 6) })
+    // A line zone keeps its 6 px pick for a finger too: 8 px from it, no edge.
+    expect(at(44, 10, 'touch')).toBeNull()
     expect(zoneEdgeSegment(scene.zones[2]!, 0)).toEqual([{ x: 40, y: 0 }, { x: 40, y: 20 }])
     // An ellipse has no edge.
     expect(at(75, 10)).toBeNull()
     expect(zoneEdgeSegment(scene.zones[3]!, 0)).toBeNull()
 
-    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, visible: false } : layer)
+    // A locked layer, which the pick skips, offers no edge; nor does a hidden one.
+    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: true } : layer)
+    expect(at(10, 9)).toBeNull()
+    scene.layers = scene.layers.map((layer) => layer.name === 'zones' ? { ...layer, locked: false, visible: false } : layer)
     expect(at(10, 9)).toBeNull()
   })
 })

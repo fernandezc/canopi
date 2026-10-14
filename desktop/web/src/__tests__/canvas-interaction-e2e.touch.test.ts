@@ -350,8 +350,9 @@ describe('SceneInteractionSession: touch', () => {
     const box = (selector: string) => [...container.querySelectorAll<HTMLElement>(selector)].map((element) =>
       `${element.style.width}×${element.style.height}`)
 
-    touchDown({ x: 140, y: 110 })
-    touchUp({ x: 141, y: 111 })
+    // 10 px inside the outline: beyond a mouse's 6 px, within a finger's 16 px (canopi-qd2k).
+    touchDown({ x: 140, y: 70 })
+    touchUp({ x: 141, y: 71 })
 
     expect(currentCanvasSelection.value).toEqual(new Set(['polygon-1']))
     expect(box('[data-canvas-handle^="vertex:"]')).toEqual(['44px×44px', '44px×44px', '44px×44px', '44px×44px'])
@@ -380,8 +381,8 @@ describe('SceneInteractionSession: touch', () => {
     session.setTool('select')
     const widths = () => [...container.querySelectorAll<HTMLElement>('[data-canvas-handle^="rect-corner:"]')].map((element) => element.style.width)
 
-    touchDown({ x: 140, y: 110 })
-    touchUp({ x: 140, y: 110 })
+    touchDown({ x: 140, y: 70 })
+    touchUp({ x: 140, y: 70 })
     expect(widths()).toEqual(['44px', '44px', '44px', '44px'])
 
     session.setTool('measurement-guide')
@@ -424,12 +425,12 @@ describe('SceneInteractionSession: touch', () => {
     session.setTool('select')
     const widths = () => [...container.querySelectorAll<HTMLElement>('[data-canvas-handle^="rect-corner:"]')].map((element) => element.style.width)
 
-    events.pointerMove({ x: 140, y: 110 }, { pointerType: 'mouse', buttons: 0 })
-    events.pointerDown({ x: 140, y: 110 }, { pointerType: 'mouse', button: 0, buttons: 1 })
-    events.pointerUp({ x: 140, y: 110 }, { pointerType: 'mouse', button: 0, buttons: 0 })
+    events.pointerMove({ x: 140, y: 63 }, { pointerType: 'mouse', buttons: 0 })
+    events.pointerDown({ x: 140, y: 63 }, { pointerType: 'mouse', button: 0, buttons: 1 })
+    events.pointerUp({ x: 140, y: 63 }, { pointerType: 'mouse', button: 0, buttons: 0 })
     expect(widths()).toEqual(['20px', '20px', '20px', '20px'])
 
-    // On zone-2's outline: the menu retargets to an outline hit, not a fill.
+    // On zone-2's outline: the menu retargets to it.
     touchDown({ x: 300, y: 110 })
     vi.advanceTimersByTime(600)
     touchUp({ x: 300, y: 110 })
@@ -452,6 +453,50 @@ describe('SceneInteractionSession: touch', () => {
     touchUp({ x: 140, y: 45 })
 
     expect(contextMenuHost.current?.turnViewToEdge).toBeTypeOf('function')
+    session.dispose()
+  })
+
+  // A finger's drag and long press, which Playwright's WebKit cannot drive (e2e/canvas/zone-picking.spec.ts covers them
+  // in Chromium): zones are picked by their outline only (canopi-qd2k, the user's decision of 2026-10-14).
+  it('(canopi-qd2k) a finger: a tap inside a zone clears, a drag inside bands the plants only, a long press inside opens the empty map\'s menu and one near the outline the zone\'s', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const corners = [{ x: 40, y: 60 }, { x: 240, y: 60 }, { x: 240, y: 160 }, { x: 40, y: 160 }]
+    store.updatePersisted((draft) => {
+      draft.zones = [makeRectZone('zone-1', corners)]
+      draft.plants = [makePlant('plant-1', 'Malus domestica', { x: 180, y: 120 })]
+    })
+    const session = createTestSession(createInteractionDeps(container, store, testView))
+    session.setTool('select')
+
+    // A tap 12 px inside the outline selects the zone; one 40 px inside clears it.
+    touchDown({ x: 140, y: 72 }, 1, 0)
+    touchUp({ x: 140, y: 72 }, 1, 50)
+    expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
+    touchDown({ x: 140, y: 100 }, 1, 1000)
+    touchUp({ x: 140, y: 100 }, 1, 1050)
+    expect(currentCanvasSelection.value).toEqual(new Set())
+
+    // A drag from inside draws a band: the plant alone, the zone unmoved.
+    touchDown({ x: 100, y: 100 }, 1, 2000)
+    touchMove({ x: 150, y: 120 }, 1, 2020)
+    touchMove({ x: 200, y: 140 }, 1, 2040)
+    touchUp({ x: 200, y: 140 }, 1, 2060)
+    expect(store.persisted.zones[0]!.points).toEqual(corners)
+    expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
+
+    // A long press inside: the empty map's menu, the selection kept.
+    touchDown({ x: 100, y: 110 }, 1, 3000)
+    vi.advanceTimersByTime(600)
+    touchUp({ x: 100, y: 110 }, 1, 3700)
+    expect(contextMenuHost.current?.selection).toBeNull()
+    expect(currentCanvasSelection.value).toEqual(new Set(['plant-1']))
+
+    // A long press 12 px inside the outline: the zone's menu, the zone selected.
+    touchDown({ x: 52, y: 110 }, 1, 5000)
+    vi.advanceTimersByTime(600)
+    touchUp({ x: 52, y: 110 }, 1, 5700)
+    expect(contextMenuHost.current?.selection?.editableTargets).toEqual([{ kind: 'zone', id: 'zone-1' }])
+    expect(currentCanvasSelection.value).toEqual(new Set(['zone-1']))
     session.dispose()
   })
 })

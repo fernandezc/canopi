@@ -65,7 +65,7 @@ import type {
   ToolSource,
 } from '../../canvas/runtime/tools/tool'
 import { createToolHost, createToolScene } from '../../canvas/runtime/tools/tool-host'
-import type { ScreenPoint, ViewCamera, WorldPoint } from '../../canvas/runtime/view/types'
+import type { ScreenPoint, ViewCamera, ViewScreen, WorldPoint } from '../../canvas/runtime/view/types'
 import { createRecordingRenderer, type RecordingRenderer } from './recording-renderer'
 import { createTestView, type TestView } from './test-view'
 
@@ -304,6 +304,8 @@ export interface ToolHarnessOptions {
   readonly viewport?: { readonly x: number; readonly y: number; readonly scale: number }
   /** Instead of viewport: a full camera, for a turned map (createTestView's camera; its centre defaults to the plane's origin). */
   readonly camera?: Partial<ViewCamera>
+  /** The map's screen; default 400 × 300 (createTestView's). */
+  readonly screen?: Partial<ViewScreen>
   readonly snapping?: SnapSettings
   /** Default: the scene's edit coordinator, as the runtime passes it. */
   readonly admission?: SceneCommandAdmission
@@ -446,6 +448,7 @@ export function createToolHarness(options: ToolHarnessOptions = {}): ToolHarness
     plane: createSessionPlane({ lon: 0, lat: 0 }),
     ...(options.viewport ? { viewport: options.viewport } : {}),
     ...(options.camera ? { camera: options.camera } : {}),
+    ...(options.screen ? { screen: options.screen } : {}),
   })
   const store = sceneStoreWith(options.scene ?? {})
   const history = new SceneHistory()

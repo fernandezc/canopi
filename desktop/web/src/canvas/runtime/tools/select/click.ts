@@ -7,10 +7,9 @@
 // single click (U42: a finger's double tap counts within 30 px, which spans two objects); an additive press toggles the hit; any
 // other hit is selected unless it already is and starts a move-drag, and an Alt click on it (subtractive) removes it from
 // the selection the press found; empty ground (or a hit locked through its group or layer) clears the selection unless
-// additive and starts the band. A press inside a zone's fill with nothing else under it (HitFilter.fill) starts the band
-// but keeps the selection until it resolves: its click selects the
-// zone (toggles it when additive, removes it on Alt), its band replaces the selection, and a cancel leaves it as it was. Additive is Shift, Ctrl or Cmd (ToolModifiers.additive),
-// subtractive is Alt without them.
+// additive and starts the band. A press inside a zone away from its outline is empty ground (canopi-qd2k: zones are
+// picked by their outline, hit-testing.ts). Additive is Shift, Ctrl or Cmd (ToolModifiers.additive), subtractive is Alt
+// without them.
 
 import {
   applySpeciesSelection,
@@ -23,13 +22,11 @@ import {
   type SceneDesignObjectTarget,
 } from '../../scene/design-object-targets'
 import { isDirectSceneDesignObjectLocked, isSceneDesignObjectLocked } from '../../scene/locks'
-import type { WorldPoint } from '../../view/types'
 import type { HitTarget, ToolContext, ToolPoint } from '../tool'
 
 /** What the press goes on to do. */
 export type SelectPress =
-  /** `fill`: the zone (or its group) whose fill the press was in, which the click selects. */
-  | { readonly kind: 'band'; readonly additive: boolean; readonly subtractive: boolean; readonly fill: SceneDesignObjectTarget | null }
+  | { readonly kind: 'band'; readonly additive: boolean }
   /** `removeFrom`: an Alt press's selection before it; its click removes the target from it. */
   | { readonly kind: 'move'; readonly target: SceneDesignObjectTarget; readonly removeFrom: SceneDesignObjectSelection | null }
   | { readonly kind: 'edit-note'; readonly annotationId: string }
@@ -51,11 +48,8 @@ export function pressSelection(
   const subtractive = point.modifiers.subtractive && !additive
 
   if (!hit) {
-    const fill = rawHit ? null : selectableFill(ctx, point.world)
-    // A fill press changes nothing until it resolves: its click selects the zone, its band replaces the selection, and a
-    // cancel keeps it.
-    if (!additive && !fill) ctx.effects.setSelection([])
-    return { kind: 'band', additive, subtractive, fill }
+    if (!additive) ctx.effects.setSelection([])
+    return { kind: 'band', additive }
   }
 
   if (lockedHit) {
@@ -89,22 +83,11 @@ export function pressSelection(
   return { kind: 'move', target: hit, removeFrom: subtractive ? selection : null }
 }
 
-/** The click of a press that did not move: a fill press selects its zone, an Alt press removes its target. */
+/** The click of a press that did not move: an Alt press removes its target. */
 export function clickSelection(ctx: ToolContext, press: SelectPress): void {
-  if (press.kind === 'band' && press.fill) {
-    ctx.effects.setSelection(clickedSelection(ctx.scene.selection(), press.fill, press.additive, press.subtractive))
-  } else if (press.kind === 'move' && press.removeFrom) {
+  if (press.kind === 'move' && press.removeFrom) {
     ctx.effects.setSelection(clickedSelection(press.removeFrom, press.target, false, true))
   }
-}
-
-/** The zone (or its group) whose fill holds `world`, unless it is locked through its group or layer. */
-function selectableFill(ctx: ToolContext, world: WorldPoint): SceneDesignObjectTarget | null {
-  const hit = ctx.scene.hitAt(world, { fill: true })
-  const target = hit?.kind === 'object' ? hit.target : null
-  if (!target) return null
-  const scene = ctx.scene.persisted
-  return !isSceneDesignObjectLocked(scene, target) || isDirectSceneDesignObjectLocked(scene, target) ? target : null
 }
 
 /** The selection after a click on `target`: toggled when additive, without it when subtractive, else it alone. */

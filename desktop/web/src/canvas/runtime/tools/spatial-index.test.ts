@@ -46,7 +46,7 @@ function samplePoints(): WorldPoint[] {
 }
 
 describe('ToolScene over today\'s hit tests', () => {
-  it('hitAt with no filter is today\'s hitTestTopLevel exactly', () => {
+  it('hitAt is hitTestTopLevel for its pointer exactly', () => {
     const store = orchardStore()
     store.setSelection([{ kind: 'annotation', id: 'a1' }])
     const source = createToolSceneSource(store, { pixelsPerMetre: () => 4 })
@@ -57,15 +57,16 @@ describe('ToolScene over today\'s hit tests', () => {
         store.persisted,
         point,
         4,
+        'mouse',
         source.speciesCache(),
         source.plantContext,
         store.session.selectedTargets,
         store.session.hoveredTarget,
       )
-      expect(scene.hitAt(point), `${point.x},${point.y}`).toEqual(expected ? { kind: 'object', target: expected } : null)
+      expect(scene.hitAt(point, { pointer: 'mouse' }), `${point.x},${point.y}`).toEqual(expected ? { kind: 'object', target: expected } : null)
     }
     // Object locks are the caller's to reject: a locked plant is still hit.
-    expect(scene.hitAt({ x: 40, y: 40 })).toEqual({ kind: 'object', target: { kind: 'plant', id: 'p4' } })
+    expect(scene.hitAt({ x: 40, y: 40 }, { pointer: 'mouse' })).toEqual({ kind: 'object', target: { kind: 'plant', id: 'p4' } })
   })
 
   it('includeLocked is today\'s hitTestVisibleTopLevel, which the host\'s hover reads', () => {
@@ -76,18 +77,19 @@ describe('ToolScene over today\'s hit tests', () => {
     const source = createToolSceneSource(store, { pixelsPerMetre: () => 4 })
     const scene = createToolScene(source)
 
-    expect(scene.hitAt({ x: 0, y: 0 })).toBeNull()
+    expect(scene.hitAt({ x: 0, y: 0 }, { pointer: 'mouse' })).toBeNull()
     for (const point of samplePoints()) {
       const expected = hitTestVisibleTopLevel(
         store.persisted,
         point,
         4,
+        'mouse',
         source.speciesCache(),
         source.plantContext,
         store.session.selectedTargets,
         store.session.hoveredTarget,
       )
-      expect(scene.hitAt(point, { includeLocked: true }), `${point.x},${point.y}`)
+      expect(scene.hitAt(point, { pointer: 'mouse', includeLocked: true }), `${point.x},${point.y}`)
         .toEqual(expected ? { kind: 'object', target: expected } : null)
     }
   })
@@ -98,20 +100,22 @@ describe('ToolScene over today\'s hit tests', () => {
     // Between p1 and p2: at 40 px/m the symbols are small, at 4 px/m they cover the gap.
     const between = { x: 0.5, y: 0.3 }
 
-    expect(scene.hitAt(between)).toBeNull()
+    expect(scene.hitAt(between, { pointer: 'mouse' })).toBeNull()
     pixelsPerMetre = 4
-    expect(scene.hitAt(between)).not.toBeNull()
+    expect(scene.hitAt(between, { pointer: 'mouse' })).not.toBeNull()
   })
 
-  it('with a pixel tolerance hitAt answers the nearest zone edge at the frame\'s scale', () => {
+  it('zoneEdge answers the nearest zone edge within the pointer\'s pick tolerance at the frame\'s scale', () => {
     let pixelsPerMetre = 4
     const scene = createToolScene(createToolSceneSource(orchardStore(), { pixelsPerMetre: () => pixelsPerMetre }))
 
     // z1's north edge runs along y = 5 from x = 5 to 15: 1.5 m is 6 px at 4 px/m, 12 px at 8 px/m.
-    expect(scene.hitAt({ x: 10, y: 3.5 }, { toleranceScreenPx: 8 }))
+    expect(scene.hitAt({ x: 10, y: 3.5 }, { pointer: 'mouse', zoneEdge: true }))
       .toEqual({ kind: 'zone-edge', zoneId: 'z1', edgeIndex: 0, distancePx: expect.closeTo(6, 6) })
     pixelsPerMetre = 8
-    expect(scene.hitAt({ x: 10, y: 3.5 }, { toleranceScreenPx: 8 })).toBeNull()
+    expect(scene.hitAt({ x: 10, y: 3.5 }, { pointer: 'mouse', zoneEdge: true })).toBeNull()
+    expect(scene.hitAt({ x: 10, y: 3.5 }, { pointer: 'touch', zoneEdge: true }))
+      .toEqual({ kind: 'zone-edge', zoneId: 'z1', edgeIndex: 0, distancePx: expect.closeTo(12, 6) })
   })
 
   it('a quad at 45 hits plants by their circles and shapes by their polygons, never a hidden layer', () => {

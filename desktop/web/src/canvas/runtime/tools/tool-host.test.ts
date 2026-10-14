@@ -33,7 +33,7 @@ import type { DraftPresentation, DraftShape, ToolHandle } from './draft'
 import { measureLabelShapes, selectedZoneMeasurementLabels } from './measure-labels'
 import type { ToolReply } from './tool'
 import { TOOL_REGISTRY, type ToolFactory } from './registry'
-import { createContextMenuPort, createToolScene } from './tool-host'
+import { contextMenuTargetAt, createContextMenuPort, createToolScene } from './tool-host'
 import { createPolygonTool } from './polygon'
 import '../../../__tests__/support/camera-tolerance'
 
@@ -476,7 +476,7 @@ describe('ToolHost', () => {
   })
 
   describe('interceptors', () => {
-    it('J10: a Select tap on empty ground reaches Select, then pins its point; an object or a zone\'s fill selects only', () => {
+    it('J10: a Select tap on empty ground, inside a zone too, reaches Select, then pins its point; an object or a zone\'s outline selects only', () => {
       const order: string[] = []
       const select = stubTool('select', {
         gesture: (g) => {
@@ -494,12 +494,17 @@ describe('ToolHost', () => {
       expect(order).toEqual(['tap', 'pin'])
       expect(pin).toHaveBeenCalledWith(h.world({ x: 301, y: 101 }))
 
-      // A plant, and a zone's fill: Select selects them, and nothing pins.
+      // A plant, and a zone's outline: Select selects them, and nothing pins.
       pin.mockClear()
       h.click({ x: 200, y: 200 })
-      h.click({ x: 60, y: 35 })
+      h.click({ x: 60, y: 12 })
       expect(select.count('tap')).toBe(3)
       expect(pin).not.toHaveBeenCalled()
+
+      // (canopi-qd2k, the user's decision of 2026-10-14) Inside a zone, away from its outline, is empty ground: it pins.
+      h.click({ x: 60, y: 35 })
+      expect(pin).toHaveBeenCalledWith(h.world({ x: 60, y: 35 }))
+      pin.mockClear()
 
       // A double-click on empty ground pins at each of its taps.
       h.click({ x: 300, y: 100 }, { clickCount: 2 })
@@ -2299,16 +2304,19 @@ describe('ToolHost', () => {
       const source = createToolSceneSource(store)
       const opened: CanvasContextMenuRequest[] = []
       const view = createTestView()
+      const scene = createToolScene(source)
       const port = createContextMenuPort({
         container: document.createElement('div'),
         view: view.view,
         adapter: { open: (request) => opened.push(request), close: () => {} },
         commands: {} as never,
         returnFocus: () => {},
-        scene: createToolScene(source),
+        scene,
         selectionModel: source.selectionModel,
       })
-      return { port, opened, view, source }
+      /** A mouse menu's pick at `at`, as the host makes it (contextMenuTargetAt). */
+      const pickAt = (at: WorldPoint) => contextMenuTargetAt(scene, at, 'mouse')
+      return { port, opened, view, source, pickAt }
     }
 
     it('a right-click retargets the selection to the object under it and opens the menu there', () => {
@@ -2318,18 +2326,22 @@ describe('ToolHost', () => {
       expect(h.menu({ x: 50, y: 50 })).toEqual({})
       expect(h.record.selections).toEqual([[P1]])
       expect(h.record.menus).toEqual([
-        { at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 } },
+        { at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 }, pick: { visible: P1, target: P1 } },
       ])
 
       h.menu({ x: 300, y: 250 })
       expect(h.record.selections).toHaveLength(1)
-      expect(h.record.menus.at(-1)).toEqual({ at: h.world({ x: 300, y: 250 }), screen: { x: 300, y: 250 } })
+      expect(h.record.menus.at(-1)).toEqual({
+        at: h.world({ x: 300, y: 250 }),
+        screen: { x: 300, y: 250 },
+        pick: { visible: null, target: null },
+      })
 
       h.menu('selection', 'keyboard')
       expect(h.record.menus.at(-1)).toEqual({ at: 'selection', screen: null })
     })
 
-    it('Turn view to this edge is offered within 8 px of a polygon, rectangle or line edge for a native menu, on a locked zone too, never from the keyboard and never for an ellipse', () => {
+    it('Turn view to this edge is offered within the pick tolerance (6 px mouse, 16 px long press) of a polygon, rectangle or line edge, on a locked zone too, never from the keyboard and never for an ellipse', () => {
       vi.useFakeTimers()
       try {
         useStubTools(stubTool('select'))
@@ -2349,10 +2361,10 @@ describe('ToolHost', () => {
         })
         const offered = () => h.record.menus.at(-1)!.turnViewToEdge
 
-        // 7 px off the field's slanted edge, beyond its 6 px hit: the empty map's menu, with the entry.
+        // 5 px off the field's slanted edge, within its 6 px hit: the field's menu, with the entry (canopi-qd2k: one table).
         const normal = { x: 2 / Math.sqrt(5), y: 1 / Math.sqrt(5) }
-        h.menu({ x: 80 + normal.x * 7, y: 60 + normal.y * 7 })
-        expect(h.record.selections).toEqual([])
+        h.menu({ x: 80 + normal.x * 5, y: 60 + normal.y * 5 })
+        expect(h.record.selections).toEqual([[{ kind: 'zone', id: 'field' }]])
         expect(offered()).toBeTypeOf('function')
         offered()!()
         vi.advanceTimersByTime(400)
@@ -2362,7 +2374,12 @@ describe('ToolHost', () => {
         h.view.navigation.resetNorth()
         vi.advanceTimersByTime(400)
 
-        h.menu({ x: 80 + normal.x * 9, y: 60 + normal.y * 9 })
+        h.menu({ x: 80 + normal.x * 7, y: 60 + normal.y * 7 })
+        expect(offered()).toBeUndefined()
+        // A long press: a finger's 16 px.
+        h.menu({ x: 80 + normal.x * 14, y: 60 + normal.y * 14 }, 'long-press')
+        expect(offered()).toBeTypeOf('function')
+        h.menu({ x: 80 + normal.x * 18, y: 60 + normal.y * 18 }, 'long-press')
         expect(offered()).toBeUndefined()
         // The locked bed: its own menu, with the entry; the view turns, no object moves.
         h.menu({ x: 200, y: 63 })
@@ -2446,7 +2463,7 @@ describe('ToolHost', () => {
         // A dot (an empty answer) opens today's menu at that point, retargeted to the object under it.
         h.host.menuAt({ x: 50, y: 50 }, 'mouse', DOT)
         expect(select.asked).toEqual([CORNER, CORNER, DOT])
-        expect(h.record.menus.at(-1)).toEqual({ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 } })
+        expect(h.record.menus.at(-1)).toEqual({ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 }, pick: { visible: P1, target: P1 } })
         expect(h.record.selections).toEqual([[P1]])
 
         // An entry of a tool since retired sends nothing, as Finish shape.
@@ -2460,7 +2477,7 @@ describe('ToolHost', () => {
         useStubTools(stubTool('select'))
         const h = harness({ scene: { plants: [appleAt({ x: 50, y: 50 })] } })
         h.host.menuAt({ x: 50, y: 50 }, 'mouse', CORNER)
-        expect(h.record.menus).toEqual([{ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 } }])
+        expect(h.record.menus).toEqual([{ at: h.world({ x: 50, y: 50 }), screen: { x: 50, y: 50 }, pick: { visible: P1, target: P1 } }])
         expect(h.record.selections).toEqual([[P1]])
       })
 
@@ -2541,9 +2558,9 @@ describe('ToolHost', () => {
       store.updateSession((session) => {
         session.selectedTargets = [P1]
       })
-      const { port, opened, view, source } = menuPortFor(store)
+      const { port, opened, view, source, pickAt } = menuPortFor(store)
 
-      port.open({ at: { x: 50, y: 50 }, screen: { x: 50, y: 50 } })
+      port.open({ at: { x: 50, y: 50 }, screen: { x: 50, y: 50 }, pick: pickAt({ x: 50, y: 50 }) })
       expect(opened.at(-1)!.selection?.editableTargets).toEqual([P1])
       expect(port.isOpen()).toBe(true)
 
@@ -2551,7 +2568,7 @@ describe('ToolHost', () => {
       expect(opened.at(-1)!.selection).toEqual(source.selectionModel())
       expect(opened.at(-1)!.world).toEqual({ x: 50, y: 50 })
 
-      port.open({ at: { x: 300, y: 250 }, screen: null })
+      port.open({ at: { x: 300, y: 250 }, screen: null, pick: pickAt({ x: 300, y: 250 }) })
       expect(opened.at(-1)!.selection).toBeNull()
       expect(opened.at(-1)!.turnViewToEdge).toBeUndefined()
       // The host's edge turn rides on the request, for the empty map's menu as for an object's.
@@ -2573,7 +2590,7 @@ describe('ToolHost', () => {
       store.updatePersisted((draft) => {
         draft.layers = draft.layers.map((layer) => (layer.name === 'plants' ? { ...layer, locked: true } : layer))
       })
-      port.open({ at: { x: 150, y: 50 }, screen: { x: 150, y: 50 } })
+      port.open({ at: { x: 150, y: 50 }, screen: { x: 150, y: 50 }, pick: pickAt({ x: 150, y: 50 }) })
       expect(opened.at(-1)!.selection?.editableTargets).toEqual([])
 
       port.close()
@@ -2581,49 +2598,35 @@ describe('ToolHost', () => {
       view.dispose()
     })
 
-    it('a right-click inside a zone\'s fill opens the zone\'s menu only when the zone is already selected (Q4, canopi-f47t.40)', () => {
+    it('(canopi-qd2k) a right-click inside a zone, selected or not, opens the empty map\'s menu; on its outline the zone\'s; this reverses canopi-f47t.40', () => {
       const store = sceneStoreWith({
         zones: [rectZone('z1', [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }])],
         plants: [appleAt({ x: 50, y: 50 })],
       })
-      const { port, opened, view } = menuPortFor(store)
+      const { port, opened, view, pickAt } = menuPortFor(store)
 
-      // Unselected: the empty map's menu, with Place plants here.
-      port.open({ at: { x: 30, y: 70 }, screen: null })
-      expect(opened.at(-1)!.selection).toBeNull()
-
-      store.updateSession((session) => { session.selectedTargets = [Z1] })
-      port.open({ at: { x: 30, y: 70 }, screen: null })
+      for (const selected of [[], [Z1]]) {
+        store.updateSession((session) => { session.selectedTargets = selected })
+        expect(pickAt({ x: 30, y: 70 })).toEqual({ visible: null, target: null })
+        port.open({ at: { x: 30, y: 70 }, screen: null, pick: pickAt({ x: 30, y: 70 }) })
+        expect(opened.at(-1)!.selection).toBeNull()
+        expect(pickAt({ x: 3, y: 70 })).toEqual({ visible: Z1, target: Z1 })
+      }
+      // The outline, once the host has retargeted the selection to it: the zone's menu.
+      port.open({ at: { x: 3, y: 70 }, screen: null, pick: pickAt({ x: 3, y: 70 }) })
       expect(opened.at(-1)!.selection?.editableTargets).toEqual([Z1])
 
-      // A locked Zones layer: the empty map's menu again.
+      // A locked Zones layer: the outline gets the zone's disabled menu, the inside the empty map's.
       store.updatePersisted((draft) => {
         draft.layers = draft.layers.map((layer) => (layer.name === 'zones' ? { ...layer, locked: true } : layer))
       })
-      port.open({ at: { x: 30, y: 70 }, screen: null })
-      expect(opened.at(-1)!.selection).toBeNull()
+      expect(pickAt({ x: 3, y: 70 })).toEqual({ visible: Z1, target: null })
+      expect(pickAt({ x: 30, y: 70 })).toEqual({ visible: null, target: null })
       port.close()
       view.dispose()
     })
 
-    it('a right-click inside a selected zone\'s fill opens its menu when an unselected zone overlaps it, above or below (Q4)', () => {
-      const bed = rectZone('z1', [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }])
-      const inner = rectZone('z2', [{ x: 20, y: 20 }, { x: 40, y: 20 }, { x: 40, y: 40 }, { x: 20, y: 40 }])
-      const Z2: SceneDesignObjectTarget = { kind: 'zone', id: 'z2' }
-      for (const [zones, selected] of [[[bed, inner], Z1], [[inner, bed], Z2]] as const) {
-        const store = sceneStoreWith({ zones: [...zones] })
-        const { port, opened, view } = menuPortFor(store)
-        store.updateSession((session) => { session.selectedTargets = [selected] })
-
-        // Inside both fills: the selected zone's menu, whichever zone is drawn on top.
-        port.open({ at: { x: 30, y: 30 }, screen: null })
-        expect(opened.at(-1)!.selection?.editableTargets).toEqual([selected])
-        port.close()
-        view.dispose()
-      }
-    })
-
-    it('a right-click inside a selected zone keeps it selected; a plant inside it takes the selection', () => {
+    it('(canopi-qd2k) a right-click inside a selected zone retargets nothing and opens the empty map\'s menu; a plant inside it takes the selection', () => {
       useStubTools(stubTool('select'))
       const h = harness({ scene: {
         zones: [rectZone('z1', [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }])],
@@ -2633,6 +2636,7 @@ describe('ToolHost', () => {
 
       h.menu({ x: 30, y: 70 })
       expect(h.record.selections).toEqual([])
+      expect(h.record.menus.at(-1)!.pick).toEqual({ visible: null, target: null })
       h.menu({ x: 50, y: 50 })
       expect(h.record.selections).toEqual([[P1]])
     })

@@ -112,53 +112,49 @@ describe('Select clicks', () => {
     expect(h.chrome.textEntry).toBeNull()
   })
 
-  it("a click in a zone's fill selects it", () => {
+  it('(canopi-qd2k) a click inside a zone picks what lies beneath or clears; a click on its outline selects it', () => {
     const bed = rectZone('bed', [{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 200 }, { x: 100, y: 200 }])
     const pond = rectZone('pond', [{ x: 400, y: 100 }, { x: 500, y: 100 }, { x: 500, y: 200 }, { x: 400, y: 200 }])
     const h = harness({ scene: { zones: [bed, pond], plants: [plantEntity('apple', 'Malus domestica', { x: 200, y: 150 })] } })
     const BED: SceneDesignObjectTarget = { kind: 'zone', id: 'bed' }
     const POND: SceneDesignObjectTarget = { kind: 'zone', id: 'pond' }
 
-    h.click({ x: 150, y: 130 })
+    h.click({ x: 103, y: 130 })
     expect(h.store.session.selectedTargets).toEqual([BED])
-
-    // Shift or mod toggles the zone; Alt removes it.
-    h.click({ x: 450, y: 150 }, { mods: { shift: true } })
-    expect(h.store.session.selectedTargets).toEqual([BED, POND])
-    h.click({ x: 150, y: 130 }, { mods: { ctrl: true } })
-    expect(h.store.session.selectedTargets).toEqual([POND])
-    h.click({ x: 450, y: 150 }, { mods: { alt: true } })
+    // Inside, away from the outline: empty ground.
+    h.click({ x: 150, y: 130 })
     expect(h.store.session.selectedTargets).toEqual([])
 
-    // A plant on top wins over the fill.
+    // Shift or mod toggles the zone by its outline; Alt removes it.
+    h.click({ x: 103, y: 130 })
+    h.click({ x: 497, y: 150 }, { mods: { shift: true } })
+    expect(h.store.session.selectedTargets).toEqual([BED, POND])
+    h.click({ x: 150, y: 197 }, { mods: { ctrl: true } })
+    expect(h.store.session.selectedTargets).toEqual([POND])
+    h.click({ x: 450, y: 103 }, { mods: { alt: true } })
+    expect(h.store.session.selectedTargets).toEqual([])
+
+    // The plant inside the zone is what lies beneath.
     h.click({ x: 200, y: 150 })
     expect(h.store.session.selectedTargets).toEqual([APPLE])
     expect(h.history.canUndo.value).toBe(false)
   })
 
-  it("a press in a zone's fill changes the selection only at its click: no blank on the selected zone, and Esc keeps it", () => {
+  it('(canopi-qd2k) a press inside a selected zone clears it as empty ground does; a press on its outline keeps it', () => {
     const bed = rectZone('bed', [{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 200 }, { x: 100, y: 200 }])
-    const pond = rectZone('pond', [{ x: 400, y: 100 }, { x: 500, y: 100 }, { x: 500, y: 200 }, { x: 400, y: 200 }])
-    const h = harness({ scene: { zones: [bed, pond] } })
+    const h = harness({ scene: { zones: [bed] } })
     const BED: SceneDesignObjectTarget = { kind: 'zone', id: 'bed' }
-    const POND: SceneDesignObjectTarget = { kind: 'zone', id: 'pond' }
 
     h.select(BED)
-    const handles = h.chrome.handles.length
-    const before = h.record.selections.length
+    h.press({ x: 103, y: 150 })
+    expect(h.store.session.selectedTargets).toEqual([BED])
+    h.release({ x: 103, y: 150 })
+    expect(h.store.session.selectedTargets).toEqual([BED])
+
     h.press({ x: 150, y: 130 })
-    expect(h.store.session.selectedTargets).toEqual([BED])
-    expect(h.chrome.handles).toHaveLength(handles)
+    expect(h.store.session.selectedTargets).toEqual([])
     h.release({ x: 150, y: 130 })
-    expect(h.record.selections.slice(before)).toEqual([[BED]])
-
-    h.press({ x: 450, y: 150 })
-    h.cancel('escape')
-    expect(h.store.session.selectedTargets).toEqual([BED])
-
-    // A drag shorter than the band's threshold is a click.
-    h.drag({ x: 450, y: 150 }, { x: 451, y: 150 })
-    expect(h.store.session.selectedTargets).toEqual([POND])
+    expect(h.store.session.selectedTargets).toEqual([])
   })
 
   it('Alt+click removes', () => {

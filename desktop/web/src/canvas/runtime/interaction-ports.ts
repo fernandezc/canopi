@@ -63,10 +63,18 @@ export interface DomInputSource {
  * (CanvasContextMenuRequest.finishShape, .turnViewToEdge, .holdsSelectionDeletes, .pointActions); there is no
  * highlightEdge (U4).
  */
+/** What a pointer menu acts on: the click's pick at its point (tool-host.ts contextMenuTargetAt). `target`: the object
+ *  whose menu opens; with none, a `visible` object (locked through its layer or group) gets the disabled menu, and none
+ *  the empty map's. */
+export interface ContextMenuPick {
+  readonly visible: SceneDesignObjectTarget | null
+  readonly target: SceneDesignObjectTarget | null
+}
 export interface ContextMenuPort {
   open(request: {
     readonly at: WorldPoint | 'selection'
     readonly screen: ScreenPoint | null
+    readonly pick?: ContextMenuPick                             // a pointer menu's pick, made once by the host; absent: nothing picked
     readonly finishShape?: () => void                           // the armed tool can finish its draft (CanvasTool.canFinish)
     readonly turnViewToEdge?: () => void                        // a zone-edge hit within the source's tolerance (§4.16)
     readonly holdsSelectionDeletes?: true                       // the host's re-origin hold at the open: Cut and Delete disabled (U39)
