@@ -1,6 +1,6 @@
 import { signal } from '@preact/signals'
 import { describe, expect, it, vi } from 'vitest'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import type { CanvasDocumentSurface, CanvasPersistenceCapture } from '../canvas/runtime/runtime'
 import { SceneHistory } from '../canvas/runtime/scene-history'
 import { SceneStore } from '../canvas/runtime/scene'
@@ -117,7 +117,7 @@ function fileAdapter(openedFile?: CanopiFile): BrowserDesignFileAdapter {
 
 function setup(options: { openedFile?: CanopiFile, requestSaveDecision?: ReturnType<typeof vi.fn> } = {}) {
   const storage = memoryStorage()
-  const store = createMemoryDesignSessionStore()
+  const store = createDesignSessionStore()
   const appDataStore = createBrowserAppDataStore({ storage })
   const draftIds = ['draft-first', 'draft-second', 'draft-third']
   const requestSaveDecision = options.requestSaveDecision ?? vi.fn(async () => 'cancel' as const)

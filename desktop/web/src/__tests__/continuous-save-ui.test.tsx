@@ -13,7 +13,7 @@ import { SaveProblemDialog } from '../components/shared/SaveProblemDialog'
 import { CommandPalette } from '../components/shared/CommandPalette'
 import { commandPaletteOpen } from '../commands/registry'
 import { SaveStatusLabel } from '../components/shared/SaveStatusLabel'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import { createBrowserAppDataStore } from '../web/browser-app-data'
 import { createBrowserDesignSessionController } from '../web/browser-design-session'
 import { WebWelcomeScreen } from '../web/WebWelcomeScreen'
@@ -417,7 +417,7 @@ describe('WebWelcomeScreen', () => {
     for (const name of ['Kitchen Garden', 'Hedge']) {
       appDataStore.saveDraft({ id: `draft-${name}`, file: design(name), now: '2026-01-01T00:00:00.000Z' })
     }
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({ store, appDataStore })
 
     await act(async () => {

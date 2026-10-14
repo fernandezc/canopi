@@ -6,7 +6,7 @@
 import { test as base, expect, type Page } from '@playwright/test'
 
 /** The gallery dev server of playwright.config.ts; the only origin a scenario may reach. */
-export const GALLERY_ORIGIN = 'http://127.0.0.1:1422'
+const GALLERY_ORIGIN = 'http://127.0.0.1:1422'
 
 declare global {
   interface Window { __galleryClipboard?: string[] }

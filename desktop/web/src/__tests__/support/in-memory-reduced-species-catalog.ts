@@ -11,16 +11,27 @@ import type { SpeciesCatalogDetail } from '../../app/plant-browser/workbench'
 import {
   admittedSpeciesSearchText,
   EMPTY_ADMITTED_SPECIES_SEARCH_TEXT,
-  normalizedSpeciesSearchMatchTier,
   speciesSearchAdmission,
   type AdmittedSpeciesSearchText,
-  type SpeciesSearchMatchTier,
 } from '../../utils/species-search-normalization'
 import type {
   ReducedSpeciesCatalogReader,
   ReducedSpeciesImageRow,
   ReducedSpeciesRow,
 } from '../../web/reduced-species-catalog'
+
+// 0: the whole search text; 1: a prefix; 2: every token somewhere in the name.
+type SpeciesSearchMatchTier = 0 | 1 | 2
+
+function normalizedSpeciesSearchMatchTier(
+  candidate: string,
+  searchText: AdmittedSpeciesSearchText,
+): SpeciesSearchMatchTier | null {
+  if (!searchText.text) return null
+  if (candidate === searchText.text) return 0
+  if (candidate.startsWith(searchText.text)) return 1
+  return searchText.tokens.every((token) => candidate.includes(token)) ? 2 : null
+}
 
 interface ReducedSpeciesArtifactRow extends ReducedSpeciesRow {
   readonly normalized_canonical_name: string

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { persistLastView } from '../app/canvas-map-surface/last-view'
 import { createAppCanvasRuntimeAppAdapter } from '../app/canvas-runtime/app-adapter'
 import { createDesignSessionReplacement } from '../app/document-session/replacement'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import { resetSettingsProjectionForTests } from '../app/settings/projection'
 import { lastView } from '../app/settings/state'
 import { geographicViewOfCamera } from '../canvas/session-plane'
@@ -56,7 +56,7 @@ function newDesignOverOpenDesign(): { lon: number; lat: number; zoom: number } {
   })
   hosts.push(host)
   const { documents: canvas, queries } = host.surfaces
-  const store = createMemoryDesignSessionStore({ file: previousSiteDesign(), path: '/designs/previous.canopi', name: 'Previous' })
+  const store = createDesignSessionStore({ file: previousSiteDesign(), path: '/designs/previous.canopi', name: 'Previous' })
   canvas.loadDocument(previousSiteDesign())
   canvas.zoomToFit()
   const replacement = createDesignSessionReplacement({

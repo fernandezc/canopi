@@ -21,8 +21,6 @@ export interface AdmittedSpeciesSearchText {
   readonly tokens: readonly string[]
 }
 
-export type SpeciesSearchMatchTier = 0 | 1 | 2
-
 export const EMPTY_ADMITTED_SPECIES_SEARCH_TEXT: AdmittedSpeciesSearchText = {
   text: '',
   tokens: [],
@@ -132,14 +130,4 @@ export function admittedSpeciesSearchText(raw: string): AdmittedSpeciesSearchTex
   return tokens.length === 0
     ? EMPTY_ADMITTED_SPECIES_SEARCH_TEXT
     : { text: tokens.join(' '), tokens }
-}
-
-export function normalizedSpeciesSearchMatchTier(
-  candidate: string,
-  searchText: AdmittedSpeciesSearchText,
-): SpeciesSearchMatchTier | null {
-  if (!searchText.text) return null
-  if (candidate === searchText.text) return 0
-  if (candidate.startsWith(searchText.text)) return 1
-  return searchText.tokens.every((token) => candidate.includes(token)) ? 2 : null
 }

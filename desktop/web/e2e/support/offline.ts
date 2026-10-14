@@ -5,7 +5,7 @@
 import { test as base, expect, type ConsoleMessage } from '@playwright/test'
 
 /** The preview server of playwright.config.ts; the only origin a scenario may reach. */
-export const APP_ORIGIN = 'http://localhost:4174'
+const APP_ORIGIN = 'http://localhost:4174'
 
 /**
  * The Web plant catalog (public/canopi-catalog/, git-ignored) is generated from canopi-core.db

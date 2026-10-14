@@ -88,7 +88,7 @@ export interface DesignSessionStoreTestFixture {
 
 const testFixtures = new WeakMap<object, DesignSessionStoreTestFixture>()
 
-function createDesignSessionStore(
+export function createDesignSessionStore(
   initial: Partial<DesignSessionIdentity> = {},
 ): PersistenceCapableDesignSessionStore {
   const currentDesign = signal<CanopiFile | null>(initial.file ?? null)
@@ -431,12 +431,6 @@ function createDesignSessionStore(
   testFixtures.set(store, fixture)
 
   return store
-}
-
-export function createMemoryDesignSessionStore(
-  initial: Partial<DesignSessionIdentity> = {},
-): PersistenceCapableDesignSessionStore {
-  return createDesignSessionStore(initial)
 }
 
 export function createDesignSessionStoreTestFixture(

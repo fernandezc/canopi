@@ -78,7 +78,7 @@ import {
 import { createDesignSessionPersistence } from "../app/document-session/persistence";
 import { prepareDesignWriteDestination } from "../app/document-session/write-admission";
 import {
-  createMemoryDesignSessionStore,
+  createDesignSessionStore,
   type PersistenceCapableDesignSessionStore,
 } from "../app/document-session/store";
 import type { CanopiFile } from "../types/design";
@@ -277,7 +277,7 @@ function resetMachine({
   path?: string | null;
   name?: string;
 } = {}): void {
-  store = createMemoryDesignSessionStore({ file, path, name });
+  store = createDesignSessionStore({ file, path, name });
   machine = createDesignSessionStateMachine({
     store,
     requestSaveDecision: mocks.requestSaveDecision,
@@ -508,7 +508,7 @@ describe("continuous save homes", () => {
   });
 
   it("keeps the home pending when a continuous write settles stale", async () => {
-    store = createMemoryDesignSessionStore({ file: makeFile("Template"), path: null, name: "Template" });
+    store = createDesignSessionStore({ file: makeFile("Template"), path: null, name: "Template" });
     const persistence = createDesignSessionPersistence({ store });
     machine = createDesignSessionStateMachine({
       store,

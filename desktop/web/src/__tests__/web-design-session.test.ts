@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { composeDocumentForSave } from '../app/contracts/document'
 import { decodeCanopiDesign } from '../app/contracts/design-ingestion'
 import { designLoadFailureOf } from '../app/contracts/canopi-design-errors'
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import { CONTINUOUS_SAVE_DELAY_MS } from '../app/document-session/continuous-save'
 import {
   createDesignSessionWorkflowRunner,
@@ -44,7 +44,7 @@ const NOW = new Date('2026-07-04T12:00:00.000Z')
 
 describe('browser Design Session lifecycle', () => {
   it('starts a new browser Design with the Settings › New Designs defaults', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: testFileAdapter(),
@@ -63,7 +63,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('creates a browser-local Design with the canonical New Design defaults', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: testFileAdapter(),
@@ -106,7 +106,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('creates fresh layer records for each browser New Design', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: testFileAdapter(),
@@ -128,7 +128,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('composes a new browser Design as the current version through draft and download', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const downloadCanopiFile = vi.fn<(download: BrowserCanopiDownload) => Promise<void>>(
       async () => undefined,
@@ -191,7 +191,7 @@ describe('browser Design Session lifecycle', () => {
         text: JSON.stringify(openedFile),
       })),
     })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({ store, fileAdapter: adapter, now: () => NOW })
 
     await controller.openCanopi()
@@ -210,7 +210,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('rejects a malformed selected Design before replacing the active session', async () => {
     const original = makeCanopiFile({ name: 'Working Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: original,
       path: null,
       name: original.name,
@@ -280,7 +280,7 @@ describe('browser Design Session lifecycle', () => {
     },
   ])('rejects $label before replacing the active session', async ({ content, message, kind }) => {
     const original = makeCanopiFile({ name: 'Working Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: original,
       path: null,
       name: original.name,
@@ -337,7 +337,7 @@ describe('browser Design Session lifecycle', () => {
     dismissBrowserShellNotice()
     registerDesignOpenFailurePresenter(showBrowserShellNotice)
     try {
-      const store = createMemoryDesignSessionStore()
+      const store = createDesignSessionStore()
       const controller = createBrowserDesignSessionController({
         store,
         fileAdapter: testFileAdapter({
@@ -364,7 +364,7 @@ describe('browser Design Session lifecycle', () => {
       name: 'Geolocated Garden',
       plants: [plantAt({ lon: 2.3522, lat: 48.8566 })],
     })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: testFileAdapter({
@@ -391,7 +391,7 @@ describe('browser Design Session lifecycle', () => {
     } as Record<string, unknown>
     delete openedFile.views
     delete openedFile.stories
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const presentOpenFailure = vi.fn()
     const controller = createBrowserDesignSessionController({
       store,
@@ -413,7 +413,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('does not let an older pending Open overwrite a later New Design', async () => {
     const pendingOpen = deferred<BrowserOpenedCanopiFile | null>()
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({ name: 'Original Garden' }),
       path: null,
       name: 'Original Garden',
@@ -447,7 +447,7 @@ describe('browser Design Session lifecycle', () => {
     const openCanopiFile = vi.fn()
       .mockReturnValueOnce(olderPicker.promise)
       .mockReturnValueOnce(newerPicker.promise)
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({ name: 'Original Garden' }),
       path: null,
       name: 'Original Garden',
@@ -481,7 +481,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('cancels a pending Open when the active Design changes during the picker', async () => {
     const pendingOpen = deferred<BrowserOpenedCanopiFile | null>()
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({
         name: 'Working Garden',
         description: 'Before picker',
@@ -515,7 +515,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('rechecks the Open guard immediately before applying the picked Design', async () => {
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({
         name: 'Working Garden',
         description: 'Before picker',
@@ -555,7 +555,7 @@ describe('browser Design Session lifecycle', () => {
       description: 'Bundled example',
       plants: [plantAt({ lon: -73.6, lat: 45.5 })],
     })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: testFileAdapter(),
@@ -577,7 +577,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('does not let an older pending Open overwrite a later template replacement', async () => {
     const pendingOpen = deferred<BrowserOpenedCanopiFile | null>()
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({ name: 'Original Garden' }),
       path: null,
       name: 'Original Garden',
@@ -610,7 +610,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('downloads the current Design as .canopi JSON after browser edits', async () => {
     const adapter = testFileAdapter()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({ store, fileAdapter: adapter, now: () => NOW })
 
     await controller.newDesign()
@@ -645,7 +645,7 @@ describe('browser Design Session lifecycle', () => {
     const adapter = testFileAdapter({
       downloadCanopiFile: vi.fn(() => pending.promise),
     })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       fileAdapter: adapter,
@@ -682,7 +682,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('exports a download without acknowledging the Canvas baseline', async () => {
     const adapter = testFileAdapter()
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({ name: 'Export Garden' }),
       path: null,
       name: 'Export Garden',
@@ -735,7 +735,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('continuously saves Browser Drafts after the delay and reopens them as detached Designs', async () => {
     vi.useFakeTimers()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const draftIds = ['draft-browser-patio', 'draft-new-untitled']
     const controller = createBrowserDesignSessionController({
@@ -783,7 +783,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('flushes the Draft when the page is hidden or unloaded', async () => {
     vi.useFakeTimers()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -813,7 +813,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('writes the current Design before a replacement and asks only when that write fails', async () => {
     const storage = memoryStorage()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage })
     const draftIds = ['draft-first', 'draft-second', 'draft-third']
     const requestSaveDecision = vi.fn(async () => 'cancel' as const)
@@ -849,7 +849,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('reverts to the version opened and writes it to the same Draft', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     appDataStore.saveDraft({
       id: 'draft-revert',
@@ -886,7 +886,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('does not revert a Draft opened while the revert confirmation was open', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     for (const [id, description] of [['draft-first', 'first'], ['draft-second', 'second']]) {
       appDataStore.saveDraft({ id, file: makeCanopiFile({ name: id, description }), now: NOW.toISOString() })
@@ -923,7 +923,7 @@ describe('browser Design Session lifecycle', () => {
       now: clock().toISOString(),
     })
     function openTab(requestSaveDecision: ReturnType<typeof vi.fn>) {
-      const store = createMemoryDesignSessionStore()
+      const store = createDesignSessionStore()
       const appDataStore = createBrowserAppDataStore({ storage })
       const controller = createBrowserDesignSessionController({
         store,
@@ -974,7 +974,7 @@ describe('browser Design Session lifecycle', () => {
     const clock = () => new Date(Date.UTC(2026, 6, 4, 12, 0, tick++))
     const other = createBrowserAppDataStore({ storage })
     other.saveDraft({ id: 'draft-shared', file: makeCanopiFile({ name: 'Shared' }), now: clock().toISOString() })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const requestSaveDecision = vi.fn(async () => 'cancel')
     const controller = createBrowserDesignSessionController({
       store,
@@ -1000,7 +1000,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('deletes a Draft other than the open one', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     for (const id of ['draft-old', 'draft-open']) {
       appDataStore.saveDraft({ id, file: makeCanopiFile({ name: id }), now: NOW.toISOString() })
@@ -1020,7 +1020,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('restores the newest Browser Draft into an empty Design Session', () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     appDataStore.saveDraft({
       id: 'draft-older',
@@ -1046,7 +1046,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('does not replace an active Design while checking startup Draft recovery', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     appDataStore.saveDraft({
       id: 'draft-persisted',
@@ -1068,7 +1068,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('does not let an older pending Open overwrite a later Draft replacement', async () => {
     const pendingOpen = deferred<BrowserOpenedCanopiFile | null>()
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: makeCanopiFile({ name: 'Original Garden' }),
       path: null,
       name: 'Original Garden',
@@ -1103,7 +1103,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('keeps separate Browser Drafts for different Designs with the same name', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const draftIds = ['draft-first-untitled', 'draft-second-untitled']
     const controller = createBrowserDesignSessionController({
@@ -1135,7 +1135,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('renames the active Browser Draft without leaving a stale draft row', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1162,7 +1162,7 @@ describe('browser Design Session lifecycle', () => {
   it('keeps the active Design intact when Browser Draft storage fails', async () => {
     const storage = memoryStorage()
     storage.failWrites = true
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1185,7 +1185,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('serializes attached canvas state into Browser Drafts', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     appDataStore.saveDraft({
       id: 'draft-canvas-draft',
@@ -1266,7 +1266,7 @@ describe('browser Design Session lifecycle', () => {
         text: JSON.stringify(makeCanopiFile({ name: 'Opened Replacement' })),
       })),
     })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const workflowRunner: DesignSessionWorkflowRunner = {
       install: vi.fn(),
       dispose: vi.fn(),
@@ -1307,7 +1307,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('defers the Draft write until an attached replacement releases Scene authority', async () => {
     vi.useFakeTimers()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1359,7 +1359,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('reports a Draft capture failure and saves the still-dirty Design after the next change', async () => {
     vi.useFakeTimers()
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     appDataStore.saveDraft({
       id: 'draft-save-retry',
@@ -1420,7 +1420,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('rejects overlapping browser Canvas attachments before hydrating stale store state', () => {
     const initial = makeCanopiFile({ name: 'Leased Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1445,7 +1445,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('rejects duplicate attachment of the same Canvas without rehydrating or releasing it', () => {
     const initial = makeCanopiFile({ name: 'Leased Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1474,7 +1474,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('writes again when an intervening draft acknowledgement publishes a newer edit', async () => {
     const initial = makeCanopiFile({ name: 'Continuous Save Garden' })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1525,7 +1525,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('writes again when an intervening acknowledgement commits a Canvas-only edit', async () => {
     const initial = makeCanopiFile({ name: 'Canvas Continuous Save Garden' })
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1594,7 +1594,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('preserves draft ownership when an attached draft replacement fails', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1638,7 +1638,7 @@ describe('browser Design Session lifecycle', () => {
   })
 
   it('commits draft ownership with Design finalization before a later stage fails', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -1676,7 +1676,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('keeps the browser Canvas lease when handoff capture fails', () => {
     const initial = makeCanopiFile({ name: 'Handoff Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1712,7 +1712,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('retains the browser Canvas lease until workflow cleanup succeeds on retry', () => {
     const initial = makeCanopiFile({ name: 'Workflow Cleanup Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1766,7 +1766,7 @@ describe('browser Design Session lifecycle', () => {
       name: 'Interrupted Replacement Garden',
       description: 'Before replacement',
     })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1855,7 +1855,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('hands off the old browser Scene after replacement preparation is rejected', async () => {
     const initial = makeCanopiFile({ name: 'Prepared Browser Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1905,7 +1905,7 @@ describe('browser Design Session lifecycle', () => {
       fileName: 'picked-after-recovery.canopi',
       text: JSON.stringify(opened),
     }))
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -1970,7 +1970,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('quarantines a competing browser replacement from a finalized pending identity', async () => {
     const initial = makeCanopiFile({ name: 'Initial Browser Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -2040,7 +2040,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('snapshots canvas-owned state and dirty status before detaching', () => {
     const initial = makeCanopiFile({ name: 'Remount Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -2097,7 +2097,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('recaptures browser handoff when snapshot publication commits a newer Scene', () => {
     const initial = makeCanopiFile({ name: 'Reactive Handoff Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -2149,7 +2149,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('does not retain a canvas when attachment fails', async () => {
     const initial = makeCanopiFile({ name: 'Existing Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,
@@ -2177,7 +2177,7 @@ describe('browser Design Session lifecycle', () => {
 
   it('retries retained workflow cleanup after Canvas attachment fails during install', () => {
     const initial = makeCanopiFile({ name: 'Workflow Install Garden' })
-    const store = createMemoryDesignSessionStore({
+    const store = createDesignSessionStore({
       file: initial,
       path: null,
       name: initial.name,

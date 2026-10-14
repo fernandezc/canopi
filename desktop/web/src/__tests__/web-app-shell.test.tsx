@@ -25,7 +25,7 @@ vi.mock('../web/WebCanvasWorkspace', async () => {
 vi.mock('../components/panels/WorldMapPanel', () => ({
   WorldMapPanel: () => <div data-testid="web-templates-workspace" />,
 }))
-import { createMemoryDesignSessionStore } from '../app/document-session/store'
+import { createDesignSessionStore } from '../app/document-session/store'
 import { activePanel, navigateTo, sidePanel } from '../app/shell/state'
 import { closeSettingsDialog } from '../app/shell/dialogs'
 import { locale, theme } from '../app/settings/state'
@@ -307,7 +307,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('opens switches and closes Web side panels beside the right PanelBar', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -355,7 +355,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('opens Budget and Consortium in the wider dock and every other panel at the default width', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -377,7 +377,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('preserves the canvas across side panels and releases it for the Templates primary route', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const controller = createBrowserDesignSessionController({
       store,
       appDataStore: createBrowserAppDataStore({ storage: memoryStorage() }),
@@ -518,7 +518,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('renames the active Browser Design from the top bar like desktop', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const controller = createBrowserDesignSessionController({
       store,
@@ -567,7 +567,7 @@ describe('Web Edition Browser App Shell', () => {
 
 
   it('enables Download .canopi only after a Browser Design is active', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const appDataStore = createBrowserAppDataStore({ storage: memoryStorage() })
     const fileAdapter = testFileAdapter()
     const controller = createBrowserDesignSessionController({
@@ -605,7 +605,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('shows the active Browser Design identity and continuous-save status in the top bar', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const storage = memoryStorage()
     const appDataStore = createBrowserAppDataStore({ storage })
     const controller = createBrowserDesignSessionController({
@@ -666,7 +666,7 @@ describe('Web Edition Browser App Shell', () => {
   })
 
   it('Retry writes the Draft again after a failed write even when an undo left nothing pending', async () => {
-    const store = createMemoryDesignSessionStore()
+    const store = createDesignSessionStore()
     const storage = memoryStorage()
     const appDataStore = createBrowserAppDataStore({ storage })
     const controller = createBrowserDesignSessionController({

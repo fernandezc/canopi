@@ -548,7 +548,6 @@
         "back": "返回",
         "addToDesign": "添加到设计",
         "addAria": "将{{name}}添加到此设计",
-        "rename": "重命名",
         "progressAria": "{{name}}的导入进度",
         "cancel": "取消",
         "retry": "重试",
@@ -1660,7 +1659,6 @@
         "step": "请以 {{step}} 为步长。",
         "noOutputs": "请至少选择一个结果。"
       },
-      "introLibrary": "来自{{name}}。结果会保存到您的数据资料库；可添加到任何设计。",
       "source": "来源",
       "intro": "结果会添加到场地数据中其来源的下方，并保存在您的资料库中。",
       "introLibraryOnly": "结果会保存在您的资料库中。此设计未显示其来源，因此不会添加到场地数据中。",
