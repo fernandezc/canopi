@@ -4,6 +4,7 @@ import {
   IMPORTABLE_QUANTITIES,
   RASTER_QUANTITIES,
   itemTypeLabel,
+  displayVariant,
   itemTypeStyle,
   kindDisplayDefaults,
   kindRamps,
@@ -31,10 +32,10 @@ describe('library item types', () => {
   /** An entry at its kind's default display, as a library preview draws it. */
   const defaults = { ramp: null, reversed: false, range: null } as const
 
-  it('offers three ramps per kind, the default first, with Gray last for comparing under hillshade', () => {
-    expect(kindRamps(raster('GroundElevation'))).toEqual(['Terrain', 'Earth', 'Gray'])
-    expect(kindRamps(raster('SurfaceElevation'))).toEqual(['Terrain', 'Earth', 'Gray'])
-    expect(kindRamps(raster('AboveGroundHeight'))).toEqual(['Greens', 'Magma', 'Gray'])
+  it('offers Relief then three Colours to elevations and heights, three ramps to the rest, the default first and Gray last', () => {
+    expect(kindRamps(raster('GroundElevation'))).toEqual(['Relief', 'Terrain', 'Earth', 'Gray'])
+    expect(kindRamps(raster('SurfaceElevation'))).toEqual(['Relief', 'Terrain', 'Earth', 'Gray'])
+    expect(kindRamps(raster('AboveGroundHeight'))).toEqual(['Relief', 'Greens', 'Magma', 'Gray'])
     expect(kindRamps(raster('Slope'))).toEqual(['YellowRed', 'Magma', 'Gray'])
     expect(kindRamps(raster('OtherContinuous'))).toEqual(['Magma', 'YellowRed', 'Gray'])
   })
@@ -46,26 +47,26 @@ describe('library item types', () => {
         colormaps.set(ramp, itemTypeStyle(raster(quantity), { units: '', displayRange: null, ramp, reversed: false, range: null }).colormap)
       }
     }
-    const ramps: LidarRamp[] = ['Terrain', 'Earth', 'Greens', 'YellowRed', 'Magma', 'Gray']
-    expect(ramps.map((ramp) => colormaps.get(ramp))).toEqual(['schwarzwald', 'turbid', 'greens', 'ylorrd', 'magma', 'gray'])
+    const ramps: LidarRamp[] = ['Relief', 'Terrain', 'Earth', 'Greens', 'YellowRed', 'Magma', 'Gray']
+    expect(ramps.map((ramp) => colormaps.get(ramp))).toEqual(['gray', 'schwarzwald', 'turbid', 'greens', 'ylorrd', 'magma', 'gray'])
   })
 
   it('draws a stored ramp its kind does not offer with the kind\'s default ramp', () => {
     expect(itemTypeStyle(raster('Slope'), { units: '°', displayRange: [0, 12], ramp: 'Terrain', reversed: false, range: null }))
       .toEqual({ ramp: 'YellowRed', colormap: 'ylorrd', reversed: false, rescale: [0, 30], units: '°' })
     expect(itemTypeStyle(raster('GroundElevation'), { units: 'm', displayRange: [104, 132], ramp: 'Greens', reversed: true, range: null }))
-      .toEqual({ ramp: 'Terrain', colormap: 'schwarzwald', reversed: true, rescale: [104, 132], units: 'm' })
+      .toEqual({ ramp: 'Relief', colormap: 'gray', reversed: false, rescale: [0, 255], units: 'm' })
   })
 
-  it('colours elevation with Terrain over the data range by default, keeping blue for water', () => {
+  it('colours elevation picked Terrain over the data range by default, keeping blue for water', () => {
     for (const quantity of ['GroundElevation', 'SurfaceElevation'] as const) {
-      expect(itemTypeStyle(raster(quantity), { units: 'm', displayRange: [104, 132], ...defaults }))
+      expect(itemTypeStyle(raster(quantity), { units: 'm', displayRange: [104, 132], ...defaults, ramp: 'Terrain' }))
         .toEqual({ ramp: 'Terrain', colormap: 'schwarzwald', reversed: false, rescale: [104, 132], units: 'm' })
     }
   })
 
-  it('colours heights with Greens and other values with Magma, widening a flat range', () => {
-    expect(itemTypeStyle(raster('AboveGroundHeight'), { units: 'm', displayRange: [3, 3], ...defaults }))
+  it('colours heights picked Greens and other values with Magma, widening a flat range', () => {
+    expect(itemTypeStyle(raster('AboveGroundHeight'), { units: 'm', displayRange: [3, 3], ...defaults, ramp: 'Greens' }))
       .toEqual({ ramp: 'Greens', colormap: 'greens', reversed: false, rescale: [3, 4], units: 'm' })
     expect(itemTypeStyle(raster('OtherContinuous'), { units: 'kg', displayRange: null, ...defaults }))
       .toEqual({ ramp: 'Magma', colormap: 'magma', reversed: false, rescale: [0, 1], units: 'kg' })
@@ -88,7 +89,7 @@ describe('library item types', () => {
 
   it('cuts outliers to the 2–98 % range once it is known, and draws the data range until then', () => {
     const ground = raster('GroundElevation')
-    const cut = { units: 'm', displayRange: [104, 132] as [number, number], ramp: null, reversed: false, range: { mode: 'CutOutliers' as const } }
+    const cut = { units: 'm', displayRange: [104, 132] as [number, number], ramp: 'Terrain' as const, reversed: false, range: { mode: 'CutOutliers' as const } }
     expect(itemTypeStyle(ground, { ...cut, cutRange: [106.5, 129.25] }).rescale).toEqual([106.5, 129.25])
     expect(itemTypeStyle(ground, cut).rescale).toEqual([104, 132])
   })
@@ -98,14 +99,14 @@ describe('library item types', () => {
     expect(kindDisplayDefaults(raster('Slope'), '%')).toEqual({ ramp: 'YellowRed', range: { mode: 'Custom', min: 0, max: 57.7 } })
   })
 
-  it.fails('[expected-fail R canopi-2add] gives MNT, MNS and MNH Relief as the default, first ramp, so a stored null draws Relief', () => {
+  it('gives MNT, MNS and MNH Relief as the default, first ramp, so a stored null draws Relief', () => {
     for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
       expect(kindRamps(raster(quantity))[0]).toBe('Relief')
       expect(kindDisplayDefaults(raster(quantity), 'm').ramp).toBe('Relief')
     }
   })
 
-  it.fails('[expected-fail R canopi-2add] draws Relief in gray over 0–255, ignoring the Custom range and Reverse kept for Colours', () => {
+  it('draws Relief in gray over 0–255, ignoring the Custom range and Reverse kept for Colours', () => {
     const stored = { units: 'm', displayRange: [104, 132] as [number, number], reversed: true, range: { mode: 'Custom' as const, min: 110, max: 120 } }
     for (const ramp of [null, 'Relief'] as const) {
       expect(itemTypeStyle(raster('GroundElevation'), { ...stored, ramp }))
@@ -113,6 +114,18 @@ describe('library item types', () => {
     }
     expect(itemTypeStyle(raster('GroundElevation'), { ...stored, ramp: 'Terrain' }))
       .toEqual({ ramp: 'Terrain', colormap: 'schwarzwald', reversed: true, rescale: [110, 120], units: 'm' })
+  })
+
+  it('draws an entry\'s relief derivative only while it draws Relief, and its elevation for every Colours ramp', () => {
+    for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
+      expect(displayVariant(raster(quantity), { ramp: null })).toBe('relief')
+      expect(displayVariant(raster(quantity), { ramp: 'Relief' })).toBe('relief')
+      expect(displayVariant(raster(quantity), { ramp: 'Gray' })).toBe('elevation')
+    }
+    expect(displayVariant(raster('GroundElevation'), { ramp: 'Terrain' })).toBe('elevation')
+    // A kind without Relief draws its elevation whatever is stored.
+    expect(displayVariant(raster('Slope'), { ramp: null })).toBe('elevation')
+    expect(displayVariant(raster('OtherContinuous'), { ramp: 'Relief' })).toBe('elevation')
   })
 
   it('imports only measured quantities; slope is derived only', () => {

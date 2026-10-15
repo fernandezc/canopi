@@ -9,11 +9,10 @@ import { unitSuffix } from './item-types'
  * as many stops (9, 17 or 65) as keep the gradient's straight-line blend within
  * 8/255 of the map between them, so a legend shows the colours the map draws
  * (held by display-legend.test.ts). A legend never measures anything: numeric
- * values come from native inspection.
+ * values come from native inspection. Relief has no stops: it is drawn, not
+ * measured, so it shows no legend and its swatch is a fixed picture.
  */
-const RAMP_STOPS: Readonly<Record<LidarRamp, readonly string[]>> = {
-  // No kind offers Relief yet (canopi-2add).
-  Relief: ['#000000', '#202020', '#404040', '#606060', '#808080', '#9f9f9f', '#bfbfbf', '#dfdfdf', '#ffffff'],
+const RAMP_STOPS: Readonly<Record<Exclude<LidarRamp, 'Relief'>, readonly string[]>> = {
   Terrain: [
     '#aeefd5', '#b0f2cd', '#b1f4c1', '#b2f6b5', '#bbf7b2', '#c8f9b2', '#d8fab2', '#eafcb2',
     '#f7fcb2', '#eff4a3', '#cfe888', '#b2dc72', '#8dce5b', '#68c047', '#48b437', '#29a62c',
@@ -36,8 +35,19 @@ const RAMP_STOPS: Readonly<Record<LidarRamp, readonly string[]>> = {
   Gray: ['#000000', '#202020', '#404040', '#606060', '#808080', '#9f9f9f', '#bfbfbf', '#dfdfdf', '#ffffff'],
 }
 
-/** A ramp as a left-to-right CSS gradient: the legend bar and the row's swatch. */
+/**
+ * Relief's swatch: a hill lit from the northwest as the relief is (azimuth
+ * 315°, altitude 45°), so it never reads as Gray's straight ramp beside it.
+ * Plain CSS gradients, no filters, so WebKitGTK and Chromium paint it alike.
+ */
+const RELIEF_SWATCH = [
+  'radial-gradient(ellipse 70% 90% at 34% 30%, #f4f4f4 0%, #d2d2d2 28%, #8e8e8e 62%, rgba(78, 78, 78, 0) 100%)',
+  'linear-gradient(135deg, #bdbdbd 0%, #8a8a8a 55%, #4e4e4e 100%)',
+].join(', ')
+
+/** A ramp as a left-to-right CSS gradient: the legend bar and the row's swatch; Relief's fixed swatch whatever Reverse says. */
 export function legendGradient(ramp: LidarRamp, reversed: boolean): string {
+  if (ramp === 'Relief') return RELIEF_SWATCH
   const stops = [...RAMP_STOPS[ramp]]
   if (reversed) stops.reverse()
   return `linear-gradient(90deg, ${stops.join(', ')})`

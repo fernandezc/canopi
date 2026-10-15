@@ -75,9 +75,9 @@ describe('LiDAR display projection', () => {
     expect(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation')).not.toBe(display.displayKey('Derived', 'lyr-1', 'gen-2', 'elevation'))
   })
 
-  it('draws a ready generation from its ordered asset URLs with one layer-wide stretch', () => {
+  it('draws a ready generation in Colours from its ordered asset URLs with one layer-wide stretch', () => {
     const descriptors = new Map([[display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), descriptor()]])
-    const [layer] = display.lidarDisplayLayers([item()], descriptors, null, (path) => `asset://localhost/${encodeURIComponent(path)}`)
+    const [layer] = display.lidarDisplayLayers([item({ ramp: 'Terrain' })], descriptors, null, (path) => `asset://localhost/${encodeURIComponent(path)}`)
     expect(layer).toEqual({
       id: 'lidar-source-lyr-1-gen-2',
       name: 'Orchard terrain',
@@ -253,7 +253,7 @@ describe('LiDAR display descriptor requests', () => {
       sourceItem('lyr-1', 'Orchard terrain', { generation_id: 'gen-2' }),
       sourceItem('lyr-2', 'Canopy', { generation_id: 'gen-5' }),
     ])
-    const entry = (id: string, range: unknown) => ({ kind: 'Source', id, name: id, visible: true, opacity: 1, order: 0, ramp: null, reversed: false, range })
+    const entry = (id: string, range: unknown) => ({ kind: 'Source', id, name: id, visible: true, opacity: 1, order: 0, ramp: 'Terrain', reversed: false, range })
     designSessionFixture.file = {
       version: 9, name: 'Orchard', description: null,
       plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
@@ -274,8 +274,8 @@ describe('LiDAR display descriptor requests', () => {
         ],
       ]])
       cutRanges.set(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), [106, 129])
-      expect(display.lidarDisplayStyle(item({ range: { mode: 'CutOutliers' } }))?.rescale).toEqual([106, 129])
-      expect(display.lidarDisplayStyle(item({ range: { mode: 'CutOutliers' }, generationId: 'gen-3' }))?.rescale).toEqual([104, 132])
+      expect(display.lidarDisplayStyle(item({ ramp: 'Terrain', range: { mode: 'CutOutliers' } }))?.rescale).toEqual([106, 129])
+      expect(display.lidarDisplayStyle(item({ ramp: 'Terrain', range: { mode: 'CutOutliers' }, generationId: 'gen-3' }))?.rescale).toEqual([104, 132])
     } finally {
       display.disposeLidarDisplayDescriptors()
       invoke.mockReset()
@@ -343,7 +343,7 @@ describe('LiDAR display descriptor requests', () => {
       sourceItem('lyr-1', 'Orchard terrain', { generation_id: 'gen-2' }),
       sourceItem('lyr-2', 'Canopy', { generation_id: 'gen-5' }),
     ])
-    const entry = (id: string, range: unknown) => ({ kind: 'Source', id, name: id, visible: false, opacity: 1, order: 0, ramp: null, reversed: false, range })
+    const entry = (id: string, range: unknown) => ({ kind: 'Source', id, name: id, visible: false, opacity: 1, order: 0, ramp: 'Terrain', reversed: false, range })
     designSessionFixture.file = {
       version: 9, name: 'Orchard', description: null,
       plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
@@ -357,7 +357,7 @@ describe('LiDAR display descriptor requests', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(invoke.mock.calls.map(([, args]) => (args as { request: { entity_id: string } }).request.entity_id)).toEqual(['lyr-1'])
       expect(requestCutOutlierRange).toHaveBeenCalledWith(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), expect.any(Array))
-      expect(display.lidarDisplayLayers([item({ visible: false, shown: false, range: { mode: 'CutOutliers' } })], display.lidarDisplayDescriptors.value, null)).toEqual([])
+      expect(display.lidarDisplayLayers([item({ ramp: 'Terrain', visible: false, shown: false, range: { mode: 'CutOutliers' } })], display.lidarDisplayDescriptors.value, null)).toEqual([])
     } finally {
       display.disposeLidarDisplayDescriptors()
       invoke.mockReset()

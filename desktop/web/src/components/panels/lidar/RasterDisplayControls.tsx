@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import type { RefObject } from 'preact'
 import { setLidarEntryDisplay } from '../../../app/lidar/actions'
 import { parseLocaleNumber } from '../../../app/analyses/model'
 import { lidarDisplayStyle } from '../../../app/lidar/display'
@@ -18,24 +17,27 @@ type RangeMode = LidarColourRange['mode']
 /**
  * An open Site data item's display settings (canopi-f47t.42, spec §1.10
  * "Open item"; U49 Q32–Q38): Colors (the kind's ramps as swatches, Reverse,
- * the legend with ≤/≥ where the range cuts the data), Range (Data range, Cut
- * outliers, Custom, with Minimum and Maximum always showing the values in
- * use, and Reset while the display differs from the kind's), then the live
- * opacity. Colors and range commit on a click, Enter or leaving a field, never
- * while dragging, since each restyle re-tiles; only opacity is live. Every
- * write goes through `setLidarEntryDisplay`, which stores a kind's default as
- * null, so "differs from the default" is a null check.
+ * Reset while the display differs from the kind's, the legend with ≤/≥ where
+ * the range cuts the data), Range (Data range, Cut outliers, Custom, with
+ * Minimum and Maximum always showing the values in use), then the live
+ * opacity. Relief (canopi-2add) draws stored greys, so it hides Reverse, the
+ * legend and Range, keeping the entry's Reverse and range for Colours. Colors
+ * and range commit on a click, Enter or leaving a field, never while
+ * dragging, since each restyle re-tiles; only opacity is live. Every write
+ * goes through `setLidarEntryDisplay`, which stores a kind's default as null,
+ * so "differs from the default" is a null check.
  */
 export function RasterDisplayControls({ item }: { readonly item: LidarPresentationItem }) {
   const style = lidarDisplayStyle(item)
   const percent = new Intl.NumberFormat(locale.value, { style: 'percent' })
+  const relief = style?.ramp === 'Relief'
   return (
     <div className={styles.controls}>
       {style && item.itemType && (
         <>
           <Colors item={item} ramps={kindRamps(item.itemType)} chosen={style.ramp} />
-          <Legend ramp={style.ramp} reversed={style.reversed} range={style.rescale} data={item.displayRange} units={style.units} />
-          <Range item={item} mode={(item.range ?? kindDisplayDefaults(item.itemType, item.units).range).mode} values={style.rescale} />
+          {!relief && <Legend ramp={style.ramp} reversed={style.reversed} range={style.rescale} data={item.displayRange} units={style.units} />}
+          {!relief && <Range item={item} mode={(item.range ?? kindDisplayDefaults(item.itemType, item.units).range).mode} values={style.rescale} />}
         </>
       )}
       <Slider
@@ -57,11 +59,13 @@ function Colors({ item, ramps, chosen }: {
   readonly chosen: LidarRamp
 }) {
   const label = t('siteData.display.colors')
+  const swatches = useRef<HTMLDivElement>(null)
+  const differs = item.ramp !== null || item.reversed || item.range !== null
   return (
     <div className={styles.section}>
       <span className={styles.heading} aria-hidden="true">{label}</span>
       <div className={styles.colors}>
-        <div className={styles.swatches} role="radiogroup" aria-label={label}>
+        <div ref={swatches} className={styles.swatches} role="radiogroup" aria-label={label}>
           {ramps.map((ramp) => {
             const name = t(`siteData.display.ramp.${ramp}`)
             return (
@@ -80,14 +84,27 @@ function Colors({ item, ramps, chosen }: {
             )
           })}
         </div>
-        <button
-          type="button"
-          className={styles.toggle}
-          aria-pressed={item.reversed}
-          onClick={() => setLidarEntryDisplay(item.id, { reversed: !item.reversed })}
-        >
-          {t('siteData.display.reverse')}
-        </button>
+        {chosen !== 'Relief' && (
+          <button
+            type="button"
+            className={styles.toggle}
+            aria-pressed={item.reversed}
+            onClick={() => setLidarEntryDisplay(item.id, { reversed: !item.reversed })}
+          >
+            {t('siteData.display.reverse')}
+          </button>
+        )}
+        {differs && (
+          <button type="button" className={styles.reset}
+            onClick={() => {
+              setLidarEntryDisplay(item.id, { ramp: null, reversed: false, range: null })
+              // Reset leaves once the display is the kind's, which may hide Range: keep the keyboard on the ramp it
+              // checks, the kind's default and so the first swatch (keyed, so it stays mounted).
+              swatches.current?.querySelector<HTMLElement>('[role="radio"]')?.focus()
+            }}>
+            {t('siteData.display.reset')}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -121,8 +138,6 @@ function Range({ item, mode, values }: {
   readonly values: readonly [number, number]
 }) {
   const label = t('siteData.display.range')
-  const minimum = useRef<HTMLInputElement>(null)
-  const differs = item.ramp !== null || item.reversed || item.range !== null
   const choose = (next: RangeMode) => {
     setLidarEntryDisplay(item.id, {
       range: next === 'Custom' ? { mode: 'Custom', min: values[0], max: values[1] } : { mode: next },
@@ -150,18 +165,8 @@ function Range({ item, mode, values }: {
         ]}
       />
       <div className={styles.fields}>
-        <RangeFields minimumRef={minimum} values={values} onCommit={commit} />
+        <RangeFields values={values} onCommit={commit} />
         <span className={styles.units}>{unitSuffix(item.units).trim()}</span>
-        {differs && (
-          <button type="button" className={styles.reset}
-            onClick={() => {
-              setLidarEntryDisplay(item.id, { ramp: null, reversed: false, range: null })
-              // Reset leaves once the display is the kind's: keep the keyboard in the Range fields.
-              minimum.current?.focus()
-            }}>
-            {t('siteData.display.reset')}
-          </button>
-        )}
       </div>
     </div>
   )
@@ -188,14 +193,14 @@ function fieldNumber(value: number, localeTag: string): string {
  * inputs stay mounted as the values in use change, so focus survives a
  * commit; a new value replaces an end's text unless the user is editing it.
  */
-function RangeFields({ values, onCommit, minimumRef }: {
+function RangeFields({ values, onCommit }: {
   readonly values: readonly [number, number]
   onCommit(min: number, max: number): boolean
-  readonly minimumRef: RefObject<HTMLInputElement>
 }) {
   const shown: [string, string] = [fieldNumber(values[0], locale.value), fieldNumber(values[1], locale.value)]
   const [drafts, setDrafts] = useState(shown)
   const previous = useRef(shown)
+  const minimumRef = useRef<HTMLInputElement>(null)
   const maximumRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     const before = previous.current

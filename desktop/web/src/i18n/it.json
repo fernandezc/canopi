@@ -2029,6 +2029,7 @@
     "display": {
       "colors": "Colori",
       "ramp": {
+        "Relief": "Rilievo",
         "Terrain": "Terreno",
         "Earth": "Terra",
         "Gray": "Grigio",
