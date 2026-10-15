@@ -64,6 +64,9 @@ pub async fn lidar_delete_impact(
 }
 
 /// Delete one library item; refused while results were calculated from it.
+/// The rows go on `UserData`; once the item's own cancelled jobs settle, its
+/// files are freed there too. A file left behind is freed at the next start
+/// and never fails the committed Delete.
 #[tauri::command]
 pub async fn lidar_delete_item(
     library: State<'_, LidarLibrary>,
@@ -71,13 +74,31 @@ pub async fn lidar_delete_item(
     item_id: String,
 ) -> Result<(), String> {
     let library = library.inner().clone();
-    executor
+    let deleting = library.clone();
+    let deleted = executor
         .run(
             crate::native_operation::NativeOperationClass::UserData,
             "lidar delete item",
-            move || library.delete_item(&item_id),
+            move || deleting.delete_item_rows(&item_id),
         )
-        .await
+        .await?;
+    // The item is gone; its own cancelled jobs let go of its files first.
+    library.await_jobs_settled(&deleted.job_ids).await;
+    let freeing = library.clone();
+    let freed = executor
+        .run(
+            crate::native_operation::NativeOperationClass::UserData,
+            "lidar free a deleted item's files",
+            move || {
+                freeing.free_deleted_item(&deleted);
+                Ok(())
+            },
+        )
+        .await;
+    if let Err(error) = freed {
+        tracing::warn!(%error, "a deleted item's files are freed at the next start");
+    }
+    Ok(())
 }
 
 /// Cancel one import: its flag is set before any queued work, so the job

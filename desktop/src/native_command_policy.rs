@@ -95,6 +95,11 @@ const STATE_ACCESS_ALLOWLIST: &[StateAccessAllowance] = &[
         reason: "awaits, with no executor permit held, until in-memory job flags show no cancelled or settling job still holding the heavy lease",
     },
     StateAccessAllowance {
+        path: "commands::lidar::lidar_delete_item",
+        operation: "await_jobs_settled",
+        reason: "awaits, with no executor permit held, until in-memory job flags show the deleted item's own cancelled jobs have settled",
+    },
+    StateAccessAllowance {
         path: "commands::problem_report::create_problem_report",
         operation: "get_health",
         reason: "clones the immutable startup health snapshot",

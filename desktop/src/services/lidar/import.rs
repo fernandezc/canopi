@@ -1212,7 +1212,7 @@ pub(super) fn remove_original_dirs(
     Ok(())
 }
 
-fn remove_dir_if_present(dir: &Path) -> Result<(), String> {
+pub(super) fn remove_dir_if_present(dir: &Path) -> Result<(), String> {
     match std::fs::remove_dir_all(dir) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

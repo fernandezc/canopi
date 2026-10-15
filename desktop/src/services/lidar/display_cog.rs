@@ -509,10 +509,6 @@ impl LidarLibrary {
 
     /// Drop the entity's queued plans and remembered failures, every variant
     /// and generation; a plan already running finishes.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "Delete everywhere calls it (canopi-44vf)")
-    )]
     pub(super) fn forget_entity_plans(
         &self,
         kind: LibraryItemRole,
@@ -892,13 +888,6 @@ pub(super) fn forget_derivatives(library: &LidarLibrary, prefix: &str) -> Result
 }
 
 /// Every registered derivative key, in key order.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the startup derivative sweep calls it (canopi-44vf)"
-    )
-)]
 pub(super) fn registered_derivative_keys(library: &LidarLibrary) -> Result<Vec<String>, String> {
     let display = library.display()?;
     let mut statement = display
@@ -2804,7 +2793,6 @@ mod chunk_display_tests {
     /// nothing registers or writes for the deleted item, before or after
     /// reopening.
     #[test]
-    #[ignore = "expected-fail L canopi-44vf"]
     fn deleting_an_item_with_a_queued_display_plan_leaves_nothing_after_the_worker_runs() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-delete-queued");
         std::fs::create_dir_all(&root).unwrap();

@@ -1952,16 +1952,6 @@ fn a_truncated_geotiff_fails_as_a_job_with_its_detail_kept() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// The item data files Delete everywhere frees: originals, source COGs and
-/// display derivatives (job folders are outside canopi-44vf).
-fn item_data_files(library: &LidarLibrary) -> Vec<PathBuf> {
-    let jobs = library.inner.paths.jobs_dir();
-    library_files(library)
-        .into_iter()
-        .filter(|path| !path.starts_with(&jobs))
-        .collect()
-}
-
 /// An item imported from `tile` and settled, as the app shows it.
 fn imported(library: &LidarLibrary, name: &str, tile: &Path) -> String {
     let receipt = library
@@ -1980,24 +1970,40 @@ fn imported(library: &LidarLibrary, name: &str, tile: &Path) -> String {
     receipt.layer_id
 }
 
-/// canopi-44vf: Delete everywhere frees the item's original, its source COG
-/// and its display derivatives, so disk use drops.
+/// canopi-44vf, through the real command: Delete everywhere frees the item's
+/// original, its source COG, its display derivatives and its settled job's
+/// folder, so disk use drops.
 #[test]
-#[ignore = "expected-fail L canopi-44vf"]
 fn deleting_an_item_everywhere_frees_its_files() {
+    use tauri::Manager;
     let root = scratch("delete-frees");
-    let library = attached_library(&root);
+    let library = LidarLibrary::open(&root).unwrap();
+    let executor = crate::native_operation::NativeOperationExecutor::production();
+    library.attach_executor(executor.clone());
+    let app = tauri::test::mock_builder()
+        .manage(library.clone())
+        .manage(executor)
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
     let tile = plane(&library, &root, "tile", 445_000.0);
     let layer_id = imported(&library, "Tile", &tile);
-    assert!(!item_data_files(&library).is_empty());
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    assert!(!library_files(&library).is_empty());
     assert!(
         !display_cog::registered_derivative_keys(&library)
             .unwrap()
             .is_empty()
     );
 
-    library.delete_item(&layer_id).unwrap();
-    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    tauri::async_runtime::block_on(crate::commands::lidar::lidar_delete_item(
+        app.state(),
+        app.state(),
+        layer_id,
+    ))
+    .unwrap();
+    assert_eq!(library_files(&library), Vec::<PathBuf>::new());
     assert_eq!(
         display_cog::registered_derivative_keys(&library).unwrap(),
         Vec::<String>::new()
@@ -2008,30 +2014,132 @@ fn deleting_an_item_everywhere_frees_its_files() {
 /// canopi-44vf: deleting one of two items imported from the same file keeps
 /// what the other still draws from; deleting the second frees everything.
 #[test]
-#[ignore = "expected-fail L canopi-44vf"]
 fn deleting_one_of_two_items_sharing_a_file_keeps_it_for_the_other() {
     let root = scratch("delete-shared");
     let library = attached_library(&root);
     let tile = plane(&library, &root, "tile", 445_000.0);
     let first = imported(&library, "First", &tile);
     let second = imported(&library, "Second", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &first)
+        .unwrap();
 
     library.delete_item(&first).unwrap();
-    let descriptor = library
-        .display_descriptor(&LidarDisplayRequest {
-            kind: LibraryItemRole::Source,
-            entity_id: second.clone(),
-            expected_generation_id: None,
-            retry: false,
-            relief: false,
-        })
-        .unwrap();
-    assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
-    for asset in &descriptor.assets {
-        assert!(Path::new(&asset.path).is_file(), "{} is kept", asset.path);
+    for relief in [false, true] {
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: second.clone(),
+                expected_generation_id: None,
+                retry: false,
+                relief,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        for asset in &descriptor.assets {
+            assert!(Path::new(&asset.path).is_file(), "{} is kept", asset.path);
+        }
     }
 
     library.delete_item(&second).unwrap();
-    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    assert_eq!(library_files(&library), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: deleting a calculated result frees its chunks and its display
+/// derivatives; its input keeps every file of its own.
+#[test]
+fn deleting_a_result_frees_its_chunks_and_derivatives() {
+    let root = scratch("delete-result");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    let kept_files = library_files(&library);
+    let kept_keys = display_cog::registered_derivative_keys(&library).unwrap();
+    let source_generation = catalogue::head_generation(&library.catalogue().unwrap(), &layer_id)
+        .unwrap()
+        .unwrap()
+        .id;
+    let result = "item-slope".to_string();
+    seed_result(
+        &library.catalogue().unwrap(),
+        &layer_id,
+        &result,
+        &source_generation,
+    );
+    generation::publish_test_chunk(&library, "dgen-item-slope", 0, 0, 4, 4, &[1.0f32; 16]);
+    library
+        .prepare_display_now(LibraryItemRole::Derived, &result)
+        .unwrap();
+    assert_ne!(library_files(&library), kept_files);
+
+    library.delete_item(&result).unwrap();
+    assert_eq!(library_files(&library), kept_files);
+    assert_eq!(
+        display_cog::registered_derivative_keys(&library).unwrap(),
+        kept_keys
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: Delete while another raster job holds the heavy lease removes
+/// the item at once and leaves its files, which that job might be staging
+/// again; the next start frees them, display derivatives included.
+#[test]
+fn deleting_while_another_raster_job_runs_frees_the_files_at_the_next_start() {
+    let root = scratch("delete-busy");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    let files = library_files(&library);
+
+    let lease = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    library.delete_item(&layer_id).unwrap();
+    assert!(library.library_snapshot().unwrap().items.is_empty());
+    assert_eq!(library_files(&library), files, "kept while the job runs");
+    drop(lease);
+    close(library);
+
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
+    assert_eq!(
+        display_cog::registered_derivative_keys(&reopened).unwrap(),
+        Vec::<String>::new()
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: a file Delete cannot remove never fails the committed
+/// Delete; the item is gone, and the next start frees what was left.
+#[cfg(unix)]
+#[test]
+fn a_failing_removal_never_fails_a_committed_delete() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("delete-locked");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    let originals: Vec<PathBuf> = std::fs::read_dir(library.inner.paths.root().join("sources"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(originals.len(), 1);
+    let locked = &originals[0];
+    std::fs::set_permissions(locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    let deleted = library.delete_item(&layer_id);
+    std::fs::set_permissions(locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    deleted.unwrap();
+    assert!(library.library_snapshot().unwrap().items.is_empty());
+    close(library);
+
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
     let _ = std::fs::remove_dir_all(&root);
 }
