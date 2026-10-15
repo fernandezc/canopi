@@ -44,17 +44,28 @@ const COPY_FEEDBACK_MS = 2000
  * The Site data profile chart (canopi-f47t.42, spec §1.10 "Profile"), pinned to the bottom of the Site data panel, which
  * mounts it with no props: it reads the profile itself and draws nothing while no profile is shown. Header: "Profile",
  * the length, "At {distance}" while the cursor is on the chart, Copy values and ×. A failed read says so, with a Retry the
- * user presses (never retried by itself). Elevation curves share the first plot
+ * user presses (never retried by itself); pressing it moves focus to the chart while it reads, and back to Retry if the
+ * read fails again, so a keyboard user stays in the profile. Elevation curves share the first plot
  * and height curves a strip under it, sharing distance and cursor; hovering or scrubbing moves the cursor, which the map
  * shows as a ring on the line. The legend gives each curve's value at the cursor while the pointer is on the plots,
  * otherwise Rise and Steepest (a button that moves the cursor there until it loses focus) or Highest.
  */
 export function ProfileChart() {
   const profile = siteProfile.value
+  const section = useRef<HTMLElement>(null)
+  const retryButton = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (profile.status === 'read-failed' && document.activeElement === section.current) retryButton.current?.focus()
+  }, [profile.status])
   if (profile.status === 'none') return null
   const language = locale.value
+  // Retry unmounts as the read starts: the section, which every state keeps, holds focus meanwhile.
+  const retry = () => {
+    section.current?.focus()
+    retrySiteProfile()
+  }
   return (
-    <section className={styles.profile} aria-label={t('siteData.profile')}>
+    <section ref={section} className={styles.profile} aria-label={t('siteData.profile')} tabIndex={-1}>
       <div className={styles.header}>
         <h3 className={styles.title}>{t('siteData.profile')}</h3>
         <span className={styles.length}>{formatLength(profile.lengthM, language)}</span>
@@ -71,7 +82,7 @@ export function ProfileChart() {
           ? (
               <div className={styles.failed}>
                 <p className={styles.state}>{t('siteData.chart.readFailed')}</p>
-                <button type="button" className={styles.textButton} onClick={retrySiteProfile}>{t('siteData.chart.retry')}</button>
+                <button ref={retryButton} type="button" className={styles.textButton} onClick={retry}>{t('siteData.chart.retry')}</button>
               </div>
             )
           : <p className={styles.state}>{t(STATE_TEXT[profile.status])}</p>}
