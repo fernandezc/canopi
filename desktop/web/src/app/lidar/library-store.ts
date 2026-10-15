@@ -59,7 +59,8 @@ async function readLibrarySnapshot(startSequence: number): Promise<LibrarySnapsh
 /**
  * Refresh the library snapshot. Overlapping callers coalesce onto the read in
  * flight; a failed read keeps the previous snapshot (Web has no library) and
- * publishes the generic message, its reason going to diagnostics.
+ * publishes the generic message, its reason going to diagnostics once per
+ * streak of failed reads.
  */
 export async function refreshLidarLibrary(): Promise<void> {
   if (refreshInFlight) {
@@ -71,7 +72,8 @@ export async function refreshLidarLibrary(): Promise<void> {
     try {
       await readLibrarySnapshot(startSequence)
     } catch (error) {
-      lidarStatusMessage.value = lidarFailureMessage(error)
+      // Polling goes on while work runs; a streak of failed reads is recorded once, until a read succeeds.
+      lidarStatusMessage.value = lidarFailureMessage(error, !lidarLibraryReadFailed.value)
       lidarLibraryReadFailed.value = true
     } finally {
       refreshInFlight = null

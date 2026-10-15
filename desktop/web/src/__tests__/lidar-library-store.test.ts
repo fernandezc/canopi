@@ -126,6 +126,22 @@ describe('LiDAR library polling', () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(listLibraryMock.mock.calls.length).toBe(calls)
   })
+
+  it('keeps polling running work through failed reads, recording the failure once until a read succeeds', async () => {
+    listLibraryMock.mockResolvedValue(importing('Staging'))
+    ensureLidarPolling()
+    await flushMicrotasks()
+    resetFrontendDiagnosticsForTests()
+    listLibraryMock.mockRejectedValue('LibraryUnavailable: catalogue is locked')
+    await vi.advanceTimersByTimeAsync(1_500 * 10)
+    const failures = () => recentFrontendDiagnostics().filter((entry) => entry.message.includes('catalogue is locked')).length
+    expect(listLibraryMock.mock.calls.length).toBeGreaterThanOrEqual(10)
+    expect(failures()).toBe(1)
+
+    listLibraryMock.mockResolvedValueOnce(importing('Staging'))
+    await vi.advanceTimersByTimeAsync(1_500 * 3)
+    expect(failures()).toBe(2)
+  })
 })
 
 describe('LiDAR presentation join', () => {
