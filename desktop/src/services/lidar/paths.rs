@@ -138,7 +138,8 @@ impl LidarPaths {
 /// Fail unless `directory` can hold `required_bytes` more data.
 ///
 /// `what` names the work the requirement belongs to so a failed job reports
-/// which output could not be safely written. An unreadable capacity is an
+/// which output could not be safely written; the folder is never named, since
+/// its path can spell out the user's name. An unreadable capacity is an
 /// error, never a silent pass: guessing here is what produces truncated
 /// numeric outputs.
 pub(crate) fn require_free_space(
@@ -149,9 +150,8 @@ pub(crate) fn require_free_space(
     let available = available_bytes(directory)?;
     if available < required_bytes {
         return Err(format!(
-            "{what} needs at least {} MiB ({required_bytes} bytes) free in {}, but only {} MiB ({available} bytes) is available",
+            "{what} needs at least {} MiB ({required_bytes} bytes) free on the data library's disk, but only {} MiB ({available} bytes) is available",
             required_bytes / (1024 * 1024),
-            directory.display(),
             available / (1024 * 1024),
         ));
     }
@@ -170,12 +170,8 @@ pub(crate) fn available_bytes(directory: &Path) -> Result<u64, String> {
             return Ok(available);
         }
     }
-    platform_available_bytes(directory).map_err(|error| {
-        format!(
-            "Cannot verify free space in {}: {error}",
-            directory.display()
-        )
-    })
+    platform_available_bytes(directory)
+        .map_err(|error| format!("Cannot verify free space on the data library's disk: {error}"))
 }
 
 #[cfg(unix)]
@@ -281,7 +277,6 @@ mod tests {
     /// canopi-bkbh: a free-space refusal names the work and the sizes, never
     /// the folder, whose path can spell out the user's name.
     #[test]
-    #[ignore = "expected-fail L canopi-bkbh"]
     fn a_free_space_refusal_names_no_directory() {
         let _full = capacity_probe::override_available(1024);
         let directory = Path::new("/home/someone/.local/share/canopi/lidar/display-cog");
