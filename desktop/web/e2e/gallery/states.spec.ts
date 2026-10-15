@@ -1,6 +1,6 @@
 // The gallery states and fixtures the Layers redesign's streams build their checks on (canopi-f47t.42, plan section 4,
 // commit 0): the Site data surface and its states, the analytic `lidar_sample_points` fixture, and `lidar-raster`, where
-// Desktop's raster renderer draws the Rust engine's display COG on the real map (architecture review finding 15). The
+// Desktop's raster renderer draws the Rust engine's relief on the real map (architecture review finding 15). The
 // streams' own specs (layers, site-list, display, values, profile, library) assert their surfaces; this one only holds
 // what they share. DOM and pixel assertions, no baselines.
 import type { Locator, Page } from '@playwright/test'
@@ -25,9 +25,10 @@ async function mapPixels(map: Locator): Promise<Buffer> {
 }
 
 test.describe('the UI gallery for Site data', () => {
-  test('lidar-raster draws the Rust engine\'s display COG through Desktop\'s raster renderer, and hiding it repaints', async ({ page }) => {
+  test('lidar-raster draws the Rust engine\'s relief through Desktop\'s raster renderer, and hiding it repaints', async ({ page }) => {
     await recordRasterTiles(page)
-    const cog = page.waitForResponse((response) => response.url().includes('rust-display-cog.tif') && response.ok())
+    // The ground elevation opens on Relief, so the relief derivative is the one drawn.
+    const cog = page.waitForResponse((response) => response.url().includes('rust-display-relief.tif') && response.ok())
     await openGallery(page, { surface: 'site-data', state: 'lidar-raster' })
     await cog
     const map = page.getByRole('application', { name: 'Design map' })

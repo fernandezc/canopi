@@ -1,11 +1,12 @@
 // An open Site data item's display in real engines (canopi-f47t.42, plan section 4, stream B, g4; architecture review
-// finding 15). `state=lidar-raster` draws the Rust engine's display COG through Desktop's raster renderer
-// (maplibre-gl-raster over the cog-tiler worker pool) on the real map, so a restyle is seen in pixels, not in a fake
-// layer manager: Reverse and a Custom range typed in the open item each repaint the raster in Chromium and WebKit. The
-// renderer's opt-in timeline (`raster-display/diagnostics.ts`) says when its worker has rendered tiles: the map holds a
-// steady picture for seconds before the first tile lands, so a settled capture alone can be the empty map. The rest
-// is DOM: each kind's ramps, Reset only off the default, Custom only for a valid pair with the fr comma, and an
-// opacity drag that keeps the item open. No baselines.
+// finding 15; Relief, canopi-2add). `state=lidar-raster` draws the Rust engine's display COGs through Desktop's raster
+// renderer (maplibre-gl-raster over the cog-tiler worker pool) on the real map, so a restyle is seen in pixels, not in
+// a fake layer manager: the ground elevation opens on its relief, and a Colours round trip swaps the derivative drawn;
+// on the elevation COG (`raster=colours`), Reverse and a Custom range typed in the open item each repaint the raster
+// in Chromium and WebKit. The renderer's opt-in timeline (`raster-display/diagnostics.ts`) says when its worker has
+// rendered tiles: the map holds a steady picture for seconds before the first tile lands, so a settled capture alone
+// can be the empty map. The rest is DOM: each kind's ramps, Relief's swatch, Reset only off the default, Custom only
+// for a valid pair with the fr comma, and an opacity drag that keeps the item open. No baselines.
 import type { Locator, Page } from '@playwright/test'
 import { expect, openGallery, recordRasterTiles, renderedRasterTiles as renderedTiles, settledRaster, test } from '../support/gallery'
 
@@ -19,14 +20,34 @@ async function settled(page: Page, map: Locator, after: number): Promise<Buffer>
   return settledRaster(page, () => mapPixels(map), after)
 }
 
+/** A response for one of the Rust engine's display COGs: the relief or the elevation. */
+function served(page: Page, fixture: 'rust-display-relief.tif' | 'rust-display-cog.tif') {
+  return page.waitForResponse((response) => response.url().includes(fixture) && response.ok())
+}
+
+/** The Design on the relief, drawn as the ground elevation opens: on Relief. */
 async function openRaster(page: Page): Promise<{ map: Locator }> {
   await recordRasterTiles(page)
-  const cog = page.waitForResponse((response) => response.url().includes('rust-display-cog.tif') && response.ok())
+  const relief = served(page, 'rust-display-relief.tif')
   await openGallery(page, { surface: 'site-data', state: 'lidar-raster' })
-  await cog
+  await relief
   const map = page.getByRole('application', { name: 'Design map' })
   await settled(page, map, 0)
   return { map }
+}
+
+/** The Design on the elevation COG, with the ground elevation open and drawn in Terrain. */
+async function openColours(page: Page): Promise<{ map: Locator, ground: Locator }> {
+  await recordRasterTiles(page)
+  await openGallery(page, { surface: 'site-data', state: 'lidar-raster', raster: 'colours' })
+  const map = page.getByRole('application', { name: 'Design map' })
+  const ground = await openGround(page)
+  const before = await renderedTiles(page)
+  const cog = served(page, 'rust-display-cog.tif')
+  await ground.getByRole('radio', { name: 'Terrain' }).click()
+  await cog
+  await settled(page, map, before)
+  return { map, ground }
 }
 
 function siteData(page: Page): Locator {
@@ -41,10 +62,42 @@ async function openGround(page: Page): Promise<Locator> {
   return ground
 }
 
-test.describe('an open Site data item\'s display on the real renderer', () => {
-  test('Reverse repaints the raster, and turning it off again paints the first picture', async ({ page }) => {
+test.describe('Relief on the real renderer', () => {
+  test('an MNT draws its relief, and a Colours round trip draws its elevation and then the same relief again', async ({ page }) => {
     const { map } = await openRaster(page)
     const ground = await openGround(page)
+    await expect(ground.getByRole('radio', { name: 'Relief' })).toHaveAttribute('aria-checked', 'true')
+    const relief = await settled(page, map, 0)
+    let before = await renderedTiles(page)
+    const cog = served(page, 'rust-display-cog.tif')
+    await ground.getByRole('radio', { name: 'Terrain' }).click()
+    await cog
+    // Colours shows what Relief hides, and the map no longer draws the relief here.
+    await expect(ground.getByRole('button', { name: 'Reverse' })).toBeVisible()
+    await expect(ground.getByRole('radiogroup', { name: 'Range' })).toBeVisible()
+    await expect.poll(async () => (await mapPixels(map)).equals(relief), { timeout: 20_000 }).toBe(false)
+    before = await renderedTiles(page)
+    await ground.getByRole('radio', { name: 'Relief' }).click()
+    await expect(ground.getByRole('button', { name: 'Reverse' })).toHaveCount(0)
+    await expect(ground.getByRole('radiogroup', { name: 'Range' })).toHaveCount(0)
+    const back = await settled(page, map, before)
+    expect(back.equals(relief), 'Relief again paints the first picture').toBe(true)
+  })
+
+  test('swatches Relief as a shaded hill, painted unlike Gray\'s ramp', async ({ page }) => {
+    await openGallery(page, { surface: 'site-data' })
+    const ground = await openGround(page)
+    const swatch = (name: string) => ground.getByRole('radio', { name }).locator('[data-swatch]')
+    expect(await swatch('Relief').evaluate((element) => getComputedStyle(element).backgroundImage)).toMatch(/^radial-gradient\(/)
+    const relief = await swatch('Relief').screenshot({ animations: 'disabled' })
+    const gray = await swatch('Gray').screenshot({ animations: 'disabled' })
+    expect(relief.equals(gray), 'the Relief swatch paints its own picture').toBe(false)
+  })
+})
+
+test.describe('an open Site data item\'s display on the real renderer', () => {
+  test('Reverse repaints the raster, and turning it off again paints the first picture', async ({ page }) => {
+    const { map, ground } = await openColours(page)
     const drawn = await settled(page, map, 0)
     const reverse = ground.getByRole('button', { name: 'Reverse' })
     let before = await renderedTiles(page)
@@ -59,8 +112,7 @@ test.describe('an open Site data item\'s display on the real renderer', () => {
   })
 
   test('a Custom range typed in the open item repaints the raster', async ({ page }) => {
-    const { map } = await openRaster(page)
-    const ground = await openGround(page)
+    const { map, ground } = await openColours(page)
     const drawn = await settled(page, map, 0)
     const before = await renderedTiles(page)
     // The COG's values span 19.75–90.25 m; a band in the middle saturates both ends.
@@ -74,8 +126,7 @@ test.describe('an open Site data item\'s display on the real renderer', () => {
 
 test.describe('Cut outliers on the real display COG', () => {
   test('reads the 2–98 % range from the COG and fills the Range fields with it', async ({ page }) => {
-    await openRaster(page)
-    const ground = await openGround(page)
+    const { ground } = await openColours(page)
     await ground.getByRole('radio', { name: 'Cut outliers' }).click()
     await expect(ground.getByRole('radio', { name: 'Cut outliers' })).toHaveAttribute('aria-checked', 'true')
     // The fields show the item's data range (19.75–90.25 m) until the COG's own 2 % and 98 % points are read from it.
@@ -92,15 +143,16 @@ test.describe('an open Site data item\'s settings', () => {
   test('offer each kind\'s ramps, and Reset only while the display differs from the kind\'s', async ({ page }) => {
     await openGallery(page, { surface: 'site-data' })
     const ground = await openGround(page)
-    await expect(ground.getByRole('radiogroup', { name: 'Colors' }).getByRole('radio')).toHaveText(['', '', ''])
+    await expect(ground.getByRole('radiogroup', { name: 'Colors' }).getByRole('radio')).toHaveText(['', '', '', ''])
     const ramps = async (scope: Locator) => scope.getByRole('radiogroup', { name: 'Colors' }).getByRole('radio')
       .evaluateAll((radios) => radios.map((radio) => radio.getAttribute('aria-label')))
-    expect(await ramps(ground)).toEqual(['Terrain', 'Earth', 'Gray'])
+    expect(await ramps(ground)).toEqual(['Relief', 'Terrain', 'Earth', 'Gray'])
     await expect(ground.getByRole('button', { name: 'Reset' })).toHaveCount(0)
     await ground.getByRole('radio', { name: 'Gray' }).click()
     await expect(ground.getByRole('radio', { name: 'Gray' })).toHaveAttribute('aria-checked', 'true')
     await ground.getByRole('button', { name: 'Reset' }).click()
-    await expect(ground.getByRole('radio', { name: 'Terrain' })).toHaveAttribute('aria-checked', 'true')
+    await expect(ground.getByRole('radio', { name: 'Relief' })).toHaveAttribute('aria-checked', 'true')
+    await expect(ground.getByRole('radio', { name: 'Relief' })).toBeFocused()
     await expect(ground.getByRole('button', { name: 'Reset' })).toHaveCount(0)
 
     const slope = siteData(page).locator('[data-site-row="lidar-slope"]')
@@ -114,6 +166,7 @@ test.describe('an open Site data item\'s settings', () => {
   test('commit Custom only for a valid pair, with the French decimal comma', async ({ page }) => {
     await openGallery(page, { surface: 'site-data', locale: 'fr' })
     const ground = await openGround(page)
+    await ground.getByRole('radio', { name: 'Terrain' }).click()
     const minimum = ground.getByRole('textbox', { name: 'Minimum' })
     const maximum = ground.getByRole('textbox', { name: 'Maximum' })
     const top = await maximum.inputValue()

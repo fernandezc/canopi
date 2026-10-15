@@ -5,6 +5,7 @@ import { PLANT_SYMBOL_IDS, serializeScenePersistedState } from '../src/canvas/ru
 import { createSessionPlane } from '../src/canvas/session-plane'
 import { PLANT_COLOR_PALETTE } from '../src/canvas/plant-colors'
 import { mapZoomToStageScale } from '../src/canvas/projection'
+import reliefFixture from '../src/maplibre/raster-display/fixtures/rust-display-relief.json'
 
 export const detail: SpeciesDetail = {
   "canonical_name": "Malus domestica",
@@ -290,9 +291,9 @@ function storyFixture(origin: { lon: number; lat: number }, long: boolean): { vi
 }
 
 /**
- * `state=lidar-raster`: the Design sits on the 34 × 24 cell display COG the Rust engine wrote
- * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), so the canvas draws it through
- * Desktop's raster renderer.
+ * `state=lidar-raster&raster=colours`: the Design sits on the 34 × 24 cell display COG the Rust engine wrote
+ * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), so the canvas draws the ground
+ * elevation picked in Colours through Desktop's raster renderer.
  */
 export const galleryRasterSite = {
   origin: { lon: 4.36759, lat: 52.011435 },
@@ -300,10 +301,27 @@ export const galleryRasterSite = {
   valueRange: [19.75, 90.25] as [number, number],
 }
 
+const reliefBounds = reliefFixture.bounds as [number, number, number, number]
+
+/**
+ * `state=lidar-raster`: the Design sits on the relief the Rust engine wrote
+ * (src/maplibre/raster-display/fixtures/rust-display-relief.{tif,json}, a Lambert-93 plane in western France), so the
+ * canvas draws the ground elevation as it opens, on Relief. Its Colours derivative is the COG near Delft, off this view.
+ */
+export const galleryReliefSite = {
+  origin: { lon: (reliefBounds[0] + reliefBounds[2]) / 2, lat: (reliefBounds[1] + reliefBounds[3]) / 2 },
+  bounds: reliefBounds,
+}
+
+/** Where `state=lidar-raster` places the Design: on the relief, or with `raster=colours` on the elevation COG. */
+export function galleryRasterView(): 'relief' | 'colours' {
+  return typeof location !== 'undefined' && new URLSearchParams(location.search).get('raster') === 'colours' ? 'colours' : 'relief'
+}
+
 /** The Design's site, as the gallery states place it. */
 function designOrigin(state: string): { lon: number; lat: number } {
   if (state === 'located') return { lon: 0.033854, lat: 48.220272 }
-  if (state === 'lidar-raster') return galleryRasterSite.origin
+  if (state === 'lidar-raster') return galleryRasterView() === 'colours' ? galleryRasterSite.origin : galleryReliefSite.origin
   return { lon: 13, lat: 23 }
 }
 
