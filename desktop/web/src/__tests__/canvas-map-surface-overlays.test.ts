@@ -78,7 +78,8 @@ function createSnapshot(
     },
     location: { lat: 48.8566, lon: 2.3522 },
     hoveredTargets: [{ kind: 'zone', zone_id: 'orchard' }],
-    selectedTargets: [{ kind: 'placed_plant', plant_id: 'plant-1' }],
+    // The canvas rings plants; the map overlay draws zones only (canopi-rg4q).
+    selectedTargets: [{ kind: 'zone', zone_id: 'orchard' }],
     site: null,
     ...overrides,
   }
@@ -110,7 +111,7 @@ describe('canvas map surface overlay sync', () => {
       'panel-target-hover-source',
       expect.objectContaining({ type: 'geojson' }),
     )
-    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'panel-target-selection-plants' }))
+    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'panel-target-selection-zones-line' }))
     expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'panel-target-hover-zones-fill' }))
   })
 

@@ -42,7 +42,8 @@ describe('panel target bridge authority', () => {
     const overlay = createPanelTargetMapOverlayContract('selection', projection)
 
     expect(resolved.plantIds).toEqual(['plant-1'])
-    expect(overlay.hasRenderableFeatures).toBe(true)
+    // Plants are ringed by the canvas at their drawn size; the map overlay draws zones only (canopi-rg4q).
+    expect(overlay.hasRenderableFeatures).toBe(false)
 
     expect(currentCanvasSelection.value).toEqual(selectionBefore)
     expect(hoveredPanelTargets.value).toEqual([speciesTarget('Malus domestica')])

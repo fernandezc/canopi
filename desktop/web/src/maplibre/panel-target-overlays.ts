@@ -1,6 +1,5 @@
 import {
   getCanvasInteractionStrokeVisual,
-  MIN_PLANT_RING_RADIUS_PX,
   type CanvasInteractionStrokeVisual,
 } from '../canvas/runtime/scene-visuals'
 import type { TargetMapFeature } from '../target'
@@ -19,7 +18,7 @@ interface PanelTargetMapOverlaySourceSpec {
 }
 
 type PanelTargetMapOverlayKindFilter =
-  readonly ['==', readonly ['get', 'kind'], 'plant' | 'zone']
+  readonly ['==', readonly ['get', 'kind'], 'zone']
 
 type PanelTargetMapOverlayGeometryFilter =
   readonly ['==', readonly ['geometry-type'], 'Polygon' | 'LineString' | 'Point']
@@ -44,9 +43,9 @@ export interface PanelTargetMapOverlayContract {
 }
 
 /**
- * Panel highlights speak the scene's ring language: a selection is the accent
- * highlight ring over its halo, a panel hover the hover stroke; both read the
- * canvas colour tokens and keep the finder-ring minimum size on screen.
+ * Zone highlights speak the scene's ring language: a selection is the accent
+ * highlight stroke over its casing, a panel hover the hover stroke; both read the
+ * canvas colour tokens. Plants are ringed by the canvas at their drawn size.
  */
 function overlayVisual(variant: PanelTargetMapOverlayVariant): CanvasInteractionStrokeVisual {
   return getCanvasInteractionStrokeVisual(variant === 'selection' ? 'highlight' : 'hover')
@@ -64,9 +63,6 @@ function createLayerSpecs(
   const prefix = `panel-target-${variant}`
   const visual = overlayVisual(variant)
   const zoneFilter = ['==', ['get', 'kind'], 'zone'] as const
-  const plantFilter = ['==', ['get', 'kind'], 'plant'] as const
-  // MapLibre strokes a circle outside its radius; centre each stroke on the ring radius.
-  const ringRadius = (strokeWidth: number) => MIN_PLANT_RING_RADIUS_PX - strokeWidth / 2
 
   return [
     {
@@ -100,31 +96,6 @@ function createLayerSpecs(
         'line-width': visual.widthPx,
       },
     },
-    {
-      id: `${prefix}-plants-halo`,
-      source: sourceId,
-      type: 'circle',
-      filter: plantFilter,
-      paint: {
-        'circle-opacity': 0,
-        'circle-radius': ringRadius(visual.casingWidthPx),
-        'circle-stroke-color': visual.casingColor,
-        'circle-stroke-width': visual.casingWidthPx,
-      },
-    },
-    {
-      id: `${prefix}-plants`,
-      source: sourceId,
-      type: 'circle',
-      filter: plantFilter,
-      paint: {
-        'circle-opacity': 0,
-        'circle-radius': ringRadius(visual.widthPx),
-        'circle-stroke-color': visual.color,
-        'circle-stroke-opacity': visual.alpha,
-        'circle-stroke-width': visual.widthPx,
-      },
-    },
   ]
 }
 
@@ -133,6 +104,7 @@ export function createPanelTargetMapOverlayContract(
   features: readonly TargetMapFeature[],
 ): PanelTargetMapOverlayContract {
   const sourceId = `panel-target-${variant}-source`
+  const zones = features.filter((feature) => feature.properties.kind === 'zone')
   return {
     variant,
     source: {
@@ -140,10 +112,10 @@ export function createPanelTargetMapOverlayContract(
       type: 'geojson',
       data: {
         type: 'FeatureCollection',
-        features,
+        features: zones,
       },
     },
     layers: createLayerSpecs(variant, sourceId),
-    hasRenderableFeatures: features.length > 0,
+    hasRenderableFeatures: zones.length > 0,
   }
 }

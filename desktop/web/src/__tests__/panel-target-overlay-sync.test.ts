@@ -31,7 +31,7 @@ describe('panel target overlay sync', () => {
   it('adds the overlay source with a valid MapLibre source specification', () => {
     const map = fakeMap()
     const overlay = createPanelTargetMapOverlayContract('selection', [
-      { type: 'Feature', geometry: { type: 'Point', coordinates: [1.5, 43.6] }, properties: { kind: 'plant' } },
+      { type: 'Feature', geometry: { type: 'LineString', coordinates: [[1.5, 43.6], [1.501, 43.6]] }, properties: { kind: 'zone' } },
     ] as never)
 
     expect(() => syncMapOverlay(map as never, overlay)).not.toThrow()
@@ -56,10 +56,10 @@ describe('panel target overlay sync', () => {
     it('repaints an overlay already on the map through the canvas colours, without re-adding it', () => {
       const map = fakeMap()
       const contract = () => createPanelTargetMapOverlayContract('selection', [
-        { type: 'Feature', geometry: { type: 'Point', coordinates: [1.5, 43.6] }, properties: { kind: 'plant' } },
+        { type: 'Feature', geometry: { type: 'LineString', coordinates: [[1.5, 43.6], [1.501, 43.6]] }, properties: { kind: 'zone' } },
       ] as never)
       syncMapOverlay(map as never, contract())
-      expect(map.layers.get('panel-target-selection-plants')?.['circle-stroke-color']).toBe('#9C5A16')
+      expect(map.layers.get('panel-target-selection-zones-line')?.['line-color']).toBe('#9C5A16')
       const added = map.addLayer.mock.calls.length
 
       const revision = canvasPaintRevision.value
@@ -70,8 +70,7 @@ describe('panel target overlay sync', () => {
       syncMapOverlay(map as never, contract())
 
       expect(map.addLayer.mock.calls.length).toBe(added)
-      expect(map.layers.get('panel-target-selection-plants')?.['circle-stroke-color']).toBe('#E0A458')
-      expect(map.layers.get('panel-target-selection-plants-halo')?.['circle-stroke-color']).toBe('#1E1A14')
+      expect(map.layers.get('panel-target-selection-zones-casing')?.['line-color']).toBe('#1E1A14')
       expect(map.layers.get('panel-target-selection-zones-line')?.['line-color']).toBe('#E0A458')
     })
 

@@ -1462,6 +1462,14 @@ const SYMBOL_OWNERSHIP_POLICIES = [
     names: ['createInMemoryReducedSpeciesCatalogReader'],
   },
   {
+    // Object highlights are drawn by the canvas, which rings a plant at its drawn size; MapLibre draws the basemap and
+    // map data, never a plant ring (canopi-rg4q; the zone overlay moves to the canvas in a later bead).
+    kind: 'forbid-source-symbols',
+    name: 'MapLibre draws no plant highlight',
+    from: ['src/maplibre/**'],
+    names: ['MIN_PLANT_RING_RADIUS_PX', 'highlightedPlantIds', 'plantRingRadius'],
+  },
+  {
     // The Scene owns layer visibility, locks and opacity; Layers reads them from the scene snapshot and its open row
     // from open-row.ts, so no app signal mirrors them and no runtime port feeds one (canopi-f47t.42).
     kind: 'forbid-source-symbols',

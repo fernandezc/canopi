@@ -195,7 +195,10 @@ export function setCanvasHoveredTargets(targetList: readonly PanelTarget[]): voi
   }
 }
 
+/** What the canvas rings: a presented story step's targets alone, else the panels' selection, hover and matches. */
 export function readPanelOriginTargets(): readonly PanelTarget[] {
+  const presented = storyPresentationOverrides.value
+  if (presented) return presented.targets
   return [
     ...selectedPanelTargets.value,
     ...hoveredPanelTargets.value,
@@ -220,6 +223,7 @@ export function subscribePanelOriginTargetChanges(
     void hoveredPanelTargets.value
     void selectedPanelTargets.value
     void matchedPanelTargets.value
+    void storyPresentationOverrides.value
     onChange()
   })
 }

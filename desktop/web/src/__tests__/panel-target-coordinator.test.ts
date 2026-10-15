@@ -5,6 +5,7 @@ import {
   clearSelectedPanelTargetsForOrigin,
   readPanelOriginTargets,
   setCanvasHoveredTargets,
+  subscribePanelOriginTargetChanges,
   setHoveredPanelTargets,
   setSelectedPanelTargets,
 } from "../app/panel-targets/presentation";
@@ -14,6 +15,8 @@ import {
   selectedPanelTargetOrigin,
   selectedPanelTargets,
 } from "../app/panel-targets/state";
+import { setStoryPresentationOverrides } from "../app/story-presentation/overrides";
+import { mapLayers } from "../app/map-layers/state";
 import { speciesTarget } from "../target";
 
 describe("Target Presentation", () => {
@@ -22,6 +25,22 @@ describe("Target Presentation", () => {
     hoveredCanvasTargets.value = [];
     selectedPanelTargets.value = [];
     selectedPanelTargetOrigin.value = null;
+    setStoryPresentationOverrides(null);
+  });
+
+  it("canopi-rg4q: the canvas rings a presented story step's targets alone, and redraws when the step changes", () => {
+    setSelectedPanelTargets("consortium", [speciesTarget("Malus domestica")]);
+    let changes = 0;
+    const stop = subscribePanelOriginTargetChanges(() => { changes += 1; });
+    const stepTargets = [speciesTarget("Pyrus communis")];
+    setStoryPresentationOverrides({
+      mapLayers: mapLayers.peek(), siteDataIds: new Set(), plantLabels: "names", targets: stepTargets,
+    });
+    expect(readPanelOriginTargets()).toEqual(stepTargets);
+    expect(changes).toBe(2);
+    setStoryPresentationOverrides(null);
+    expect(readPanelOriginTargets()).toEqual([speciesTarget("Malus domestica")]);
+    stop();
   });
 
   it("deduplicates repeated hover writes", () => {

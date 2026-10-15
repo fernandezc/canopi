@@ -17,7 +17,7 @@ export interface StoryPresentationOverrides {
   /** Library ids of the site-data entries shown; the others are hidden. */
   readonly siteDataIds: ReadonlySet<string>
   readonly plantLabels: PlantLabelMode
-  /** Species and objects the view highlights, ringed on the map. */
+  /** Species and objects the view highlights: the canvas rings plants, the map overlay outlines zones. */
   readonly targets: readonly PanelTarget[]
 }
 
