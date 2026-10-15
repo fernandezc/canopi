@@ -45,6 +45,7 @@ use super::super::prepared_raster::RasterWindow;
 use super::Cells;
 use super::cog::{self, BandSource};
 use super::crs::{self, ResolvedCrs, Transformer};
+use super::relief;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use wbgeotiff::tags::Compression;
@@ -136,6 +137,7 @@ pub(super) fn zoom<'a>(
 }
 
 /// Where a derivative sits on the lattice.
+#[derive(Clone)]
 struct Placement {
     grid: RasterGrid,
     /// Lattice column and row of the derivative's top-left pixel; the
@@ -249,6 +251,31 @@ fn place(
     })
 }
 
+impl Placement {
+    /// The same pixels on the lattice of overview level `level`: the extent
+    /// is snapped to 2^levels, so each level halves it exactly.
+    fn at_level(&self, level: u32) -> Self {
+        let scale = 1i64 << level;
+        let gt = self.grid.geotransform;
+        Self {
+            grid: RasterGrid {
+                width: self.grid.width >> level,
+                height: self.grid.height >> level,
+                geotransform: [
+                    gt[0],
+                    gt[1] * scale as f64,
+                    0.0,
+                    gt[3],
+                    0.0,
+                    gt[5] * scale as f64,
+                ],
+            },
+            column: self.column / scale,
+            row: self.row / scale,
+        }
+    }
+}
+
 /// The lattice grid a derivative of `grid` in `native` is written on (the
 /// GDAL oracle warps onto the same pixels).
 #[cfg(test)]
@@ -325,11 +352,11 @@ impl Mesh {
 /// The derivative's band: each output window warped from the native window
 /// under it, `nodata` everywhere the footprint does not reach.
 struct Warp<'a> {
-    band: &'a mut dyn BandSource,
+    band: Box<dyn BandSource + 'a>,
     native: RasterGrid,
     nodata: f32,
     to_native: Transformer,
-    placement: &'a Placement,
+    placement: Placement,
     /// Most native cells one read may hold.
     budget: u64,
 }
@@ -446,11 +473,11 @@ pub(super) fn write(
     let placement = place(grid, &Transformer::new(native, &mercator), rung_at(zoom))?;
     let geo_keys = crs::geokeys_for(&mercator);
     let mut warp = Warp {
-        band,
+        band: Box::new(band),
         native: grid.clone(),
         nodata,
         to_native: Transformer::new(&mercator, native),
-        placement: &placement,
+        placement: placement.clone(),
         budget: budget / 2,
     };
     cog::write(
@@ -466,6 +493,123 @@ pub(super) fn write(
             overviews: true,
         },
         budget / 2,
+        cancel,
+    )
+}
+
+/// The levels of a relief derivative: level `k` is the native band halved
+/// `k` times ([`cog::Halved`]), shaded with that level's own ground cell
+/// sizes ([`relief::Shaded`]) and warped onto lattice level `k`.
+struct ReliefLevels<'a> {
+    band: &'a mut dyn BandSource,
+    grid: &'a RasterGrid,
+    native: &'a ResolvedCrs,
+    mercator: &'a ResolvedCrs,
+    nodata: Option<f32>,
+    fill: f32,
+    placement: &'a Placement,
+    levels: u32,
+    /// Most cells the native reads of one level hold, split as
+    /// [`write_relief`] says.
+    budget: u64,
+}
+
+impl cog::LevelSource for ReliefLevels<'_> {
+    fn level(&mut self, index: u32) -> Result<Box<dyn BandSource + '_>, String> {
+        let dims = cog::level_dims(self.grid.width, self.grid.height, index);
+        let gt = self.grid.geotransform;
+        let (width, height) = dims[index as usize];
+        // Each level keeps the file's whole extent, whatever its floor size.
+        let native = RasterGrid {
+            width,
+            height,
+            geotransform: [
+                gt[0],
+                gt[1] * f64::from(self.grid.width) / f64::from(width),
+                0.0,
+                gt[3],
+                0.0,
+                gt[5] * f64::from(self.grid.height) / f64::from(height),
+            ],
+        };
+        // A quarter for the warp's native window, about as much again for
+        // the shaded window and its halo, and a quarter shared by the halving
+        // layers under it.
+        let halving = self.budget / 4 / u64::from(index.max(1));
+        let mut band: Box<dyn BandSource + '_> = Box::new(&mut *self.band);
+        for level in &dims[..index as usize] {
+            band = Box::new(cog::Halved::new(band, *level, self.nodata, halving));
+        }
+        let shaded = relief::Shaded::new(
+            band,
+            (width, height),
+            self.nodata,
+            super::row_ground_sizes(&native, self.native)?,
+            self.fill,
+        );
+        debug_assert!(index <= self.levels);
+        Ok(Box::new(Warp {
+            band: Box::new(shaded),
+            native,
+            nodata: self.fill,
+            to_native: Transformer::new(self.mercator, self.native),
+            placement: self.placement.at_level(index),
+            budget: self.budget / 4,
+        }))
+    }
+}
+
+/// Write the relief derivative of `band` (on `grid` in `native`, valid where
+/// finite and not `nodata`) to `output`: on the same lattice pixels and with
+/// the same level count as the display derivative [`write`] gives at `zoom`,
+/// each level shaded from that level's own averaged elevation on the native
+/// grid before the nearest-neighbour warp (shading after it draws the warp's
+/// stair steps). Grey levels 1–255 as Float32, `fill` where nothing shows.
+/// Memory: a quarter of `budget` for the output windows and a quarter each
+/// for the warp's native window, the shaded window with its halo and the
+/// halving layers.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_relief(
+    output: &Path,
+    grid: &RasterGrid,
+    native: &ResolvedCrs,
+    zoom: u32,
+    band: &mut dyn BandSource,
+    nodata: Option<f32>,
+    fill: f32,
+    budget: u64,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    check_cancel(cancel)?;
+    let mercator = crs::from_reference("EPSG:3857")?;
+    let placement = place(grid, &Transformer::new(native, &mercator), rung_at(zoom))?;
+    let levels = cog::overview_count(
+        u64::from(placement.grid.width),
+        u64::from(placement.grid.height),
+    );
+    let geo_keys = crs::geokeys_for(&mercator);
+    let mut sources = ReliefLevels {
+        band,
+        grid,
+        native,
+        mercator: &mercator,
+        nodata,
+        fill,
+        placement: &placement,
+        levels,
+        budget,
+    };
+    cog::write_levels(
+        output,
+        cog::CogGeoref {
+            grid: &placement.grid,
+            geo_keys: Some(&geo_keys),
+        },
+        Some(fill),
+        &mut sources,
+        levels,
+        Compression::Deflate,
+        budget / 4,
         cancel,
     )
 }

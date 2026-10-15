@@ -2,7 +2,8 @@
 //!
 //! One writer produces every profile the library persists: the controlled
 //! numeric COG (uncompressed, no overviews), the display COG (Deflate,
-//! averaged valid-data overviews) and the tiled Deflate exchange GeoTIFF.
+//! averaged valid-data overviews), the relief COG (Deflate, each level from
+//! its own band) and the tiled Deflate exchange GeoTIFF.
 //! Every file is little-endian classic TIFF with 256×256 Float32 tiles, its
 //! directories at the front (what the bounded reader parses from a prefix)
 //! and tile data after them. Overviews halve while a side exceeds one tile,
@@ -13,7 +14,7 @@
 //! tiles, at most the caller's cell budget each, so a band in memory and a
 //! band streamed from its file take the same path and give the same bytes.
 //! Each overview level is averaged from the level before it, read back from
-//! the tiles already written.
+//! the tiles already written, or ([`write_levels`]) read from its own band.
 
 use super::super::engine::check_cancel;
 use super::super::grid::RasterGrid;
@@ -82,6 +83,34 @@ impl BandSource for SliceSource<'_> {
     }
 }
 
+impl<T: BandSource + ?Sized> BandSource for &mut T {
+    fn read(
+        &mut self,
+        window: RasterWindow,
+        out: &mut [f32],
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        (**self).read(window, out, cancel)
+    }
+}
+
+impl<T: BandSource + ?Sized> BandSource for Box<T> {
+    fn read(
+        &mut self,
+        window: RasterWindow,
+        out: &mut [f32],
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        (**self).read(window, out, cancel)
+    }
+}
+
+/// Each level of a file written level by level ([`write_levels`]): level 0
+/// is the full resolution, level `k` the `k`-th overview.
+pub(super) trait LevelSource {
+    fn level(&mut self, index: u32) -> Result<Box<dyn BandSource + '_>, String>;
+}
+
 impl BandSource for tiff::BandReader {
     fn read(
         &mut self,
@@ -105,11 +134,78 @@ pub(super) fn write(
     budget: u64,
     cancel: &AtomicBool,
 ) -> Result<(), String> {
-    let written = write_inner(path, georef, nodata, source, profile, budget, cancel);
+    let levels = if profile.overviews {
+        overview_count(u64::from(georef.grid.width), u64::from(georef.grid.height))
+    } else {
+        0
+    };
+    let written = write_inner(
+        path,
+        georef,
+        nodata,
+        Levels::Averaged(source),
+        levels,
+        profile.compression,
+        budget,
+        cancel,
+    );
     if written.is_err() {
         let _ = std::fs::remove_file(path);
     }
     written
+}
+
+/// Write a file of `levels` overviews whose every level is read from its own
+/// band of `sources` (level `k` is `georef.grid` halved `k` times, by floor
+/// division), each in row windows of at most `budget` cells, removing a
+/// partial file on any failure.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_levels(
+    path: &Path,
+    georef: CogGeoref<'_>,
+    nodata: Option<f32>,
+    sources: &mut dyn LevelSource,
+    levels: u32,
+    compression: Compression,
+    budget: u64,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    let written = write_inner(
+        path,
+        georef,
+        nodata,
+        Levels::Each(sources),
+        levels,
+        compression,
+        budget,
+        cancel,
+    );
+    if written.is_err() {
+        let _ = std::fs::remove_file(path);
+    }
+    written
+}
+
+/// Where a file's levels come from.
+enum Levels<'s> {
+    /// One band; each overview averaged from the level before it, read back
+    /// from the file being written.
+    Averaged(&'s mut dyn BandSource),
+    /// Each level from its own band.
+    Each(&'s mut dyn LevelSource),
+}
+
+/// The sizes of `levels` overviews below `width` × `height`, full
+/// resolution first: each halves the one before by floor division.
+pub(super) fn level_dims(width: u32, height: u32, levels: u32) -> Vec<(u32, u32)> {
+    let mut dims = vec![(width, height)];
+    let (mut width, mut height) = (width, height);
+    for _ in 0..levels {
+        width = (width / 2).max(1);
+        height = (height / 2).max(1);
+        dims.push((width, height));
+    }
+    dims
 }
 
 /// How many reduced-resolution levels [`write`] builds over a `width` ×
@@ -124,12 +220,14 @@ pub(super) fn overview_count(width: u64, height: u64) -> u32 {
     levels
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_inner(
     path: &Path,
     georef: CogGeoref<'_>,
     nodata: Option<f32>,
-    source: &mut dyn BandSource,
-    profile: CogProfile,
+    mut levels: Levels<'_>,
+    overviews: u32,
+    compression: Compression,
     budget: u64,
     cancel: &AtomicBool,
 ) -> Result<(), String> {
@@ -139,16 +237,8 @@ fn write_inner(
     }
     check_cancel(cancel)?;
 
-    // Reduced-resolution levels, each halved from the previous one.
-    let mut level_dims = vec![(grid.width, grid.height)];
-    if profile.overviews {
-        let (mut width, mut height) = (grid.width, grid.height);
-        for _ in 0..overview_count(u64::from(width), u64::from(height)) {
-            width = (width / 2).max(1);
-            height = (height / 2).max(1);
-            level_dims.push((width, height));
-        }
-    }
+    // Reduced-resolution levels, each half the size of the previous one.
+    let level_dims = level_dims(grid.width, grid.height, overviews);
 
     // Directory sizes depend on tile counts only, so the directories can be
     // reserved at the front and filled in once every tile's placement is known.
@@ -166,7 +256,7 @@ fn write_inner(
             &vec![0; tile_count(*width, *height)],
             &vec![0; tile_count(*width, *height)],
             0,
-            profile.compression,
+            compression,
             (index == 0).then_some(georef),
             geo_keys.as_ref().filter(|_| index == 0),
             nodata_text.as_deref(),
@@ -180,7 +270,7 @@ fn write_inner(
     let mut output = TileOutput {
         file: BufWriter::new(file),
         position: data_start,
-        compression: profile.compression,
+        compression,
         pad: nodata.unwrap_or(0.0),
         tile: vec![0.0; (TILE * TILE) as usize],
     };
@@ -189,50 +279,58 @@ fn write_inner(
         .write_all(&vec![0u8; data_start as usize])
         .map_err(|e| format!("Failed to reserve the raster directory: {e}"))?;
 
-    // Tile data: full resolution first, then each overview, whose rows are
-    // halved from the level before it as read back from this file.
+    // Tile data: full resolution first, then each overview, either from its
+    // own band or halved from the level before it as read back from this file.
     let mut placements: Vec<(Vec<u32>, Vec<u32>)> = Vec::with_capacity(level_dims.len());
-    placements.push(output.level(source, level_dims[0], budget, cancel)?);
-    for index in 1..level_dims.len() {
-        output
-            .file
-            .flush()
-            .map_err(|e| format!("Failed to flush the raster: {e}"))?;
-        let (offsets, counts) = &placements[index - 1];
-        let (source_width, source_height) = level_dims[index - 1];
-        let mut written = tiff::BandReader::open(
-            path,
-            tiff::BandFormat {
-                width: source_width,
-                height: source_height,
-                format: SampleFormat::IeeeFloat,
-                bits: 32,
-                compression_tag: profile.compression.tag_value(),
-                predictor: 1,
-                chunk_bands: 1,
-                byte_order: ByteOrder::LittleEndian,
-                layout: tiff::Layout::Tiles {
-                    width: TILE,
-                    height: TILE,
-                    offsets: offsets.iter().map(|offset| u64::from(*offset)).collect(),
-                    counts: counts.iter().map(|count| u64::from(*count)).collect(),
-                },
-            },
-            output.pad,
-        )?;
-        // Half the budget for the level's own windows, the rest for the rows
-        // they are averaged from.
-        let window_budget = budget / 2;
-        let mut halved = Halved {
-            source: &mut written,
-            width: source_width,
-            height: source_height,
-            target_width: level_dims[index].0,
-            target_height: level_dims[index].1,
-            nodata,
-            budget: budget.saturating_sub(window_cells(level_dims[index], window_budget)),
+    for index in 0..level_dims.len() {
+        let placed = match &mut levels {
+            Levels::Each(sources) => {
+                let mut band = sources.level(index as u32)?;
+                output.level(&mut band, level_dims[index], budget, cancel)?
+            }
+            Levels::Averaged(source) if index == 0 => {
+                output.level(*source, level_dims[0], budget, cancel)?
+            }
+            Levels::Averaged(_) => {
+                output
+                    .file
+                    .flush()
+                    .map_err(|e| format!("Failed to flush the raster: {e}"))?;
+                let (offsets, counts) = &placements[index - 1];
+                let (source_width, source_height) = level_dims[index - 1];
+                let mut written = tiff::BandReader::open(
+                    path,
+                    tiff::BandFormat {
+                        width: source_width,
+                        height: source_height,
+                        format: SampleFormat::IeeeFloat,
+                        bits: 32,
+                        compression_tag: compression.tag_value(),
+                        predictor: 1,
+                        chunk_bands: 1,
+                        byte_order: ByteOrder::LittleEndian,
+                        layout: tiff::Layout::Tiles {
+                            width: TILE,
+                            height: TILE,
+                            offsets: offsets.iter().map(|offset| u64::from(*offset)).collect(),
+                            counts: counts.iter().map(|count| u64::from(*count)).collect(),
+                        },
+                    },
+                    output.pad,
+                )?;
+                // Half the budget for the level's own windows, the rest for
+                // the rows they are averaged from.
+                let window_budget = budget / 2;
+                let mut halved = Halved::new(
+                    Box::new(&mut written),
+                    (source_width, source_height),
+                    nodata,
+                    budget.saturating_sub(window_cells(level_dims[index], window_budget)),
+                );
+                output.level(&mut halved, level_dims[index], window_budget, cancel)?
+            }
         };
-        placements.push(output.level(&mut halved, level_dims[index], window_budget, cancel)?);
+        placements.push(placed);
     }
     output
         .file
@@ -255,7 +353,7 @@ fn write_inner(
             offsets,
             counts,
             next,
-            profile.compression,
+            compression,
             (index == 0).then_some(georef),
             geo_keys.as_ref().filter(|_| index == 0),
             nodata_text.as_deref(),
@@ -387,9 +485,10 @@ fn header(first_directory: u64) -> [u8; 8] {
 /// The next level of a band: each cell averages the valid samples of its
 /// source block (floor-sized levels give some blocks a third row or column),
 /// and a block with no valid sample stays NoData. Source rows are read in
-/// windows of at most `budget` cells.
-struct Halved<'a> {
-    source: &'a mut dyn BandSource,
+/// windows of at most `budget` cells (at least one target row's). Halving a
+/// band `k` times stacks `k` of them.
+pub(super) struct Halved<'a> {
+    source: Box<dyn BandSource + 'a>,
     width: u32,
     height: u32,
     target_width: u32,
@@ -398,7 +497,25 @@ struct Halved<'a> {
     budget: u64,
 }
 
-impl Halved<'_> {
+impl<'a> Halved<'a> {
+    /// The next level of the `width` × `height` band `source`.
+    pub(super) fn new(
+        source: Box<dyn BandSource + 'a>,
+        (width, height): (u32, u32),
+        nodata: Option<f32>,
+        budget: u64,
+    ) -> Self {
+        Self {
+            source,
+            width,
+            height,
+            target_width: (width / 2).max(1),
+            target_height: (height / 2).max(1),
+            nodata,
+            budget,
+        }
+    }
+
     /// Source rows (or columns) `start..end` averaged into target cell `at`.
     fn block(at: u32, source: u32, target: u32) -> (u32, u32) {
         let (at, source, target) = (u64::from(at), u64::from(source), u64::from(target));
@@ -625,19 +742,11 @@ mod tests {
     /// The whole next level of a `width`×`height` band.
     fn halve(source: &[f32], width: u32, height: u32, nodata: Option<f32>) -> Vec<f32> {
         let (target_width, target_height) = ((width / 2).max(1), (height / 2).max(1));
-        let mut slice = SliceSource {
+        let slice = SliceSource {
             samples: source,
             width,
         };
-        let mut halved = Halved {
-            source: &mut slice,
-            width,
-            height,
-            target_width,
-            target_height,
-            nodata,
-            budget: u64::MAX,
-        };
+        let mut halved = Halved::new(Box::new(slice), (width, height), nodata, u64::MAX);
         let mut out = vec![0.0; (target_width * target_height) as usize];
         halved
             .read(

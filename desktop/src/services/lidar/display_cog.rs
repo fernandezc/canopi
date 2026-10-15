@@ -1656,6 +1656,190 @@ mod library_tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Publish `name` from Lambert-93 planes `100 + 0.5 column + 0.25 row`
+    /// (one value per 1 m cell of the whole plane), one source per column
+    /// range of `columns`, listed top-first, and the paths of its prepared
+    /// derivatives, top-first.
+    fn publish_plane_item(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        columns: &[(u32, u32)],
+        rows: u32,
+    ) -> Vec<(PathBuf, [f64; 4])> {
+        let engine = &library.inner.engine;
+        let cancel = AtomicBool::new(false);
+        let sources: Vec<PathBuf> = columns
+            .iter()
+            .enumerate()
+            .map(|(index, (first, width))| {
+                let values: Vec<f32> = (0..rows)
+                    .flat_map(|row| {
+                        (*first..first + width)
+                            .map(move |column| 100.0 + 0.5 * column as f32 + 0.25 * row as f32)
+                    })
+                    .collect();
+                let raw = root.join(format!("{name}-{index}.raw"));
+                super::super::import::write_f32_raw(&raw, &values).unwrap();
+                let source = root.join(format!("{name}-{index}.tif"));
+                super::super::import::raw_to_tif(
+                    engine.as_ref(),
+                    &cancel,
+                    &raw,
+                    &source,
+                    &RasterGrid {
+                        width: *width,
+                        height: rows,
+                        geotransform: [
+                            SEAM_ORIGIN.0 + f64::from(*first),
+                            1.0,
+                            0.0,
+                            SEAM_ORIGIN.1,
+                            0.0,
+                            -1.0,
+                        ],
+                    },
+                    "EPSG:2154",
+                    -9999.0,
+                )
+                .unwrap();
+                source
+            })
+            .collect();
+        let layer_id = library
+            .create_layer(name, RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(library, &job_id, &layer_id, &sources, &cancel)
+            .unwrap();
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: layer_id,
+                expected_generation_id: None,
+                retry: false,
+                relief: false,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        descriptor
+            .assets
+            .iter()
+            .map(|asset| (PathBuf::from(&asset.path), asset.bounds))
+            .collect()
+    }
+
+    /// Top-left corner of the seam fixtures' plane, Lambert-93 metres.
+    const SEAM_ORIGIN: (f64, f64) = (445_000.0, 6_806_000.0);
+
+    /// Copy `derivative` to the web fixture `name` under
+    /// `CANOPI_UPDATE_FIXTURES`, and fail unless the committed file holds the
+    /// same placement and samples.
+    fn check_web_fixture(library: &LidarLibrary, derivative: &Path, name: &str, stale: &str) {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures")
+            .join(name);
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::create_dir_all(fixture.parent().unwrap()).unwrap();
+            std::fs::copy(derivative, &fixture).unwrap();
+        }
+        let engine = library.inner.engine.as_ref();
+        let cancel = AtomicBool::new(false);
+        let probe = engine.probe(derivative, &cancel).unwrap();
+        let committed = engine.probe(&fixture, &cancel).expect(stale);
+        assert_eq!(
+            (committed.geotransform, committed.width, committed.height),
+            (probe.geotransform, probe.width, probe.height),
+            "{stale}: {name}"
+        );
+        let read = |raster: &Path| {
+            engine
+                .read_f32(raster, probe.width, probe.height, &cancel)
+                .expect(stale)
+                .into_iter()
+                .map(f32::to_bits)
+                .collect::<Vec<_>>()
+        };
+        assert!(read(&fixture) == read(derivative), "{stale}: {name}");
+    }
+
+    /// The seam probe (canopi-f47t.49, `raster-display/display-seams.test.ts`)
+    /// draws these derivatives with the real cog-tiler: an item of two
+    /// adjacent Lambert-93 planes (west on top) and an item of the whole
+    /// plane drawn under it, each NoData-free, wide enough for two overview
+    /// levels per half. Rewrite them with `CANOPI_UPDATE_FIXTURES=1`.
+    #[test]
+    fn the_web_seam_fixtures_are_what_the_engine_writes() {
+        let root = crate::test_scratch::TestScratch::new("canopi-seam-fixture");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).expect("library opens");
+        let (half, rows) = (448u32, 96u32);
+        let seam = publish_plane_item(&library, &root, "seam", &[(0, half), (half, half)], rows);
+        let under = publish_plane_item(&library, &root, "under", &[(0, 2 * half)], rows);
+        assert_eq!((seam.len(), under.len()), (2, 1));
+        for (path, _) in seam.iter().chain(&under) {
+            let probe = info(&library, &path.display().to_string());
+            assert!(probe.overview_count >= 2, "{probe:?}");
+        }
+        let names = [
+            "rust-display-seam-a.tif",
+            "rust-display-seam-b.tif",
+            "rust-display-seam-under.tif",
+        ];
+        let stale =
+            "the web seam fixtures are stale: rerun this test with CANOPI_UPDATE_FIXTURES=1";
+        for ((path, _), name) in seam.iter().chain(&under).zip(names) {
+            check_web_fixture(&library, path, name, stale);
+        }
+        let zoom = super::super::rust_engine::display_zoom(
+            "EPSG:2154",
+            [&RasterGrid {
+                width: 2 * half,
+                height: rows,
+                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+            }],
+        )
+        .unwrap();
+        let expected = serde_json::json!({
+            "zoom": zoom,
+            "nodata": -9999.0,
+            "range": [100.0, 100.0 + 0.5 * f64::from(2 * half - 1) + 0.25 * f64::from(rows - 1)],
+            "top": [
+                { "asset": names[0], "bounds": seam[0].1 },
+                { "asset": names[1], "bounds": seam[1].1 },
+            ],
+            "under": { "asset": names[2], "bounds": under[0].1 },
+            "plane": {
+                "crs": "EPSG:2154",
+                "origin": [SEAM_ORIGIN.0, SEAM_ORIGIN.1],
+                "cell": 1.0,
+                "columns": 2 * half,
+                "rows": rows,
+                "split": half,
+                "value": "100 + 0.5 column + 0.25 row",
+            },
+        });
+        let json = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures/rust-display-seam.json");
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::write(
+                &json,
+                serde_json::to_string_pretty(&expected).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let committed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).expect(stale)).expect(stale);
+        assert!(
+            same_fixture(&committed, &expected),
+            "{stale}\ncommitted: {committed}\nnow: {expected}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// What decides a display pixel's place and value beyond each row's own
     /// definition: proj4rs and the Web Mercator and WGS84 rows every
     /// transform passes through, the lattice the warp gives fixed sample

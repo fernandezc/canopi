@@ -23,6 +23,7 @@ mod crs;
 #[cfg(test)]
 mod crs_reference_points;
 pub(crate) mod crs_table;
+mod relief;
 mod source;
 mod tiff;
 mod warp;
@@ -53,6 +54,15 @@ pub(crate) fn crs_kind(reference: &str) -> Option<CrsKind> {
     crs::from_reference(reference).ok().map(|crs| crs.kind())
 }
 
+/// WGS84's meridional and prime-vertical radii at latitude `lat` (degrees).
+fn wgs84_radii(lat: f64) -> (f64, f64) {
+    const A: f64 = 6_378_137.0;
+    const E2: f64 = 0.006_694_379_990_14;
+    let phi = lat.to_radians();
+    let w = (1.0 - E2 * phi.sin().powi(2)).sqrt();
+    (A * (1.0 - E2) / w.powi(3), A / w)
+}
+
 /// The ground size of one cell of `grid` in `crs_ref`, in metres: a metre
 /// grid's own pixel size; for degrees or Web Mercator's stretched metres, the
 /// side of a square with the cell's ground area at the grid's centre (on the
@@ -70,18 +80,53 @@ pub(crate) fn cell_ground_size_m(grid: &RasterGrid, crs_ref: &str) -> Option<f64
         let (lon, lat) = to_wgs84.apply(centre_x, centre_y).ok()?;
         let (east_lon, _) = to_wgs84.apply(centre_x + x, centre_y).ok()?;
         let (_, north_lat) = to_wgs84.apply(centre_x, centre_y + y).ok()?;
-        // WGS84's meridional and prime-vertical radii at the centre's latitude.
-        const A: f64 = 6_378_137.0;
-        const E2: f64 = 0.006_694_379_990_14;
+        let (meridional, prime_vertical) = wgs84_radii(lat);
         let phi = lat.to_radians();
-        let w = (1.0 - E2 * phi.sin().powi(2)).sqrt();
-        let meridional = A * (1.0 - E2) / w.powi(3);
-        let prime_vertical = A / w;
         let east = (east_lon - lon).abs().to_radians() * prime_vertical * phi.cos();
         let north = (north_lat - lat).abs().to_radians() * meridional;
         (east * north).sqrt()
     };
     (size.is_finite() && size > 0.0).then_some(size)
+}
+
+/// The east-west and north-south ground sizes of a cell of each row of
+/// `grid` in `native`, in metres, at the row's latitude: degrees through the
+/// WGS84 radii (as [`cell_ground_size_m`]), Mercator metres as nominal ×
+/// cos(latitude), any other projected grid nominal (as gdaldem).
+fn row_ground_sizes(
+    grid: &RasterGrid,
+    native: &crs::ResolvedCrs,
+) -> Result<Vec<(f64, f64)>, String> {
+    let gt = grid.geotransform;
+    let (x, y) = (gt[1].abs(), gt[5].abs());
+    if native.kind() == CrsKind::ProjectedMetre {
+        return Ok(vec![(x, y); grid.height as usize]);
+    }
+    let to_wgs84 = crs::Transformer::new(native, &crs::from_reference("EPSG:4326")?);
+    let centre_x = gt[0] + gt[1] * f64::from(grid.width) / 2.0;
+    (0..grid.height)
+        .map(|row| {
+            let row_y = gt[3] + gt[5] * (f64::from(row) + 0.5);
+            let (lon, lat) = to_wgs84.apply(centre_x, row_y)?;
+            let phi = lat.to_radians();
+            let sizes = if native.kind() == CrsKind::Geographic {
+                let (east_lon, _) = to_wgs84.apply(centre_x + x, row_y)?;
+                let (_, north_lat) = to_wgs84.apply(centre_x, row_y + y)?;
+                let (meridional, prime_vertical) = wgs84_radii(lat);
+                (
+                    (east_lon - lon).abs().to_radians() * prime_vertical * phi.cos(),
+                    (north_lat - lat).abs().to_radians() * meridional,
+                )
+            } else {
+                (x * phi.cos(), y * phi.cos())
+            };
+            if sizes.0 > 0.0 && sizes.1 > 0.0 && sizes.0.is_finite() && sizes.1.is_finite() {
+                Ok(sizes)
+            } else {
+                Err("the raster's cell size cannot be shaded".to_string())
+            }
+        })
+        .collect()
 }
 
 /// The display zoom of an item whose parts are `grids` in `crs_ref`: every
@@ -223,6 +268,15 @@ enum Target {
     Native(cog::CogProfile),
     /// A display derivative warped to Web Mercator at the item's zoom.
     Display { zoom: u32 },
+    /// The relief derivative of an elevation, on the display's lattice.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "display_cog's relief plans write it next (canopi-2add)"
+        )
+    )]
+    Relief { zoom: u32 },
 }
 
 impl RustRasterEngine {
@@ -325,6 +379,19 @@ impl RustRasterEngine {
         };
         let profile = match target {
             Target::Native(profile) => profile,
+            Target::Relief { zoom } => {
+                return warp::write_relief(
+                    output,
+                    &prepared.grid,
+                    &prepared.crs,
+                    zoom,
+                    band,
+                    prepared.nodata,
+                    DISPLAY_NODATA,
+                    raw_extraction_cells(),
+                    cancel,
+                );
+            }
             Target::Display { zoom } => {
                 return warp::write(
                     output,
@@ -350,6 +417,33 @@ impl RustRasterEngine {
             raw_extraction_cells(),
             cancel,
         )
+    }
+}
+
+impl RustRasterEngine {
+    /// Write the relief derivative of the elevation `input` to `output`: grey
+    /// shaded relief on the lattice pixels, and with the levels, of its
+    /// display derivative at `zoom` (`warp::write_relief`). Not on the engine
+    /// seam: only the Rust engine draws relief, and the comparison lane holds
+    /// it to gdaldem.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "display_cog's relief plans call it next (canopi-2add)"
+        )
+    )]
+    pub(crate) fn write_relief_cog(
+        &self,
+        input: RasterInput<'_>,
+        output: &Path,
+        georef: Option<RasterGeoref<'_>>,
+        nodata: Option<f32>,
+        zoom: u32,
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        let prepared = Self::prepare(input, georef, nodata, "the relief derivative", cancel)?;
+        Self::write(prepared, output, Target::Relief { zoom }, cancel)
     }
 }
 
