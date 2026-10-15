@@ -18,14 +18,25 @@ import { readCurrentLidarPresentation, refreshLidarLibrary, type LidarPresentati
  * Design reference, a library preview, or an entry set to Cut outliers) and
  * polls while it is preparing. Entries are identity-keyed, so a descriptor of
  * an older generation, or of the other variant, can never be used for this one.
+ *
+ * A refused or failed call (a busy executor, a catalogue read error) is no
+ * answer about the derivative: the key is asked again, ever more slowly, and
+ * only a call that keeps failing reads Display failed until one answers. A
+ * failed preparation is an answer and is never asked again unasked.
  */
 export const lidarDisplayDescriptors = signal<ReadonlyMap<string, LidarDisplayDescriptor>>(new Map())
 
 const PREPARING_POLL_MS = 800
+/** A refused call is asked again after 0.8 s, doubling up to this. */
+const MAX_REASK_MS = 30_000
+/** Consecutive refusals before an entry reads Display failed: a busy executor clears well before. */
+const REFUSALS_BEFORE_FAILED = 3
 const MAX_ENTRIES = 256
 
 const inflight = new Set<string>()
 const pollTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Consecutive refused calls per key, while it is being asked again. */
+const refusals = new Map<string, number>()
 let storeGeneration = 0
 
 /** A descriptor's identity: entity, generation and the derivative it draws, so relief and elevation never share one. */
@@ -77,7 +88,7 @@ export function requestLidarDisplay(
   const key = displayKey(kind, entityId, generationId, variant)
   const relief = variant === 'relief'
   const current = lidarDisplayDescriptors.value.get(key)
-  if (!options.retry && current && current.state !== 'Preparing') return
+  if (!options.retry && current && current.state !== 'Preparing' && !refusals.has(key)) return
   if (inflight.has(key) || (!options.retry && pollTimers.has(key))) return
   inflight.add(key)
   const owner = storeGeneration
@@ -90,6 +101,7 @@ export function requestLidarDisplay(
   })
     .then((descriptor) => {
       if (owner !== storeGeneration) return
+      refusals.delete(key)
       store(key, descriptor)
       if (descriptor.state === 'Preparing') {
         pollTimers.set(key, setTimeout(() => {
@@ -103,18 +115,27 @@ export function requestLidarDisplay(
     })
     .catch((error: unknown) => {
       if (owner !== storeGeneration) return
-      store(key, {
-        kind,
-        entity_id: entityId,
-        generation_id: generationId,
-        profile: '',
-        relief,
-        state: 'Failed',
-        message: error instanceof Error ? error.message : String(error),
-        assets: [],
-        prepared_assets: 0,
-        total_assets: 0,
-      })
+      const refused = (refusals.get(key) ?? 0) + 1
+      refusals.set(key, refused)
+      if (refused === REFUSALS_BEFORE_FAILED) {
+        store(key, {
+          kind,
+          entity_id: entityId,
+          generation_id: generationId,
+          profile: '',
+          relief,
+          state: 'Failed',
+          message: error instanceof Error ? error.message : String(error),
+          assets: [],
+          prepared_assets: 0,
+          total_assets: 0,
+        })
+      }
+      clearTimeout(pollTimers.get(key))
+      pollTimers.set(key, setTimeout(() => {
+        pollTimers.delete(key)
+        if (owner === storeGeneration) requestLidarDisplay(kind, entityId, generationId, variant)
+      }, Math.min(MAX_REASK_MS, PREPARING_POLL_MS * 2 ** (refused - 1))))
     })
     .finally(() => inflight.delete(key))
 }
@@ -169,6 +190,7 @@ export function disposeLidarDisplayDescriptors(): void {
   resetCutOutlierRanges()
   for (const timer of pollTimers.values()) clearTimeout(timer)
   pollTimers.clear()
+  refusals.clear()
   inflight.clear()
 }
 

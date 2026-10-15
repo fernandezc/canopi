@@ -367,3 +367,62 @@ describe('LiDAR display descriptor requests', () => {
     }
   })
 })
+
+describe('LiDAR display descriptor refusals', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    invoke.mockReset()
+    display.disposeLidarDisplayDescriptors()
+    display.lidarDisplayDescriptors.value = new Map()
+  })
+  afterEach(() => {
+    display.disposeLidarDisplayDescriptors()
+    vi.useRealTimers()
+  })
+
+  const busy = new Error('Native user-data operations are busy; try again')
+
+  // A busy executor refused the call: that is no answer about the derivative, so it is asked again, and the
+  // map and the preview that share the key draw it once the library answers.
+  it('asks again after a refused call instead of keeping it as Display failed', async () => {
+    invoke.mockRejectedValueOnce(busy).mockResolvedValueOnce(descriptor({ relief: true }))
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).not.toBe('Failed')
+    await vi.advanceTimersByTimeAsync(800)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Ready')
+    expect(invoke).toHaveBeenCalledTimes(2)
+    // The re-ask is no Retry of a failed preparation.
+    expect(invoke).toHaveBeenLastCalledWith('lidar_display_descriptor', {
+      request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: true },
+    })
+  })
+
+  it('shows Display failed for a call that keeps failing, keeps asking ever more slowly and clears on an answer', async () => {
+    invoke.mockRejectedValue(new Error('catalogue: database disk image is malformed'))
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Failed')
+    // Backing off: far fewer calls than one per poll.
+    const calls = invoke.mock.calls.length
+    expect(calls).toBeGreaterThan(2)
+    expect(calls).toBeLessThan(10)
+    // Effects asking again while it is failing never add a call outside the back-off.
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    expect(invoke.mock.calls.length).toBe(calls)
+    invoke.mockReset()
+    invoke.mockResolvedValue(descriptor({ relief: true }))
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Ready')
+  })
+
+  it('shows a failed preparation as Display failed once, without asking again', async () => {
+    invoke.mockResolvedValue(descriptor({ state: 'Failed', message: 'relief failed', assets: [] }))
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(60_000)
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Failed')
+    expect(invoke).toHaveBeenCalledTimes(1)
+  })
+})
