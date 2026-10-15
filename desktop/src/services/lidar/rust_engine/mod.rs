@@ -269,13 +269,6 @@ enum Target {
     /// A display derivative warped to Web Mercator at the item's zoom.
     Display { zoom: u32 },
     /// The relief derivative of an elevation, on the display's lattice.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "display_cog's relief plans write it next (canopi-2add)"
-        )
-    )]
     Relief { zoom: u32 },
 }
 
@@ -426,13 +419,6 @@ impl RustRasterEngine {
     /// display derivative at `zoom` (`warp::write_relief`). Not on the engine
     /// seam: only the Rust engine draws relief, and the comparison lane holds
     /// it to gdaldem.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "display_cog's relief plans call it next (canopi-2add)"
-        )
-    )]
     pub(crate) fn write_relief_cog(
         &self,
         input: RasterInput<'_>,
