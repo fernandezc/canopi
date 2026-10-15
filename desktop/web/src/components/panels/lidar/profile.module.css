@@ -31,6 +31,7 @@
 .textButton:focus-visible, .iconButton:focus-visible, .linkButton:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 
 .state { margin: 0; padding: var(--space-2) 0; font-size: var(--text-xs); color: var(--color-text-muted); }
+.failed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* An axis label wider than its room shows into the panel's padding instead of being cut. */
 .plot { display: block; width: 100%; height: auto; overflow: visible; touch-action: none; cursor: crosshair; user-select: none; }

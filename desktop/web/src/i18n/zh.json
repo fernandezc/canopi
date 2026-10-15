@@ -2060,7 +2060,9 @@
       "longitude": "经度",
       "latitude": "纬度",
       "copied": "已复制",
-      "copyFailed": "无法复制数值"
+      "copyFailed": "无法复制数值",
+      "readFailed": "无法读取这条线上的数值",
+      "retry": "重试"
     }
   }
 }

@@ -4,6 +4,7 @@ import { buildProfilePlot, curveStyle, distanceTicks, indexAtX, type PlotArea } 
 import {
   profileCopyText,
   profileCursor,
+  retrySiteProfile,
   setProfileCursor,
   siteProfile,
   type ProfileCurve,
@@ -42,7 +43,8 @@ const COPY_FEEDBACK_MS = 2000
 /**
  * The Site data profile chart (canopi-f47t.42, spec §1.10 "Profile"), pinned to the bottom of the Site data panel, which
  * mounts it with no props: it reads the profile itself and draws nothing while no profile is shown. Header: "Profile",
- * the length, "At {distance}" while the cursor is on the chart, Copy values and ×. Elevation curves share the first plot
+ * the length, "At {distance}" while the cursor is on the chart, Copy values and ×. A failed read says so, with a Retry the
+ * user presses (never retried by itself). Elevation curves share the first plot
  * and height curves a strip under it, sharing distance and cursor; hovering or scrubbing moves the cursor, which the map
  * shows as a ring on the line. The legend gives each curve's value at the cursor while the pointer is on the plots,
  * otherwise Rise and Steepest (a button that moves the cursor there until it loses focus) or Highest.
@@ -65,7 +67,14 @@ export function ProfileChart() {
       </div>
       {profile.status === 'ready'
         ? <ReadyChart profile={profile} language={language} />
-        : <p className={styles.state}>{t(STATE_TEXT[profile.status])}</p>}
+        : profile.status === 'read-failed'
+          ? (
+              <div className={styles.failed}>
+                <p className={styles.state}>{t('siteData.chart.readFailed')}</p>
+                <button type="button" className={styles.textButton} onClick={retrySiteProfile}>{t('siteData.chart.retry')}</button>
+              </div>
+            )
+          : <p className={styles.state}>{t(STATE_TEXT[profile.status])}</p>}
     </section>
   )
 }

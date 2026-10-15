@@ -2060,7 +2060,9 @@
       "longitude": "경도",
       "latitude": "위도",
       "copied": "복사됨",
-      "copyFailed": "값을 복사할 수 없습니다"
+      "copyFailed": "값을 복사할 수 없습니다",
+      "readFailed": "이 선을 따라 값을 읽을 수 없습니다",
+      "retry": "재시도"
     }
   }
 }

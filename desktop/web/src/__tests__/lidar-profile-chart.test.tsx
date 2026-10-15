@@ -330,11 +330,12 @@ describe('ProfileChart', () => {
     expect(profileLine.value).not.toBeNull()
   })
 
-  it.fails('[expected-fail P canopi-vggx] a failed read says so with Retry, never No values, and Retry draws the curves', async () => {
+  it('a failed read says so with Retry, never No values, and Retry draws the curves', async () => {
     sampling.answer = () => { throw new Error('sampling refused') }
     await drawLine()
     expect(container.textContent).not.toContain('No values along this line')
     expect(container.textContent).not.toContain('sampling refused')
+    expect(container.textContent).toContain('Couldn’t read the values along this line')
     expect(container.querySelector('section > svg path')).toBeNull()
     sampling.answer = analyticSite
     await act(async () => { button('Retry').click() })

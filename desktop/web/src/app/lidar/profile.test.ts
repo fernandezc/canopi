@@ -316,14 +316,44 @@ describe('createSiteProfile: request key, batches and stale answers', () => {
     expect(owner.profile.value).toEqual({ status: 'none' })
   })
 
-  it('no value anywhere, or a failed read, says so', async () => {
+  it('no value anywhere says so', async () => {
     const empty = profileOf([at(0, 0), at(1, 0)], [source('mnt'), source('dsm', 'elevation', { generationId: 'stale' })])
     await empty.calls[0]!.answer((target) => target === 0 ? values(null) : { Unavailable: { reason: 'StaleGeneration' } })
     expect(empty.status()).toBe('no-values')
+  })
 
+  it('a failed read is read-failed, not no-values, and is never re-asked by itself', async () => {
     const failed = profileOf([at(0, 0), at(1, 0)], [source('mnt')])
     await failed.calls[0]!.fail()
-    expect(failed.status()).toBe('no-values')
+    expect(failed.owner.profile.value).toEqual({ status: 'read-failed', lengthM: expect.closeTo(1, 6) })
+    await settle()
+    expect(failed.calls).toHaveLength(1)
+  })
+
+  it('Retry re-asks the same key once and lands ready', async () => {
+    const { calls, owner, status } = profileOf([at(0, 0), at(1, 0)], [source('mnt', 'elevation', { resolutionM: 0.5 })])
+    await calls[0]!.fail()
+    expect(status()).toBe('read-failed')
+
+    owner.retry()
+    owner.retry()
+    expect(status()).toBe('reading')
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request).toEqual(calls[0]!.request)
+
+    await calls[1]!.answer(() => values(1, 2, 3))
+    expect(ready(owner.profile.value).curves[0]!.values).toEqual([1, 2, 3])
+    owner.retry()
+    expect(calls).toHaveLength(2)
+  })
+
+  it('closing after a failed read sends nothing', async () => {
+    const { calls, lineSignal, status } = profileOf([at(0, 0), at(1, 0)], [source('mnt')])
+    await calls[0]!.fail()
+    lineSignal.value = null
+    await settle()
+    expect(status()).toBe('none')
+    expect(calls).toHaveLength(1)
   })
 
   it('the cursor clamps to the samples, waits for a ready profile and clears with a new key', async () => {

@@ -9,6 +9,8 @@
 //   'profile' lane under the key (line, item ids, generations); the sampler splits it into batches of
 //   LIDAR_SAMPLE_MAX_TARGETS sent in turn. A key no longer current is never published, and the chart draws once every
 //   batch of its key has landed. Closing the profile, or hiding its last curve, drops the lane's queued request.
+// - A failed read is 'read-failed', never 'no-values'; it is asked again only when the user presses Retry
+//   (`retrySiteProfile`), under the same key, never by itself.
 // - Nothing here is stored, printed or captured.
 
 import { computed, effect, signal, type ReadonlySignal } from '@preact/signals'
@@ -85,8 +87,10 @@ export type SiteProfile =
   /** A line, but no shown, ready elevation or height item: the line is kept and the chart says what to show. */
   | { readonly status: 'needs-layer'; readonly lengthM: number }
   | { readonly status: 'reading'; readonly lengthM: number }
-  /** Every curve answered, with no value anywhere along the line (or the read failed). */
+  /** Every curve answered, with no value anywhere along the line. */
   | { readonly status: 'no-values'; readonly lengthM: number }
+  /** The read failed; Retry asks the same line and curves again. */
+  | { readonly status: 'read-failed'; readonly lengthM: number }
   | { readonly status: 'ready'; readonly lengthM: number; readonly samples: ProfileSamples; readonly curves: readonly ProfileCurve[] }
 
 const NONE: SiteProfile = Object.freeze({ status: 'none' })
@@ -255,6 +259,8 @@ interface SiteProfileOwner {
   /** The chart's cursor: a sample index, or null. A new key clears it. */
   readonly cursor: ReadonlySignal<number | null>
   setCursor(index: number | null): void
+  /** After a failed read, asks the same key again, once; otherwise does nothing. */
+  retry(): void
   dispose(): void
 }
 
@@ -263,6 +269,8 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
   const state = signal<SiteProfile>(NONE)
   const cursor = signal<number | null>(null)
   let asked: string | null = null
+  // Read by the effect, so Retry, which forgets the asked key, re-runs it under the same key.
+  const attempt = signal(0)
   // Whether the lane's last request is this profile's: a request still queued when the profile closes or loses every
   // curve would hold the backend's one sampling permit for nothing, so it is replaced by an empty request, which reads
   // no batch. The running request still finishes its batches (the sampler never cuts one short).
@@ -276,6 +284,7 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
   }
 
   const dispose = effect(() => {
+    void attempt.value
     const line = deps.line.value
     const curves = deps.readCurves()
     const plane = deps.readPlane()
@@ -318,7 +327,7 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
         ? { status: 'ready', lengthM: samples.lengthM, samples, curves: plotted }
         : { status: 'no-values', lengthM: samples.lengthM }
     }, () => {
-      if (asked === key) state.value = { status: 'no-values', lengthM: samples.lengthM }
+      if (asked === key) state.value = { status: 'read-failed', lengthM: samples.lengthM }
     })
   })
 
@@ -332,6 +341,11 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
         return
       }
       cursor.value = Math.min(current.samples.points.length - 1, Math.max(0, Math.round(index)))
+    },
+    retry() {
+      if (state.peek().status !== 'read-failed') return
+      asked = null
+      attempt.value += 1
     },
     dispose,
   }
@@ -352,6 +366,11 @@ export const siteProfile: ReadonlySignal<SiteProfile> = app.profile
 
 /** The chart's cursor, as a sample index of the shown profile; null while the chart is not hovered. */
 export const profileCursor: ReadonlySignal<number | null> = app.cursor
+
+/** The chart's Retry after a failed read: the same line and curves are read again, once. */
+export function retrySiteProfile(): void {
+  app.retry()
+}
 
 /** Moves the chart's cursor (hover, scrub or Steepest); null hides it. */
 export function setProfileCursor(index: number | null): void {
