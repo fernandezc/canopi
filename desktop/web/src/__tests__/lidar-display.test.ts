@@ -131,6 +131,38 @@ describe('LiDAR display projection', () => {
     expect(display.lidarDisplayStyle(item({ itemType: null, availability: 'not-in-library', state: null, units: '' }))).toBeNull()
   })
 
+  /** An elevation descriptor beside its relief one, as the library answers each variant. */
+  function bothVariants(): Map<string, LidarDisplayDescriptor> {
+    return new Map([
+      [display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), descriptor()],
+      [display.displayKey('Source', 'lyr-1', 'gen-2', 'relief'), descriptor({
+        relief: true,
+        assets: [{ path: '/data/lidar/display-cog/asset-top-relief.tif', bounds: [0, 0, 0.6, 1] }],
+        prepared_assets: 1,
+        total_assets: 1,
+      })],
+    ])
+  }
+
+  it.fails('[expected-fail R canopi-2add] draws an MNT, MNS or MNH at its default ramp in gray over 0–255 from its relief derivative', () => {
+    for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
+      const [layer] = display.lidarDisplayLayers([item({ itemType: { kind: 'Raster', quantity } })], bothVariants(), null, (path) => path)
+      expect(layer).toMatchObject({
+        id: 'lidar-source-lyr-1-gen-2-relief',
+        assets: [{ url: '/data/lidar/display-cog/asset-top-relief.tif', bbox: [0, 0, 0.6, 1] }],
+        colormap: 'gray',
+        reversed: false,
+        rescale: [0, 255],
+      })
+    }
+  })
+
+  it('draws an entry switched to Terrain from its elevation derivative', () => {
+    const [layer] = display.lidarDisplayLayers([item({ ramp: 'Terrain' })], bothVariants(), null, (path) => path)
+    expect(layer).toMatchObject({ id: 'lidar-source-lyr-1-gen-2', colormap: 'schwarzwald', rescale: [104, 132] })
+    expect(layer!.assets.map((asset) => asset.url)).toEqual(['/data/lidar/display-cog/asset-top.tif', '/data/lidar/display-cog/asset under.tif'])
+  })
+
   it('names a derived layer as a result, keyed by its role', () => {
     const derived = item({ kind: 'Derived', id: 'slope-1', itemType: { kind: 'Raster', quantity: 'Slope' }, units: '°' })
     const descriptors = new Map([[display.displayKey('Derived', 'slope-1', 'gen-2', 'elevation'), descriptor({ kind: 'Derived', entity_id: 'slope-1' })]])
@@ -249,6 +281,56 @@ describe('LiDAR display descriptor requests', () => {
       invoke.mockReset()
       designSessionFixture.file = null
       lidarLibrary.value = null
+    }
+  })
+
+  it.fails('[expected-fail R canopi-2add] asks for the relief of an entry drawing Relief, and reads Cut outliers only from an elevation drawn in Colours', async () => {
+    requestCutOutlierRange.mockClear()
+    invoke.mockImplementation(async (_command: string, args: { request: { entity_id: string, expected_generation_id: string, relief?: boolean } }) =>
+      descriptor({ entity_id: args.request.entity_id, generation_id: args.request.expected_generation_id, relief: args.request.relief ?? false }))
+    lidarLibrary.value = librarySnapshot([
+      sourceItem('lyr-1', 'Orchard terrain', { generation_id: 'gen-2' }),
+      sourceItem('lyr-2', 'Canopy', { generation_id: 'gen-5' }),
+    ])
+    const entry = (id: string, ramp: unknown) => ({ kind: 'Source', id, name: id, visible: true, opacity: 1, order: 0, ramp, reversed: false, range: { mode: 'CutOutliers' } })
+    designSessionFixture.file = {
+      version: 9, name: 'Orchard', description: null,
+      plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
+      layers: [], plants: [], zones: [], annotations: [], measurement_guides: [],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      lidar: { visible: true, entries: [entry('lyr-1', null), entry('lyr-2', 'Terrain')] as never },
+      created_at: '', updated_at: '', extra: {},
+    }
+    try {
+      display.installLidarDisplayDescriptors((path) => `served:${path}`)
+      await vi.advanceTimersByTimeAsync(0)
+      const asked = invoke.mock.calls.map(([, args]) => (args as { request: { entity_id: string, relief?: boolean } }).request)
+      expect(asked.find((request) => request.entity_id === 'lyr-1')?.relief).toBe(true)
+      expect(new Set(requestCutOutlierRange.mock.calls.map(([key]) => key))).toEqual(new Set([display.displayKey('Source', 'lyr-2', 'gen-5', 'elevation')]))
+    } finally {
+      display.disposeLidarDisplayDescriptors()
+      invoke.mockReset()
+      designSessionFixture.file = null
+      lidarLibrary.value = null
+    }
+  })
+
+  it.fails('[expected-fail R canopi-2add] a library preview of an MNT asks for its relief, the kind\'s default look', async () => {
+    invoke.mockResolvedValue(descriptor({ relief: true }))
+    const { h, render } = await import('preact')
+    const { act } = await import('preact/test-utils')
+    const { LibraryPreview } = await import('../components/panels/lidar/LibraryPreview')
+    const { libraryItems } = await import('../app/lidar/library-items')
+    const [preview] = libraryItems(librarySnapshot([sourceItem('lyr-1', 'Orchard terrain', { generation_id: 'gen-2' })]))
+    const host = document.createElement('div')
+    try {
+      act(() => { render(h(LibraryPreview, { item: preview!, client: null, width: 64, height: 64 }), host) })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(invoke).toHaveBeenCalledWith('lidar_display_descriptor', {
+        request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: true },
+      })
+    } finally {
+      render(null, host)
     }
   })
 

@@ -313,13 +313,11 @@ describe('Design data references', () => {
     expect(stored('slope')).toEqual({ range: { mode: 'Data' } })
     expect(stored('ground')).toEqual({ range: { mode: 'Custom', min: 0, max: 30 }, ramp: 'Gray', reversed: true, opacity: 0.4 })
 
-    // The kind's first ramp is its default.
+    // The kind's first ramp is its default (each kind's default: item-types.test.ts).
     patchMock.mockClear()
-    setLidarEntryDisplay('ground', { ramp: 'Terrain' })
-    setLidarEntryDisplay('canopy', { ramp: 'Greens' })
     setLidarEntryDisplay('slope', { ramp: 'YellowRed' })
     setLidarEntryDisplay('other', { ramp: 'Magma' })
-    for (const id of ['ground', 'canopy', 'slope', 'other']) expect(stored(id)).toEqual({ ramp: null })
+    for (const id of ['slope', 'other']) expect(stored(id)).toEqual({ ramp: null })
   })
 
   it('never stores a range or opacity the Design could not be reopened with, keeping the rest of the patch', () => {

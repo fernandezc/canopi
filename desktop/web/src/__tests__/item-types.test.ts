@@ -98,6 +98,29 @@ describe('library item types', () => {
     expect(kindDisplayDefaults(raster('Slope'), '%')).toEqual({ ramp: 'YellowRed', range: { mode: 'Custom', min: 0, max: 57.7 } })
   })
 
+  // Moved from lidar-actions.test.ts: Site data stores a ramp equal to this default as null, so it has one encoding.
+  it('gives elevations Terrain and heights Greens as the default ramp Site data stores as null', () => {
+    for (const quantity of ['GroundElevation', 'SurfaceElevation'] as const) expect(kindDisplayDefaults(raster(quantity), 'm').ramp).toBe('Terrain')
+    expect(kindDisplayDefaults(raster('AboveGroundHeight'), 'm').ramp).toBe('Greens')
+  })
+
+  it.fails('[expected-fail R canopi-2add] gives MNT, MNS and MNH Relief as the default, first ramp, so a stored null draws Relief', () => {
+    for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
+      expect(kindRamps(raster(quantity))[0]).toBe('Relief')
+      expect(kindDisplayDefaults(raster(quantity), 'm').ramp).toBe('Relief')
+    }
+  })
+
+  it.fails('[expected-fail R canopi-2add] draws Relief in gray over 0–255, ignoring the Custom range and Reverse kept for Colours', () => {
+    const stored = { units: 'm', displayRange: [104, 132] as [number, number], reversed: true, range: { mode: 'Custom' as const, min: 110, max: 120 } }
+    for (const ramp of [null, 'Relief'] as const) {
+      expect(itemTypeStyle(raster('GroundElevation'), { ...stored, ramp }))
+        .toEqual({ ramp: 'Relief', colormap: 'gray', reversed: false, rescale: [0, 255], units: 'm' })
+    }
+    expect(itemTypeStyle(raster('GroundElevation'), { ...stored, ramp: 'Terrain' }))
+      .toEqual({ ramp: 'Terrain', colormap: 'schwarzwald', reversed: true, rescale: [110, 120], units: 'm' })
+  })
+
   it('imports only measured quantities; slope is derived only', () => {
     expect(IMPORTABLE_QUANTITIES).toEqual(['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight', 'OtherContinuous'])
     expect(RASTER_QUANTITIES.Slope.importable).toBe(false)
