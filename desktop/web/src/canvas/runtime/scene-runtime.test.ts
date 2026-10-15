@@ -51,6 +51,8 @@ import {
   selectedPanelTargets,
 } from '../../app/panel-targets/state'
 import { createAppCanvasRuntimeAppAdapter } from '../../app/canvas-runtime/app-adapter'
+import { setStoryPresentationOverrides } from '../../app/story-presentation/overrides'
+import { mapLayers } from '../../app/map-layers/state'
 import { canvasContextMenuRequest } from '../../app/canvas-context-menu/state'
 import { buildCanvasContextMenuEntries, type CanvasContextMenuCommand } from '../../app/canvas-context-menu/entries'
 import { createDesktopCanvasRuntimeAppAdapter } from '../../app/canvas-runtime/desktop-adapter'
@@ -1342,6 +1344,27 @@ describe('scene canvas runtime', () => {
     expect(runtime.querySurface.getSceneSnapshot()).toEqual(scene)
     expect(runtime.commandSurface.history.canUndo.value).toBe(canUndo)
     runtime.destroy()
+  })
+
+  it('canopi-rg4q: a presented story step rings its plants on the canvas, and a view capture rings none', () => {
+    const runtime = new SceneCanvasRuntime({ targetPresentation: createAppSceneRuntimePanelTargetAdapter() })
+    runtime.documentSurface.loadDocument(fileWithOnlyPlants('plant-1', 'plant-2'))
+    const layerNames = runtime.querySurface.getSceneSnapshot().layers.map((layer) => layer.name)
+    const presentation = (runtime as unknown as { _presentation: SceneRuntimePresentationController })._presentation
+    setStoryPresentationOverrides({
+      mapLayers: mapLayers.peek(), siteDataIds: new Set(), plantLabels: 'names',
+      targets: [{ kind: 'placed_plant', plant_id: 'plant-2' }],
+    })
+    try {
+      runtime.commandSurface.layers.presentLayers(layerNames)
+      expect([...presentation.buildRendererSnapshot().highlightedPlantIds]).toEqual(['plant-2'])
+      expect(presentation.buildViewCaptureSnapshot({
+        overview: false, visibleLayerNames: layerNames, focusedSpecies: null,
+      }).highlightedPlantIds.size).toBe(0)
+    } finally {
+      setStoryPresentationOverrides(null)
+      runtime.destroy()
+    }
   })
 
   it('draws the grid on the workspace map only while its chrome shows and the grid is on, never in the overview, a view capture or a story', () => {

@@ -158,7 +158,11 @@ export class SceneRuntimePresentationController {
       focusedSpecies: this._sceneStore.session.speciesFocus.canonicalName,
     })
     // Measurement guides are an editing aid, like the grid, which a presented story never draws.
-    return { ...snapshot, scene: { ...snapshot.scene, measurementGuides: [] } }
+    const presented = { ...snapshot, scene: { ...snapshot.scene, measurementGuides: [] } }
+    if (overview) return presented
+    // The step's highlights ring on the canvas, which alone draws them; a capture draws none.
+    const highlighted = this._resolveHighlightedTargets(presented.scene)
+    return { ...presented, highlightedPlantIds: new Set(highlighted.plantIds), highlightedZoneIds: new Set(highlighted.zoneIds) }
   }
 
   /**
