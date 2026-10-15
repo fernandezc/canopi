@@ -2,7 +2,7 @@
 //!
 //! Horn's 3×3 gradient with gdaldem's hillshade formula and defaults (light
 //! from azimuth 315°, altitude 45°, z = 1), so `gdaldem hillshade
-//! -compute_edges` is the oracle (`comparison::relief_matches_gdaldem_horn`).
+//! -compute_edges` is the oracle (`comparison::e2e_relief_matches_gdaldem_horn`).
 //! GeoLibre's `run_shade_core` is a 5×5 Florinsky stencil; Horn is chosen to
 //! match IGN's LiDAR HD relief layers and the oracle (ADR 0002 reason).
 //!

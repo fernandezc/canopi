@@ -963,8 +963,8 @@ fn native_agreement(
 /// display comparison); edge cells are counted and reported. The tile split
 /// in two (`-srcwin`) leaves no gap and no double cover on any level.
 #[test]
-#[ignore = "cross-checks the relief writer against gdaldem on the IGN LiDAR HD tile (GDAL on PATH, the tile in ~/Downloads or CANOPI_LIDAR_E2E_FIXTURE); skipped cleanly without either"]
-fn relief_matches_gdaldem_horn() {
+#[ignore = "local fixture: the IGN LiDAR HD tile and gdaldem on PATH; see CANOPI_LIDAR_E2E_FIXTURE"]
+fn e2e_relief_matches_gdaldem_horn() {
     let dir = crate::test_scratch::TestScratch::new("relief-comparison");
     let gdal_logs = dir.join("gdal-logs");
     std::fs::create_dir_all(&gdal_logs).expect("GDAL log dir");
