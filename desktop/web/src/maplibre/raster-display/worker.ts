@@ -15,10 +15,13 @@
  * many open sources cannot multiply the cache. The replacement relies on the
  * `tileCache` field of `cog-tiler-wasm@0.4.0`; `open` fails loudly if the
  * pinned module stops exposing it rather than silently losing the bound.
+ * Tiles past a source's native zoom are drawn from its native ancestor
+ * (`overzoom.ts`); those ancestor windows are charged to the same budget.
  */
 import { init, openCog, rgbaToPng } from 'cog-tiler-wasm'
 import type { CogSource, RenderOptions } from 'cog-tiler-wasm'
 import type { RasterBandStatistics, RasterWorkerReply, RasterWorkerRequest, RasterSourceMetadata } from './protocol'
+import { renderTile } from './overzoom'
 
 /** The dedicated worker scope, typed narrowly so the DOM program stays unchanged. */
 const scope = self as unknown as {
@@ -111,6 +114,17 @@ function enforceBudget(): void {
 
 /** Opened sources by pool handle. A pending open is awaited by later calls. */
 const sources = new Map<number, Promise<CogSource>>()
+/** Native ancestor windows of overzoomed tiles, by pool handle. */
+const ancestors = new Map<number, BudgetedTileCache>()
+
+function ancestorsFor(handle: number): BudgetedTileCache {
+  let cache = ancestors.get(handle)
+  if (!cache) {
+    cache = new BudgetedTileCache()
+    ancestors.set(handle, cache)
+  }
+  return cache
+}
 
 function sourceFor(handle: number): Promise<CogSource> {
   const source = sources.get(handle)
@@ -148,7 +162,7 @@ async function handle(request: RasterWorkerRequest): Promise<{ value: unknown; t
     }
     case 'render': {
       const source = await sourceFor(request.handle)
-      const rgba = await source.renderTileRGBA(request.z, request.x, request.y, request.render as RenderOptions)
+      const rgba = await renderTile(source, request.z, request.x, request.y, request.render as RenderOptions, ancestorsFor(request.handle))
       if (!rgba) return { value: null, transfer: [] }
       if (request.encoding === 'rgba') {
         const copy = new Uint8ClampedArray(rgba)
@@ -180,6 +194,8 @@ async function handle(request: RasterWorkerRequest): Promise<{ value: unknown; t
     case 'close': {
       const source = sources.get(request.handle)
       sources.delete(request.handle)
+      ancestors.get(request.handle)?.clear()
+      ancestors.delete(request.handle)
       if (source) {
         const opened = await source.catch(() => null)
         const cache = (opened as unknown as { tileCache?: unknown } | null)?.tileCache
