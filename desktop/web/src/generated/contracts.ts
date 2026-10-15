@@ -651,8 +651,11 @@ export type LidarSampleUnavailableReason =
 "StaleGeneration" |
 // The point does not transform into the generation's grid.
 "TransformFailed" |
-// The generation's interpretation cannot be sampled numerically.
-"UnsupportedInput";
+/**
+ *  The item's stored data (manifest, raster or catalogue row) could not
+ *  be read; asking again may succeed.
+ */
+"ReadFailed";
 
 /**
  *  A Design read from a file, with the fingerprint (SHA-256 of the file's

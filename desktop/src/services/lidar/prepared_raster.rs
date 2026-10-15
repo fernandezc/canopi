@@ -211,9 +211,12 @@ impl PreparedRaster {
         owns_derivative: bool,
         capacity_guard: bool,
     ) -> Result<Self, String> {
-        let Ok(mut file) = File::open(&path) else {
-            return Err(format!("prepared raster is missing: {}", path.display()));
-        };
+        let mut file = File::open(&path).map_err(|error| match error.kind() {
+            std::io::ErrorKind::NotFound => {
+                format!("prepared raster is missing: {}", path.display())
+            }
+            _ => format!("cannot open prepared raster {}: {error}", path.display()),
+        })?;
         let file_len = file
             .metadata()
             .map_err(|error| format!("Failed to inspect prepared raster: {error}"))?

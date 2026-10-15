@@ -9,8 +9,9 @@
 //   'profile' lane under the key (line, item ids, generations); the sampler splits it into batches of
 //   LIDAR_SAMPLE_MAX_TARGETS sent in turn. A key no longer current is never published, and the chart draws once every
 //   batch of its key has landed. Closing the profile, or hiding its last curve, drops the lane's queued request.
-// - A failed read is 'read-failed', never 'no-values'; it is asked again only when the user presses Retry
-//   (`retrySiteProfile`), under the same key, never by itself.
+// - A failed read is 'read-failed', never 'no-values': the whole call failing, or every curve answering ReadFailed. A
+//   curve answering ReadFailed beside a curve with values is 'ready' with that curve's `readFailed` set. Either way it is
+//   asked again only when the user presses Retry (`retrySiteProfile`), under the same key, never by itself.
 // - Nothing here is stored, printed or captured.
 
 import { computed, effect, signal, type ReadonlySignal } from '@preact/signals'
@@ -81,6 +82,8 @@ export interface ProfileCurve {
   /** One value per sample point; null where the item has no data. */
   readonly values: readonly (number | null)[]
   readonly stats: ElevationStats | HeightStats
+  /** The item's stored data could not be read (ReadFailed): its values are all null and Retry may bring them. */
+  readonly readFailed: boolean
 }
 
 export type SiteProfile =
@@ -88,9 +91,9 @@ export type SiteProfile =
   /** A line, but no shown, ready elevation or height item: the line is kept and the chart says what to show. */
   | { readonly status: 'needs-layer'; readonly lengthM: number }
   | { readonly status: 'reading'; readonly lengthM: number }
-  /** Every curve answered, with no value anywhere along the line. */
+  /** Every curve answered, with no value anywhere along the line, and none failed to read. */
   | { readonly status: 'no-values'; readonly lengthM: number }
-  /** The read failed; Retry asks the same line and curves again. */
+  /** The read failed, or every curve's data could not be read; Retry asks the same line and curves again. */
   | { readonly status: 'read-failed'; readonly lengthM: number }
   | { readonly status: 'ready'; readonly lengthM: number; readonly samples: ProfileSamples; readonly curves: readonly ProfileCurve[] }
 
@@ -243,7 +246,8 @@ function curveOf(source: ProfileCurveSource, series: LidarSampleSeries | undefin
   const stats: ElevationStats | HeightStats = source.role === 'elevation'
     ? { role: 'elevation', rise: profileRise(values), steepest: profileSteepest(values, samples.distances, source.resolutionM) }
     : { role: 'height', highest: profileHighest(values) }
-  return { id: source.id, name: source.name, units: source.units, role: source.role, values, stats }
+  const readFailed = series !== undefined && 'Unavailable' in series && series.Unavailable.reason === 'ReadFailed'
+  return { id: source.id, name: source.name, units: source.units, role: source.role, values, stats, readFailed }
 }
 
 interface SiteProfileDeps {
@@ -260,7 +264,7 @@ interface SiteProfileOwner {
   /** The chart's cursor: a sample index, or null. A new key clears it. */
   readonly cursor: ReadonlySignal<number | null>
   setCursor(index: number | null): void
-  /** After a failed read, asks the same key again, once; otherwise does nothing. */
+  /** After a failed read, or a ready profile with a curve that failed to read, asks the same key again, once; otherwise does nothing. */
   retry(): void
   dispose(): void
 }
@@ -326,11 +330,16 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
       })
     }).then((outcome) => {
       if (outcome !== 'done' || asked !== key) return
-      failing = false
       const plotted = curves.map((curve, index) => curveOf(curve, answers[index], samples))
+      const unread = plotted.filter((curve) => curve.readFailed)
+      // The backend logs the cause; this records which curves failed, once per run of failures.
+      if (unread.length > 0) lidarFailureMessage(`profile curves could not be read: ${unread.map((curve) => curve.id).join(', ')}`, !failing)
+      failing = unread.length > 0
       state.value = plotted.some((curve) => curve.values.some((value) => value !== null))
         ? { status: 'ready', lengthM: samples.lengthM, samples, curves: plotted }
-        : { status: 'no-values', lengthM: samples.lengthM }
+        : unread.length > 0
+          ? { status: 'read-failed', lengthM: samples.lengthM }
+          : { status: 'no-values', lengthM: samples.lengthM }
     }, (error: unknown) => {
       if (asked !== key) return
       // The chart reads its own copy with Retry; this records the reason only.
@@ -352,7 +361,9 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
       cursor.value = Math.min(current.samples.points.length - 1, Math.max(0, Math.round(index)))
     },
     retry() {
-      if (state.peek().status !== 'read-failed') return
+      const current = state.peek()
+      const failed = current.status === 'read-failed' || (current.status === 'ready' && current.curves.some((curve) => curve.readFailed))
+      if (!failed) return
       asked = null
       attempt.value += 1
     },
@@ -376,7 +387,7 @@ export const siteProfile: ReadonlySignal<SiteProfile> = app.profile
 /** The chart's cursor, as a sample index of the shown profile; null while the chart is not hovered. */
 export const profileCursor: ReadonlySignal<number | null> = app.cursor
 
-/** The chart's Retry after a failed read: the same line and curves are read again, once. */
+/** The chart's Retry after a failed read, whole or of some curves: the same line and curves are read again, once. */
 export function retrySiteProfile(): void {
   app.retry()
 }

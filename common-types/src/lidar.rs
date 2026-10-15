@@ -153,8 +153,9 @@ pub enum LidarSampleUnavailableReason {
     StaleGeneration,
     /// The point does not transform into the generation's grid.
     TransformFailed,
-    /// The generation's interpretation cannot be sampled numerically.
-    UnsupportedInput,
+    /// The item's stored data (manifest, raster or catalogue row) could not
+    /// be read; asking again may succeed.
+    ReadFailed,
 }
 
 /// The most targets one `lidar_sample_points` request may carry; the
