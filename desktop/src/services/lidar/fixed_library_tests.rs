@@ -2346,3 +2346,43 @@ fn work_admitted_after_stopping_jobs_waits_for_files_being_freed() {
     drop(running);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// D6: a job failure shows only the generic message, so its reason reaches
+/// the log a problem report carries; a cancelled job logs no failure.
+#[test]
+fn a_failed_job_logs_its_reason_for_the_problem_report() {
+    #[derive(Clone, Default)]
+    struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let root = scratch("failure-logged");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let log = Captured::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer({
+            let log = log.clone();
+            move || log.clone()
+        })
+        .with_ansi(false)
+        .with_max_level(tracing::Level::WARN)
+        .finish();
+    tracing::subscriber::with_default(subscriber, || {
+        failed_import(&library, tile, "tiling failed on tile.tif");
+        library.fail_analysis_job("anl-broken", "the engine stopped on slope");
+        library.fail_analysis_job("anl-stopped", "cancelled");
+    });
+    let written = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
+    assert!(written.contains("tiling failed on tile.tif"), "{written}");
+    assert!(written.contains("the engine stopped on slope"), "{written}");
+    assert!(written.contains("anl-broken"), "{written}");
+    assert!(!written.contains("anl-stopped"), "{written}");
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -1574,7 +1574,10 @@ impl LidarLibrary {
         }
     }
 
+    /// Mark an import failed. Its row reads only Import failed, so the reason
+    /// goes to the log a problem report carries.
     fn fail_import_job(&self, job_id: &str, message: &str) {
+        tracing::warn!(job_id, error = %message, "LiDAR import failed");
         if let Ok(connection) = self.catalogue() {
             let _ = connection.execute(
                 "UPDATE lidar_import_jobs
@@ -1838,13 +1841,21 @@ impl LidarLibrary {
                     "LiDAR analysis published"
                 );
             }
-            Err(error) => {
-                if let Ok(connection) = self.catalogue() {
-                    analyses::settle_unpublished(&connection, &job_id, &error);
-                }
-            }
+            Err(error) => self.fail_analysis_job(&job_id, &error),
         }
         self.settle_cancel(&job_id);
+    }
+
+    /// Settle an analysis job that published nothing, as cancelled or failed.
+    /// A failed row reads only Calculation failed, so the reason goes to the
+    /// log a problem report carries.
+    fn fail_analysis_job(&self, job_id: &str, error: &str) {
+        if error != "cancelled" {
+            tracing::warn!(job_id, error, "LiDAR analysis failed");
+        }
+        if let Ok(connection) = self.catalogue() {
+            analyses::settle_unpublished(&connection, job_id, error);
+        }
     }
 
     fn start_analysis(&self, job_id: &str) {
