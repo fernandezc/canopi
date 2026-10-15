@@ -208,7 +208,8 @@ function fixed(locale: string, decimals: number): Intl.NumberFormat {
 /**
  * Copy values (U49 Q46): tab-separated text a spreadsheet pastes as columns, in the locale's decimals. Columns: Distance
  * (m), Longitude, Latitude (7 decimals), then "{name} ({units})" per curve; values to 2 decimals, an empty cell where a
- * curve has no data. Tabs and line breaks in names become spaces.
+ * curve has no data. A curve whose read failed is left out: its blank column would read as no data, and the chart
+ * already offers Retry. Tabs and line breaks in names become spaces.
  */
 export function profileCopyText(
   profile: Extract<SiteProfile, { status: 'ready' }>,
@@ -218,17 +219,18 @@ export function profileCopyText(
   const two = fixed(locale, 2)
   const seven = fixed(locale, 7)
   const cell = (text: string) => text.replace(/[\t\r\n]+/g, ' ')
+  const curves = profile.curves.filter((curve) => !curve.readFailed)
   const header = [
     translate('siteData.chart.distance'),
     translate('siteData.chart.longitude'),
     translate('siteData.chart.latitude'),
-    ...profile.curves.map((curve) => cell(curve.units && curve.units !== 'unknown' ? `${curve.name} (${curve.units})` : curve.name)),
+    ...curves.map((curve) => cell(curve.units && curve.units !== 'unknown' ? `${curve.name} (${curve.units})` : curve.name)),
   ]
   const rows = profile.samples.points.map((point, index) => [
     two.format(profile.samples.distances[index]!),
     seven.format(point.lon),
     seven.format(point.lat),
-    ...profile.curves.map((curve) => {
+    ...curves.map((curve) => {
       const value = curve.values[index]
       return value === null || value === undefined ? '' : two.format(value)
     }),

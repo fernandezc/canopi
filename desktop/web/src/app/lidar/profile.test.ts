@@ -443,6 +443,25 @@ describe('profileCopyText', () => {
     expect(lines).toHaveLength(5)
     expect(lines[4]).toBe('')
   })
+
+  it('leaves out a curve whose read failed, so its column is not mistaken for no data', async () => {
+    const { calls, owner } = profileOf([at(0, 0), at(1, 0)], [
+      source('mnt', 'elevation', { name: 'MNT', resolutionM: 0.5 }),
+      source('mns', 'elevation', { name: 'MNS', resolutionM: 0.5 }),
+    ])
+    await calls[0]!.answer((target) => target === 0 ? values(128, 129, 130) : READ_FAILED)
+    const profile = ready(owner.profile.value)
+    expect(profile.curves.map((curve) => curve.readFailed)).toEqual([false, true])
+    const words: Record<string, string> = {
+      'siteData.chart.distance': 'Distance (m)', 'siteData.chart.longitude': 'Longitude', 'siteData.chart.latitude': 'Latitude',
+    }
+
+    const lines = profileCopyText(profile, 'en', (key) => words[key]!).split('\n')
+
+    expect(lines[0]).toBe('Distance (m)\tLongitude\tLatitude\tMNT (m)')
+    expect(lines[1]!.split('\t')).toHaveLength(4)
+    expect(lines[1]!.split('\t')[3]).toBe('128.00')
+  })
 })
 
 describe('Profile this line', () => {
