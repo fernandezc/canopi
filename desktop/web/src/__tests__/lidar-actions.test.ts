@@ -95,6 +95,8 @@ import {
   settleResultAttachments,
 } from '../app/lidar/actions'
 import { lidarStatusMessage } from '../app/lidar/library-store'
+import { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } from '../app/problem-report/diagnostics'
+import { locale } from '../app/settings/state'
 import { librarySnapshot, slopeItem, sourceItem } from './support/library-fixtures'
 
 interface Deferred<T> {
@@ -217,6 +219,43 @@ describe('Data Library actions', () => {
     await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif cannot be found')
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(ensurePollingMock).not.toHaveBeenCalled()
+  })
+
+  /** The message a refused Import publishes in `language`, and what diagnostics kept of it. */
+  async function refusedImport(refusal: unknown, language: 'en' | 'fr'): Promise<{ shown: string | null, thrown: string, kept: string[] }> {
+    locale.value = language
+    resetFrontendDiagnosticsForTests()
+    importItemMock.mockRejectedValueOnce(refusal)
+    const thrown = await importLibraryItem(['/data/dem.asc'], 'Ground', 'GroundElevation', { label: null, unknown: false })
+      .then(() => '', (error: unknown) => error instanceof Error ? error.message : String(error))
+    return { shown: lidarStatusMessage.value, thrown, kept: recentFrontendDiagnostics().map((entry) => entry.message) }
+  }
+
+  it.fails('[expected-fail L canopi-bkbh] names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
+    const detail = 'dem.asc is not a GeoTIFF: TIFF magic bytes missing at offset 0'
+    const refusal = { reason: { kind: 'NotGeotiff', file: 'dem.asc' }, detail }
+    try {
+      const english = await refusedImport(refusal, 'en')
+      const french = await refusedImport(refusal, 'fr')
+      for (const outcome of [english, french]) {
+        expect(outcome.shown).toContain('dem.asc')
+        expect(outcome.shown).not.toContain('magic bytes')
+        expect(outcome.shown).not.toContain('[object Object]')
+        expect(outcome.thrown).toBe(outcome.shown)
+        expect(outcome.kept.some((message) => message.includes(detail))).toBe(true)
+      }
+      expect(french.shown).not.toBe(english.shown)
+    } finally {
+      locale.value = 'en'
+    }
+  })
+
+  it.fails('[expected-fail L canopi-bkbh] shows an Internal refusal, or any other failure, as the generic message', async () => {
+    const internal = await refusedImport({ reason: { kind: 'Internal' }, detail: 'sqlite: database is locked' }, 'en')
+    const plain = await refusedImport(new Error('engine stopped'), 'en')
+    expect(internal.shown).not.toContain('sqlite')
+    expect(plain.shown).toBe(internal.shown)
+    expect(internal.kept.some((message) => message.includes('database is locked'))).toBe(true)
   })
 
   it('removes the deleted item from the Design that asked for the deletion', async () => {
