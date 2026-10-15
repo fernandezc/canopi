@@ -1184,4 +1184,157 @@ mod tests {
         assert!(samples.iter().all(|value| *value == 4.0 || *value == FILL));
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    /// Memory: a relief above the capacity limit is shaded and warped from
+    /// bounded windows at every level, into exactly the bytes one window over
+    /// the whole raster gives.
+    #[test]
+    fn a_relief_above_the_extraction_limit_is_shaded_in_bounded_windows() {
+        const LIMIT: u64 = 300_000;
+        let dir = scratch("relief-windows");
+        let engine = RustRasterEngine;
+        let (width, height) = (1200u32, 900u32);
+        assert!(u64::from(width * height) > 3 * LIMIT);
+        let grid = rd(84_400.0, 447_500.0, width, height);
+        // A rolling surface with the ramp's -9999 hole and NaN cells.
+        let authored: Vec<f32> = ramp(width, height)
+            .into_iter()
+            .enumerate()
+            .map(|(cell, value)| {
+                let (x, y) = ((cell as u32 % width) as f32, (cell as u32 / width) as f32);
+                if value.is_nan() || value == -9999.0 {
+                    value
+                } else {
+                    (x / 17.0).sin() * 4.0 + (y / 23.0).cos() * 3.0 + x * 0.01
+                }
+            })
+            .collect();
+        let georef = RasterGeoref {
+            grid: &grid,
+            crs: "EPSG:28992",
+        };
+        let asset = dir.join("asset.tif");
+        engine
+            .write_controlled_cog(
+                RasterInput::Samples {
+                    grid: &grid,
+                    values: &authored,
+                },
+                &asset,
+                Some(georef),
+                Some(-9999.0),
+                &cancel(),
+            )
+            .unwrap();
+        let zoom = super::super::display_zoom("EPSG:28992", [&grid]).unwrap();
+        let whole = dir.join("whole.tif");
+        engine
+            .write_relief_cog(
+                RasterInput::Samples {
+                    grid: &grid,
+                    values: &authored,
+                },
+                &whole,
+                Some(georef),
+                Some(-9999.0),
+                zoom,
+                &cancel(),
+            )
+            .unwrap();
+        let streamed = dir.join("streamed.tif");
+        let peak = {
+            let _limit = super::super::super::import::extraction_limit_probe::set(LIMIT);
+            high_water::reset();
+            engine
+                .write_relief_cog(
+                    RasterInput::File(&asset),
+                    &streamed,
+                    None,
+                    None,
+                    zoom,
+                    &cancel(),
+                )
+                .unwrap();
+            high_water::peak()
+        };
+        assert!(peak > 0 && peak <= LIMIT, "held {peak} cells");
+        assert!(
+            std::fs::read(&whole).unwrap() == std::fs::read(&streamed).unwrap(),
+            "the bounded relief differs from the whole one"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Ground size: one tilted plane of ground, stored on a Lambert-93, a
+    /// degree and a Web Mercator grid, shades to the same grey within 1 on
+    /// every valid pixel, so a cell is shaded at its size on the ground.
+    #[test]
+    fn one_plane_shades_alike_in_lambert_93_degrees_and_web_mercator() {
+        use super::super::crs::{Transformer, from_reference};
+        use super::super::wgs84_radii;
+        let (lon0, lat0) = (3.0, 46.5);
+        let (meridional, prime_vertical) = wgs84_radii(lat0);
+        // Rising 0.4 m per metre east and 0.25 m per metre south over true
+        // ground, so it faces the north-west light.
+        let plane = |lon: f64, lat: f64| {
+            let east = (lon - lon0).to_radians() * prime_vertical * lat0.to_radians().cos();
+            let north = (lat - lat0).to_radians() * meridional;
+            (0.4 * east - 0.25 * north + 300.0) as f32
+        };
+        let wgs84 = from_reference("EPSG:4326").unwrap();
+        let side = 160u32;
+        let mut greys = Vec::new();
+        for (crs, cell) in [
+            ("EPSG:2154", 1.0),
+            ("EPSG:4326", 1.0e-5),
+            ("EPSG:3857", 1.45),
+        ] {
+            let native = from_reference(crs).unwrap();
+            let (x0, y0) = Transformer::new(&wgs84, &native).apply(lon0, lat0).unwrap();
+            let to_wgs84 = Transformer::new(&native, &wgs84);
+            let grid = RasterGrid {
+                width: side,
+                height: side,
+                geotransform: [x0, cell, 0.0, y0, 0.0, -cell],
+            };
+            let values: Vec<f32> = (0..side * side)
+                .map(|index| {
+                    let x = x0 + (f64::from(index % side) + 0.5) * cell;
+                    let y = y0 - (f64::from(index / side) + 0.5) * cell;
+                    let (lon, lat) = to_wgs84.apply(x, y).unwrap();
+                    plane(lon, lat)
+                })
+                .collect();
+            let dir = scratch(&format!("relief-plane-{}", &crs[5..]));
+            let output = dir.join("relief.tif");
+            RustRasterEngine
+                .write_relief_cog(
+                    RasterInput::Samples {
+                        grid: &grid,
+                        values: &values,
+                    },
+                    &output,
+                    Some(RasterGeoref { grid: &grid, crs }),
+                    None,
+                    super::super::display_zoom(crs, [&grid]).unwrap(),
+                    &cancel(),
+                )
+                .unwrap();
+            let (probe, samples) = read(&output);
+            let _ = std::fs::remove_dir_all(dir);
+            let shown: Vec<f32> = samples
+                .into_iter()
+                .filter(|value| Some(*value) != probe.nodata)
+                .collect();
+            assert!(shown.len() > 10_000, "{crs}: {} pixels", shown.len());
+            let (low, high) = shown.iter().fold((f32::MAX, f32::MIN), |(low, high), v| {
+                (low.min(*v), high.max(*v))
+            });
+            assert!(high - low <= 1.0, "{crs}: greys {low}..{high}");
+            greys.push((crs, low, high));
+        }
+        let low = greys.iter().map(|g| g.1).fold(f32::MAX, f32::min);
+        let high = greys.iter().map(|g| g.2).fold(f32::MIN, f32::max);
+        assert!(high - low <= 1.0 && low > 200.0, "{greys:?}");
+    }
 }
