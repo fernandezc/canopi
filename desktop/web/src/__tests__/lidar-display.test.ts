@@ -426,6 +426,95 @@ describe('LiDAR display descriptor refusals', () => {
     expect(recentFrontendDiagnostics()).toHaveLength(1)
   })
 
+  // A Data library mounts a preview for every ready row at once; the user-data executor admits 8 calls and runs 1.
+  it('a library of forty ready previews asked at once never reads Display failed, records nothing and leaves the executor room', async () => {
+    const { recentFrontendDiagnostics } = await import('../app/problem-report/diagnostics')
+    let running = 0
+    let peak = 0
+    invoke.mockImplementation((_command: string, args: { request: { entity_id: string } }) => {
+      if (running >= 8) return Promise.reject(busy)
+      running += 1
+      peak = Math.max(peak, running)
+      return new Promise((resolve) => setTimeout(() => {
+        running -= 1
+        resolve(descriptor({ entity_id: args.request.entity_id, relief: true }))
+      }, 40))
+    })
+    const ids = Array.from({ length: 40 }, (_, index) => `lyr-${index}`)
+    for (const id of ids) display.requestLidarDisplay('Source', id, 'gen-2', 'relief')
+    for (let elapsed = 0; elapsed < 30_000; elapsed += 100) {
+      await vi.advanceTimersByTimeAsync(100)
+      for (const id of ids) expect(display.readLidarDisplay('Source', id, 'gen-2', 'relief')?.state).not.toBe('Failed')
+    }
+    for (const id of ids) expect(display.readLidarDisplay('Source', id, 'gen-2', 'relief')?.state).toBe('Ready')
+    expect(recentFrontendDiagnostics()).toEqual([])
+    // A Rename or Delete on the same executor still finds an admission slot.
+    expect(peak).toBeLessThan(8)
+  })
+
+  it('a busy executor is never Display failed and records nothing, however long it stays busy', async () => {
+    const { recentFrontendDiagnostics } = await import('../app/problem-report/diagnostics')
+    invoke.mockRejectedValue(busy)
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).not.toBe('Failed')
+    expect(recentFrontendDiagnostics()).toEqual([])
+    const calls = invoke.mock.calls.length
+    expect(calls).toBeGreaterThan(2)
+    expect(calls).toBeLessThan(15)
+  })
+
+  it('stops asking a failing key once its last asker lets it go, and asks afresh when it is wanted again', async () => {
+    invoke.mockRejectedValue(new Error('catalogue: database disk image is malformed'))
+    const release = display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Failed')
+    release()
+    const calls = invoke.mock.calls.length
+    await vi.advanceTimersByTimeAsync(300_000)
+    expect(invoke.mock.calls.length).toBe(calls)
+    // Wanted again (the preview reopens): no stale Display failed blocks a fresh ask.
+    invoke.mockReset()
+    invoke.mockResolvedValue(descriptor({ relief: true }))
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')?.state).toBe('Ready')
+  })
+
+  it('stops asking a failing entry once the map no longer draws it', async () => {
+    invoke.mockRejectedValue(new Error('catalogue: database disk image is malformed'))
+    lidarLibrary.value = librarySnapshot([sourceItem('lyr-1', 'Orchard terrain', { generation_id: 'gen-2' })])
+    designSessionFixture.file = {
+      version: 9, name: 'Orchard', description: null,
+      plant_species_colors: {}, plant_species_symbols: {}, plant_species_codes: {},
+      layers: [], plants: [], zones: [], annotations: [], measurement_guides: [],
+      consortiums: [], groups: [], timeline: [], budget: [], budget_currency: 'EUR',
+      lidar: { visible: true, entries: [
+        { kind: 'Source', id: 'lyr-1', name: 'Orchard terrain', visible: false, opacity: 1, order: 0, ramp: null, reversed: false, range: null },
+      ] },
+      created_at: '', updated_at: '', extra: {},
+    }
+    try {
+      display.installLidarDisplayDescriptors()
+      setStoryPresentationOverrides({
+        mapLayers: createDefaultMapLayers(), siteDataIds: new Set(['lyr-1']), plantLabels: 'names', targets: [],
+      })
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(invoke.mock.calls.length).toBeGreaterThan(1)
+      // The story step ends: the Design hides the entry, so nothing draws it any more.
+      setStoryPresentationOverrides(null)
+      await vi.advanceTimersByTimeAsync(0)
+      const calls = invoke.mock.calls.length
+      await vi.advanceTimersByTimeAsync(300_000)
+      expect(invoke.mock.calls.length).toBe(calls)
+    } finally {
+      setStoryPresentationOverrides(null)
+      designSessionFixture.file = null
+      lidarLibrary.value = null
+    }
+  })
+
   it('shows a failed preparation as Display failed once, without asking again', async () => {
     invoke.mockResolvedValue(descriptor({ state: 'Failed', message: 'relief failed', assets: [] }))
     display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'relief')
