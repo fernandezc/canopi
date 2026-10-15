@@ -6,6 +6,7 @@
 // Chromium and WebKit (projects gallery-chromium and gallery-webkit); DOM assertions only, no baselines.
 import type { Locator, Page } from '@playwright/test'
 import { expect, openGallery, test } from '../support/gallery'
+import { tooltipOf } from '../support/tooltip'
 
 /** playwright.config.ts's window; the sheet is min(1200 px, 100vw − 48) × min(860 px, 100vh − 48). */
 const WIDE = { width: 1400, height: 900 }
@@ -193,7 +194,10 @@ test.describe('the Data library sheet', () => {
     await openGallery(page, { surface: 'library', state: 'no-design' })
     const importButton = sheet(page).getByRole('button', { name: /^Import…/ })
     await expect(importButton).toBeDisabled()
-    await expect(importButton).toContainText('Open a Design to import data')
+    // The reason is the button's description and its tooltip, drawn in the window-level tooltip layer (93eb97a64).
+    await expect(importButton).toHaveAccessibleDescription('Open a Design to import data')
+    await importButton.hover({ force: true })
+    await expect(await tooltipOf(importButton)).toHaveText('Open a Design to import data')
   })
 
   for (const locale of ['de', 'ru']) {

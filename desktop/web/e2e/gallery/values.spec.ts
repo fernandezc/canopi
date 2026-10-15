@@ -83,8 +83,13 @@ test.describe('Site data values (g3)', () => {
     await openGallery(page, { surface: 'site-data' })
     const at = await mapPoints(page)
     const panel = siteData(page)
+    // Without snapping the zone's edges lie exactly where they were dragged, so the click finds its outline.
+    const snap = page.getByRole('button', { name: 'Snap to grid' })
+    await snap.click()
+    await expect(snap).toHaveAttribute('aria-pressed', 'false')
     await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: /^Rectangle zone( \(.\))?$/ }).click()
-    // Below the planting, so the click inside it lands on the zone's fill and on no plant.
+    // Below the planting. A zone is picked by its outline (canopi-qd2k, user, 2026-10-14), so the click lands on the
+    // zone's bottom edge and on no plant.
     const [from, to] = [at(0.24, 0.74), at(0.4, 0.86)]
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
@@ -94,7 +99,7 @@ test.describe('Site data values (g3)', () => {
     const chip = page.getByRole('group', { name: 'Selection' })
     await chip.getByRole('button', { name: 'Clear selection' }).click()
     await expect(chip).toHaveCount(0)
-    await page.mouse.click(at(0.32, 0.8).x, at(0.32, 0.8).y)
+    await page.mouse.click(at(0.32, 0.86).x, at(0.32, 0.86).y)
     await expect(chip).toContainText('Rectangle zone')
     await expect(panel.getByRole('button', { name: 'Unpin' })).toHaveCount(0)
     // Off the map, with no pin, the rows read nothing.
