@@ -2061,7 +2061,9 @@
       "longitude": "Longitude",
       "latitude": "Latitude",
       "copied": "Copiado",
-      "copyFailed": "Não foi possível copiar os valores"
+      "copyFailed": "Não foi possível copiar os valores",
+      "readFailed": "Não foi possível ler os valores ao longo desta linha",
+      "retry": "Tentar novamente"
     }
   }
 }

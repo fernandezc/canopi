@@ -2061,7 +2061,9 @@
       "longitude": "Lengtegraad",
       "latitude": "Breedtegraad",
       "copied": "Gekopieerd",
-      "copyFailed": "De waarden konden niet worden gekopieerd"
+      "copyFailed": "De waarden konden niet worden gekopieerd",
+      "readFailed": "De waarden langs deze lijn konden niet worden gelezen",
+      "retry": "Opnieuw proberen"
     }
   }
 }

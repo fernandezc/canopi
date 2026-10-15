@@ -2,7 +2,8 @@
 // toolbar, three clicks and a double-click finish a line and arm Select; the chart draws one path per curve, hovering
 // says where, Steepest moves the cursor, × ends the profile;
 // Copy values writes tab-separated text in the locale's decimals (the gallery's clipboard stub reads it back); and
-// "Profile this line" on a Line zone's canvas menu draws that line's profile (U49 Q29). The memory backend samples its
+// "Profile this line" on a Line zone's canvas menu draws that line's profile (U49 Q29); in Russian the header fits with
+// Copied beside the iconed Copy values, down to a 360 px phone's sheet (canopi-vggx). The memory backend samples its
 // analytic site, which covers the west of the fixture Design. The gallery runs no canvas key router, so Enter, Backspace
 // and the Esc order are checked through the real key path in jsdom (canvas-interaction-e2e.profile.test.ts). DOM
 // assertions only, no baselines.
@@ -111,6 +112,60 @@ test.describe('Profile (g5)', () => {
     expect(lines.slice(1).some((line) => /\t\d+,\d{2}(\t|$)/.test(line)), 'some value in the locale\'s decimals').toBe(true)
   })
 
+  test('in Russian the header fits with Copied beside the iconed Copy values, down to a 360 px phone\'s sheet, and keeps its height while scrubbing (canopi-vggx)', async ({ page }) => {
+    await openGallery(page, { surface: 'site-data', locale: 'ru' })
+    const { at } = await mapPoints(page, 'Карта проекта')
+    const panel = page.locator('aside').filter({ has: page.getByRole('button', { name: 'Профиль', exact: true }) })
+    await panel.getByRole('button', { name: 'Профиль', exact: true }).click()
+    await page.mouse.click(at(0.22).x, at(0.22).y)
+    await page.waitForTimeout(PAST_MULTI_CLICK_MS)
+    await page.mouse.dblclick(at(0.6).x, at(0.6).y)
+
+    const copy = panel.getByRole('button', { name: 'Копировать значения', exact: true })
+    await expect(copy.locator('svg')).toHaveAttribute('width', '16')
+    const plot = panel.getByRole('region', { name: 'Профиль' }).locator(':scope > svg')
+    const cursorAt = panel.getByText(/^На \d/)
+    // The header's row at the desktop panel, then at the panel a phone's sheet leaves (390 and 360 px viewports, less
+    // the sheet's padding and border), with Copied showing: nothing overflows it, the button's label is never cut, every
+    // control ends inside the row, and scrubbing the plots (which adds "На …") keeps the row's height, so the plots
+    // never move under the finger.
+    const measure = (asideWidth: number | null) => copy.evaluate((button, width) => {
+      const aside = button.closest('aside')!
+      if (width !== null) {
+        aside.style.width = `${width}px`
+        aside.style.flex = 'none'
+      }
+      const header = button.parentElement!
+      const row = header.getBoundingClientRect()
+      return {
+        width,
+        height: Math.round(row.height),
+        header: header.scrollWidth <= header.clientWidth,
+        label: button.scrollWidth <= button.clientWidth,
+        outside: Array.from(header.children).filter((child) => {
+          const rect = child.getBoundingClientRect()
+          return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
+        }).map((child) => child.textContent || child.getAttribute('aria-label')),
+      }
+    }, asideWidth)
+    for (const width of [null, 372, 342]) {
+      await measure(width)
+      await copy.click()
+      await expect(panel.getByText('Скопировано')).toBeVisible()
+      const still = await measure(width)
+      expect({ ...still, height: 0 }).toEqual({ width, height: 0, header: true, label: true, outside: [] })
+      const box = await plot.boundingBox()
+      if (!box) throw new Error('no plot')
+      await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.3)
+      // "На …" is in the header (cut to its room, which beside Copied on a phone may be none).
+      await expect(cursorAt).toHaveCount(1)
+      await expect(panel.getByText('Скопировано')).toBeVisible()
+      expect(await measure(width)).toEqual(still)
+      // Copied clears before the next width, so each copy shows it afresh.
+      await expect(panel.getByText('Скопировано')).toHaveCount(0)
+    }
+  })
+
   test('Profile this line on a Line zone\'s menu draws that line\'s profile', async ({ page }) => {
     await openGallery(page, { surface: 'site-data' })
     const { at } = await mapPoints(page)
@@ -126,9 +181,10 @@ test.describe('Profile (g5)', () => {
     await page.mouse.up()
     await expect(chart(page)).toHaveCount(0)
 
-    // With Select armed, a right-click on the line (off the length chip at its middle) opens its menu.
+    // With Select armed, a right-click on the line (off the length chip at its middle and the fixture's lavender on it
+    // near 30 %, whose plant menu would open instead) opens its menu.
     await tool(page, 'Select').click()
-    await page.mouse.click(at(0.3, 0.62).x, at(0.3, 0.62).y, { button: 'right' })
+    await page.mouse.click(at(0.25, 0.62).x, at(0.25, 0.62).y, { button: 'right' })
     await page.getByRole('menuitem', { name: 'Profile this line' }).click()
 
     await expect(chart(page).getByRole('listitem').first()).toContainText('IGN ground elevation')

@@ -330,11 +330,12 @@ describe('ProfileChart', () => {
     expect(profileLine.value).not.toBeNull()
   })
 
-  it.fails('[expected-fail P canopi-vggx] a failed read says so with Retry, never No values, and Retry draws the curves', async () => {
+  it('a failed read says so with Retry, never No values, and Retry draws the curves', async () => {
     sampling.answer = () => { throw new Error('sampling refused') }
     await drawLine()
     expect(container.textContent).not.toContain('No values along this line')
     expect(container.textContent).not.toContain('sampling refused')
+    expect(container.textContent).toContain('Couldn’t read the values along this line')
     expect(container.querySelector('section > svg path')).toBeNull()
     sampling.answer = analyticSite
     await act(async () => { button('Retry').click() })
@@ -342,10 +343,28 @@ describe('ProfileChart', () => {
     expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
   })
 
-  it.fails('[expected-fail P canopi-vggx] Copy values shows the board\'s copy icon and keeps its name', async () => {
+  it('Retry keeps keyboard focus in the profile: on the chart while it reads, on Retry again if the read fails again', async () => {
+    sampling.answer = () => { throw new Error('sampling refused') }
+    await drawLine()
+    const section = container.querySelector('section')!
+    button('Retry').focus()
+    await act(async () => { button('Retry').click() })
+    expect(document.activeElement).toBe(section)
+    await settle()
+    expect(document.activeElement).toBe(button('Retry'))
+
+    sampling.answer = analyticSite
+    await act(async () => { button('Retry').click() })
+    await settle()
+    expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
+    expect(document.activeElement).toBe(section)
+  })
+
+  it('Copy values shows the board\'s copy icon and keeps its name', async () => {
     await drawLine()
     const copy = button('Copy values')
     expect(copy.querySelector('svg')).not.toBeNull()
+    expect(copy.querySelector('svg')!.getAttribute('width')).toBe('16')
     expect(copy.getAttribute('aria-label') ?? copy.textContent?.trim()).toBe('Copy values')
   })
 
