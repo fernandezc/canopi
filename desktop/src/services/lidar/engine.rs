@@ -133,7 +133,7 @@ pub trait RasterEngine: Send + Sync + std::fmt::Debug {
 
     /// Header facts of `raster`. Fails when the file is unreadable or not
     /// georeferenced; a missing CRS leaves `crs_ref` empty.
-    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, String>;
+    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, ProbeError>;
 
     /// Exact statistics over band 1's valid samples (test lanes only).
     #[cfg(test)]

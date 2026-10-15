@@ -7,8 +7,8 @@
 //! engine to GDAL's answers on the same inputs. Without GDAL the lane skips.
 
 use super::engine::{
-    DISPLAY_NODATA, RasterEngine, RasterGeoref, RasterInput, RasterProbe, RasterStatistics,
-    bounds_of,
+    DISPLAY_NODATA, ProbeError, RasterEngine, RasterGeoref, RasterInput, RasterProbe,
+    RasterStatistics, bounds_of,
 };
 #[cfg(test)]
 use super::grid::RasterGrid;
@@ -426,8 +426,10 @@ impl RasterEngine for GdalEngine {
         self.discover().map(|tools| tools.version)
     }
 
-    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, String> {
-        parse_gdalinfo_json(&self.info_json(raster, false, cancel)?)
+    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, ProbeError> {
+        Ok(parse_gdalinfo_json(
+            &self.info_json(raster, false, cancel)?,
+        )?)
     }
 
     fn statistics(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterStatistics, String> {

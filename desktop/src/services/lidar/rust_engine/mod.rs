@@ -33,8 +33,8 @@ pub(crate) use tiff::is_tiff;
 #[cfg(test)]
 use super::engine::RasterStatistics;
 use super::engine::{
-    DISPLAY_NODATA, RasterEngine, RasterGeoref, RasterInput, RasterProbe, bounds_of, check_cancel,
-    grid_corners,
+    DISPLAY_NODATA, ProbeError, RasterEngine, RasterGeoref, RasterInput, RasterProbe, bounds_of,
+    check_cancel, grid_corners,
 };
 use super::grid::RasterGrid;
 use super::import::{raw_extraction_cells, validate_working_grid};
@@ -358,9 +358,9 @@ impl RasterEngine for RustRasterEngine {
         Ok(engine_version())
     }
 
-    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, String> {
+    fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, ProbeError> {
         check_cancel(cancel)?;
-        Ok(source::probe(raster)?)
+        source::probe(raster)
     }
 
     #[cfg(test)]
@@ -1400,7 +1400,7 @@ mod tests {
         // The same projection on GRS80 is not Belgian Lambert 72.
         let grs80 = dir.join("lambert72-grs80.tif");
         tiff_with_keys(&grs80, (150_000.0, 170_000.0), lambert72(7019));
-        let error = engine.probe(&grs80, &cancel()).unwrap_err();
+        let error = engine.probe(&grs80, &cancel()).unwrap_err().to_string();
         assert!(error.contains("user-defined"), "{error}");
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1440,7 +1440,7 @@ mod tests {
         );
         let bd72 = dir.join("rd-new-4313.tif");
         tiff_with_keys(&bd72, (84_400.0, 447_500.0), rd_new(4313));
-        let error = engine.probe(&bd72, &cancel()).unwrap_err();
+        let error = engine.probe(&bd72, &cancel()).unwrap_err().to_string();
         assert!(error.contains("user-defined"), "{error}");
         let _ = std::fs::remove_dir_all(dir);
     }
@@ -1505,7 +1505,7 @@ mod tests {
             (500_000.0, 5_800_000.0),
             keys(&[(1024, 1), (2048, 4258), (3074, 16032)], &[], None),
         );
-        let error = engine.probe(&path, &cancel()).unwrap_err();
+        let error = engine.probe(&path, &cancel()).unwrap_err().to_string();
         assert!(
             error.starts_with("The raster's user-defined system is not a supported"),
             "{error}"
@@ -1552,7 +1552,7 @@ mod tests {
                 (0.0, 0.0),
                 keys(&[(1024, 1), (3072, code)], &[], None),
             );
-            let error = engine.probe(&path, &cancel()).unwrap_err();
+            let error = engine.probe(&path, &cancel()).unwrap_err().to_string();
             assert!(
                 error.contains(&format!("EPSG:{code} is not a supported coordinate system"))
                     && error.contains("Lambert-93 (EPSG:2154)"),
@@ -1589,7 +1589,7 @@ mod tests {
         )
         .unwrap();
         for error in [
-            engine.probe(&path, &cancel()).unwrap_err(),
+            engine.probe(&path, &cancel()).unwrap_err().to_string(),
             engine.read_f32(&path, 3, 2, &cancel()).unwrap_err(),
         ] {
             assert!(error.contains("is not a GeoTIFF"), "{error}");

@@ -124,7 +124,9 @@ pub(crate) fn check_sources_placeable(
         let probe = engine.probe(path, &cancel).map_err(|error| {
             // An engine message may spell out the whole path; the user sees
             // the file name in its place.
-            let error = error.replace(&path.display().to_string(), &name);
+            let error = error
+                .to_string()
+                .replace(&path.display().to_string(), &name);
             if error.contains(&name) {
                 error
             } else {
