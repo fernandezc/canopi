@@ -232,8 +232,16 @@ describe('Data Library actions', () => {
     showAppFolderMock.mockRejectedValueOnce(native)
     await expect(showDataLibraryFolder()).rejects.toThrow('Canopi couldn’t finish this.')
     expect(showAppFolderMock).toHaveBeenCalledWith('data_library')
-    expect(lidarStatusMessage.value).not.toContain('Permission denied')
+    expect(lidarStatusMessage.value).toBeNull()
     expect(recentFrontendDiagnostics().some((entry) => entry.message.includes(native))).toBe(true)
+  })
+
+  it('leaves a standing library read failure in place when Show in folder succeeds, since the list is still stale', async () => {
+    const standing = 'Canopi couldn’t finish this. The library could not be read.'
+    lidarStatusMessage.value = standing
+    showAppFolderMock.mockResolvedValueOnce(undefined)
+    await showDataLibraryFolder()
+    expect(lidarStatusMessage.value).toBe(standing)
   })
 
   /** The message a refused Import publishes in `language`, and what diagnostics kept of it. */

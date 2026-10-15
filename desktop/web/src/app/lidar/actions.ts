@@ -137,9 +137,14 @@ export async function fetchLibraryDiskUsage(): Promise<number> {
   return lidarLibraryDiskUsage()
 }
 
-/** Data library › Show in folder: the same reveal as Settings › Files and data; a failure reads like any library action's. */
+/**
+ * Data library › Show in folder: the same reveal as Settings › Files and data.
+ * Its failure reads like any library action's but is only thrown, for the view
+ * to show inline: the reveal changes no library state, so it neither clears
+ * nor replaces the shared status (a standing read failure stays shown).
+ */
 export async function showDataLibraryFolder(): Promise<void> {
-  return withLidarError(() => showAppFolder('data_library'))
+  return withFailureMessage(() => showAppFolder('data_library'))
 }
 
 export async function fetchDeleteImpact(id: string): Promise<LibraryDeleteImpact> {
@@ -396,10 +401,18 @@ function removePresentedEntities(ids: string[]): void {
 async function withLidarError<T>(work: () => Promise<T>): Promise<T> {
   lidarStatusMessage.value = null
   try {
+    return await withFailureMessage(work)
+  } catch (error) {
+    lidarStatusMessage.value = (error as Error).message
+    throw error
+  }
+}
+
+/** Re-throw `work`'s failure as `lidarFailureMessage`, leaving the shared status alone. */
+async function withFailureMessage<T>(work: () => Promise<T>): Promise<T> {
+  try {
     return await work()
   } catch (error) {
-    const message = lidarFailureMessage(error)
-    lidarStatusMessage.value = message
-    throw new Error(message)
+    throw new Error(lidarFailureMessage(error))
   }
 }
