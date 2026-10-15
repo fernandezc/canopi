@@ -51,6 +51,38 @@ pub struct RasterProbe {
     pub overview_count: u32,
 }
 
+/// Why a header probe failed: a coordinate system Canopi cannot place is
+/// told apart, so Import and Retry can name it; anything else keeps the
+/// engine's English text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProbeError {
+    /// `subject` names the system as the file does (`EPSG:2263`, or the
+    /// raster's user-defined system); `detail` is the English refusal.
+    UnsupportedCrs { subject: String, detail: String },
+    Other(String),
+}
+
+impl std::fmt::Display for ProbeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedCrs { detail, .. } | Self::Other(detail) => formatter.write_str(detail),
+        }
+    }
+}
+
+impl From<String> for ProbeError {
+    fn from(detail: String) -> Self {
+        Self::Other(detail)
+    }
+}
+
+/// Callers that report text keep the English detail.
+impl From<ProbeError> for String {
+    fn from(error: ProbeError) -> Self {
+        error.to_string()
+    }
+}
+
 /// Exact statistics over a raster's valid samples: finite and not the
 /// declared NoData. Mean and standard deviation are the population values
 /// over those samples, as `gdalinfo -stats` reports them (GDAL differs only
