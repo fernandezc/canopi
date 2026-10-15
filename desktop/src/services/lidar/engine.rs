@@ -58,14 +58,19 @@ pub struct RasterProbe {
 pub enum ProbeError {
     /// `subject` names the system as the file does (`EPSG:2263`, or the
     /// raster's user-defined system); `detail` is the English refusal.
-    UnsupportedCrs { subject: String, detail: String },
+    UnsupportedCrs {
+        subject: String,
+        detail: String,
+    },
     Other(String),
 }
 
 impl std::fmt::Display for ProbeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnsupportedCrs { detail, .. } | Self::Other(detail) => formatter.write_str(detail),
+            Self::UnsupportedCrs { detail, .. } | Self::Other(detail) => {
+                formatter.write_str(detail)
+            }
         }
     }
 }

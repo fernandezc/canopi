@@ -281,15 +281,33 @@ pub struct LidarImportRefusal {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(tag = "kind")]
 pub enum LidarImportRefusalReason {
-    TooManyFiles { limit: u32 },
-    SourceTooLarge { file: String, limit_mib: u32 },
-    ImportTooLarge { limit_mib: u32 },
-    SourceMissing { file: String },
-    Unreadable { file: String },
-    NotGeotiff { file: String },
-    NoCrs { file: String },
+    TooManyFiles {
+        limit: u32,
+    },
+    SourceTooLarge {
+        file: String,
+        limit_mib: u32,
+    },
+    ImportTooLarge {
+        limit_mib: u32,
+    },
+    SourceMissing {
+        file: String,
+    },
+    Unreadable {
+        file: String,
+    },
+    NotGeotiff {
+        file: String,
+    },
+    NoCrs {
+        file: String,
+    },
     /// `crs` is how the file names its system, such as `EPSG:2263`.
-    UnsupportedCrs { file: String, crs: String },
+    UnsupportedCrs {
+        file: String,
+        crs: String,
+    },
     JobRunning,
     LibraryUnavailable,
     Internal,
