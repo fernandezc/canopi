@@ -84,9 +84,7 @@ fn installed(version: &str) -> Result<GeolibreTool, String> {
 fn no_analysis_outputs_an_elevation() {
     for analysis in ANALYSIS_REGISTRY {
         for output in analysis.outputs {
-            let LibraryItemType::Raster { quantity } = output.item else {
-                continue;
-            };
+            let LibraryItemType::Raster { quantity } = output.item;
             assert!(
                 !crate::services::lidar::display_cog::draws_relief(quantity),
                 "{} outputs {quantity:?}, which draws as relief: relief for derived parts first",
