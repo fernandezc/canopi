@@ -1072,7 +1072,12 @@ mod library_tests {
     use super::*;
     use common_types::library::RasterQuantity;
 
-    fn plane_source(library: &LidarLibrary, root: &Path, name: &str, origin_x: f64) -> PathBuf {
+    pub(super) fn plane_source(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        origin_x: f64,
+    ) -> PathBuf {
         let engine = &library.inner.engine;
         let cancel = AtomicBool::new(false);
         let (width, height) = (600u32, 400u32);
@@ -1104,7 +1109,7 @@ mod library_tests {
         source
     }
 
-    fn info(library: &LidarLibrary, path: &str) -> super::super::engine::RasterProbe {
+    pub(super) fn info(library: &LidarLibrary, path: &str) -> super::super::engine::RasterProbe {
         library
             .inner
             .engine
@@ -2000,7 +2005,9 @@ mod library_tests {
 
 #[cfg(test)]
 mod chunk_display_tests {
+    use super::library_tests::{info, plane_source};
     use super::*;
+    use common_types::library::RasterQuantity;
 
     /// A published slope result whose chunks the caller then writes.
     fn seed_chunk_result(library: &LidarLibrary, item_id: &str, generation_id: &str) {
@@ -2243,6 +2250,211 @@ mod chunk_display_tests {
         }
         assert_eq!(state.failures.len(), 2);
         drop(state);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A published ground elevation from one plane source, its id and generation.
+    fn publish_ground(library: &LidarLibrary, root: &Path, name: &str) -> (String, String) {
+        let cancel = AtomicBool::new(false);
+        let source = plane_source(library, root, name, 445_000.0);
+        let layer_id = library
+            .create_layer(name, RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        let generation_id = library
+            .library_snapshot()
+            .unwrap()
+            .items
+            .into_iter()
+            .find(|layer| layer.id == layer_id)
+            .and_then(|layer| layer.generation_id)
+            .expect("published head");
+        (layer_id, generation_id)
+    }
+
+    fn ask(
+        library: &LidarLibrary,
+        kind: LibraryItemRole,
+        entity_id: &str,
+        relief: bool,
+    ) -> Result<LidarDisplayDescriptor, String> {
+        library.display_descriptor(&LidarDisplayRequest {
+            kind,
+            entity_id: entity_id.to_string(),
+            expected_generation_id: None,
+            retry: false,
+            relief,
+        })
+    }
+
+    // The relief user paths (canopi-2add) are written before the relief
+    // derivative exists, so each is ignored until stream R builds it. These
+    // tests have no executor: R makes `prepare_display_now` prepare what a
+    // test asks for when needed, and keeps the assertions.
+
+    /// A ground elevation asked for its relief gets its own derivative, keyed
+    /// apart from the elevation one, holding greys 1–255 and the display
+    /// NoData.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_ground_elevation_asked_with_relief_draws_its_own_grey_derivative() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, _) = publish_ground(&library, &root, "tile");
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let elevation = ask(&library, LibraryItemRole::Source, &layer_id, false).unwrap();
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true).unwrap();
+        assert_eq!(elevation.state, LidarDisplayState::Ready, "{elevation:?}");
+        assert_eq!(relief.state, LidarDisplayState::Ready, "{relief:?}");
+        assert!(relief.relief && !elevation.relief);
+        assert_eq!(relief.assets.len(), 1);
+        assert_ne!(
+            relief.assets[0].path, elevation.assets[0].path,
+            "the relief is its own derivative"
+        );
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert!(keys.iter().any(|key| key.ends_with("-relief")), "{keys:?}");
+        let probe = info(&library, &relief.assets[0].path);
+        let values = library
+            .inner
+            .engine
+            .read_f32(
+                Path::new(&relief.assets[0].path),
+                probe.width,
+                probe.height,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
+        assert!(values.iter().any(|value| *value != DISPLAY_NODATA));
+        assert!(
+            values.iter().all(|value| *value == DISPLAY_NODATA
+                || (value.fract() == 0.0 && (1.0..=255.0).contains(value))),
+            "greys 1–255 or the display NoData"
+        );
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A failed relief plan is the relief's own: the elevation stays Ready.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_failed_relief_plan_leaves_the_elevation_ready() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-failed");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, generation_id) = publish_ground(&library, &root, "tile");
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        for key in registered_derivative_keys(&library).unwrap() {
+            if key.ends_with("-relief") {
+                forget_derivatives(&library, &key).unwrap();
+            }
+        }
+        library.display_preparation().unwrap().failures.insert(
+            plan_key(LibraryItemRole::Source, &layer_id, &generation_id, true),
+            "the relief failed".to_string(),
+        );
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true).unwrap();
+        assert_eq!(relief.state, LidarDisplayState::Failed, "{relief:?}");
+        let elevation = ask(&library, LibraryItemRole::Source, &layer_id, false).unwrap();
+        assert_eq!(elevation.state, LidarDisplayState::Ready, "{elevation:?}");
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Relief and elevation asked for together queue two plans: neither is
+    /// lost to the other's pending mark.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn relief_and_elevation_asked_together_are_both_queued() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-queue");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, generation_id) = publish_ground(&library, &root, "tile");
+        // Without an executor each request leaves its plan queued.
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, false);
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, true);
+        let state = library.display_preparation().unwrap();
+        for relief in [false, true] {
+            let key = plan_key(LibraryItemRole::Source, &layer_id, &generation_id, relief);
+            assert!(state.pending.contains(&key), "{key} is queued");
+        }
+        assert_eq!(state.queue.len(), 2);
+        drop(state);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// D8: the import prepares the kind's default view, so a new ground
+    /// elevation draws its relief at once; Colours is prepared the first time
+    /// it is asked for.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_new_ground_elevation_draws_relief_at_once_and_colours_on_first_pick() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-import");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let cancel = AtomicBool::new(false);
+        let source = plane_source(&library, &root, "tile", 445_000.0);
+        let layer_id = library
+            .create_layer("tile", RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_import(&library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        let staging = super::super::import::read_staged_import(&library, &job_id).unwrap();
+        library.prepare_staged_display(&staging, &cancel).unwrap();
+        super::super::import::apply_import(&library, &staging, &cancel).unwrap();
+
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true)
+            .expect("the relief is ready without a preparation");
+        assert_eq!(relief.state, LidarDisplayState::Ready, "{relief:?}");
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert!(
+            !keys.is_empty() && keys.iter().all(|key| key.ends_with("-relief")),
+            "the import prepared the relief only: {keys:?}"
+        );
+        let generation_id = relief.generation_id.clone().unwrap();
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, false);
+        assert!(
+            library
+                .display_preparation()
+                .unwrap()
+                .pending
+                .contains(&plan_key(
+                    LibraryItemRole::Source,
+                    &layer_id,
+                    &generation_id,
+                    false
+                )),
+            "Colours is prepared on its first request"
+        );
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// No analysis outputs an elevation in 2.0, so a derived item has no
+    /// relief to draw.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_derived_item_asked_for_relief_is_unavailable() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-derived");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        seed_chunk_result(&library, "item-slope", "dgen-slope");
+        generation::publish_test_chunk(&library, "dgen-slope", 0, 0, 4, 4, &[1.0; 16]);
+        library
+            .prepare_display_now(LibraryItemRole::Derived, "item-slope")
+            .unwrap();
+        let relief = ask(&library, LibraryItemRole::Derived, "item-slope", true).unwrap();
+        assert_eq!(relief.state, LidarDisplayState::Unavailable, "{relief:?}");
         drop(library);
         let _ = std::fs::remove_dir_all(&root);
     }
