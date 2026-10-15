@@ -343,6 +343,31 @@ describe('ProfileChart', () => {
     expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
   })
 
+  // The chart reads only its own copy; the reason goes to diagnostics, once per run of failures, so Retry or a
+  // redrawn line on a failing library never fills the problem report's ring.
+  it('a failed read records its reason in diagnostics once, however often it is retried or redrawn', async () => {
+    const { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } = await import('../app/problem-report/diagnostics')
+    resetFrontendDiagnosticsForTests()
+    sampling.answer = () => { throw new Error('sampling refused') }
+    await drawLine()
+    await act(async () => { button('Retry').click() })
+    await settle()
+    await act(async () => { setProfileLine([at(0, 0), at(12, 0)]) })
+    await settle()
+    expect(container.textContent).toContain('Couldn’t read the values along this line')
+    expect(recentFrontendDiagnostics()).toEqual([
+      expect.objectContaining({ source: 'lidar-library', message: 'sampling refused' }),
+    ])
+    // A read that works ends the run: the next failure is news again.
+    sampling.answer = analyticSite
+    await act(async () => { button('Retry').click() })
+    await settle()
+    sampling.answer = () => { throw new Error('sampling refused again') }
+    await act(async () => { setProfileLine([at(0, 0), at(14, 0)]) })
+    await settle()
+    expect(recentFrontendDiagnostics().map((entry) => entry.message)).toEqual(['sampling refused', 'sampling refused again'])
+  })
+
   it('Retry keeps keyboard focus in the profile: on the chart while it reads, on Retry again if the read fails again', async () => {
     sampling.answer = () => { throw new Error('sampling refused') }
     await drawLine()

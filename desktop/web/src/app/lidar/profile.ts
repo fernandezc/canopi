@@ -21,6 +21,7 @@ import type { LibraryItemRole, LibrarySnapshot, LidarSampleSeries, LidarSampleTa
 import { armCanvasTool } from '../keyboard/arming'
 import { selectPanel, sidePanel } from '../shell/state'
 import { profileRole, type ProfileRole } from './item-types'
+import { lidarFailureMessage } from './lidar-failures'
 import { lidarLibrary, readCurrentLidarPresentation, type LidarPresentationItem } from './library-store'
 import { siteSampler, type SiteSampler } from './sampler'
 import { profileLine, setProfileLine, type GeoPoint } from './site-transients'
@@ -271,6 +272,9 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
   let asked: string | null = null
   // Read by the effect, so Retry, which forgets the asked key, re-runs it under the same key.
   const attempt = signal(0)
+  // Whether the last read failed: a run of failures (Retry, a redrawn line) records its reason once, so a failing
+  // library never fills the problem report's ring; a read that works ends the run.
+  let failing = false
   // Whether the lane's last request is this profile's: a request still queued when the profile closes or loses every
   // curve would hold the backend's one sampling permit for nothing, so it is replaced by an empty request, which reads
   // no batch. The running request still finishes its batches (the sampler never cuts one short).
@@ -322,12 +326,17 @@ export function createSiteProfile(deps: SiteProfileDeps): SiteProfileOwner {
       })
     }).then((outcome) => {
       if (outcome !== 'done' || asked !== key) return
+      failing = false
       const plotted = curves.map((curve, index) => curveOf(curve, answers[index], samples))
       state.value = plotted.some((curve) => curve.values.some((value) => value !== null))
         ? { status: 'ready', lengthM: samples.lengthM, samples, curves: plotted }
         : { status: 'no-values', lengthM: samples.lengthM }
-    }, () => {
-      if (asked === key) state.value = { status: 'read-failed', lengthM: samples.lengthM }
+    }, (error: unknown) => {
+      if (asked !== key) return
+      // The chart reads its own copy with Retry; this records the reason only.
+      lidarFailureMessage(error, !failing)
+      failing = true
+      state.value = { status: 'read-failed', lengthM: samples.lengthM }
     })
   })
 

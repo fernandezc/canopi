@@ -3,6 +3,7 @@ import type { convertFileSrc } from '@tauri-apps/api/core'
 import type { RasterDisplayLayer } from '../../maplibre/raster-display/adapter'
 import { lidarDisplayDescriptor, type LidarDisplayDescriptor } from '../../ipc/lidar'
 import type { LibraryItemRole } from '../../generated/contracts'
+import { lidarFailureMessage } from './lidar-failures'
 import { cutOutlierRange, requestCutOutlierRange, resetCutOutlierRanges } from './display-range'
 import { displayVariant, itemTypeStyle, type DisplayVariant, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
 import { storyPresentationOverrides } from '../story-presentation/overrides'
@@ -21,7 +22,8 @@ import { readCurrentLidarPresentation, refreshLidarLibrary, type LidarPresentati
  *
  * A refused or failed call (a busy executor, a catalogue read error) is no
  * answer about the derivative: the key is asked again, ever more slowly, and
- * only a call that keeps failing reads Display failed until one answers. A
+ * only a call that keeps failing reads Display failed until one answers, its
+ * reason recorded once through `lidarFailureMessage`. A
  * failed preparation is an answer and is never asked again unasked.
  */
 export const lidarDisplayDescriptors = signal<ReadonlyMap<string, LidarDisplayDescriptor>>(new Map())
@@ -125,7 +127,8 @@ export function requestLidarDisplay(
           profile: '',
           relief,
           state: 'Failed',
-          message: error instanceof Error ? error.message : String(error),
+          // The row reads Display failed; the reason goes to diagnostics, once per run of refusals.
+          message: lidarFailureMessage(error),
           assets: [],
           prepared_assets: 0,
           total_assets: 0,
