@@ -359,7 +359,7 @@ describe('Design data references', () => {
     for (const id of ['slope', 'other']) expect(stored(id)).toEqual({ ramp: null })
   })
 
-  it.fails('[expected-fail R canopi-2add] stores Relief picked on MNT, MNS or MNH as null, so Relief has one encoding', () => {
+  it('stores Relief picked on MNT, MNS or MNH as null, so Relief has one encoding', () => {
     const entry = (id: string, quantity: RasterQuantity) =>
       ({ id, order: 0, parentId: null, itemType: { kind: 'Raster' as const, quantity }, units: 'm' })
     presentation.value = [entry('ground', 'GroundElevation'), entry('surface', 'SurfaceElevation'), entry('canopy', 'AboveGroundHeight')]

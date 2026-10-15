@@ -27,7 +27,7 @@
 use super::engine::{DISPLAY_NODATA, RasterGeoref, RasterInput};
 use super::grid::RasterGrid;
 use super::{LidarLibrary, catalogue, collection, generation};
-use common_types::library::LibraryItemRole;
+use common_types::library::{LibraryItemRole, RasterQuantity};
 use common_types::lidar::{
     LidarDisplayAsset, LidarDisplayDescriptor, LidarDisplayRequest, LidarDisplayState,
 };
@@ -42,13 +42,16 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub(super) const DISPLAY_PROFILE: &str = "display-cog-3857-v2";
 /// SHA-256 of what places and draws this profile's pixels beyond each CRS
 /// row's own definition (proj4rs, the Web Mercator and WGS84 rows, the
-/// warp's lattices for sample grids and the web fixture derivative); a test
+/// warp's lattices for sample grids, and the web fixture derivative and
+/// relief); a test
 /// fails when any changes, so the profile is bumped with it. Each row's
 /// definition is recorded on its own (`ROW_DIGESTS` in the tests), so a new
-/// row needs no bump and an edited one does.
+/// row needs no bump and an edited one does. The relief joined the digest
+/// under v2 without a bump, and its fixture moved under the web display
+/// fixture without one: no relief derivative was written before it.
 #[cfg(test)]
 const DISPLAY_PROFILE_DIGEST: &str =
-    "b1aa9c381fac462998b1f2013e1b74f7eca20e3541a04120f6455e4d4538ae4f";
+    "3be60df74a45245546a6bc47ae404721e5e006a22fea4cf5f1f7567b80506b15";
 /// Largest side of a composed part, in 1024-cell chunks: a part is composed
 /// in memory and converted whole, so 4×4 chunks keep it inside the engine's
 /// capacity limit (`import::MAX_RAW_EXTRACTION_CELLS`).
@@ -57,8 +60,13 @@ const PART_CHUNKS: i64 = 4;
 /// How one derivative is produced.
 #[derive(Clone)]
 enum PartSource {
-    /// One immutable numeric COG converted with its own validity rule.
-    Asset { path: PathBuf, nodata: Option<f32> },
+    /// One immutable numeric COG converted with its own validity rule, as
+    /// its elevation or its relief.
+    Asset {
+        path: PathBuf,
+        nodata: Option<f32>,
+        relief: bool,
+    },
     /// Bounded windows of an exact reader over occupied chunks of one group.
     Windows {
         reader: Arc<WindowReader>,
@@ -85,9 +93,17 @@ pub(super) struct DisplayPlan {
     kind: LibraryItemRole,
     entity_id: String,
     generation_id: String,
+    /// Whether the plan draws the item's relief rather than its values.
+    relief: bool,
     /// The item's display zoom: every part is drawn on its lattice.
     zoom: u32,
     parts: Vec<PartSpec>,
+}
+
+impl DisplayPlan {
+    fn key(&self) -> String {
+        plan_key(self.kind, &self.entity_id, &self.generation_id, self.relief)
+    }
 }
 
 enum Planned {
@@ -131,15 +147,42 @@ fn nodata_tag(nodata: Option<f32>) -> String {
     }
 }
 
-/// Resolve the current generation of one entity and the derivatives it needs.
+/// Whether an item of `quantity` draws as relief by default (D2): the three
+/// elevations.
+pub(super) fn draws_relief(quantity: RasterQuantity) -> bool {
+    matches!(
+        quantity,
+        RasterQuantity::GroundElevation
+            | RasterQuantity::SurfaceElevation
+            | RasterQuantity::AboveGroundHeight
+    )
+}
+
+/// Whether the imported item `layer_id` draws as relief by default.
+fn source_draws_relief(library: &LidarLibrary, layer_id: &str) -> Result<bool, String> {
+    let connection = library.catalogue()?;
+    Ok(catalogue::get_layer(&connection, layer_id)?
+        .and_then(|layer| RasterQuantity::from_key(&layer.quantity))
+        .is_some_and(draws_relief))
+}
+
+/// Resolve the current generation of one entity and the derivatives its
+/// values (or, with `relief`, its relief) need.
 fn build_plan(
     library: &LidarLibrary,
     kind: LibraryItemRole,
     entity_id: &str,
+    relief: bool,
     cancel: &AtomicBool,
 ) -> Result<Planned, String> {
     match kind {
         LibraryItemRole::Source => {
+            if relief && !source_draws_relief(library, entity_id)? {
+                return Ok(Planned::Unavailable(
+                    None,
+                    "only an elevation draws as relief".to_string(),
+                ));
+            }
             let head = {
                 let connection = library.catalogue()?;
                 catalogue::head_generation(&connection, entity_id)?
@@ -161,10 +204,14 @@ fn build_plan(
                 .map(|member| {
                     let cog = &member.resolved.cog;
                     PartSpec {
-                        key: asset_key(&cog.sha256, member.resolved.nodata, zoom),
+                        key: variant_key(
+                            asset_key(&cog.sha256, member.resolved.nodata, zoom),
+                            relief,
+                        ),
                         source: PartSource::Asset {
                             path: cog.path.clone(),
                             nodata: member.resolved.nodata,
+                            relief,
                         },
                     }
                 })
@@ -173,11 +220,20 @@ fn build_plan(
                 kind,
                 entity_id: entity_id.to_string(),
                 generation_id: head.id,
+                relief,
                 zoom,
                 parts,
             })))
         }
         LibraryItemRole::Derived => {
+            // No analysis outputs an elevation in 2.0
+            // (`analyses::tests::no_analysis_outputs_an_elevation`).
+            if relief {
+                return Ok(Planned::Unavailable(
+                    None,
+                    "a result has no relief to draw".to_string(),
+                ));
+            }
             let result = {
                 let connection = library.catalogue()?;
                 catalogue::derived_head(&connection, entity_id)?
@@ -217,6 +273,7 @@ fn build_plan(
                 kind,
                 entity_id: entity_id.to_string(),
                 generation_id: result.id,
+                relief,
                 zoom,
                 parts,
             })))
@@ -229,6 +286,12 @@ fn build_plan(
 /// derivative per zoom.
 fn asset_key(sha256: &str, nodata: Option<f32>, zoom: u32) -> String {
     format!("{}{}-z{zoom}", asset_prefix(sha256), nodata_tag(nodata))
+}
+
+/// The key of `key`'s relief when `relief`: inside the same prefix, so
+/// forgetting an asset's derivatives forgets its relief too.
+fn variant_key(key: String, relief: bool) -> String {
+    if relief { format!("{key}-relief") } else { key }
 }
 
 /// What every derivative key of one numeric COG starts with, whatever its
@@ -346,7 +409,13 @@ impl LidarLibrary {
         request: &LidarDisplayRequest,
     ) -> Result<LidarDisplayDescriptor, String> {
         let cancel = AtomicBool::new(false);
-        let planned = build_plan(self, request.kind, &request.entity_id, &cancel)?;
+        let planned = build_plan(
+            self,
+            request.kind,
+            &request.entity_id,
+            request.relief,
+            &cancel,
+        )?;
         let empty = |generation_id: Option<String>, state, message: Option<String>| {
             LidarDisplayDescriptor {
                 kind: request.kind,
@@ -411,7 +480,7 @@ impl LidarLibrary {
             descriptor.assets = assets;
             return Ok(descriptor);
         }
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+        let key = plan.key();
         let failure = {
             let mut state = self.display_preparation()?;
             if request.retry {
@@ -456,7 +525,7 @@ impl LidarLibrary {
         state.failures.retain(|key, _| !key.starts_with(&prefix));
         let pending = &mut state.pending;
         state.queue.retain(|plan| {
-            let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+            let key = plan.key();
             let keep = !key.starts_with(&prefix);
             if !keep {
                 pending.remove(&key);
@@ -467,7 +536,7 @@ impl LidarLibrary {
     }
 
     fn enqueue_display_preparation(&self, plan: Arc<DisplayPlan>) -> Result<(), String> {
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+        let key = plan.key();
         let start = {
             let mut state = self.display_preparation()?;
             state.plans.insert(key.clone(), Arc::clone(&plan));
@@ -497,7 +566,7 @@ impl LidarLibrary {
                         next
                     });
                     let Some(plan) = next else { break };
-                    let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+                    let key = plan.key();
                     let worker = library.clone();
                     let job = Arc::clone(&plan);
                     let outcome = executor
@@ -558,7 +627,11 @@ impl LidarLibrary {
         let _ = std::fs::remove_file(&staged);
         let engine = self.inner.engine.as_ref();
         match &part.source {
-            PartSource::Asset { path, nodata } => {
+            PartSource::Asset {
+                path,
+                nodata,
+                relief,
+            } => {
                 let bytes = std::fs::metadata(path)
                     .map_err(|e| format!("Display source {} is unavailable: {e}", path.display()))?
                     .len();
@@ -567,14 +640,26 @@ impl LidarLibrary {
                     display_free_bytes(bytes),
                     "Display preparation",
                 )?;
-                let converted = engine.write_display_cog(
-                    RasterInput::File(path),
-                    &staged,
-                    None,
-                    *nodata,
-                    zoom,
-                    cancel,
-                );
+                let converted = if *relief {
+                    // Only the Rust engine draws relief (not on the seam).
+                    super::rust_engine::RustRasterEngine.write_relief_cog(
+                        RasterInput::File(path),
+                        &staged,
+                        None,
+                        *nodata,
+                        zoom,
+                        cancel,
+                    )
+                } else {
+                    engine.write_display_cog(
+                        RasterInput::File(path),
+                        &staged,
+                        None,
+                        *nodata,
+                        zoom,
+                        cancel,
+                    )
+                };
                 if let Err(error) = converted {
                     let _ = std::fs::remove_file(&staged);
                     return Err(error);
@@ -721,9 +806,11 @@ impl LidarLibrary {
 }
 
 impl LidarLibrary {
-    /// Prepare the display derivative of every staged source before the
+    /// Prepare the derivative of every staged source the item's default view
+    /// draws (D8: the relief of an elevation, else the values) before the
     /// import publishes, inside the import job: a new item is displayable the
-    /// moment it appears. A failure or cancellation here publishes nothing.
+    /// moment it appears. The other view is prepared the first time it is
+    /// asked for. A failure or cancellation here publishes nothing.
     pub(super) fn prepare_staged_display(
         &self,
         staging: &super::import::StagedImport,
@@ -744,13 +831,15 @@ impl LidarLibrary {
             })
             .collect();
         let zoom = super::rust_engine::display_zoom(&first.crs_ref, &grids)?;
+        let relief = source_draws_relief(self, &staging.layer_id)?;
         for source in &staging.sources {
             let cog = &source.source_cog;
             let part = PartSpec {
-                key: asset_key(&cog.sha256, cog.nodata, zoom),
+                key: variant_key(asset_key(&cog.sha256, cog.nodata, zoom), relief),
                 source: PartSource::Asset {
                     path: cog.resolve(&self.inner.paths, &source.job_id)?,
                     nodata: cog.nodata,
+                    relief,
                 },
             };
             if ready_part(self, &part.key)?.is_some() {
@@ -1053,17 +1142,25 @@ mod tests {
 
 #[cfg(test)]
 impl LidarLibrary {
-    /// Test support: prepare an entity's derivatives synchronously.
+    /// Test support: prepare an entity's derivatives synchronously, its
+    /// values and, for an elevation, its relief.
     pub(super) fn prepare_display_now(
         &self,
         kind: LibraryItemRole,
         entity_id: &str,
     ) -> Result<(), String> {
         let cancel = AtomicBool::new(false);
-        match build_plan(self, kind, entity_id, &cancel)? {
-            Planned::Plan(plan) => self.prepare_display_plan(&plan, &cancel),
-            Planned::Unavailable(_, message) => Err(message),
+        let relief = kind == LibraryItemRole::Source && source_draws_relief(self, entity_id)?;
+        for variant in [false, true]
+            .into_iter()
+            .filter(|variant| !variant || relief)
+        {
+            match build_plan(self, kind, entity_id, variant, &cancel)? {
+                Planned::Plan(plan) => self.prepare_display_plan(&plan, &cancel)?,
+                Planned::Unavailable(_, message) => return Err(message),
+            }
         }
+        Ok(())
     }
 }
 
@@ -1257,8 +1354,9 @@ mod library_tests {
         let staging = super::super::import::read_staged_import(&library, &job_id).unwrap();
         library.prepare_staged_display(&staging, &cancel).unwrap();
         super::super::import::apply_import(&library, &staging, &cancel).unwrap();
+        // A ground elevation's default view is its relief (D8).
         let Planned::Plan(plan) =
-            build_plan(&library, LibraryItemRole::Source, &layer_id, &cancel).unwrap()
+            build_plan(&library, LibraryItemRole::Source, &layer_id, true, &cancel).unwrap()
         else {
             panic!("a published item has a plan")
         };
@@ -1312,7 +1410,7 @@ mod library_tests {
         let display_dir = library.inner.paths.display_cog_dir();
         assert_eq!(std::fs::read_dir(&display_dir).unwrap().count(), 0);
         let Planned::Plan(plan) =
-            build_plan(&library, LibraryItemRole::Source, &layer_id, &cancel).unwrap()
+            build_plan(&library, LibraryItemRole::Source, &layer_id, false, &cancel).unwrap()
         else {
             panic!("a published item has a plan")
         };
@@ -1656,12 +1754,311 @@ mod library_tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Publish `name` from Lambert-93 planes `100 + 0.5 column + 0.25 row`
+    /// (one value per 1 m cell of the whole plane), one source per column
+    /// range of `columns`, listed top-first, and the paths of its prepared
+    /// derivatives, top-first.
+    fn publish_plane_item(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        columns: &[(u32, u32)],
+        rows: u32,
+    ) -> Vec<(PathBuf, [f64; 4])> {
+        let engine = &library.inner.engine;
+        let cancel = AtomicBool::new(false);
+        let sources: Vec<PathBuf> = columns
+            .iter()
+            .enumerate()
+            .map(|(index, (first, width))| {
+                let values: Vec<f32> = (0..rows)
+                    .flat_map(|row| {
+                        (*first..first + width)
+                            .map(move |column| 100.0 + 0.5 * column as f32 + 0.25 * row as f32)
+                    })
+                    .collect();
+                let raw = root.join(format!("{name}-{index}.raw"));
+                super::super::import::write_f32_raw(&raw, &values).unwrap();
+                let source = root.join(format!("{name}-{index}.tif"));
+                super::super::import::raw_to_tif(
+                    engine.as_ref(),
+                    &cancel,
+                    &raw,
+                    &source,
+                    &RasterGrid {
+                        width: *width,
+                        height: rows,
+                        geotransform: [
+                            SEAM_ORIGIN.0 + f64::from(*first),
+                            1.0,
+                            0.0,
+                            SEAM_ORIGIN.1,
+                            0.0,
+                            -1.0,
+                        ],
+                    },
+                    "EPSG:2154",
+                    -9999.0,
+                )
+                .unwrap();
+                source
+            })
+            .collect();
+        let layer_id = library
+            .create_layer(name, RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(library, &job_id, &layer_id, &sources, &cancel)
+            .unwrap();
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: layer_id,
+                expected_generation_id: None,
+                retry: false,
+                relief: false,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        descriptor
+            .assets
+            .iter()
+            .map(|asset| (PathBuf::from(&asset.path), asset.bounds))
+            .collect()
+    }
+
+    /// Top-left corner of the seam fixtures' plane, Lambert-93 metres.
+    const SEAM_ORIGIN: (f64, f64) = (445_000.0, 6_806_000.0);
+
+    /// Copy `derivative` to the web fixture `name` under
+    /// `CANOPI_UPDATE_FIXTURES`, and fail unless the committed file holds the
+    /// same placement and samples.
+    fn check_web_fixture(library: &LidarLibrary, derivative: &Path, name: &str, stale: &str) {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures")
+            .join(name);
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::create_dir_all(fixture.parent().unwrap()).unwrap();
+            std::fs::copy(derivative, &fixture).unwrap();
+        }
+        let engine = library.inner.engine.as_ref();
+        let cancel = AtomicBool::new(false);
+        let probe = engine.probe(derivative, &cancel).unwrap();
+        let committed = engine.probe(&fixture, &cancel).expect(stale);
+        assert_eq!(
+            (committed.geotransform, committed.width, committed.height),
+            (probe.geotransform, probe.width, probe.height),
+            "{stale}: {name}"
+        );
+        let read = |raster: &Path| {
+            engine
+                .read_f32(raster, probe.width, probe.height, &cancel)
+                .expect(stale)
+                .into_iter()
+                .map(f32::to_bits)
+                .collect::<Vec<_>>()
+        };
+        assert!(read(&fixture) == read(derivative), "{stale}: {name}");
+    }
+
+    /// The seam probe (canopi-f47t.49, `raster-display/display-seams.test.ts`)
+    /// draws these derivatives with the real cog-tiler: an item of two
+    /// adjacent Lambert-93 planes (west on top) and an item of the whole
+    /// plane drawn under it, each NoData-free, wide enough for two overview
+    /// levels per half. Rewrite them with `CANOPI_UPDATE_FIXTURES=1`.
+    #[test]
+    fn the_web_seam_fixtures_are_what_the_engine_writes() {
+        let root = crate::test_scratch::TestScratch::new("canopi-seam-fixture");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).expect("library opens");
+        let (half, rows) = (448u32, 96u32);
+        let seam = publish_plane_item(&library, &root, "seam", &[(0, half), (half, half)], rows);
+        let under = publish_plane_item(&library, &root, "under", &[(0, 2 * half)], rows);
+        assert_eq!((seam.len(), under.len()), (2, 1));
+        for (path, _) in seam.iter().chain(&under) {
+            let probe = info(&library, &path.display().to_string());
+            assert!(probe.overview_count >= 2, "{probe:?}");
+        }
+        let names = [
+            "rust-display-seam-a.tif",
+            "rust-display-seam-b.tif",
+            "rust-display-seam-under.tif",
+        ];
+        let stale =
+            "the web seam fixtures are stale: rerun this test with CANOPI_UPDATE_FIXTURES=1";
+        for ((path, _), name) in seam.iter().chain(&under).zip(names) {
+            check_web_fixture(&library, path, name, stale);
+        }
+        let zoom = super::super::rust_engine::display_zoom(
+            "EPSG:2154",
+            [&RasterGrid {
+                width: 2 * half,
+                height: rows,
+                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+            }],
+        )
+        .unwrap();
+        let expected = serde_json::json!({
+            "zoom": zoom,
+            "nodata": -9999.0,
+            "range": [100.0, 100.0 + 0.5 * f64::from(2 * half - 1) + 0.25 * f64::from(rows - 1)],
+            "top": [
+                { "asset": names[0], "bounds": seam[0].1 },
+                { "asset": names[1], "bounds": seam[1].1 },
+            ],
+            "under": { "asset": names[2], "bounds": under[0].1 },
+            "plane": {
+                "crs": "EPSG:2154",
+                "origin": [SEAM_ORIGIN.0, SEAM_ORIGIN.1],
+                "cell": 1.0,
+                "columns": 2 * half,
+                "rows": rows,
+                "split": half,
+                "value": "100 + 0.5 column + 0.25 row",
+            },
+        });
+        let json = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures/rust-display-seam.json");
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::write(
+                &json,
+                serde_json::to_string_pretty(&expected).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let committed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).expect(stale)).expect(stale);
+        assert!(
+            same_fixture(&committed, &expected),
+            "{stale}\ncommitted: {committed}\nnow: {expected}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// RD New top-left corner of the relief fixture's 1 m plane: 640 × 160
+    /// cells centred on the web display fixture's source
+    /// ([`publish_rd_item`]), so the gallery's Colours round trip draws the
+    /// elevation COG where it drew the relief.
+    const RELIEF_ORIGIN: (f64, f64) = (84_686.0, 447_576.0);
+
+    /// The web suite draws this relief with the real cog-tiler
+    /// (`raster-display/rust-display-cog.test.ts`) at its three finest
+    /// levels, and the UI gallery draws it under the web display fixture: a
+    /// rolling RD New ground elevation around that fixture's source, with a
+    /// NoData hole, shaded by the engine. Its bytes enter [`profile_digest_inputs`], so a
+    /// shading change bumps the display profile. Rewrite it with
+    /// `CANOPI_UPDATE_FIXTURES=1`.
+    #[test]
+    fn the_web_relief_fixture_is_what_the_engine_writes() {
+        let root = crate::test_scratch::TestScratch::new("canopi-relief-fixture");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).expect("library opens");
+        let cancel = AtomicBool::new(false);
+        let (columns, rows) = (640u32, 160u32);
+        let values: Vec<f32> = (0..rows)
+            .flat_map(|row| {
+                (0..columns).map(move |column| {
+                    let (x, y) = (column as f32, row as f32);
+                    if (x - 200.0).hypot(y - 80.0) < 28.0 {
+                        -9999.0
+                    } else {
+                        100.0 + 8.0 * (x / 23.0).sin() + 6.0 * (y / 17.0).cos() + 0.05 * x
+                    }
+                })
+            })
+            .collect();
+        let raw = root.join("relief.raw");
+        super::super::import::write_f32_raw(&raw, &values).unwrap();
+        let source = root.join("relief.tif");
+        super::super::import::raw_to_tif(
+            library.inner.engine.as_ref(),
+            &cancel,
+            &raw,
+            &source,
+            &RasterGrid {
+                width: columns,
+                height: rows,
+                geotransform: [RELIEF_ORIGIN.0, 1.0, 0.0, RELIEF_ORIGIN.1, 0.0, -1.0],
+            },
+            "EPSG:28992",
+            -9999.0,
+        )
+        .unwrap();
+        let layer_id = library
+            .create_layer("relief", RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(&library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: layer_id,
+                expected_generation_id: None,
+                retry: false,
+                relief: true,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        let [asset] = descriptor.assets.as_slice() else {
+            panic!("one relief asset: {descriptor:?}")
+        };
+        let probe = info(&library, &asset.path);
+        assert!(probe.overview_count >= 2, "{probe:?}");
+        let stale =
+            "the web relief fixture is stale: rerun this test with CANOPI_UPDATE_FIXTURES=1";
+        check_web_fixture(
+            &library,
+            Path::new(&asset.path),
+            "rust-display-relief.tif",
+            stale,
+        );
+        let zoom = super::super::rust_engine::display_zoom(
+            "EPSG:28992",
+            [&RasterGrid {
+                width: columns,
+                height: rows,
+                geotransform: [RELIEF_ORIGIN.0, 1.0, 0.0, RELIEF_ORIGIN.1, 0.0, -1.0],
+            }],
+        )
+        .unwrap();
+        let expected = serde_json::json!({
+            "zoom": zoom,
+            "nodata": probe.nodata,
+            "bounds": asset.bounds,
+            "levels": probe.overview_count + 1,
+        });
+        let json = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures/rust-display-relief.json");
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::write(
+                &json,
+                serde_json::to_string_pretty(&expected).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let committed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).expect(stale)).expect(stale);
+        assert!(
+            same_fixture(&committed, &expected),
+            "{stale}\ncommitted: {committed}\nnow: {expected}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// What decides a display pixel's place and value beyond each row's own
     /// definition: proj4rs and the Web Mercator and WGS84 rows every
     /// transform passes through, the lattice the warp gives fixed sample
     /// grids in each kind of projection at four cell sizes (its rung, edge
     /// and padding rules), and the bytes of the web fixture derivative (its
-    /// sampling, mesh and file layout). A change to any must bump
+    /// sampling, mesh and file layout) and of the web relief fixture (its
+    /// shading and per-level stack). A change to any must bump
     /// `DISPLAY_PROFILE` (and then the digest): derivatives written before
     /// it would otherwise be served again beside new ones. Lattices are
     /// whole pixel indices, so a last-bit difference in a platform's libm
@@ -1702,17 +2099,22 @@ mod library_tests {
                 ));
             }
         }
-        let fixture = std::fs::read(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("web/src/maplibre/raster-display/fixtures/rust-display-cog.tif"),
-        )
-        .expect("the web display fixture");
+        let fixture = |name: &str| {
+            let bytes = std::fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("web/src/maplibre/raster-display/fixtures")
+                    .join(name),
+            )
+            .expect("the web display fixtures");
+            sha2::Sha256::digest(&bytes)
+        };
         format!(
-            "{:?}|{:?}|proj4rs {}|{lattices}|fixture {:x}",
+            "{:?}|{:?}|proj4rs {}|{lattices}|fixture {:x}|relief {:x}",
             crs_table::row_of(3857),
             crs_table::row_of(4326),
             super::super::rust_engine::PROJ4RS_VERSION,
-            sha2::Sha256::digest(&fixture)
+            fixture("rust-display-cog.tif"),
+            fixture("rust-display-relief.tif")
         )
     }
 
@@ -2215,7 +2617,7 @@ mod chunk_display_tests {
             seed_chunk_result(&library, item, generation_id);
             generation::publish_test_chunk(&library, generation_id, 0, 0, 4, 4, &[1.0; 16]);
             let Planned::Plan(plan) =
-                build_plan(&library, LibraryItemRole::Derived, item, &cancel).unwrap()
+                build_plan(&library, LibraryItemRole::Derived, item, false, &cancel).unwrap()
             else {
                 panic!("a published result has a plan")
             };
@@ -2300,16 +2702,13 @@ mod chunk_display_tests {
         })
     }
 
-    // The relief user paths (canopi-2add) are written before the relief
-    // derivative exists, so each is ignored until stream R builds it. These
-    // tests have no executor: R makes `prepare_display_now` prepare what a
-    // test asks for when needed, and keeps the assertions.
+    // The relief user paths (canopi-2add). These tests have no executor:
+    // `prepare_display_now` prepares an elevation's values and relief.
 
     /// A ground elevation asked for its relief gets its own derivative, keyed
     /// apart from the elevation one, holding greys 1–255 and the display
     /// NoData.
     #[test]
-    #[ignore = "expected-fail R canopi-2add"]
     fn a_ground_elevation_asked_with_relief_draws_its_own_grey_derivative() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-relief");
         std::fs::create_dir_all(&root).unwrap();
@@ -2353,7 +2752,6 @@ mod chunk_display_tests {
 
     /// A failed relief plan is the relief's own: the elevation stays Ready.
     #[test]
-    #[ignore = "expected-fail R canopi-2add"]
     fn a_failed_relief_plan_leaves_the_elevation_ready() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-relief-failed");
         std::fs::create_dir_all(&root).unwrap();
@@ -2382,7 +2780,6 @@ mod chunk_display_tests {
     /// Relief and elevation asked for together queue two plans: neither is
     /// lost to the other's pending mark.
     #[test]
-    #[ignore = "expected-fail R canopi-2add"]
     fn relief_and_elevation_asked_together_are_both_queued() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-relief-queue");
         std::fs::create_dir_all(&root).unwrap();
@@ -2494,7 +2891,6 @@ mod chunk_display_tests {
     /// elevation draws its relief at once; Colours is prepared the first time
     /// it is asked for.
     #[test]
-    #[ignore = "expected-fail R canopi-2add"]
     fn a_new_ground_elevation_draws_relief_at_once_and_colours_on_first_pick() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-relief-import");
         std::fs::create_dir_all(&root).unwrap();
@@ -2541,7 +2937,6 @@ mod chunk_display_tests {
     /// No analysis outputs an elevation in 2.0, so a derived item has no
     /// relief to draw.
     #[test]
-    #[ignore = "expected-fail R canopi-2add"]
     fn a_derived_item_asked_for_relief_is_unavailable() {
         let root = crate::test_scratch::TestScratch::new("canopi-display-relief-derived");
         std::fs::create_dir_all(&root).unwrap();

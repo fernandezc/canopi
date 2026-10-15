@@ -13,7 +13,7 @@ Read the [design system](../system.md) first; ownership: [data library guide](..
 
 ## Rows
 
-- One line, 32 px (44 under a coarse pointer): grip (always shown, muted), chevron on rows with results, eye, ramp swatch with a strong edge (dimmed when hidden), name, then one trailing item: the value, Preparing, Display failed, Missing, Refreshing, or Refresh on an out-of-date result.
+- One line, 32 px (44 under a coarse pointer): grip (always shown, muted), chevron on rows with results, eye, ramp swatch with a strong edge (dimmed when hidden; Relief's is a fixed shaded hill), name, then one trailing item: the value, Preparing, Display failed, Missing, Refreshing, or Refresh on an out-of-date result.
 - The list is the draw order, front first. Results sit under their source; collapse (chevron only, expanded by default, per session) hides them in the panel only. Drag the grip or press Alt ↑/↓ to reorder among siblings; the list reflows live and the map changes on drop.
 - Pending imports sit at the top with a progress line, calculations under their source; each has Cancel.
 
@@ -24,9 +24,9 @@ Read the [design system](../system.md) first; ownership: [data library guide](..
 
 ## Open item
 
-- A name opens its settings under the row and closes the other: Colors (the kind's three ramps as swatches, Reverse, legend with ≤/≥ at clipped ends), Range (Data range, Cut outliers, Custom with Minimum and Maximum always showing the values in use), Opacity, then Fit to data, Details, Remove from Design.
-- Ramps, default first: elevation Terrain, Earth, Gray; height Greens, Magma, Gray; slope Yellow–red, Magma, Gray (0–30°, shown as Custom); other values Magma, Yellow–red, Gray. Blue ramps belong to water kinds only; differences use purple–orange. A test enforces it.
-- Colors and range apply on click, Enter or leaving the field, never while dragging; opacity is live. Reset, shown when anything differs from the kind's default, restores colors, Reverse and range. All are saved with the Design.
+- A name opens its settings under the row and closes the other: Colors (the kind's ramps as swatches, Reverse, Reset, legend with ≤/≥ at clipped ends), Range (Data range, Cut outliers, Custom with Minimum and Maximum always showing the values in use), Opacity, then Fit to data, Details, Remove from Design.
+- Ramps, default first: elevation Relief, Terrain, Earth, Gray; height Relief, Greens, Magma, Gray; slope Yellow–red, Magma, Gray (0–30°, shown as Custom); other values Magma, Yellow–red, Gray. Relief draws the grey shaded relief, lit from the northwest, and hides Reverse, the legend and Range, which Colours keeps. Blue ramps belong to water kinds only; differences use purple–orange. A test enforces it.
+- Colors and range apply on click, Enter or leaving the field, never while dragging; opacity is live. Reset, beside Reverse and shown when anything differs from the kind's default (under Relief too), restores colors, Reverse and range and leaves focus on the ramp it checks. All are saved with the Design.
 
 ## Missing item
 

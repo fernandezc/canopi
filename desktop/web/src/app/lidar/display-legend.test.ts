@@ -28,11 +28,13 @@ function colormapOf(ramp: LidarRamp): string {
   return itemTypeStyle({ kind: 'Raster', quantity }, { units: '', displayRange: null, ramp, reversed: false, range: null }).colormap
 }
 
-const ALL_RAMPS: readonly LidarRamp[] = ['Terrain', 'Earth', 'Greens', 'YellowRed', 'Magma', 'Gray']
+const ALL_RAMPS: readonly LidarRamp[] = ['Relief', 'Terrain', 'Earth', 'Greens', 'YellowRed', 'Magma', 'Gray']
 
-/** Every ramp some kind offers, each once. */
+/** Every ramp some kind offers that shows a legend, each once; Relief draws stored greys and shows none. */
 function listedRamps(): LidarRamp[] {
-  return [...new Set(QUANTITIES.flatMap((quantity) => kindRamps({ kind: 'Raster', quantity })))].sort()
+  return [...new Set(QUANTITIES.flatMap((quantity) => kindRamps({ kind: 'Raster', quantity })))]
+    .filter((ramp) => ramp !== 'Relief')
+    .sort()
 }
 
 function hexChannels(hex: string): [number, number, number] {
@@ -108,6 +110,12 @@ describe('LiDAR legend ramps against the real renderer', () => {
     expect(wasmColours('blues', SAMPLES).filter(isBlue).length).toBeGreaterThanOrEqual(16)
     expect(wasmColours('ylorrd', SAMPLES).filter(isBlue).length).toBe(0)
     expect(wasmColours('viridis', SAMPLES).filter(isBlue).length).toBeGreaterThan(0)
+  })
+
+  it('swatches Relief as one fixed shaded picture, never Gray\'s ramp and whatever Reverse says', () => {
+    expect(legendGradient('Relief', false)).toBe(legendGradient('Relief', true))
+    expect(legendGradient('Relief', false)).not.toBe(legendGradient('Gray', false))
+    expect(legendGradient('Relief', false)).toMatch(/^radial-gradient\(/)
   })
 
   it('draws every ramp with a colormap the wasm compiles in', () => {

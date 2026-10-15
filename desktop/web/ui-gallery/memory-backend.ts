@@ -17,6 +17,7 @@ import {
   type SpeciesSearchRequest,
 } from '../src/generated/contracts'
 import rasterDisplayCogUrl from '../src/maplibre/raster-display/fixtures/rust-display-cog.tif?url'
+import rasterDisplayReliefUrl from '../src/maplibre/raster-display/fixtures/rust-display-relief.tif?url'
 import {
   appleDetail,
   applePhotos,
@@ -54,9 +55,9 @@ let stamps: SavedObjectStamp[] = state === 'empty' ? [] : ['Orchard guild', 'Pol
 }))
 // The data covers the west of the fixture Design's site (fixtures.ts, origin 13° E, 23° N): its plants run about 20 m east,
 // so a pointer over the east of the planting reads no data.
-const lidarBounds: [number, number, number, number] = state === 'lidar-raster'
-  ? galleryRasterSite.bounds
-  : [12.9998, 22.9998, 13.0001, 23.0002]
+const lidarBounds: [number, number, number, number] = state !== 'lidar-raster'
+  ? [12.9998, 22.9998, 13.0001, 23.0002]
+  : galleryRasterSite.bounds
 const galleryTool = { engine: 'geolibre', version: 'geolibre-cli 1.5.3 (gallery)', revision: 'aac2b7439786aac2b7439786', tools: ['slope'] }
 const galleryCreatedAt = String(Date.UTC(2026, 8, 12, 9, 30))
 
@@ -479,12 +480,18 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       }
       break
     case 'lidar_display_descriptor': {
-      const request = args.request as { kind: string; entity_id: string; expected_generation_id: string | null }
-      const descriptor = { kind: request.kind, entity_id: request.entity_id, generation_id: request.expected_generation_id, profile: 'gallery', message: null }
-      // `state=lidar-raster` serves the Rust engine's display COG for the ground elevation; every other derivative stays a
-      // placeholder.
+      const request = args.request as { kind: string; entity_id: string; expected_generation_id: string | null; relief: boolean }
+      const descriptor = {
+        kind: request.kind, entity_id: request.entity_id, generation_id: request.expected_generation_id, profile: 'gallery',
+        relief: request.relief, message: null,
+      }
+      // `state=lidar-raster` serves the Rust engine's display COGs for the ground elevation: its relief when asked for
+      // Relief, else its elevation; every other derivative stays a placeholder.
+      const asset = request.relief
+        ? { path: rasterDisplayReliefUrl, bounds: galleryRasterSite.reliefBounds }
+        : { path: rasterDisplayCogUrl, bounds: galleryRasterSite.bounds }
       result = state === 'lidar-raster' && request.entity_id === 'lidar-ground'
-        ? { ...descriptor, state: 'Ready', assets: [{ path: rasterDisplayCogUrl, bounds: galleryRasterSite.bounds }], prepared_assets: 1, total_assets: 1 }
+        ? { ...descriptor, state: 'Ready', assets: [asset], prepared_assets: 1, total_assets: 1 }
         : { ...descriptor, state: 'Unavailable', assets: [], prepared_assets: 0, total_assets: 0 }
       break
     }

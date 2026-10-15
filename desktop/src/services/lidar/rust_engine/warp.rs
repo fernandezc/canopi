@@ -45,6 +45,7 @@ use super::super::prepared_raster::RasterWindow;
 use super::Cells;
 use super::cog::{self, BandSource};
 use super::crs::{self, ResolvedCrs, Transformer};
+use super::relief;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use wbgeotiff::tags::Compression;
@@ -136,6 +137,7 @@ pub(super) fn zoom<'a>(
 }
 
 /// Where a derivative sits on the lattice.
+#[derive(Clone)]
 struct Placement {
     grid: RasterGrid,
     /// Lattice column and row of the derivative's top-left pixel; the
@@ -249,6 +251,31 @@ fn place(
     })
 }
 
+impl Placement {
+    /// The same pixels on the lattice of overview level `level`: the extent
+    /// is snapped to 2^levels, so each level halves it exactly.
+    fn at_level(&self, level: u32) -> Self {
+        let scale = 1i64 << level;
+        let gt = self.grid.geotransform;
+        Self {
+            grid: RasterGrid {
+                width: self.grid.width >> level,
+                height: self.grid.height >> level,
+                geotransform: [
+                    gt[0],
+                    gt[1] * scale as f64,
+                    0.0,
+                    gt[3],
+                    0.0,
+                    gt[5] * scale as f64,
+                ],
+            },
+            column: self.column / scale,
+            row: self.row / scale,
+        }
+    }
+}
+
 /// The lattice grid a derivative of `grid` in `native` is written on (the
 /// GDAL oracle warps onto the same pixels).
 #[cfg(test)]
@@ -325,11 +352,11 @@ impl Mesh {
 /// The derivative's band: each output window warped from the native window
 /// under it, `nodata` everywhere the footprint does not reach.
 struct Warp<'a> {
-    band: &'a mut dyn BandSource,
+    band: Box<dyn BandSource + 'a>,
     native: RasterGrid,
     nodata: f32,
     to_native: Transformer,
-    placement: &'a Placement,
+    placement: Placement,
     /// Most native cells one read may hold.
     budget: u64,
 }
@@ -446,11 +473,11 @@ pub(super) fn write(
     let placement = place(grid, &Transformer::new(native, &mercator), rung_at(zoom))?;
     let geo_keys = crs::geokeys_for(&mercator);
     let mut warp = Warp {
-        band,
+        band: Box::new(band),
         native: grid.clone(),
         nodata,
         to_native: Transformer::new(&mercator, native),
-        placement: &placement,
+        placement: placement.clone(),
         budget: budget / 2,
     };
     cog::write(
@@ -466,6 +493,123 @@ pub(super) fn write(
             overviews: true,
         },
         budget / 2,
+        cancel,
+    )
+}
+
+/// The levels of a relief derivative: level `k` is the native band halved
+/// `k` times ([`cog::Halved`]), shaded with that level's own ground cell
+/// sizes ([`relief::Shaded`]) and warped onto lattice level `k`.
+struct ReliefLevels<'a> {
+    band: &'a mut dyn BandSource,
+    grid: &'a RasterGrid,
+    native: &'a ResolvedCrs,
+    mercator: &'a ResolvedCrs,
+    nodata: Option<f32>,
+    fill: f32,
+    placement: &'a Placement,
+    levels: u32,
+    /// Most cells the native reads of one level hold, split as
+    /// [`write_relief`] says.
+    budget: u64,
+}
+
+impl cog::LevelSource for ReliefLevels<'_> {
+    fn level(&mut self, index: u32) -> Result<Box<dyn BandSource + '_>, String> {
+        let dims = cog::level_dims(self.grid.width, self.grid.height, index);
+        let gt = self.grid.geotransform;
+        let (width, height) = dims[index as usize];
+        // Each level keeps the file's whole extent, whatever its floor size.
+        let native = RasterGrid {
+            width,
+            height,
+            geotransform: [
+                gt[0],
+                gt[1] * f64::from(self.grid.width) / f64::from(width),
+                0.0,
+                gt[3],
+                0.0,
+                gt[5] * f64::from(self.grid.height) / f64::from(height),
+            ],
+        };
+        // A quarter for the warp's native window, about as much again for
+        // the shaded window and its halo, and a quarter shared by the halving
+        // layers under it.
+        let halving = self.budget / 4 / u64::from(index.max(1));
+        let mut band: Box<dyn BandSource + '_> = Box::new(&mut *self.band);
+        for level in &dims[..index as usize] {
+            band = Box::new(cog::Halved::new(band, *level, self.nodata, halving));
+        }
+        let shaded = relief::Shaded::new(
+            band,
+            (width, height),
+            self.nodata,
+            super::row_ground_sizes(&native, self.native)?,
+            self.fill,
+        );
+        debug_assert!(index <= self.levels);
+        Ok(Box::new(Warp {
+            band: Box::new(shaded),
+            native,
+            nodata: self.fill,
+            to_native: Transformer::new(self.mercator, self.native),
+            placement: self.placement.at_level(index),
+            budget: self.budget / 4,
+        }))
+    }
+}
+
+/// Write the relief derivative of `band` (on `grid` in `native`, valid where
+/// finite and not `nodata`) to `output`: on the same lattice pixels and with
+/// the same level count as the display derivative [`write`] gives at `zoom`,
+/// each level shaded from that level's own averaged elevation on the native
+/// grid before the nearest-neighbour warp (shading after it draws the warp's
+/// stair steps). Grey levels 1–255 as Float32, `fill` where nothing shows.
+/// Memory: a quarter of `budget` for the output windows and a quarter each
+/// for the warp's native window, the shaded window with its halo and the
+/// halving layers.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn write_relief(
+    output: &Path,
+    grid: &RasterGrid,
+    native: &ResolvedCrs,
+    zoom: u32,
+    band: &mut dyn BandSource,
+    nodata: Option<f32>,
+    fill: f32,
+    budget: u64,
+    cancel: &AtomicBool,
+) -> Result<(), String> {
+    check_cancel(cancel)?;
+    let mercator = crs::from_reference("EPSG:3857")?;
+    let placement = place(grid, &Transformer::new(native, &mercator), rung_at(zoom))?;
+    let levels = cog::overview_count(
+        u64::from(placement.grid.width),
+        u64::from(placement.grid.height),
+    );
+    let geo_keys = crs::geokeys_for(&mercator);
+    let mut sources = ReliefLevels {
+        band,
+        grid,
+        native,
+        mercator: &mercator,
+        nodata,
+        fill,
+        placement: &placement,
+        levels,
+        budget,
+    };
+    cog::write_levels(
+        output,
+        cog::CogGeoref {
+            grid: &placement.grid,
+            geo_keys: Some(&geo_keys),
+        },
+        Some(fill),
+        &mut sources,
+        levels,
+        Compression::Deflate,
+        budget / 4,
         cancel,
     )
 }
@@ -1039,5 +1183,158 @@ mod tests {
         assert_eq!(probe.nodata, Some(FILL));
         assert!(samples.iter().all(|value| *value == 4.0 || *value == FILL));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Memory: a relief above the capacity limit is shaded and warped from
+    /// bounded windows at every level, into exactly the bytes one window over
+    /// the whole raster gives.
+    #[test]
+    fn a_relief_above_the_extraction_limit_is_shaded_in_bounded_windows() {
+        const LIMIT: u64 = 300_000;
+        let dir = scratch("relief-windows");
+        let engine = RustRasterEngine;
+        let (width, height) = (1200u32, 900u32);
+        assert!(u64::from(width * height) > 3 * LIMIT);
+        let grid = rd(84_400.0, 447_500.0, width, height);
+        // A rolling surface with the ramp's -9999 hole and NaN cells.
+        let authored: Vec<f32> = ramp(width, height)
+            .into_iter()
+            .enumerate()
+            .map(|(cell, value)| {
+                let (x, y) = ((cell as u32 % width) as f32, (cell as u32 / width) as f32);
+                if value.is_nan() || value == -9999.0 {
+                    value
+                } else {
+                    (x / 17.0).sin() * 4.0 + (y / 23.0).cos() * 3.0 + x * 0.01
+                }
+            })
+            .collect();
+        let georef = RasterGeoref {
+            grid: &grid,
+            crs: "EPSG:28992",
+        };
+        let asset = dir.join("asset.tif");
+        engine
+            .write_controlled_cog(
+                RasterInput::Samples {
+                    grid: &grid,
+                    values: &authored,
+                },
+                &asset,
+                Some(georef),
+                Some(-9999.0),
+                &cancel(),
+            )
+            .unwrap();
+        let zoom = super::super::display_zoom("EPSG:28992", [&grid]).unwrap();
+        let whole = dir.join("whole.tif");
+        engine
+            .write_relief_cog(
+                RasterInput::Samples {
+                    grid: &grid,
+                    values: &authored,
+                },
+                &whole,
+                Some(georef),
+                Some(-9999.0),
+                zoom,
+                &cancel(),
+            )
+            .unwrap();
+        let streamed = dir.join("streamed.tif");
+        let peak = {
+            let _limit = super::super::super::import::extraction_limit_probe::set(LIMIT);
+            high_water::reset();
+            engine
+                .write_relief_cog(
+                    RasterInput::File(&asset),
+                    &streamed,
+                    None,
+                    None,
+                    zoom,
+                    &cancel(),
+                )
+                .unwrap();
+            high_water::peak()
+        };
+        assert!(peak > 0 && peak <= LIMIT, "held {peak} cells");
+        assert!(
+            std::fs::read(&whole).unwrap() == std::fs::read(&streamed).unwrap(),
+            "the bounded relief differs from the whole one"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// Ground size: one tilted plane of ground, stored on a Lambert-93, a
+    /// degree and a Web Mercator grid, shades to the same grey within 1 on
+    /// every valid pixel, so a cell is shaded at its size on the ground.
+    #[test]
+    fn one_plane_shades_alike_in_lambert_93_degrees_and_web_mercator() {
+        use super::super::crs::{Transformer, from_reference};
+        use super::super::wgs84_radii;
+        let (lon0, lat0) = (3.0, 46.5);
+        let (meridional, prime_vertical) = wgs84_radii(lat0);
+        // Rising 0.4 m per metre east and 0.25 m per metre south over true
+        // ground, so it faces the north-west light.
+        let plane = |lon: f64, lat: f64| {
+            let east = (lon - lon0).to_radians() * prime_vertical * lat0.to_radians().cos();
+            let north = (lat - lat0).to_radians() * meridional;
+            (0.4 * east - 0.25 * north + 300.0) as f32
+        };
+        let wgs84 = from_reference("EPSG:4326").unwrap();
+        let side = 160u32;
+        let mut greys = Vec::new();
+        for (crs, cell) in [
+            ("EPSG:2154", 1.0),
+            ("EPSG:4326", 1.0e-5),
+            ("EPSG:3857", 1.45),
+        ] {
+            let native = from_reference(crs).unwrap();
+            let (x0, y0) = Transformer::new(&wgs84, &native).apply(lon0, lat0).unwrap();
+            let to_wgs84 = Transformer::new(&native, &wgs84);
+            let grid = RasterGrid {
+                width: side,
+                height: side,
+                geotransform: [x0, cell, 0.0, y0, 0.0, -cell],
+            };
+            let values: Vec<f32> = (0..side * side)
+                .map(|index| {
+                    let x = x0 + (f64::from(index % side) + 0.5) * cell;
+                    let y = y0 - (f64::from(index / side) + 0.5) * cell;
+                    let (lon, lat) = to_wgs84.apply(x, y).unwrap();
+                    plane(lon, lat)
+                })
+                .collect();
+            let dir = scratch(&format!("relief-plane-{}", &crs[5..]));
+            let output = dir.join("relief.tif");
+            RustRasterEngine
+                .write_relief_cog(
+                    RasterInput::Samples {
+                        grid: &grid,
+                        values: &values,
+                    },
+                    &output,
+                    Some(RasterGeoref { grid: &grid, crs }),
+                    None,
+                    super::super::display_zoom(crs, [&grid]).unwrap(),
+                    &cancel(),
+                )
+                .unwrap();
+            let (probe, samples) = read(&output);
+            let _ = std::fs::remove_dir_all(dir);
+            let shown: Vec<f32> = samples
+                .into_iter()
+                .filter(|value| Some(*value) != probe.nodata)
+                .collect();
+            assert!(shown.len() > 10_000, "{crs}: {} pixels", shown.len());
+            let (low, high) = shown.iter().fold((f32::MAX, f32::MIN), |(low, high), v| {
+                (low.min(*v), high.max(*v))
+            });
+            assert!(high - low <= 1.0, "{crs}: greys {low}..{high}");
+            greys.push((crs, low, high));
+        }
+        let low = greys.iter().map(|g| g.1).fold(f32::MAX, f32::min);
+        let high = greys.iter().map(|g| g.2).fold(f32::MIN, f32::max);
+        assert!(high - low <= 1.0 && low > 200.0, "{greys:?}");
     }
 }

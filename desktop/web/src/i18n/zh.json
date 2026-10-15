@@ -2029,6 +2029,7 @@
     "display": {
       "colors": "颜色",
       "ramp": {
+        "Relief": "晕渲",
         "Terrain": "地形",
         "Earth": "大地",
         "Gray": "灰度",

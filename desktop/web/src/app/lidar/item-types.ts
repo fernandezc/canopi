@@ -11,7 +11,7 @@ import { t } from '../../i18n'
 
 /** Upstream palette and stretch for one item, always in its stored units. */
 export interface LidarDisplayStyle {
-  /** The ramp drawn: the entry's own, else its kind's default. */
+  /** The ramp drawn: the entry's own, else its kind's default; Relief draws the grey shaded relief. */
   readonly ramp: LidarRamp
   readonly colormap: string
   readonly reversed: boolean
@@ -47,9 +47,11 @@ interface RasterQuantityType {
   readonly declaresUnits: boolean
   readonly profile: ProfileRole | null
   /**
-   * The ramps an open item offers, its default first (U49 Q32). Blue ramps
-   * belong to water kinds only (display-legend.test.ts holds the rule), so a
-   * difference uses purple–orange and blue keeps one meaning on the map.
+   * The ramps an open item offers, its default first (U49 Q32). Elevations
+   * and heights open on Relief, the grey shaded relief (canopi-2add); the rest
+   * of their list is Colours. Blue ramps belong to water kinds only
+   * (display-legend.test.ts holds the rule), so a difference uses
+   * purple–orange and blue keeps one meaning on the map.
    */
   readonly ramps: readonly LidarRamp[]
   /** The range an entry with `range: null` spans, in the item's own units. */
@@ -64,7 +66,7 @@ export type DisplayVariant = 'elevation' | 'relief'
 
 /** The renderer's colormap for each ramp (`cog-tiler-wasm`'s built-in names). */
 const RAMP_COLORMAPS: Readonly<Record<LidarRamp, string>> = {
-  // No kind offers Relief yet (canopi-2add).
+  // The relief derivative stores its greys as values 1–255.
   Relief: 'gray',
   // Hypsometric without blue.
   Terrain: 'schwarzwald',
@@ -91,7 +93,7 @@ export const RASTER_QUANTITIES: Readonly<Record<RasterQuantity, RasterQuantityTy
     importable: true,
     declaresUnits: false,
     profile: 'elevation',
-    ramps: ['Terrain', 'Earth', 'Gray'],
+    ramps: ['Relief', 'Terrain', 'Earth', 'Gray'],
     defaultRange: DATA_RANGE,
   },
   SurfaceElevation: {
@@ -99,7 +101,7 @@ export const RASTER_QUANTITIES: Readonly<Record<RasterQuantity, RasterQuantityTy
     importable: true,
     declaresUnits: false,
     profile: 'elevation',
-    ramps: ['Terrain', 'Earth', 'Gray'],
+    ramps: ['Relief', 'Terrain', 'Earth', 'Gray'],
     defaultRange: DATA_RANGE,
   },
   AboveGroundHeight: {
@@ -107,7 +109,7 @@ export const RASTER_QUANTITIES: Readonly<Record<RasterQuantity, RasterQuantityTy
     importable: true,
     declaresUnits: false,
     profile: 'height',
-    ramps: ['Greens', 'Magma', 'Gray'],
+    ramps: ['Relief', 'Greens', 'Magma', 'Gray'],
     defaultRange: DATA_RANGE,
   },
   OtherContinuous: {
@@ -164,18 +166,40 @@ export function kindRamps(itemType: LibraryItemType): readonly LidarRamp[] {
   return RASTER_QUANTITIES[itemType.quantity].ramps
 }
 
+/** The ramp an entry draws: its own when its kind offers it, else the kind's default, so the per-kind lists keep blue for water. */
+function resolvedRamp(itemType: LibraryItemType, ramp: LidarRamp | null): LidarRamp {
+  const ramps = kindRamps(itemType)
+  return ramp !== null && ramps.includes(ramp) ? ramp : ramps[0]!
+}
+
+/** The grey stretch of the relief derivative, whose greys are stored as values 1–255. */
+const RELIEF_RESCALE: readonly [number, number] = [0, 255]
+
+/**
+ * Which display derivative an entry draws: the relief for Relief, else the
+ * elevation values its ramp colours. Display, the library preview and Site
+ * data all ask this, so a descriptor, its poll and its failure belong to the
+ * variant drawn.
+ */
+export function displayVariant(itemType: LibraryItemType, entry: { readonly ramp: LidarRamp | null }): DisplayVariant {
+  return resolvedRamp(itemType, entry.ramp) === 'Relief' ? 'relief' : 'elevation'
+}
+
 /**
  * The colours and stretch one entry draws with: its own ramp, Reverse and
  * range over its kind's defaults. A stored ramp the kind does not offer draws
- * with the kind's default, so the per-kind lists keep blue for water. Data
- * range spans the data; Cut outliers spans its 2–98 % range once known and the
- * data until then; Custom spans the entry's pair. A flat span widens by one
- * unit so the renderer can divide by it.
+ * with the kind's default. Relief draws its greys as stored, keeping the
+ * entry's Reverse and range for Colours. Data range spans the data; Cut
+ * outliers spans its 2–98 % range once known and the data until then; Custom
+ * spans the entry's pair. A flat span widens by one unit so the renderer can
+ * divide by it.
  */
 export function itemTypeStyle(itemType: LibraryItemType, item: RasterStyleInput): LidarDisplayStyle {
-  const defaults = kindDisplayDefaults(itemType, item.units)
-  const ramp = item.ramp !== null && kindRamps(itemType).includes(item.ramp) ? item.ramp : defaults.ramp
-  const range = item.range ?? defaults.range
+  const ramp = resolvedRamp(itemType, item.ramp)
+  if (ramp === 'Relief') {
+    return { ramp, colormap: RAMP_COLORMAPS.Relief, reversed: false, rescale: RELIEF_RESCALE, units: item.units }
+  }
+  const range = item.range ?? kindDisplayDefaults(itemType, item.units).range
   const [min, max] = range.mode === 'Custom'
     ? [range.min, range.max]
     : (range.mode === 'CutOutliers' ? item.cutRange : null) ?? item.displayRange ?? [0, 1]

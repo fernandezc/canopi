@@ -2029,7 +2029,8 @@
     "display": {
       "colors": "Цвета",
       "ramp": {
-        "Terrain": "Рельеф",
+        "Relief": "Рельеф",
+        "Terrain": "Местность",
         "Earth": "Земля",
         "Gray": "Серый",
         "Greens": "Зелёные",

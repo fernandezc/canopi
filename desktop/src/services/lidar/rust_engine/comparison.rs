@@ -424,6 +424,46 @@ fn compare_display(
     );
 }
 
+/// One level of a COG: `(width, height, samples)`.
+type Level = (u32, u32, Vec<f32>);
+
+/// Every level of a COG, full resolution first.
+fn cog_levels(path: &Path) -> Vec<Level> {
+    let bytes = std::fs::read(path).expect("COG bytes");
+    let layout = wbgeotiff::GeoTiff::parse_cog_layout(&bytes[..(4 << 20).min(bytes.len())])
+        .expect("COG layout");
+    layout
+        .levels
+        .iter()
+        .map(|level| {
+            let mut samples = vec![f32::NAN; (level.width * level.height) as usize];
+            for ty in 0..level.tiles_y {
+                for tx in 0..level.tiles_x {
+                    let (offset, count) = level.tile_range(tx, ty).expect("tile range");
+                    let tile = level
+                        .decode_tile_f64(&bytes[offset as usize..(offset + count) as usize])
+                        .expect("tile decodes");
+                    for row in 0..level.tile_height {
+                        let y = ty * level.tile_height + row;
+                        if y >= level.height {
+                            break;
+                        }
+                        for column in 0..level.tile_width {
+                            let x = tx * level.tile_width + column;
+                            if x >= level.width {
+                                break;
+                            }
+                            samples[(y * level.width + x) as usize] =
+                                tile[(row * level.tile_width + column) as usize] as f32;
+                        }
+                    }
+                }
+            }
+            (level.width, level.height, samples)
+        })
+        .collect()
+}
+
 /// Overview samples: both engines average the valid samples of each block in
 /// double precision and store Float32, so cells agree bit for bit except
 /// where the source block holds a NaN or ±inf (or, in `full`, a pixel the two
@@ -440,44 +480,8 @@ fn compare_overviews(
     full: &[f32],
     grid: &RasterGrid,
 ) {
-    let level_samples = |path: &Path| -> Vec<(u32, u32, Vec<f32>)> {
-        let bytes = std::fs::read(path).expect("display COG bytes");
-        let layout = wbgeotiff::GeoTiff::parse_cog_layout(&bytes[..(4 << 20).min(bytes.len())])
-            .expect("display COG layout");
-        layout
-            .levels
-            .iter()
-            .skip(1)
-            .map(|level| {
-                let mut samples = vec![f32::NAN; (level.width * level.height) as usize];
-                for ty in 0..level.tiles_y {
-                    for tx in 0..level.tiles_x {
-                        let (offset, count) = level.tile_range(tx, ty).expect("tile range");
-                        let tile = level
-                            .decode_tile_f64(&bytes[offset as usize..(offset + count) as usize])
-                            .expect("tile decodes");
-                        for row in 0..level.tile_height {
-                            let y = ty * level.tile_height + row;
-                            if y >= level.height {
-                                break;
-                            }
-                            for column in 0..level.tile_width {
-                                let x = tx * level.tile_width + column;
-                                if x >= level.width {
-                                    break;
-                                }
-                                samples[(y * level.width + x) as usize] =
-                                    tile[(row * level.tile_width + column) as usize] as f32;
-                            }
-                        }
-                    }
-                }
-                (level.width, level.height, samples)
-            })
-            .collect()
-    };
-    let a = level_samples(gdal_display);
-    let b = level_samples(rust_display);
+    let a: Vec<_> = cog_levels(gdal_display).into_iter().skip(1).collect();
+    let b: Vec<_> = cog_levels(rust_display).into_iter().skip(1).collect();
     assert_eq!(a.len(), b.len(), "{label}: overview levels");
     // Cells whose source block holds a non-finite sample, level by level with
     // the writer's own block mapping.
@@ -792,4 +796,465 @@ fn the_rust_engine_matches_gdal_on_the_same_inputs() {
         println!("{line}");
     }
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// One level's agreement with the oracle: interior cells (all nine of the
+/// stencil inside the band and valid) beyond ±1 grey and their largest
+/// deviation, and the same for edge cells, which are reported only.
+#[derive(Default, Debug)]
+struct Agreement {
+    interior: usize,
+    interior_beyond: usize,
+    interior_max: f64,
+    edge: usize,
+    edge_beyond: usize,
+    edge_max: f64,
+    validity_mismatch: usize,
+}
+
+/// `gdal_translate` with fixed arguments into `output`.
+fn translate(gdal: &GdalEngine, args: &[&str], input: &Path, output: &Path) {
+    let mut argv: Vec<String> = ["-q", "--config", "GDAL_PAM_ENABLED", "NO"]
+        .into_iter()
+        .chain(args.iter().copied())
+        .map(str::to_string)
+        .collect();
+    argv.push(input.display().to_string());
+    argv.push(output.display().to_string());
+    gdal.run(GdalProgram::Translate, &argv, None)
+        .unwrap_or_else(|error| panic!("gdal_translate {args:?}: {error}"));
+}
+
+/// gdaldem's hillshade of `input` with the light and defaults of D2.
+fn gdaldem_hillshade(gdal: &GdalEngine, input: &Path, output: &Path) {
+    let argv: Vec<String> = [
+        "hillshade",
+        "-q",
+        "-az",
+        "315",
+        "-alt",
+        "45",
+        "-z",
+        "1",
+        "-compute_edges",
+        "--config",
+        "GDAL_PAM_ENABLED",
+        "NO",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .chain([input.display().to_string(), output.display().to_string()])
+    .collect();
+    gdal.run(GdalProgram::Dem, &argv, None)
+        .unwrap_or_else(|error| panic!("gdaldem hillshade: {error}"));
+}
+
+/// Canopi's relief of native level `level` of `samples` (`grid` in `crs_ref`),
+/// shaded on that level's grid before any warp.
+fn native_relief(
+    samples: &[f32],
+    grid: &RasterGrid,
+    crs_ref: &str,
+    nodata: Option<f32>,
+    level: u32,
+) -> (RasterGrid, Vec<f32>) {
+    use super::cog::BandSource as _;
+    let dims = super::cog::level_dims(grid.width, grid.height, level);
+    let (width, height) = dims[level as usize];
+    let gt = grid.geotransform;
+    let native = RasterGrid {
+        width,
+        height,
+        geotransform: [
+            gt[0],
+            gt[1] * f64::from(grid.width) / f64::from(width),
+            0.0,
+            gt[3],
+            0.0,
+            gt[5] * f64::from(grid.height) / f64::from(height),
+        ],
+    };
+    let mut band: Box<dyn super::cog::BandSource> = Box::new(super::cog::SliceSource {
+        samples,
+        width: grid.width,
+    });
+    for dims in &dims[..level as usize] {
+        band = Box::new(super::cog::Halved::new(band, *dims, nodata, u64::MAX));
+    }
+    let crs = super::crs::from_reference(crs_ref).expect("the fixture's CRS resolves");
+    let mut shaded = super::relief::Shaded::new(
+        band,
+        (width, height),
+        nodata,
+        super::row_ground_sizes(&native, &crs).expect("ground sizes"),
+        super::DISPLAY_NODATA,
+    );
+    let mut out = vec![0f32; (width * height) as usize];
+    shaded
+        .read(
+            super::super::prepared_raster::RasterWindow {
+                x: 0,
+                y: 0,
+                width,
+                height,
+            },
+            &mut out,
+            &cancel(),
+        )
+        .expect("the relief reads");
+    (native, out)
+}
+
+/// Shading agreement on the native grid of one level: `gdal` is gdaldem's
+/// Byte output (0 where it wrote nothing), `elevation` the averaged level it
+/// shaded.
+fn native_agreement(
+    ours: &[f32],
+    gdal: &[f32],
+    elevation: &[f32],
+    width: u32,
+    height: u32,
+    nodata: Option<f32>,
+) -> Agreement {
+    let mut agreement = Agreement::default();
+    let (w, h) = (width as i64, height as i64);
+    for y in 0..h {
+        for x in 0..w {
+            let index = (y * w + x) as usize;
+            let mine = valid(ours[index], Some(super::DISPLAY_NODATA));
+            let theirs = gdal[index] != 0.0 && gdal[index].is_finite();
+            if mine != theirs {
+                agreement.validity_mismatch += 1;
+                continue;
+            }
+            if !mine {
+                continue;
+            }
+            let interior = (-1..=1).all(|dy| {
+                (-1..=1).all(|dx| {
+                    let (nx, ny) = (x + dx, y + dy);
+                    (0..w).contains(&nx)
+                        && (0..h).contains(&ny)
+                        && valid(elevation[(ny * w + nx) as usize], nodata)
+                })
+            });
+            let deviation = (f64::from(ours[index]) - f64::from(gdal[index])).abs();
+            if interior {
+                agreement.interior += 1;
+                agreement.interior_max = agreement.interior_max.max(deviation);
+                agreement.interior_beyond += usize::from(deviation > 1.0);
+            } else {
+                agreement.edge += 1;
+                agreement.edge_max = agreement.edge_max.max(deviation);
+                agreement.edge_beyond += usize::from(deviation > 1.0);
+            }
+        }
+    }
+    agreement
+}
+
+/// D3 against the oracle on the real IGN LiDAR HD tile: for each level `k`
+/// of the relief derivative, GDAL averages the tile to its level-`k` size
+/// (`gdal_translate -r average`), shades it (`gdaldem hillshade -az 315 -alt
+/// 45 -z 1 -compute_edges`) and warps it by nearest neighbour onto lattice
+/// level `k` (`gdalwarp -r near`). Interior cells agree within ±1 grey on the
+/// native grid and on the lattice (a lattice pixel whose centre lies within
+/// a centimetre of a native cell edge may take the cell beside it, as in the
+/// display comparison); edge cells are counted and reported. The tile split
+/// in two (`-srcwin`) leaves no gap and no double cover on any level.
+#[test]
+#[ignore = "local fixture: the IGN LiDAR HD tile and gdaldem on PATH; see CANOPI_LIDAR_E2E_FIXTURE"]
+fn e2e_relief_matches_gdaldem_horn() {
+    let dir = crate::test_scratch::TestScratch::new("relief-comparison");
+    let gdal_logs = dir.join("gdal-logs");
+    std::fs::create_dir_all(&gdal_logs).expect("GDAL log dir");
+    let gdal = GdalEngine::in_dir(gdal_logs);
+    match gdal.discover() {
+        Ok(tools) if tools.gdaldem.is_some() => {}
+        Ok(_) => return println!("skipped: gdaldem not found"),
+        Err(reason) => return println!("skipped: {reason}"),
+    }
+    let Some(fixture) = ign_fixture() else {
+        return println!("skipped: the IGN LiDAR HD tile is not present");
+    };
+    let rust = RustRasterEngine;
+    let c = cancel();
+    let mut report = Report { lines: Vec::new() };
+    let probe = rust.probe(&fixture, &c).expect("the tile probes");
+    let grid = RasterGrid {
+        width: probe.width,
+        height: probe.height,
+        geotransform: probe.geotransform,
+    };
+    let nodata = probe.nodata;
+    let zoom = super::display_zoom(&probe.crs_ref, [&grid]).expect("display zoom");
+    let relief = dir.join("ign-relief.tif");
+    let started = std::time::Instant::now();
+    rust.write_relief_cog(RasterInput::File(&fixture), &relief, None, None, zoom, &c)
+        .expect("the Rust engine writes the relief");
+    report.note(format!(
+        "relief of {} ({}x{}) at zoom {zoom} in {:.2?}",
+        fixture.display(),
+        grid.width,
+        grid.height,
+        started.elapsed()
+    ));
+    let display = dir.join("ign-display.tif");
+    rust.write_display_cog(RasterInput::File(&fixture), &display, None, None, zoom, &c)
+        .expect("the Rust engine writes the display derivative");
+    let levels = cog_levels(&relief);
+    assert_eq!(
+        levels.len(),
+        cog_levels(&display).len(),
+        "the relief has the display derivative's level count"
+    );
+    let (lattice, definition) =
+        super::display_lattice(&grid, &probe.crs_ref, zoom).expect("lattice");
+    let samples = rust
+        .read_f32(&fixture, grid.width, grid.height, &c)
+        .expect("the tile reads");
+
+    let mut failures = Vec::new();
+    for (level, (width, height, ours)) in levels.iter().enumerate() {
+        let k = level as u32;
+        // GDAL's level: the tile averaged once to the level's size.
+        let (native, mine) = native_relief(&samples, &grid, &probe.crs_ref, nodata, k);
+        let averaged = if k == 0 {
+            fixture.clone()
+        } else {
+            let output = dir.join(format!("average-{k}.tif"));
+            translate(
+                &gdal,
+                &[
+                    "-r",
+                    "average",
+                    "-ot",
+                    "Float32",
+                    "-outsize",
+                    &native.width.to_string(),
+                    &native.height.to_string(),
+                ],
+                &fixture,
+                &output,
+            );
+            output
+        };
+        let shade = dir.join(format!("gdaldem-{k}.tif"));
+        gdaldem_hillshade(&gdal, &averaged, &shade);
+        let theirs = gdal
+            .read_f32(&shade, native.width, native.height, &c)
+            .expect("gdaldem's relief reads");
+        let elevation = gdal
+            .read_f32(&averaged, native.width, native.height, &c)
+            .expect("the averaged level reads");
+        let agreement = native_agreement(
+            &mine,
+            &theirs,
+            &elevation,
+            native.width,
+            native.height,
+            nodata,
+        );
+        report.note(format!(
+            "level {k} native {}x{} ({:.2} m): {} interior cells, {} beyond ±1 grey (max {}); {} edge cells, {} beyond (max {}); {} validity mismatches",
+            native.width,
+            native.height,
+            native.geotransform[1],
+            agreement.interior,
+            agreement.interior_beyond,
+            agreement.interior_max,
+            agreement.edge,
+            agreement.edge_beyond,
+            agreement.edge_max,
+            agreement.validity_mismatch
+        ));
+        if agreement.interior_beyond > 0 || agreement.validity_mismatch > 0 {
+            failures.push(format!("level {k} native: {agreement:?}"));
+        }
+
+        // The oracle warped onto lattice level k.
+        let scale = f64::from(1u32 << k);
+        let level_lattice = RasterGrid {
+            width: lattice.width >> k,
+            height: lattice.height >> k,
+            geotransform: [
+                lattice.geotransform[0],
+                lattice.geotransform[1] * scale,
+                0.0,
+                lattice.geotransform[3],
+                0.0,
+                lattice.geotransform[5] * scale,
+            ],
+        };
+        assert_eq!(
+            (level_lattice.width, level_lattice.height),
+            (*width, *height),
+            "level {k} sits on lattice level {k}"
+        );
+        let warped = dir.join(format!("gdaldem-{k}-3857.tif"));
+        let args = super::super::gdal_engine::display_warp_arguments(
+            &shade,
+            &warped,
+            definition,
+            &level_lattice,
+            Some(0.0),
+            super::DISPLAY_NODATA,
+        );
+        gdal.run(GdalProgram::Warp, &args, None).expect("gdalwarp");
+        let oracle = gdal
+            .read_f32(&warped, *width, *height, &c)
+            .expect("the warped oracle reads");
+        let shown = |value: f32| valid(value, Some(super::DISPLAY_NODATA));
+        let differing: Vec<usize> = (0..ours.len())
+            .filter(|index| {
+                let (a, b) = (ours[*index], oracle[*index]);
+                shown(a) != shown(b) || (shown(a) && (f64::from(a) - f64::from(b)).abs() > 1.0)
+            })
+            .collect();
+        let gt = level_lattice.geotransform;
+        let centres: Vec<(f64, f64)> = differing
+            .iter()
+            .map(|index| {
+                let (column, row) = (index % *width as usize, index / *width as usize);
+                (
+                    gt[0] + (column as f64 + 0.5) * gt[1],
+                    gt[3] + (row as f64 + 0.5) * gt[5],
+                )
+            })
+            .collect();
+        let placed = rust
+            .transform_points("EPSG:3857", &probe.crs_ref, &centres, &c)
+            .expect("centres place");
+        let ngt = native.geotransform;
+        let (mut tie, mut interior, mut edge) = (0usize, 0usize, 0usize);
+        for point in placed {
+            let (x, y) = point.expect("a differing centre places natively");
+            let fraction = |coordinate: f64, origin: f64, cell: f64| (coordinate - origin) / cell;
+            let (fx, fy) = (fraction(x, ngt[0], ngt[1]), fraction(y, ngt[3], ngt[5]));
+            let near_edge = |f: f64, cell: f64| (f - f.round()).abs() * cell.abs() <= 0.01;
+            let (cx, cy) = (fx.floor() as i64, fy.floor() as i64);
+            let inside = (1..i64::from(native.width) - 1).contains(&cx)
+                && (1..i64::from(native.height) - 1).contains(&cy)
+                && (-1..=1).all(|dy| {
+                    (-1..=1).all(|dx| {
+                        valid(
+                            elevation[((cy + dy) * i64::from(native.width) + cx + dx) as usize],
+                            nodata,
+                        )
+                    })
+                });
+            if near_edge(fx, ngt[1]) || near_edge(fy, ngt[5]) {
+                tie += 1;
+            } else if inside {
+                interior += 1;
+            } else {
+                edge += 1;
+            }
+        }
+        report.note(format!(
+            "level {k} lattice {width}x{height}: {} pixels shown, {interior} interior beyond ±1 grey, {edge} edge beyond, {tie} at a native cell edge",
+            ours.iter().filter(|value| shown(**value)).count()
+        ));
+        if interior > 0 {
+            failures.push(format!("level {k} lattice: {interior} interior pixels"));
+        }
+    }
+
+    // The tile in two halves: every lattice pixel of the whole is shown by
+    // exactly one half, on every level.
+    let half = grid.width / 2;
+    let parts: Vec<PathBuf> = [(0, half), (half, grid.width - half)]
+        .into_iter()
+        .enumerate()
+        .map(|(index, (x, width))| {
+            let part = dir.join(format!("half-{index}.tif"));
+            translate(
+                &gdal,
+                &[
+                    "-srcwin",
+                    &x.to_string(),
+                    "0",
+                    &width.to_string(),
+                    &grid.height.to_string(),
+                ],
+                &fixture,
+                &part,
+            );
+            part
+        })
+        .collect();
+    let grids: Vec<RasterGrid> = parts
+        .iter()
+        .map(|part| {
+            let probe = rust.probe(part, &c).expect("a half probes");
+            RasterGrid {
+                width: probe.width,
+                height: probe.height,
+                geotransform: probe.geotransform,
+            }
+        })
+        .collect();
+    let split_zoom = super::display_zoom(&probe.crs_ref, grids.iter()).expect("zoom");
+    assert_eq!(split_zoom, zoom, "the halves draw at the tile's zoom");
+    let halves: Vec<(RasterGrid, Vec<Level>)> = parts
+        .iter()
+        .map(|part| {
+            let output = part.with_extension("relief.tif");
+            rust.write_relief_cog(RasterInput::File(part), &output, None, None, zoom, &c)
+                .expect("a half's relief");
+            let probe = rust.probe(&output, &c).expect("a half's relief probes");
+            (
+                RasterGrid {
+                    width: probe.width,
+                    height: probe.height,
+                    geotransform: probe.geotransform,
+                },
+                cog_levels(&output),
+            )
+        })
+        .collect();
+    for (level, (width, height, whole)) in levels.iter().enumerate() {
+        let shown = |value: f32| valid(value, Some(super::DISPLAY_NODATA));
+        let resolution = lattice.geotransform[1] * f64::from(1u32 << level);
+        let mut cover = vec![0u8; whole.len()];
+        for (part_grid, part_levels) in &halves {
+            let (part_width, part_height, part) = &part_levels[level];
+            let dx =
+                ((part_grid.geotransform[0] - lattice.geotransform[0]) / resolution).round() as i64;
+            let dy =
+                ((lattice.geotransform[3] - part_grid.geotransform[3]) / resolution).round() as i64;
+            for row in 0..i64::from(*part_height) {
+                for column in 0..i64::from(*part_width) {
+                    if !shown(part[(row * i64::from(*part_width) + column) as usize]) {
+                        continue;
+                    }
+                    let (x, y) = (column + dx, row + dy);
+                    assert!(
+                        (0..i64::from(*width)).contains(&x) && (0..i64::from(*height)).contains(&y),
+                        "level {level}: a half shows a pixel outside the whole"
+                    );
+                    cover[(y * i64::from(*width) + x) as usize] += 1;
+                }
+            }
+        }
+        let gaps = (0..whole.len())
+            .filter(|index| shown(whole[*index]) && cover[*index] == 0)
+            .count();
+        let doubles = cover.iter().filter(|count| **count > 1).count();
+        report.note(format!(
+            "level {level} split at column {half}: {gaps} gaps, {doubles} double cover"
+        ));
+        if gaps > 0 || doubles > 0 {
+            failures.push(format!(
+                "level {level} split: {gaps} gaps, {doubles} doubles"
+            ));
+        }
+    }
+
+    println!("\n=== relief comparison report ===");
+    for line in &report.lines {
+        println!("{line}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(failures.is_empty(), "{failures:#?}");
 }

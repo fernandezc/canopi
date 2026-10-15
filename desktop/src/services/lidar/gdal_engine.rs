@@ -4,7 +4,8 @@
 //! adapter implements the raster engine seam on `gdalinfo`, `gdal_translate`,
 //! `gdalwarp` and `gdaltransform` found on `PATH`, through the bounded child-process
 //! runner in `process.rs`, so `rust_engine::comparison` can hold the Rust
-//! engine to GDAL's answers on the same inputs. Without GDAL the lane skips.
+//! engine to GDAL's answers on the same inputs, and runs `gdaldem` (when
+//! found) as the relief oracle. Without GDAL the lane skips.
 
 use super::engine::{
     DISPLAY_NODATA, ProbeError, RasterEngine, RasterGeoref, RasterInput, RasterProbe,
@@ -46,6 +47,8 @@ pub struct DiscoveredTools {
     pub gdal_translate: PathBuf,
     pub gdalwarp: PathBuf,
     pub gdaltransform: PathBuf,
+    /// The relief oracle only; the engine seam never needs it.
+    pub gdaldem: Option<PathBuf>,
     pub version: String,
 }
 
@@ -55,6 +58,7 @@ pub enum GdalProgram {
     Translate,
     Warp,
     Transform,
+    Dem,
 }
 
 impl GdalEngine {
@@ -94,6 +98,7 @@ impl GdalEngine {
             gdal_translate: find("gdal_translate")?,
             gdalwarp: find("gdalwarp")?,
             gdaltransform: find("gdaltransform")?,
+            gdaldem: find("gdaldem").ok(),
             version: String::new(),
         };
         let version_output = self.run_once(
@@ -117,6 +122,9 @@ impl GdalEngine {
             GdalProgram::Translate => tools.gdal_translate,
             GdalProgram::Warp => tools.gdalwarp,
             GdalProgram::Transform => tools.gdaltransform,
+            GdalProgram::Dem => tools
+                .gdaldem
+                .ok_or_else(|| "GDAL tool gdaldem not found on PATH".to_string())?,
         })
     }
 
@@ -252,7 +260,7 @@ fn write_f32_raw(path: &Path, values: &[f32]) -> Result<(), String> {
 fn process_timeout(program: &GdalProgram) -> Duration {
     match program {
         GdalProgram::Info => INFO_PROCESS_TIMEOUT,
-        GdalProgram::Translate | GdalProgram::Warp | GdalProgram::Transform => {
+        GdalProgram::Translate | GdalProgram::Warp | GdalProgram::Transform | GdalProgram::Dem => {
             DEFAULT_PROCESS_TIMEOUT
         }
     }

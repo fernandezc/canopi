@@ -22,6 +22,9 @@ function item(overrides: Partial<LidarPresentationItem> = {}): LidarPresentation
   }
 }
 
+/** An elevation drawn in Colours: Terrain, the first ramp after Relief. */
+const terrain = { ramp: 'Terrain' as const }
+
 const slope = { kind: 'Derived' as const, itemType: { kind: 'Raster' as const, quantity: 'Slope' as const }, units: '°', displayRange: [0, 41.6] as [number, number] }
 
 function mount(entry: LidarPresentationItem): void {
@@ -71,24 +74,26 @@ afterEach(() => {
 })
 
 describe('an open item\'s Colors', () => {
-  it('offers its kind\'s three ramps as swatches, the default chosen, and writes a choice', async () => {
+  it('offers an elevation Relief, then its Colours, as swatches, the default chosen, and writes a choice', async () => {
     mount(item())
     expect(radios('Colors').map((radio) => [radio.getAttribute('aria-label'), radio.getAttribute('aria-checked')]))
-      .toEqual([['Terrain', 'true'], ['Earth', 'false'], ['Gray', 'false']])
-    expect(radios('Colors')[0]!.querySelector<HTMLElement>('[data-swatch]')!.style.backgroundImage).toContain('linear-gradient')
+      .toEqual([['Relief', 'true'], ['Terrain', 'false'], ['Earth', 'false'], ['Gray', 'false']])
+    const swatch = (index: number) => radios('Colors')[index]!.querySelector<HTMLElement>('[data-swatch]')!.style.backgroundImage
+    expect(swatch(0)).toContain('radial-gradient')
+    expect(swatch(1)).toContain('linear-gradient')
     await click(radios('Colors')[1]!)
-    expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { ramp: 'Earth' })
+    expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { ramp: 'Terrain' })
   })
 
-  it('offers a slope Yellow–red, Magma and Gray, and a height Greens, Magma and Gray', () => {
+  it('offers a slope Yellow–red, Magma and Gray, and a height Relief, Greens, Magma and Gray', () => {
     mount(item(slope))
     expect(radios('Colors').map((radio) => radio.getAttribute('aria-label'))).toEqual(['Yellow–red', 'Magma', 'Gray'])
     mount(item({ itemType: { kind: 'Raster', quantity: 'AboveGroundHeight' } }))
-    expect(radios('Colors').map((radio) => radio.getAttribute('aria-label'))).toEqual(['Greens', 'Magma', 'Gray'])
+    expect(radios('Colors').map((radio) => radio.getAttribute('aria-label'))).toEqual(['Relief', 'Greens', 'Magma', 'Gray'])
   })
 
   it('reverses the ramp as a pressed toggle', async () => {
-    mount(item({ reversed: true }))
+    mount(item({ ...terrain, reversed: true }))
     const reverse = named('Reverse')
     expect(reverse.getAttribute('aria-pressed')).toBe('true')
     await click(reverse)
@@ -96,15 +101,15 @@ describe('an open item\'s Colors', () => {
   })
 
   it('labels the legend with the range in use, marked ≤ and ≥ where it cuts the data', () => {
-    mount(item())
+    mount(item(terrain))
     expect(legend()).toEqual(['100 m', '200 m'])
-    mount(item({ range: { mode: 'Custom', min: 110, max: 190 } }))
+    mount(item({ ...terrain, range: { mode: 'Custom', min: 110, max: 190 } }))
     expect(legend()).toEqual(['≤ 110 m', '≥ 190 m'])
   })
 })
 
 describe('an open item drawn as Relief', () => {
-  it.fails('[expected-fail R canopi-2add] opens an MNT, MNS or MNH on Relief, hiding Reverse, Legend and Range', () => {
+  it('opens an MNT, MNS or MNH on Relief, hiding Reverse, Legend and Range', () => {
     for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
       mount(item({ itemType: { kind: 'Raster', quantity } }))
       const [first] = radios('Colors')
@@ -122,7 +127,7 @@ describe('an open item drawn as Relief', () => {
     expect(radios('Range').find((radio) => radio.getAttribute('aria-checked') === 'true')?.textContent).toBe('Custom')
   })
 
-  it.fails('[expected-fail R canopi-2add] keeps Reset reachable under Relief while a Colours setting is stored', async () => {
+  it('keeps Reset reachable under Relief while a Colours setting is stored', async () => {
     mount(item({ reversed: true, range: { mode: 'Custom', min: 110, max: 190 } }))
     expect(radios('Colors')[0]!.getAttribute('aria-label')).toBe('Relief')
     expect(() => named('Reverse')).toThrow()
@@ -133,7 +138,7 @@ describe('an open item drawn as Relief', () => {
 
 describe('an open item\'s Range', () => {
   it('shows the mode and the values in use, and switches mode with one write', async () => {
-    mount(item())
+    mount(item(terrain))
     expect(radios('Range').map((radio) => [radio.textContent, radio.getAttribute('aria-checked')]))
       .toEqual([['Data range', 'true'], ['Cut outliers', 'false'], ['Custom', 'false']])
     expect((named('Minimum') as HTMLInputElement).value).toBe('100')
@@ -145,7 +150,7 @@ describe('an open item\'s Range', () => {
   })
 
   it('shows a float raster\'s range in use to two decimals, so it fits its field', () => {
-    mount(item({ displayRange: [312.4700012207031, 1408.0999755859375] }))
+    mount(item({ ...terrain, displayRange: [312.4700012207031, 1408.0999755859375] }))
     expect((named('Minimum') as HTMLInputElement).value).toBe('312.47')
     expect((named('Maximum') as HTMLInputElement).value).toBe('1408.1')
     locale.value = 'fr'
@@ -174,7 +179,7 @@ describe('an open item\'s Range', () => {
 
   it('commits Custom only for a pair that parses in the locale with minimum below maximum, else reverts', async () => {
     locale.value = 'fr'
-    mount(item())
+    mount(item(terrain))
     const minimum = named('Minimum') as HTMLInputElement
     await type(minimum, '110,5', 'Enter')
     expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { range: { mode: 'Custom', min: 110.5, max: 200 } })
@@ -188,7 +193,7 @@ describe('an open item\'s Range', () => {
   })
 
   it('commits a typed pair above or below the range in use, whichever end is typed first', async () => {
-    mount(item())
+    mount(item(terrain))
     const minimum = named('Minimum') as HTMLInputElement
     const maximum = named('Maximum') as HTMLInputElement
     await act(async () => {
@@ -202,7 +207,7 @@ describe('an open item\'s Range', () => {
     expect(setLidarEntryDisplay).toHaveBeenCalledTimes(1)
     expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { range: { mode: 'Custom', min: 300, max: 400 } })
     setLidarEntryDisplay.mockClear()
-    mount(item({ range: { mode: 'Custom', min: 300, max: 400 } }))
+    mount(item({ ...terrain, range: { mode: 'Custom', min: 300, max: 400 } }))
     await act(async () => {
       maximum.value = '50'
       maximum.dispatchEvent(new Event('input', { bubbles: true }))
@@ -215,7 +220,7 @@ describe('an open item\'s Range', () => {
   })
 
   it('reverts both ends when focus leaves the pair while it would not keep minimum below maximum', async () => {
-    mount(item())
+    mount(item(terrain))
     const minimum = named('Minimum') as HTMLInputElement
     const maximum = named('Maximum') as HTMLInputElement
     await act(async () => {
@@ -239,12 +244,12 @@ describe('an open item\'s Range', () => {
   })
 
   it('keeps the field and its focus when an Enter commit or a new range in use lands, and a draft being typed', async () => {
-    mount(item())
+    mount(item(terrain))
     const minimum = named('Minimum') as HTMLInputElement
     minimum.focus()
     await type(minimum, '150', 'Enter')
     expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { range: { mode: 'Custom', min: 150, max: 200 } })
-    mount(item({ range: { mode: 'Custom', min: 150, max: 200 } }))
+    mount(item({ ...terrain, range: { mode: 'Custom', min: 150, max: 200 } }))
     expect(named('Minimum')).toBe(minimum)
     expect(document.activeElement).toBe(minimum)
     expect(minimum.value).toBe('150')
@@ -254,19 +259,22 @@ describe('an open item\'s Range', () => {
       maximum.value = '18'
       maximum.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    mount(item({ range: { mode: 'Custom', min: 120, max: 190 } }))
+    mount(item({ ...terrain, range: { mode: 'Custom', min: 120, max: 190 } }))
     expect(named('Maximum')).toBe(maximum)
     expect(maximum.value).toBe('18')
     expect(minimum.value).toBe('120')
   })
 
-  it('keeps focus in the Range fields after Reset removes itself', async () => {
-    mount(item({ ramp: 'Gray' }))
-    const reset = named('Reset')
-    reset.focus()
-    await click(reset)
-    mount(item())
-    expect(document.activeElement).toBe(named('Minimum'))
+  it('keeps the keyboard on the ramp Reset checks once Reset removes itself, Range shown or not', async () => {
+    for (const [entry, ramp] of [[item({ ramp: 'Gray' }), 'Relief'], [item({ ...slope, ramp: 'Gray' }), 'Yellow–red']] as const) {
+      mount(entry)
+      const reset = named('Reset')
+      reset.focus()
+      await click(reset)
+      mount({ ...entry, ramp: null })
+      expect(document.activeElement).toBe(radios('Colors').find((radio) => radio.getAttribute('aria-checked') === 'true'))
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(ramp)
+    }
   })
 
   it('writes opacity live as the slider moves', async () => {

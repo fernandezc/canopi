@@ -5,6 +5,7 @@ import { PLANT_SYMBOL_IDS, serializeScenePersistedState } from '../src/canvas/ru
 import { createSessionPlane } from '../src/canvas/session-plane'
 import { PLANT_COLOR_PALETTE } from '../src/canvas/plant-colors'
 import { mapZoomToStageScale } from '../src/canvas/projection'
+import reliefFixture from '../src/maplibre/raster-display/fixtures/rust-display-relief.json'
 
 export const detail: SpeciesDetail = {
   "canonical_name": "Malus domestica",
@@ -291,12 +292,14 @@ function storyFixture(origin: { lon: number; lat: number }, long: boolean): { vi
 
 /**
  * `state=lidar-raster`: the Design sits on the 34 × 24 cell display COG the Rust engine wrote
- * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), so the canvas draws it through
- * Desktop's raster renderer.
+ * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), inside the relief it wrote around
+ * the same source (rust-display-relief.{tif,json}), so the canvas draws the ground elevation through Desktop's raster
+ * renderer as it opens, on Relief, and in place once a Colours ramp is picked.
  */
 export const galleryRasterSite = {
   origin: { lon: 4.36759, lat: 52.011435 },
   bounds: [4.367580413818352, 52.011365324340304, 4.367762804031366, 52.01144456811651] as [number, number, number, number],
+  reliefBounds: reliefFixture.bounds as [number, number, number, number],
   valueRange: [19.75, 90.25] as [number, number],
 }
 
