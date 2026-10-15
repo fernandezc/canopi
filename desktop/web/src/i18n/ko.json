@@ -672,8 +672,8 @@
         "unreadable": "{{file}}을(를) GeoTIFF 래스터로 읽을 수 없습니다.",
         "notGeotiff": "{{file}}은(는) GeoTIFF가 아닙니다. Canopi는 GeoTIFF 래스터를 가져옵니다.",
         "noCrs": "{{file}}에 좌표계가 없어 Canopi가 배치할 수 없습니다.",
-        "unsupportedCrs": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계 {{crs}}을(를) 사용합니다.",
-        "unsupportedCrsUnnamed": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계를 사용합니다.",
+        "unsupportedCrs": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계 {{crs}}을(를) 사용합니다. Lambert-93(EPSG:2154), UTM 구역 또는 WGS 84로 재투영한 뒤 다시 가져오세요.",
+        "unsupportedCrsUnnamed": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계를 사용합니다. Lambert-93(EPSG:2154), UTM 구역 또는 WGS 84로 재투영한 뒤 다시 가져오세요.",
         "jobRunning": "다른 가져오기나 계산이 진행 중입니다. 끝난 뒤 다시 시도하세요.",
         "libraryUnavailable": "지금은 데이터 라이브러리를 변경할 수 없습니다. 라이브러리 알림에 이유가 나와 있습니다."
       }

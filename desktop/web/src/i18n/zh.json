@@ -672,8 +672,8 @@
         "unreadable": "无法将 {{file}} 读取为 GeoTIFF 栅格。",
         "notGeotiff": "{{file}} 不是 GeoTIFF。Canopi 导入 GeoTIFF 栅格。",
         "noCrs": "{{file}} 没有坐标系，因此 Canopi 无法放置它。",
-        "unsupportedCrs": "{{file}} 使用 {{crs}}，这是 Canopi 无法放置的坐标系。",
-        "unsupportedCrsUnnamed": "{{file}} 使用 Canopi 无法放置的坐标系。",
+        "unsupportedCrs": "{{file}} 使用 {{crs}}，这是 Canopi 无法放置的坐标系。请将其重投影到 Lambert-93 (EPSG:2154)、UTM 分带或 WGS 84，然后重新导入。",
+        "unsupportedCrsUnnamed": "{{file}} 使用 Canopi 无法放置的坐标系。请将其重投影到 Lambert-93 (EPSG:2154)、UTM 分带或 WGS 84，然后重新导入。",
         "jobRunning": "另一个导入或计算正在进行。请在其完成后重试。",
         "libraryUnavailable": "数据资料库当前无法更改。其通知说明了原因。"
       }

@@ -672,8 +672,8 @@
         "unreadable": "{{file}} kann nicht als GeoTIFF-Raster gelesen werden.",
         "notGeotiff": "{{file}} ist kein GeoTIFF. Canopi importiert GeoTIFF-Raster.",
         "noCrs": "{{file}} hat kein Koordinatensystem, daher kann Canopi die Datei nicht platzieren.",
-        "unsupportedCrs": "{{file}} verwendet {{crs}}, ein Koordinatensystem, das Canopi nicht platzieren kann.",
-        "unsupportedCrsUnnamed": "{{file}} verwendet ein Koordinatensystem, das Canopi nicht platzieren kann.",
+        "unsupportedCrs": "{{file}} verwendet {{crs}}, ein Koordinatensystem, das Canopi nicht platzieren kann. Projizieren Sie die Datei nach Lambert-93 (EPSG:2154), in eine UTM-Zone oder nach WGS 84 um und importieren Sie sie erneut.",
+        "unsupportedCrsUnnamed": "{{file}} verwendet ein Koordinatensystem, das Canopi nicht platzieren kann. Projizieren Sie die Datei nach Lambert-93 (EPSG:2154), in eine UTM-Zone oder nach WGS 84 um und importieren Sie sie erneut.",
         "jobRunning": "Ein anderer Import oder eine andere Berechnung läuft. Versuchen Sie es erneut, wenn sie beendet ist.",
         "libraryUnavailable": "Die Datenbibliothek kann gerade nicht geändert werden. Ihr Hinweis nennt den Grund."
       }

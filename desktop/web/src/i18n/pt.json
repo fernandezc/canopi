@@ -672,8 +672,8 @@
         "unreadable": "Não foi possível ler {{file}} como raster GeoTIFF.",
         "notGeotiff": "{{file}} não é um GeoTIFF. O Canopi importa rasters GeoTIFF.",
         "noCrs": "{{file}} não tem sistema de coordenadas, então o Canopi não consegue posicioná-lo.",
-        "unsupportedCrs": "{{file}} usa {{crs}}, um sistema de coordenadas que o Canopi não consegue posicionar.",
-        "unsupportedCrsUnnamed": "{{file}} usa um sistema de coordenadas que o Canopi não consegue posicionar.",
+        "unsupportedCrs": "{{file}} usa {{crs}}, um sistema de coordenadas que o Canopi não consegue posicionar. Reprojete-o para Lambert-93 (EPSG:2154), uma zona UTM ou WGS 84 e importe-o novamente.",
+        "unsupportedCrsUnnamed": "{{file}} usa um sistema de coordenadas que o Canopi não consegue posicionar. Reprojete-o para Lambert-93 (EPSG:2154), uma zona UTM ou WGS 84 e importe-o novamente.",
         "jobRunning": "Outra importação ou cálculo está em andamento. Tente novamente quando terminar.",
         "libraryUnavailable": "A Biblioteca de dados não aceita alterações agora. O aviso dela explica o motivo."
       }

@@ -672,8 +672,8 @@
         "unreadable": "{{file}} を GeoTIFF ラスターとして読み込めません。",
         "notGeotiff": "{{file}} は GeoTIFF ではありません。Canopi は GeoTIFF ラスターをインポートします。",
         "noCrs": "{{file}} には座標系がないため、Canopi は配置できません。",
-        "unsupportedCrs": "{{file}} は {{crs}} を使っています。Canopi が配置できない座標系です。",
-        "unsupportedCrsUnnamed": "{{file}} は Canopi が配置できない座標系を使っています。",
+        "unsupportedCrs": "{{file}} は {{crs}} を使っています。Canopi が配置できない座標系です。Lambert-93 (EPSG:2154)、UTM ゾーン、または WGS 84 に再投影してから、もう一度インポートしてください。",
+        "unsupportedCrsUnnamed": "{{file}} は Canopi が配置できない座標系を使っています。Lambert-93 (EPSG:2154)、UTM ゾーン、または WGS 84 に再投影してから、もう一度インポートしてください。",
         "jobRunning": "別のインポートまたは計算が実行中です。終わってからもう一度お試しください。",
         "libraryUnavailable": "現在、データライブラリは変更できません。理由はライブラリのお知らせに表示されています。"
       }

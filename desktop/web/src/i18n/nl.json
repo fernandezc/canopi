@@ -672,8 +672,8 @@
         "unreadable": "{{file}} kan niet als GeoTIFF-raster worden gelezen.",
         "notGeotiff": "{{file}} is geen GeoTIFF. Canopi importeert GeoTIFF-rasters.",
         "noCrs": "{{file}} heeft geen coördinatenstelsel, dus Canopi kan het niet plaatsen.",
-        "unsupportedCrs": "{{file}} gebruikt {{crs}}, een coördinatenstelsel dat Canopi niet kan plaatsen.",
-        "unsupportedCrsUnnamed": "{{file}} gebruikt een coördinatenstelsel dat Canopi niet kan plaatsen.",
+        "unsupportedCrs": "{{file}} gebruikt {{crs}}, een coördinatenstelsel dat Canopi niet kan plaatsen. Herprojecteer het naar Lambert-93 (EPSG:2154), een UTM-zone of WGS 84 en importeer het opnieuw.",
+        "unsupportedCrsUnnamed": "{{file}} gebruikt een coördinatenstelsel dat Canopi niet kan plaatsen. Herprojecteer het naar Lambert-93 (EPSG:2154), een UTM-zone of WGS 84 en importeer het opnieuw.",
         "jobRunning": "Er loopt een andere import of berekening. Probeer het opnieuw als die klaar is.",
         "libraryUnavailable": "De Databibliotheek kan nu niet worden gewijzigd. De melding ervan zegt waarom."
       }

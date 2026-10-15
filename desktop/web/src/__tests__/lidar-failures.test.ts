@@ -5,6 +5,7 @@ import { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } from '../
 import { locale } from '../app/settings/state'
 import { SUPPORTED_LOCALES } from '../i18n'
 
+const REPROJECT = 'Reproject it to Lambert-93 (EPSG:2154), a UTM zone or WGS 84, then import it again.'
 const DETAIL = 'engine detail: /home/someone/tiles/x.tif: strip 3 is truncated'
 
 /** One refusal of every kind, so a kind added to the contract fails here until it is worded. */
@@ -42,9 +43,20 @@ describe('lidarFailureMessage', () => {
   })
 
   it('names the coordinate system the file uses, and words one it spells out without a code', () => {
-    expect(lidarFailureMessage(refusal(EVERY_KIND.UnsupportedCrs))).toBe('nyc.tif uses EPSG:2263, a coordinate system Canopi can’t place.')
+    expect(lidarFailureMessage(refusal(EVERY_KIND.UnsupportedCrs))).toBe(`nyc.tif uses EPSG:2263, a coordinate system Canopi can’t place. ${REPROJECT}`)
     expect(lidarFailureMessage(refusal({ kind: 'UnsupportedCrs', file: 'custom.tif', crs: '' })))
-      .toBe('custom.tif uses a coordinate system Canopi can’t place.')
+      .toBe(`custom.tif uses a coordinate system Canopi can’t place. ${REPROJECT}`)
+  })
+
+  it('names systems Canopi places, in every locale, so an unsupported system has a way forward (U31)', () => {
+    for (const code of SUPPORTED_LOCALES) {
+      locale.value = code
+      for (const crs of ['EPSG:2263', '']) {
+        const message = lidarFailureMessage(refusal({ kind: 'UnsupportedCrs', file: 'nyc.tif', crs }))
+        expect(message, `${code} ${crs || 'unnamed'}`).toContain('EPSG:2154')
+        expect(message, `${code} ${crs || 'unnamed'}`).toMatch(/UTM/)
+      }
+    }
   })
 
   it('writes limits with the interface language’s numbers and units', () => {
