@@ -18,7 +18,9 @@ use super::paths::LidarPaths;
 use super::prepared_raster::PreparedRaster;
 #[cfg(test)]
 use super::prepared_raster::RasterWindow;
-use common_types::lidar::LidarImportProgressPhase;
+use common_types::lidar::{
+    LidarImportProgressPhase, LidarImportRefusal, LidarImportRefusalReason as Reason,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Read as _, Write as _};
@@ -422,31 +424,40 @@ fn layer_lattice_grid(
 /// can raise it for its own thread and nothing else changes. Refusals name a
 /// source through `name_of` ([`admission::source_name`] for the user's files;
 /// Retry names a managed original by the file it was imported as), never its
-/// folder or a system error.
+/// folder or a system error. The dialog never submits an empty selection, so
+/// one is `Internal`; a folder reads as a file that cannot be read.
 pub(super) fn validate_selection(
     source_paths: &[PathBuf],
     name_of: &dyn Fn(&Path) -> String,
-) -> Result<(), String> {
+) -> Result<(), LidarImportRefusal> {
     if source_paths.is_empty() {
-        return Err("select at least one raster source".to_string());
+        return Err("select at least one raster source".to_string().into());
     }
     admission::check_source_count(source_paths.len())?;
     let mut total_bytes = 0u64;
     for path in source_paths {
         let name = name_of(path);
+        let file = name.clone();
         let metadata = std::fs::metadata(path).map_err(|error| match error.kind() {
-            std::io::ErrorKind::NotFound => {
-                format!("{name} cannot be found; choose the files again")
-            }
-            _ => format!("{name} cannot be read; choose the files again"),
+            std::io::ErrorKind::NotFound => admission::refusal(
+                Reason::SourceMissing { file },
+                format!("{name} cannot be found; choose the files again"),
+            ),
+            _ => admission::refusal(
+                Reason::Unreadable { file },
+                format!("{name} cannot be read; choose the files again"),
+            ),
         })?;
         if !metadata.is_file() {
-            return Err(format!("{name} is not a file; choose the files again"));
+            return Err(admission::refusal(
+                Reason::Unreadable { file: name.clone() },
+                format!("{name} is not a file; choose the files again"),
+            ));
         }
         admission::check_source_bytes(&name, metadata.len())?;
         total_bytes = total_bytes
             .checked_add(metadata.len())
-            .ok_or_else(|| "selected source sizes overflow the import budget".to_string())?;
+            .ok_or_else(admission::import_too_large)?;
     }
     admission::check_import_bytes(total_bytes)
 }
@@ -496,8 +507,14 @@ fn stage_managed_original(
             total = total
                 .checked_add(read as u64)
                 .ok_or_else(|| "source byte count overflow".to_string())?;
-            admission::check_source_bytes(&admission::source_name(source_path), total)
-                .map_err(|error| format!("{error} while the managed original was being copied"))?;
+            admission::check_source_bytes(&admission::source_name(source_path), total).map_err(
+                |error| {
+                    format!(
+                        "{} while the managed original was being copied",
+                        error.detail
+                    )
+                },
+            )?;
             hasher.update(&buffer[..read]);
             target
                 .write_all(&buffer[..read])
@@ -570,7 +587,7 @@ fn hash_file_limited(path: &Path, cancel: &AtomicBool) -> Result<(String, u64), 
             .checked_add(read as u64)
             .ok_or_else(|| "managed source size overflow".to_string())?;
         admission::check_source_bytes(&admission::source_name(path), total)
-            .map_err(|error| format!("{error} while the managed original was verified"))?;
+            .map_err(|error| format!("{} while the managed original was verified", error.detail))?;
         hasher.update(&buffer[..read]);
     }
     Ok((format!("{:x}", hasher.finalize()), total))
@@ -1660,11 +1677,9 @@ mod tests {
     #[test]
     fn source_selection_caps_count_and_bytes_before_staging() {
         let too_many = vec![PathBuf::from("unused"); admission::MAX_SOURCE_FILES_PER_IMPORT + 1];
-        assert!(
-            validate_selection(&too_many, &admission::source_name)
-                .unwrap_err()
-                .contains("at most")
-        );
+        let refused = validate_selection(&too_many, &admission::source_name).unwrap_err();
+        assert_eq!(refused.reason, Reason::TooManyFiles { limit: 24 });
+        assert!(refused.detail.contains("at most"), "{}", refused.detail);
 
         let scratch = crate::test_scratch::TestScratch::new("canopi-oversized-source");
         let path = scratch.join("oversized-source");
@@ -1672,7 +1687,14 @@ mod tests {
         file.set_len(admission::MAX_SOURCE_FILE_BYTES + 1).unwrap();
         let error =
             validate_selection(std::slice::from_ref(&path), &admission::source_name).unwrap_err();
-        assert!(error.contains("per-source limit"));
+        assert_eq!(
+            error.reason,
+            Reason::SourceTooLarge {
+                file: "oversized-source".to_string(),
+                limit_mib: 2048
+            }
+        );
+        assert!(error.detail.contains("per-source limit"));
         let _ = std::fs::remove_file(path);
     }
 

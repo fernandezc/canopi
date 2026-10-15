@@ -208,15 +208,16 @@ describe('Data Library actions', () => {
     expect(designEdits()).toBe(0)
   })
 
-  it('publishes and rethrows a refused library operation', async () => {
+  it('publishes and rethrows a refused library operation in the interface language, never its English text', async () => {
     renameItemMock.mockRejectedValueOnce(new Error('name is empty'))
-    await expect(renameLibraryItem('layer-1', ' ')).rejects.toThrow('name is empty')
-    expect(lidarStatusMessage.value).toBe('name is empty')
+    await expect(renameLibraryItem('layer-1', ' ')).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).toContain('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).not.toContain('name is empty')
   })
 
-  it('refreshes the library after a refused Retry, so the row shows the refusal written onto its job', async () => {
-    retryImportMock.mockRejectedValueOnce(new Error('delft.tif cannot be found; choose the files again'))
-    await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif cannot be found')
+  it('refreshes the library after a refused Retry, so the row shows its import failed again, and names the refusal', async () => {
+    retryImportMock.mockRejectedValueOnce({ reason: { kind: 'SourceMissing', file: 'delft.tif' }, detail: 'delft.tif cannot be found; choose the files again' })
+    await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif can’t be found. Choose the files again.')
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(ensurePollingMock).not.toHaveBeenCalled()
   })
@@ -231,7 +232,7 @@ describe('Data Library actions', () => {
     return { shown: lidarStatusMessage.value, thrown, kept: recentFrontendDiagnostics().map((entry) => entry.message) }
   }
 
-  it.fails('[expected-fail L canopi-bkbh] names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
+  it('names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
     const detail = 'dem.asc is not a GeoTIFF: TIFF magic bytes missing at offset 0'
     const refusal = { reason: { kind: 'NotGeotiff', file: 'dem.asc' }, detail }
     try {
@@ -250,7 +251,7 @@ describe('Data Library actions', () => {
     }
   })
 
-  it.fails('[expected-fail L canopi-bkbh] shows an Internal refusal, or any other failure, as the generic message', async () => {
+  it('shows an Internal refusal, or any other failure, as the generic message', async () => {
     const internal = await refusedImport({ reason: { kind: 'Internal' }, detail: 'sqlite: database is locked' }, 'en')
     const plain = await refusedImport(new Error('engine stopped'), 'en')
     expect(internal.shown).not.toContain('sqlite')
@@ -521,9 +522,10 @@ describe('analysis runs', () => {
     expect(designEdits()).toBe(0)
   })
 
-  it('publishes a refused run through the shared status', async () => {
+  it('publishes a refused run through the shared status, as the generic message', async () => {
     createAnalysisMock.mockRejectedValueOnce(new Error('unit is required'))
-    await expect(runAnalysis(SLOPE_REQUEST)).rejects.toThrow('unit is required')
-    expect(lidarStatusMessage.value).toBe('unit is required')
+    await expect(runAnalysis(SLOPE_REQUEST)).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).toContain('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).not.toContain('unit is required')
   })
 })

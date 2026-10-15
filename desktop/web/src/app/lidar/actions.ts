@@ -47,6 +47,7 @@ import {
   readCurrentLidarPresentation,
   refreshLidarLibrary,
 } from './library-store'
+import { lidarFailureMessage } from './lidar-failures'
 import { siblingMoveOrders } from './reference-tree'
 import { kindDisplayDefaults } from './item-types'
 import { designSessionStore } from '../document-session/store'
@@ -102,7 +103,8 @@ export async function importLibraryItem(
 /**
  * Retry a failed or cancelled import with its saved selection. A refused
  * Retry still refreshes: the library writes the refusal onto the item's
- * latest job, and polling has stopped, so only this read shows it.
+ * latest job, and polling has stopped, so only this read shows the row
+ * failed again.
  */
 export async function retryLibraryImport(layerId: string): Promise<void> {
   try {
@@ -384,16 +386,18 @@ function removePresentedEntities(ids: string[]): void {
 }
 
 /**
- * Run one library action, surfacing its failure through the shared status.
- * The message is published and re-thrown so callers can show it inline.
+ * Run one library action, surfacing its failure through the shared status in
+ * the interface language (`lidarFailureMessage`; the failure's own text goes
+ * to diagnostics). The message is published and re-thrown so callers can show
+ * it inline.
  */
 async function withLidarError<T>(work: () => Promise<T>): Promise<T> {
   lidarStatusMessage.value = null
   try {
     return await work()
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = lidarFailureMessage(error)
     lidarStatusMessage.value = message
-    throw error instanceof Error ? error : new Error(message)
+    throw new Error(message)
   }
 }

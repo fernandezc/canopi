@@ -18,12 +18,17 @@
 //! invalidate an authorized run. Reads, display and deletion of items that
 //! already exist are deliberately **not** subject to it.
 //!
+//! A refusal is a [`LidarImportRefusal`]: its kind is what Import and Retry
+//! name in the interface language, its English detail is for diagnostics.
+//! Job-time callers keep the detail as their failure text.
+//!
 //! Representative large-fixture runs raise the bounds for their own thread
 //! through the test-only [`limits_probe`]; nothing in a production build can,
 //! and no environment variable can enable a production bypass.
 
-use super::engine::RasterEngine;
+use super::engine::{ProbeError, RasterEngine};
 use super::rust_engine::is_tiff;
+use common_types::lidar::{LidarImportRefusal, LidarImportRefusalReason as Reason};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
@@ -71,13 +76,28 @@ pub(crate) fn limits() -> AdmissionLimits {
     AdmissionLimits::production()
 }
 
+/// A refusal of `reason`, with its English `detail`.
+pub(crate) fn refusal(reason: Reason, detail: String) -> LidarImportRefusal {
+    LidarImportRefusal { reason, detail }
+}
+
+/// Mebibytes in `bytes`, as a refusal names a limit.
+fn mib(bytes: u64) -> u32 {
+    u32::try_from(bytes / (1024 * 1024)).unwrap_or(u32::MAX)
+}
+
 /// Refuse a selection with more files than the policy allows.
-pub(crate) fn check_source_count(count: usize) -> Result<(), String> {
+pub(crate) fn check_source_count(count: usize) -> Result<(), LidarImportRefusal> {
     let limits = limits();
     if count > limits.files {
-        return Err(format!(
-            "an import can contain at most {} source files",
-            limits.files
+        return Err(refusal(
+            Reason::TooManyFiles {
+                limit: u32::try_from(limits.files).unwrap_or(u32::MAX),
+            },
+            format!(
+                "an import can contain at most {} source files",
+                limits.files
+            ),
         ));
     }
     Ok(())
@@ -96,12 +116,18 @@ pub(crate) fn source_name(path: &Path) -> String {
 /// managed-original copy/hash loop — reports through this one check, so an
 /// authorized run cannot be stopped by a second hard-coded ceiling.
 /// `name` is how the refusal names the source ([`source_name`] for a path).
-pub(crate) fn check_source_bytes(name: &str, bytes: u64) -> Result<(), String> {
+pub(crate) fn check_source_bytes(name: &str, bytes: u64) -> Result<(), LidarImportRefusal> {
     let limits = limits();
     if bytes > limits.source_bytes {
-        return Err(format!(
-            "{name} is larger than the {} MiB per-source limit",
-            limits.source_bytes / (1024 * 1024),
+        return Err(refusal(
+            Reason::SourceTooLarge {
+                file: name.to_string(),
+                limit_mib: mib(limits.source_bytes),
+            },
+            format!(
+                "{name} is larger than the {} MiB per-source limit",
+                mib(limits.source_bytes),
+            ),
         ));
     }
     Ok(())
@@ -115,27 +141,43 @@ pub(crate) fn check_sources_placeable(
     engine: &dyn RasterEngine,
     paths: &[PathBuf],
     name_of: &dyn Fn(&Path) -> String,
-) -> Result<(), String> {
+) -> Result<(), LidarImportRefusal> {
     // A header check no one can cancel.
     let cancel = AtomicBool::new(false);
     for path in paths {
         let name = name_of(path);
         check_source_format(path, &name)?;
         let probe = engine.probe(path, &cancel).map_err(|error| {
-            // An engine message may spell out the whole path; the user sees
-            // the file name in its place.
-            let error = error
+            // An engine message may spell out the whole path; the detail
+            // names the file in its place.
+            let detail = error
                 .to_string()
                 .replace(&path.display().to_string(), &name);
-            if error.contains(&name) {
-                error
+            let detail = if detail.contains(&name) {
+                detail
             } else {
-                format!("{name}: {error}")
-            }
+                format!("{name}: {detail}")
+            };
+            let file = name.clone();
+            let reason = match error {
+                // A system the file names by code is named; keys that spell
+                // one out (or a geocentric model) have no code to show.
+                ProbeError::UnsupportedCrs { subject, .. } => Reason::UnsupportedCrs {
+                    file,
+                    crs: if subject.starts_with("EPSG:") {
+                        subject
+                    } else {
+                        String::new()
+                    },
+                },
+                ProbeError::Other(_) => Reason::Unreadable { file },
+            };
+            refusal(reason, detail)
         })?;
         if probe.crs_ref.trim().is_empty() {
-            return Err(format!(
-                "{name} has no coordinate system; Canopi needs one to place it"
+            return Err(refusal(
+                Reason::NoCrs { file: name.clone() },
+                format!("{name} has no coordinate system; Canopi needs one to place it"),
             ));
         }
     }
@@ -147,26 +189,37 @@ pub(crate) fn check_sources_placeable(
 ///
 /// Only GeoTIFF sources import, and this reads four bytes, so a file in
 /// another format is refused before any reader parses it whole.
-fn check_source_format(path: &Path, name: &str) -> Result<(), String> {
+fn check_source_format(path: &Path, name: &str) -> Result<(), LidarImportRefusal> {
+    let file = name.to_string();
     match is_tiff(path) {
         Ok(true) => Ok(()),
-        Ok(false) => Err(format!(
-            "{name} is not a GeoTIFF; Canopi imports GeoTIFF rasters"
+        Ok(false) => Err(refusal(
+            Reason::NotGeotiff { file },
+            format!("{name} is not a GeoTIFF; Canopi imports GeoTIFF rasters"),
         )),
-        Err(_) => Err(format!("{name} cannot be read; choose the files again")),
+        Err(_) => Err(refusal(
+            Reason::Unreadable { file },
+            format!("{name} cannot be read; choose the files again"),
+        )),
     }
 }
 
 /// Refuse a selection whose total bytes exceed the per-import bound.
-pub(crate) fn check_import_bytes(total: u64) -> Result<(), String> {
+pub(crate) fn check_import_bytes(total: u64) -> Result<(), LidarImportRefusal> {
     let limits = limits();
     if total > limits.import_bytes {
-        return Err(format!(
-            "selected sources exceed the {} MiB import limit",
-            limits.import_bytes / (1024 * 1024),
-        ));
+        return Err(import_too_large());
     }
     Ok(())
+}
+
+/// The refusal of a selection whose total bytes exceed the per-import bound.
+pub(crate) fn import_too_large() -> LidarImportRefusal {
+    let limit_mib = mib(limits().import_bytes);
+    refusal(
+        Reason::ImportTooLarge { limit_mib },
+        format!("selected sources exceed the {limit_mib} MiB import limit"),
+    )
 }
 
 /// One source occurrence's contribution to the processing-cell budget: its

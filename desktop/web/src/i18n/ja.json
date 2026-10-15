@@ -663,6 +663,20 @@
           "apartTitle": "これらのファイルは敷地をカバーしていません。",
           "apartBody": "このデザインから {{distance}} 離れています。ライブラリにはインポートできます。"
         }
+      },
+      "failure": {
+        "generic": "Canopi はこの処理を完了できませんでした。もう一度お試しください。繰り返し失敗する場合は問題を報告してください。",
+        "tooManyFiles": "1 回のインポートで扱えるファイルは {{limit, number}} 個までです。ファイルを減らしてください。",
+        "sourceTooLarge": "{{file}} は大きすぎます。1 ファイルは {{size}} までです。",
+        "importTooLarge": "これらのファイルは合計で大きすぎます。1 回のインポートは {{size}} までです。",
+        "sourceMissing": "{{file}} が見つかりません。ファイルをもう一度選んでください。",
+        "unreadable": "{{file}} を GeoTIFF ラスターとして読み込めません。",
+        "notGeotiff": "{{file}} は GeoTIFF ではありません。Canopi は GeoTIFF ラスターをインポートします。",
+        "noCrs": "{{file}} には座標系がないため、Canopi は配置できません。",
+        "unsupportedCrs": "{{file}} は {{crs}} を使っています。Canopi が配置できない座標系です。",
+        "unsupportedCrsUnnamed": "{{file}} は Canopi が配置できない座標系を使っています。",
+        "jobRunning": "別のインポートまたは計算が実行中です。終わってからもう一度お試しください。",
+        "libraryUnavailable": "現在、データライブラリは変更できません。理由はライブラリのお知らせに表示されています。"
       }
     },
     "basemap": {

@@ -15,6 +15,7 @@
 //! only, every longitude/latitude step goes through this module, and the
 //! GeoLibre CLI's WGS84 GeoJSON is never trusted for placement.
 
+use super::super::engine::ProbeError;
 use super::crs_table::{self, CrsKind, CrsRow};
 use proj4rs::proj::Proj;
 use proj4rs::transform::transform;
@@ -55,22 +56,26 @@ impl ResolvedCrs {
     }
 }
 
-/// The one refusal (U31): `subject` is not placed, and the supported
-/// systems are named.
-fn refused(subject: &str) -> String {
-    format!(
-        "{subject} is not a supported coordinate system. Canopi places LiDAR in {}.",
-        crs_table::SUPPORTED_SUMMARY
-    )
+/// The one refusal (U31): `subject` is not placed, and the English detail
+/// names the supported systems. Import and Retry name the refusal from its
+/// kind; `subject` is how the file names its system.
+fn refused(subject: &str) -> ProbeError {
+    ProbeError::UnsupportedCrs {
+        subject: subject.to_string(),
+        detail: format!(
+            "{subject} is not a supported coordinate system. Canopi places LiDAR in {}.",
+            crs_table::SUPPORTED_SUMMARY
+        ),
+    }
 }
 
 /// The refusal of keys that spell out a system no row matches.
-fn user_defined_refused() -> String {
+fn user_defined_refused() -> ProbeError {
     refused("The raster's user-defined system")
 }
 
 /// Resolve a code, through the compound aliases.
-fn from_code(code: u32) -> Result<ResolvedCrs, String> {
+fn from_code(code: u32) -> Result<ResolvedCrs, ProbeError> {
     crs_table::row_of(code)
         .map(|row| ResolvedCrs { row })
         .ok_or_else(|| refused(&format!("EPSG:{code}")))
@@ -83,7 +88,7 @@ pub(super) fn from_reference(reference: &str) -> Result<ResolvedCrs, String> {
         .strip_prefix("EPSG:")
         .and_then(|code| code.parse::<u32>().ok())
         .ok_or_else(|| format!("{reference} is not an EPSG:n coordinate reference"))?;
-    from_code(code)
+    from_code(code).map_err(String::from)
 }
 
 /// Transforms between two rows, each through WGS84 longitude and latitude.
@@ -197,7 +202,7 @@ fn registry_code(value: Option<u16>) -> Option<u32> {
 /// be projected under a geographic model (wbgeotiff keys every 4xxx code,
 /// such as RGM04 / UTM 38S 4471, as geographic), but not geographic under a
 /// projected model, which states a projection Canopi does not read.
-pub(super) fn from_geokeys(keys: &GeoKeyDirectory) -> Result<Option<ResolvedCrs>, String> {
+pub(super) fn from_geokeys(keys: &GeoKeyDirectory) -> Result<Option<ResolvedCrs>, ProbeError> {
     let model = short(keys, key::GTModelTypeGeoKey);
     if model == Some(3) {
         return Err(refused("A geocentric system"));
@@ -442,7 +447,7 @@ fn stated_ellipsoid(keys: &GeoKeyDirectory) -> Option<Option<(f64, f64)>> {
 /// ellipsoid is nearest the stated one. Units other than metres and degrees,
 /// another prime meridian, or an ellipsoid that differs from every such row
 /// match nothing.
-fn user_defined(keys: &GeoKeyDirectory) -> Result<ResolvedCrs, String> {
+fn user_defined(keys: &GeoKeyDirectory) -> Result<ResolvedCrs, ProbeError> {
     let unit_ok = |id: u16, expected: u16| {
         matches!(short(keys, id), None | Some(USER_DEFINED)) || short(keys, id) == Some(expected)
     };
@@ -637,7 +642,11 @@ mod tests {
     /// a range it names (the CC zones and the UTM zones).
     #[test]
     fn the_refusal_names_the_supported_systems() {
-        let message = refused("EPSG:2263");
+        let refusal = refused("EPSG:2263");
+        assert!(
+            matches!(&refusal, ProbeError::UnsupportedCrs { subject, .. } if subject == "EPSG:2263")
+        );
+        let message = refusal.to_string();
         assert!(message.starts_with("EPSG:2263 is not a supported coordinate system."));
         let ranges = [(3942, 3950), (32601, 32660), (32701, 32760), (25828, 25838)];
         for (first, last) in ranges {
@@ -702,6 +711,7 @@ mod tests {
         assert!(
             from_geokeys(&geocentric)
                 .unwrap_err()
+                .to_string()
                 .starts_with("A geocentric system is not a supported coordinate system")
         );
     }
@@ -768,6 +778,7 @@ mod tests {
         assert!(
             from_geokeys(&keys)
                 .unwrap_err()
+                .to_string()
                 .starts_with("The raster's user-defined system")
         );
     }

@@ -6,7 +6,9 @@
 
 use super::*;
 use common_types::library::{LibraryItemRole, LibraryItemSummary, RasterQuantity};
-use common_types::lidar::{LidarDisplayRequest, LidarDisplayState, LidarResultState};
+use common_types::lidar::{
+    LidarDisplayRequest, LidarDisplayState, LidarImportRefusalReason, LidarResultState,
+};
 use std::path::Path;
 
 fn scratch(label: &str) -> crate::test_scratch::TestScratch {
@@ -465,7 +467,8 @@ fn importing_a_missing_file_is_refused_by_name_and_creates_nothing() {
             false,
             vec![root.join("gone.tif")],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("cannot be found"), "{error}");
     assert_refused_in_dialog(&library, &root, &error, "gone.tif");
 }
@@ -478,7 +481,7 @@ fn importing_a_geotiff_in_a_refused_code_is_refused_and_creates_nothing() {
     let root = scratch("import-refused-code");
     let library = attached_library(&root);
     let source = plane_in_code(&library, &root, "elsewhere", 65_000);
-    let error = library
+    let refusal = library
         .import_item(
             "Elsewhere",
             RasterQuantity::GroundElevation,
@@ -487,6 +490,14 @@ fn importing_a_geotiff_in_a_refused_code_is_refused_and_creates_nothing() {
             vec![source],
         )
         .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        LidarImportRefusalReason::UnsupportedCrs {
+            file: "elsewhere.tif".to_string(),
+            crs: "EPSG:65000".to_string()
+        }
+    );
+    let error = refusal.detail;
     assert!(
         error.contains("65000"),
         "the refusal names the code: {error}"
@@ -514,7 +525,8 @@ fn importing_a_file_that_is_not_a_geotiff_is_refused_before_it_is_read() {
             false,
             vec![source],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("not a GeoTIFF"), "{error}");
     assert!(
         !error.contains("readable raster"),
@@ -548,6 +560,13 @@ fn importing_a_file_that_cannot_be_opened_is_refused_by_name() {
         )
         .unwrap_err();
     std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        error.reason,
+        LidarImportRefusalReason::Unreadable {
+            file: "locked.tif".to_string()
+        }
+    );
+    let error = error.detail;
     assert!(error.contains("cannot be read"), "{error}");
     assert_refused_in_dialog(&library, &root, &error, "locked.tif");
 }
@@ -587,11 +606,11 @@ fn retrying_an_import_whose_file_is_gone_is_refused_on_its_item_without_a_new_jo
     let root = scratch("retry-missing");
     let library = attached_library(&root);
     let layer_id = failed_import(&library, root.join("gone.tif"), "first failure");
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(error.contains("gone.tif cannot be found"), "{error}");
     assert!(!error.contains(&root.display().to_string()), "{error}");
     assert_eq!(row_message(&library, &layer_id), error);
-    assert_eq!(library.retry_import(&layer_id).unwrap_err(), error);
+    assert_eq!(library.retry_import(&layer_id).unwrap_err().detail, error);
     assert_eq!(count(&library, "SELECT COUNT(*) FROM lidar_import_jobs"), 1);
 }
 
@@ -638,7 +657,7 @@ fn a_refused_retry_returns_its_reason_when_the_row_cannot_be_updated() {
              BEGIN SELECT RAISE(ABORT, 'jobs are read-only'); END;",
         )
         .unwrap();
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(error.contains("gone.tif cannot be found"), "{error}");
     assert!(!error.contains("read-only"), "{error}");
     assert_eq!(count(&library, "SELECT COUNT(*) FROM lidar_import_jobs"), 1);
@@ -747,6 +766,15 @@ fn retrying_a_rebuilt_item_in_a_refused_code_keeps_the_refusal_on_the_item() {
     let (library, layer_id) = rebuilt_library(&root, &tile, "sha-refused");
     let jobs = count(&library, "SELECT COUNT(*) FROM lidar_import_jobs");
     let error = library.retry_import(&layer_id).unwrap_err();
+    assert_eq!(
+        error.reason,
+        LidarImportRefusalReason::UnsupportedCrs {
+            file: "elsewhere.tif".to_string(),
+            crs: "EPSG:65000".to_string()
+        },
+        "a rebuilt item's refusal names the file it was imported as"
+    );
+    let error = error.detail;
     assert!(
         error.contains("65000"),
         "the refusal names the code: {error}"
@@ -778,7 +806,7 @@ fn retrying_a_rebuilt_item_whose_original_is_gone_names_the_imported_file() {
     let root = scratch("retry-rebuilt-gone");
     let (library, layer_id) = rebuilt_library(&root, &tile, "sha-gone");
     std::fs::remove_file(library.inner.paths.source_original("sha-gone")).unwrap();
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(
         error.starts_with("elsewhere.tif cannot be found"),
         "{error}"
@@ -805,9 +833,12 @@ fn import_and_retry_are_refused_with_nothing_recorded_while_a_raster_job_runs() 
             false,
             vec![tile],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("already running"), "{error}");
     let error = library.retry_import(&layer_id).unwrap_err();
+    assert_eq!(error.reason, LidarImportRefusalReason::JobRunning);
+    let error = error.detail;
     assert!(error.contains("already running"), "{error}");
 
     assert_eq!(
@@ -1852,7 +1883,6 @@ fn refusal_kind(error: &impl serde::Serialize) -> serde_json::Value {
 /// canopi-bkbh: Import and Retry refusals carry their kind, so the frontend
 /// names each in the interface language; the detail stays English.
 #[test]
-#[ignore = "expected-fail L canopi-bkbh"]
 fn import_and_retry_refusals_carry_their_kind() {
     let root = scratch("refusal-kinds");
     let library = attached_library(&root);

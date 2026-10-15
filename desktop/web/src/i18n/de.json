@@ -663,6 +663,20 @@
           "apartTitle": "Diese Dateien decken Ihr Grundstück nicht ab.",
           "apartBody": "Sie liegen {{distance}} von diesem Design entfernt. Sie können sie trotzdem in Ihre Bibliothek importieren."
         }
+      },
+      "failure": {
+        "generic": "Canopi konnte das nicht abschließen. Versuchen Sie es erneut und melden Sie ein Problem, wenn es wieder fehlschlägt.",
+        "tooManyFiles": "Ein Import kann höchstens {{limit, number}} Dateien enthalten. Wählen Sie weniger Dateien.",
+        "sourceTooLarge": "{{file}} ist zu groß: Eine Datei darf höchstens {{size}} groß sein.",
+        "importTooLarge": "Diese Dateien sind zusammen zu groß: Ein Import darf höchstens {{size}} groß sein.",
+        "sourceMissing": "{{file}} wurde nicht gefunden. Wählen Sie die Dateien erneut.",
+        "unreadable": "{{file}} kann nicht als GeoTIFF-Raster gelesen werden.",
+        "notGeotiff": "{{file}} ist kein GeoTIFF. Canopi importiert GeoTIFF-Raster.",
+        "noCrs": "{{file}} hat kein Koordinatensystem, daher kann Canopi die Datei nicht platzieren.",
+        "unsupportedCrs": "{{file}} verwendet {{crs}}, ein Koordinatensystem, das Canopi nicht platzieren kann.",
+        "unsupportedCrsUnnamed": "{{file}} verwendet ein Koordinatensystem, das Canopi nicht platzieren kann.",
+        "jobRunning": "Ein anderer Import oder eine andere Berechnung läuft. Versuchen Sie es erneut, wenn sie beendet ist.",
+        "libraryUnavailable": "Die Datenbibliothek kann gerade nicht geändert werden. Ihr Hinweis nennt den Grund."
       }
     },
     "basemap": {

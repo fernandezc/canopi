@@ -663,6 +663,20 @@
           "apartTitle": "这些文件未覆盖您的场地。",
           "apartBody": "它们距离此设计 {{distance}}。您仍可以将其导入数据资料库。"
         }
+      },
+      "failure": {
+        "generic": "Canopi 未能完成此操作。请重试；如果仍然失败，请报告问题。",
+        "tooManyFiles": "一次导入最多包含 {{limit, number}} 个文件。请减少文件数量。",
+        "sourceTooLarge": "{{file}} 太大：单个文件最大为 {{size}}。",
+        "importTooLarge": "这些文件合计太大：一次导入最大为 {{size}}。",
+        "sourceMissing": "找不到 {{file}}。请重新选择文件。",
+        "unreadable": "无法将 {{file}} 读取为 GeoTIFF 栅格。",
+        "notGeotiff": "{{file}} 不是 GeoTIFF。Canopi 导入 GeoTIFF 栅格。",
+        "noCrs": "{{file}} 没有坐标系，因此 Canopi 无法放置它。",
+        "unsupportedCrs": "{{file}} 使用 {{crs}}，这是 Canopi 无法放置的坐标系。",
+        "unsupportedCrsUnnamed": "{{file}} 使用 Canopi 无法放置的坐标系。",
+        "jobRunning": "另一个导入或计算正在进行。请在其完成后重试。",
+        "libraryUnavailable": "数据资料库当前无法更改。其通知说明了原因。"
       }
     },
     "basemap": {

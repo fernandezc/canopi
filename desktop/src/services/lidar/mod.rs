@@ -42,6 +42,7 @@ use common_types::library::{
 };
 use common_types::lidar::{
     LidarImportJob, LidarImportJobState, LidarImportProgress, LidarImportProgressPhase,
+    LidarImportRefusal, LidarImportRefusalReason,
 };
 use engine::RasterEngine;
 use paths::LidarPaths;
@@ -1176,7 +1177,8 @@ impl LidarLibrary {
     /// Record and start one import as a new library item. A file Canopi
     /// cannot place, or a raster job already running, is refused here, in the
     /// import dialog, before any item or job exists (canopi-try2, U31, U32);
-    /// only headers are read.
+    /// only headers are read. Every refusal carries its kind; one that is
+    /// only text (a failed catalogue write) is `Internal`.
     pub fn import_item(
         &self,
         name: &str,
@@ -1184,17 +1186,33 @@ impl LidarLibrary {
         unit_label: Option<&str>,
         unit_unknown: bool,
         paths: Vec<PathBuf>,
-    ) -> Result<common_types::lidar::LidarImportReceipt, String> {
+    ) -> Result<common_types::lidar::LidarImportReceipt, LidarImportRefusal> {
+        self.admit_writes()?;
         import::validate_selection(&paths, &admission::source_name)?;
         admission::check_sources_placeable(
             self.inner.engine.as_ref(),
             &paths,
             &admission::source_name,
         )?;
-        let lease = HeavyJobLease::acquire(self, &new_id("imp"))?;
+        let lease = self.admit_heavy_job()?;
         let (layer_id, job_id) =
             self.record_import_item(name, quantity, unit_label, unit_unknown, &paths)?;
-        self.start_recorded_import(lease, &layer_id, &job_id, paths)
+        Ok(self.start_recorded_import(lease, &layer_id, &job_id, paths)?)
+    }
+
+    /// Import's and Retry's writable check: a library opened read-only or not
+    /// at all refuses as `LibraryUnavailable`.
+    fn admit_writes(&self) -> Result<(), LidarImportRefusal> {
+        self.ensure_writable().map_err(|detail| {
+            admission::refusal(LidarImportRefusalReason::LibraryUnavailable, detail)
+        })
+    }
+
+    /// The heavy lease of a new import; another raster job holding it
+    /// refuses as `JobRunning`.
+    fn admit_heavy_job(&self) -> Result<HeavyJobLease, LidarImportRefusal> {
+        HeavyJobLease::acquire(self, &new_id("imp"))
+            .map_err(|detail| admission::refusal(LidarImportRefusalReason::JobRunning, detail))
     }
 
     /// Retry a failed unpublished import with its saved request.
@@ -1206,30 +1224,31 @@ impl LidarLibrary {
     pub fn retry_import(
         &self,
         layer_id: &str,
-    ) -> Result<common_types::lidar::LidarImportReceipt, String> {
+    ) -> Result<common_types::lidar::LidarImportReceipt, LidarImportRefusal> {
+        self.admit_writes()?;
         let SavedRetry {
             latest_job, paths, ..
-        } = {
-            self.ensure_writable()?;
-            saved_retry(&*self.catalogue()?, layer_id)?
-        };
-        let checked = self.saved_source_names(&paths).and_then(|names| {
-            let name_of = |path: &std::path::Path| {
-                names
-                    .get(path)
-                    .cloned()
-                    .unwrap_or_else(|| admission::source_name(path))
-            };
-            import::validate_selection(&paths, &name_of)?;
-            admission::check_sources_placeable(self.inner.engine.as_ref(), &paths, &name_of)
-        });
-        if let Err(error) = checked {
-            self.refuse_retry(&latest_job, &error);
-            return Err(error);
+        } = saved_retry(&*self.catalogue()?, layer_id)?;
+        let checked = self
+            .saved_source_names(&paths)
+            .map_err(LidarImportRefusal::from)
+            .and_then(|names| {
+                let name_of = |path: &std::path::Path| {
+                    names
+                        .get(path)
+                        .cloned()
+                        .unwrap_or_else(|| admission::source_name(path))
+                };
+                import::validate_selection(&paths, &name_of)?;
+                admission::check_sources_placeable(self.inner.engine.as_ref(), &paths, &name_of)
+            });
+        if let Err(refusal) = checked {
+            self.refuse_retry(&latest_job, &refusal);
+            return Err(refusal);
         }
-        let lease = HeavyJobLease::acquire(self, &new_id("imp"))?;
+        let lease = self.admit_heavy_job()?;
         let (layer_id, job_id, paths) = self.record_import_retry(layer_id)?;
-        self.start_recorded_import(lease, &layer_id, &job_id, paths)
+        Ok(self.start_recorded_import(lease, &layer_id, &job_id, paths)?)
     }
 
     /// The file names a saved selection's managed originals were imported
@@ -1286,16 +1305,17 @@ impl LidarLibrary {
         })
     }
 
-    /// A refused Retry's reason, kept as the failure of the item's latest
-    /// import instead of a new job row. Best effort: the caller returns the
-    /// refusal whatever happens to this write.
-    fn refuse_retry(&self, latest_job: &str, message: &str) {
+    /// A refused Retry, kept as the failure of the item's latest import
+    /// instead of a new job row; the job keeps the English detail for
+    /// diagnostics (the row shows Import failed). Best effort: the caller
+    /// returns the refusal whatever happens to this write.
+    fn refuse_retry(&self, latest_job: &str, refusal: &LidarImportRefusal) {
         let written = self.catalogue().and_then(|connection| {
             connection
                 .execute(
                     "UPDATE lidar_import_jobs SET state = 'failed', message = ?2, updated_at = ?3
                      WHERE id = ?1 AND state = 'failed'",
-                    rusqlite::params![latest_job, message, now_iso()],
+                    rusqlite::params![latest_job, refusal.detail, now_iso()],
                 )
                 .map_err(|e| e.to_string())
         });

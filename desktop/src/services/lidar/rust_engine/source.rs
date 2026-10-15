@@ -44,7 +44,8 @@ impl Opened {
     }
 }
 
-/// Header facts of a GeoTIFF.
+/// Header facts of a GeoTIFF; a system Canopi cannot place is
+/// `ProbeError::UnsupportedCrs`.
 pub(super) fn probe(path: &Path) -> Result<RasterProbe, ProbeError> {
     Ok(probe_tiff(&read_header(path)?)?.0)
 }
@@ -110,12 +111,14 @@ pub(super) fn grid_of(probe: &RasterProbe) -> RasterGrid {
 }
 
 /// The header facts and the CRS they name, resolved once.
-fn probe_tiff(header: &tiff::TiffHeader) -> Result<(RasterProbe, Option<ResolvedCrs>), String> {
+fn probe_tiff(header: &tiff::TiffHeader) -> Result<(RasterProbe, Option<ResolvedCrs>), ProbeError> {
     let geotransform = header
         .geotransform
         .ok_or_else(|| "raster is not georeferenced (missing geotransform)".to_string())?;
     if geotransform[1] == 0.0 || geotransform[5] == 0.0 {
-        return Err("raster has degenerate pixel size (zero geotransform scale)".to_string());
+        return Err("raster has degenerate pixel size (zero geotransform scale)"
+            .to_string()
+            .into());
     }
     let crs = match &header.geo_keys {
         Some(keys) => crs::from_geokeys(keys)?,

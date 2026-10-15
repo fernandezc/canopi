@@ -10,6 +10,7 @@ use common_types::library::{
     AnalysisReceipt, AnalysisRequest, LibraryDeleteImpact, LibrarySnapshot, ProcessingHistoryPage,
     RasterQuantity,
 };
+use common_types::lidar::{LidarImportReceipt, LidarImportRefusal};
 use tauri::State;
 
 #[tauri::command]
@@ -236,7 +237,8 @@ pub async fn lidar_display_descriptor(
 /// display derivatives and publication run as one job: a failure or
 /// cancellation publishes none of the batch. A stopping job still settling
 /// (cancelled, or done) is waited for before the file check, so the same
-/// file imports again.
+/// file imports again. A refusal carries its kind, so the dialog names it
+/// in the interface language; a busy executor is `Internal`.
 #[tauri::command]
 pub async fn lidar_import_item(
     library: State<'_, LidarLibrary>,
@@ -248,7 +250,7 @@ pub async fn lidar_import_item(
     unit_label: Option<String>,
     unit_unknown: Option<bool>,
     paths: Vec<String>,
-) -> Result<common_types::lidar::LidarImportReceipt, String> {
+) -> Result<LidarImportReceipt, LidarImportRefusal> {
     let library = library.inner().clone();
     library.await_stopping_jobs().await;
     executor
@@ -256,16 +258,16 @@ pub async fn lidar_import_item(
             crate::native_operation::NativeOperationClass::UserData,
             "lidar import item",
             move || {
-                library.import_item(
+                Ok(library.import_item(
                     &name,
                     quantity,
                     unit_label.as_deref(),
                     unit_unknown.unwrap_or(false),
                     paths.into_iter().map(std::path::PathBuf::from).collect(),
-                )
+                ))
             },
         )
-        .await
+        .await?
 }
 
 /// Import › "Covers your site": the WGS84 box around the chosen files, read
@@ -308,22 +310,23 @@ pub async fn lidar_library_disk_usage(
 
 /// Retry a failed import with its saved selection, keeping the same library
 /// item. A published item cannot be retried. A stopping job still settling
-/// is waited for first, as Import waits.
+/// is waited for first, as Import waits. A refusal carries its kind, as
+/// Import's does.
 #[tauri::command]
 pub async fn lidar_retry_import(
     library: State<'_, LidarLibrary>,
     executor: State<'_, NativeOperationExecutor>,
     layer_id: String,
-) -> Result<common_types::lidar::LidarImportReceipt, String> {
+) -> Result<LidarImportReceipt, LidarImportRefusal> {
     let library = library.inner().clone();
     library.await_stopping_jobs().await;
     executor
         .run(
             crate::native_operation::NativeOperationClass::UserData,
             "lidar retry import",
-            move || library.retry_import(&layer_id),
+            move || Ok(library.retry_import(&layer_id)),
         )
-        .await
+        .await?
 }
 
 /// Remove an unpublished item whose import failed. A stopping job still
