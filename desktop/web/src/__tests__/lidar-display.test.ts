@@ -449,7 +449,7 @@ describe('LiDAR display descriptor refusals', () => {
     for (const id of ids) expect(display.readLidarDisplay('Source', id, 'gen-2', 'relief')?.state).toBe('Ready')
     expect(recentFrontendDiagnostics()).toEqual([])
     // A Rename or Delete on the same executor still finds an admission slot.
-    expect(peak).toBeLessThan(8)
+    expect(peak).toBeLessThanOrEqual(4)
   })
 
   it('a busy executor is never Display failed and records nothing, however long it stays busy', async () => {
