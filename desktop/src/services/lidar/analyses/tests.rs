@@ -1460,8 +1460,7 @@ fn warnings_during(run: impl FnOnce()) -> String {
         .with_max_level(tracing::Level::WARN)
         .finish();
     tracing::subscriber::with_default(subscriber, run);
-    let written = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
-    written
+    String::from_utf8(log.0.lock().unwrap().clone()).unwrap()
 }
 
 /// A chunk file the app may not open answers `ReadFailed`, so the profile
