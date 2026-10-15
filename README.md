@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/naejin/canopi/releases/latest"><img src="https://img.shields.io/github/v/release/naejin/canopi?style=flat-square&color=A06B1F&label=release" alt="Release" /></a>
+  <a href="https://github.com/opencanopi/canopi/releases/latest"><img src="https://img.shields.io/github/v/release/opencanopi/canopi?style=flat-square&color=A06B1F&label=release" alt="Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-A06B1F?style=flat-square" alt="License" /></a>
   <img src="https://img.shields.io/badge/platform-Linux%20%C2%B7%20macOS%20%C2%B7%20Windows-A06B1F?style=flat-square" alt="Platforms" />
   <img src="https://img.shields.io/badge/languages-11-A06B1F?style=flat-square" alt="Languages" />
@@ -31,7 +31,7 @@ Rust (Tauri v2, rusqlite) · Preact, @preact/signals, TypeScript, Vite · MapLib
 
 ## Install
 
-Download Canopi from the [latest release](https://github.com/naejin/canopi/releases/latest): `canopi-linux-x64.deb` or `canopi-linux-x64.AppImage`; `canopi-macos-arm64.dmg` (Apple silicon) or `canopi-macos-x64.dmg` (Intel), for macOS 12 or later; `canopi-windows-x64.exe` or `canopi-windows-x64.msi`. `RELEASE-SHA256SUMS.txt` lists their checksums. The [Web Edition](https://web.projectcanopi.com) runs in the browser with nothing to install.
+Download Canopi from the [latest release](https://github.com/opencanopi/canopi/releases/latest): `canopi-linux-x64.deb` or `canopi-linux-x64.AppImage`; `canopi-macos-arm64.dmg` (Apple silicon) or `canopi-macos-x64.dmg` (Intel), for macOS 12 or later; `canopi-windows-x64.exe` or `canopi-windows-x64.msi`. `RELEASE-SHA256SUMS.txt` lists their checksums. The [Web Edition](https://web.projectcanopi.com) runs in the browser with nothing to install.
 
 The installers are not signed yet, so the first open takes one more step. macOS: open Canopi once, then go to **System Settings › Privacy & Security** and click **Open Anyway** (since macOS 15, right-click › Open no longer does this). If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/Canopi.app` in Terminal. Windows: when SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**.
 
