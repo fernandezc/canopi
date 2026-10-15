@@ -33,7 +33,7 @@ jobs:
       db_asset_name: ${{ steps.schema.outputs.db_asset_name }}
       expected_schema_version: ${{ steps.schema.outputs.expected_schema_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -204,7 +204,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.preflight.outputs.head_sha }}
 
@@ -222,7 +222,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: ./.github/actions/install-linux-deps
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -303,7 +303,7 @@ jobs:
         run: scripts/smoke-bundled-sidecar.sh ${{ matrix.target }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: canopi-${{ matrix.target }}
           path: |
@@ -320,7 +320,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download packaged artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: canopi-*
           path: artifacts
@@ -386,7 +386,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload release-candidate manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: canopi-release-candidate-manifest
           path: |

@@ -44,10 +44,10 @@ jobs:
       run:
         working-directory: desktop/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 22 like every other job (package.json engines ^22.13.0); the image ships Node 24.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload the report and traces
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-edition-browsers-report
           path: |
@@ -89,7 +89,7 @@ jobs:
 
       - name: Upload the recorded baselines
         if: ${{ !cancelled() && inputs.update_snapshots }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: web-edition-snapshots
           path: desktop/web/e2e/**/*-snapshots/
