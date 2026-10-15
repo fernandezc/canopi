@@ -277,14 +277,15 @@ fn an_import_publishes_one_fixed_item_with_display_ready_and_nothing_refreshes()
     assert_eq!(item.state, LidarResultState::Ready);
     let generation = item.generation_id.clone().expect("published head");
 
-    // Display derivatives were staged by the import job itself.
+    // Display derivatives were staged by the import job itself: a ground
+    // elevation's default view, its relief (D8).
     let descriptor = library
         .display_descriptor(&LidarDisplayRequest {
             kind: LibraryItemRole::Source,
             entity_id: receipt.layer_id.clone(),
             expected_generation_id: Some(generation.clone()),
             retry: false,
-            relief: false,
+            relief: true,
         })
         .unwrap();
     assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");

@@ -290,7 +290,8 @@ describe('the Site data panel', () => {
     const body = row('a')
     expect(body.textContent).toContain('Ground elevation (DTM)')
     expect(body.querySelector('[role="radiogroup"][aria-label="Colors"]')).not.toBeNull()
-    expect(body.querySelector('[role="radiogroup"][aria-label="Range"]')).not.toBeNull()
+    // A ground elevation opens on Relief, which hides Range (D2, D5, user, 2026-10-15).
+    expect(body.querySelector('[role="radiogroup"][aria-label="Range"]')).toBeNull()
     expect(body.querySelector('input[aria-label="Opacity: Ground"]')).not.toBeNull()
     await click(button('Details', body))
     expect(libraryView.value).toEqual({ focusId: 'a' })
