@@ -23,6 +23,7 @@ import type { RasterTileRequest, RasterWorkerPool } from './pool'
 import { rasterWorkerPool } from './pool'
 import { recordRaster } from './diagnostics'
 import { mercatorToGeo } from '../../canvas/projection'
+import { WORKSPACE_MAP_MAX_ZOOM } from '../../canvas/workspace-camera-policy'
 
 type RasterModule = typeof import('maplibre-gl-raster')
 type LayerManager = InstanceType<RasterModule['LayerManager']>
@@ -80,6 +81,21 @@ export interface RasterDisplay {
 }
 
 const MOSAIC_SCHEME = 'canopi-display-mosaic'
+
+/**
+ * The deepest tile zoom MapLibre asks a raster source for: the engine adds its
+ * sources without a maxzoom, so MapLibre's raster default applies and closer
+ * camera zooms overscale these tiles.
+ */
+const MAPLIBRE_RASTER_SOURCE_MAX_ZOOM = 22
+
+/**
+ * Layer zoom range: upstream defaults a layer's maxZoom to 24 and MapLibre hides
+ * a layer at `zoom >= maxzoom`, while the camera reaches WORKSPACE_MAP_MAX_ZOOM.
+ * Finite, so the style stays serialisable.
+ */
+const LAYER_MIN_ZOOM = 0
+const LAYER_MAX_ZOOM = WORKSPACE_MAP_MAX_ZOOM + 1
 
 interface Applied {
   readonly layer: RasterDisplayLayer
@@ -273,6 +289,8 @@ function stateFor(layer: RasterDisplayLayer) {
     nodata: 'auto' as const,
     opacity: layer.opacity,
     visible: true,
+    minZoom: LAYER_MIN_ZOOM,
+    maxZoom: LAYER_MAX_ZOOM,
   }
 }
 
@@ -305,13 +323,15 @@ function mosaicFor(mosaics: Map<string, RasterDisplayLayer>, url: string) {
 
 /**
  * Whether a queued tile still intersects the live viewport (padded by one
- * tile) at a zoom MapLibre could still want. Tiles MapLibre has already
+ * tile) at a tile zoom MapLibre could still want. Tiles MapLibre has already
  * abandoned are dropped before they reach a worker.
  */
 export function tileIsRelevant(map: RasterDisplayMap, tile: RasterTileRequest): boolean {
   const bounds = map.getBounds?.()
-  const zoom = map.getZoom?.()
-  if (!bounds || zoom === undefined) return true
+  const cameraZoom = map.getZoom?.()
+  if (!bounds || cameraZoom === undefined) return true
+  // Past the source's deepest tile zoom MapLibre keeps asking for those tiles.
+  const zoom = Math.min(cameraZoom, MAPLIBRE_RASTER_SOURCE_MAX_ZOOM)
   if (tile.z < Math.floor(zoom) - 2 || tile.z > Math.ceil(zoom) + 1) return false
   const n = 2 ** tile.z
   const { lng: tileWest, lat: tileNorth } = mercatorToGeo(tile.x / n, tile.y / n)
