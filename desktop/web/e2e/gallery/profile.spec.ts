@@ -3,7 +3,7 @@
 // says where, Steepest moves the cursor, × ends the profile;
 // Copy values writes tab-separated text in the locale's decimals (the gallery's clipboard stub reads it back); and
 // "Profile this line" on a Line zone's canvas menu draws that line's profile (U49 Q29); in Russian the header fits with
-// Copied beside the iconed Copy values (canopi-vggx). The memory backend samples its
+// Copied beside the iconed Copy values, down to a 360 px phone's sheet (canopi-vggx). The memory backend samples its
 // analytic site, which covers the west of the fixture Design. The gallery runs no canvas key router, so Enter, Backspace
 // and the Esc order are checked through the real key path in jsdom (canvas-interaction-e2e.profile.test.ts). DOM
 // assertions only, no baselines.
@@ -112,7 +112,7 @@ test.describe('Profile (g5)', () => {
     expect(lines.slice(1).some((line) => /\t\d+,\d{2}(\t|$)/.test(line)), 'some value in the locale\'s decimals').toBe(true)
   })
 
-  test('in Russian the header fits with Copied beside the iconed Copy values', async ({ page }) => {
+  test('in Russian the header fits with Copied beside the iconed Copy values, down to a 360 px phone\'s sheet', async ({ page }) => {
     await openGallery(page, { surface: 'site-data', locale: 'ru' })
     const { at } = await mapPoints(page, 'Карта проекта')
     const panel = page.locator('aside').filter({ has: page.getByRole('button', { name: 'Профиль', exact: true }) })
@@ -125,20 +125,30 @@ test.describe('Profile (g5)', () => {
     await expect(copy.locator('svg')).toHaveAttribute('width', '16')
     await copy.click()
     await expect(panel.getByText('Скопировано')).toBeVisible()
-    // The header's row: nothing overflows it, the button's label is never cut, and every control ends inside the row.
-    const fit = await copy.evaluate((button) => {
-      const header = button.parentElement!
-      const row = header.getBoundingClientRect()
-      return {
-        header: header.scrollWidth <= header.clientWidth,
-        label: button.scrollWidth <= button.clientWidth,
-        outside: Array.from(header.children).filter((child) => {
-          const rect = child.getBoundingClientRect()
-          return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
-        }).map((child) => child.textContent || child.getAttribute('aria-label')),
-      }
-    })
-    expect(fit).toEqual({ header: true, label: true, outside: [] })
+    // The header's row at the desktop panel, then at the panel a phone's sheet leaves (390 and 360 px viewports, less
+    // the sheet's padding and border): nothing overflows it, the button's label is never cut, and every control ends
+    // inside the row.
+    for (const width of [null, 372, 342]) {
+      const fit = await copy.evaluate((button, asideWidth) => {
+        const aside = button.closest('aside')!
+        if (asideWidth !== null) {
+          aside.style.width = `${asideWidth}px`
+          aside.style.flex = 'none'
+        }
+        const header = button.parentElement!
+        const row = header.getBoundingClientRect()
+        return {
+          width: asideWidth,
+          header: header.scrollWidth <= header.clientWidth,
+          label: button.scrollWidth <= button.clientWidth,
+          outside: Array.from(header.children).filter((child) => {
+            const rect = child.getBoundingClientRect()
+            return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
+          }).map((child) => child.textContent || child.getAttribute('aria-label')),
+        }
+      }, width)
+      expect(fit).toEqual({ width, header: true, label: true, outside: [] })
+    }
   })
 
   test('Profile this line on a Line zone\'s menu draws that line\'s profile', async ({ page }) => {
