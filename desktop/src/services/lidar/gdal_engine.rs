@@ -435,9 +435,7 @@ impl RasterEngine for GdalEngine {
     }
 
     fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, ProbeError> {
-        Ok(parse_gdalinfo_json(
-            &self.info_json(raster, false, cancel)?,
-        )?)
+        parse_gdalinfo_json(&self.info_json(raster, false, cancel)?)
     }
 
     fn statistics(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterStatistics, String> {
@@ -732,7 +730,7 @@ struct ProbeCrs {
 }
 
 /// Admission facts from `gdalinfo -json`, validated rather than trusted.
-pub(super) fn parse_gdalinfo_json(json: &str) -> Result<RasterProbe, String> {
+pub(super) fn parse_gdalinfo_json(json: &str) -> Result<RasterProbe, ProbeError> {
     let parsed: ProbeJson = serde_json::from_str(json)
         .map_err(|e| format!("gdalinfo JSON has unexpected shape: {e}"))?;
 
@@ -744,7 +742,11 @@ pub(super) fn parse_gdalinfo_json(json: &str) -> Result<RasterProbe, String> {
         .ok_or_else(|| "gdalinfo JSON missing raster size".to_string())?;
     let bands = parsed.bands.unwrap_or_default();
     if bands.is_empty() {
-        return Err("raster has no bands; Canopi admits single-band numeric rasters".to_string());
+        return Err(
+            "raster has no bands; Canopi admits single-band numeric rasters"
+                .to_string()
+                .into(),
+        );
     }
     let first = &bands[0];
     let band_type = first
@@ -752,9 +754,7 @@ pub(super) fn parse_gdalinfo_json(json: &str) -> Result<RasterProbe, String> {
         .clone()
         .unwrap_or_else(|| "Unknown".to_string());
     if !is_numeric_band_type(&band_type) {
-        return Err(format!(
-            "band type {band_type} is not a supported numeric raster type"
-        ));
+        return Err(format!("band type {band_type} is not a supported numeric raster type").into());
     }
     let nodata = match &first.noDataValue {
         Some(serde_json::Value::Number(n)) => n.as_f64().map(|v| v as f32),
@@ -762,12 +762,12 @@ pub(super) fn parse_gdalinfo_json(json: &str) -> Result<RasterProbe, String> {
     };
     let geotransform_raw = parsed
         .geoTransform
-        .ok_or_else(|| "raster is not georeferenced (missing geotransform)".to_string())?;
+        .ok_or_else(ProbeError::not_georeferenced)?;
     let geotransform: [f64; 6] = geotransform_raw
         .try_into()
         .map_err(|_| "gdalinfo geotransform must have exactly 6 values".to_string())?;
     if geotransform[1] == 0.0 || geotransform[5] == 0.0 {
-        return Err("raster has degenerate pixel size (zero geotransform scale)".to_string());
+        return Err(ProbeError::degenerate_pixel_size());
     }
     let crs_ref = parsed
         .coordinateSystem
@@ -934,7 +934,7 @@ mod tests {
             "coordinateSystem": {"wkt": "x"},
             "bands": []
         }"#;
-        let error = parse_gdalinfo_json(json).unwrap_err();
+        let error = parse_gdalinfo_json(json).unwrap_err().to_string();
         assert!(error.contains("no bands"));
     }
 
@@ -946,7 +946,21 @@ mod tests {
             "bands": [{"type": "Float32"}]
         }"#;
         let error = parse_gdalinfo_json(json).unwrap_err();
-        assert!(error.contains("not georeferenced"));
+        assert!(
+            matches!(&error, ProbeError::NotGeoreferenced { detail } if detail.contains("not georeferenced")),
+            "{error:?}"
+        );
+        let json = r#"{
+            "driverShortName": "GTiff",
+            "size": [4, 4],
+            "geoTransform": [0, 0, 0, 4, 0, -1],
+            "bands": [{"type": "Float32"}]
+        }"#;
+        let error = parse_gdalinfo_json(json).unwrap_err();
+        assert!(
+            matches!(&error, ProbeError::NotGeoreferenced { detail } if detail.contains("degenerate")),
+            "{error:?}"
+        );
         let json = r#"{
             "driverShortName": "GTiff",
             "size": [4, 4],
@@ -994,6 +1008,7 @@ mod tests {
         assert!(
             parse_gdalinfo_json(json)
                 .unwrap_err()
+                .to_string()
                 .contains("not a supported numeric")
         );
     }

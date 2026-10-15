@@ -170,6 +170,9 @@ pub(crate) fn check_sources_placeable(
                         String::new()
                     },
                 },
+                // A readable raster that nothing places reads as one without
+                // a coordinate system, as a georeferenced one without a CRS.
+                ProbeError::NotGeoreferenced { .. } => Reason::NoCrs { file },
                 ProbeError::Other(_) => Reason::Unreadable { file },
             };
             refusal(reason, detail)

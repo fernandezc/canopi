@@ -51,9 +51,9 @@ pub struct RasterProbe {
     pub overview_count: u32,
 }
 
-/// Why a header probe failed: a coordinate system Canopi cannot place is
-/// told apart, so Import and Retry can name it; anything else keeps the
-/// engine's English text.
+/// Why a header probe failed: a raster with nothing that places it and a
+/// coordinate system Canopi cannot place are told apart, so Import and Retry
+/// can say so; anything else keeps the engine's English text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProbeError {
     /// `subject` names the system as the file does (`EPSG:2263`, or the
@@ -62,15 +62,34 @@ pub enum ProbeError {
         subject: String,
         detail: String,
     },
+    /// A readable raster with no geotransform, or a pixel size of zero;
+    /// `detail` is the English refusal.
+    NotGeoreferenced {
+        detail: String,
+    },
     Other(String),
+}
+
+impl ProbeError {
+    pub(crate) fn not_georeferenced() -> Self {
+        Self::NotGeoreferenced {
+            detail: "raster is not georeferenced (missing geotransform)".to_string(),
+        }
+    }
+
+    pub(crate) fn degenerate_pixel_size() -> Self {
+        Self::NotGeoreferenced {
+            detail: "raster has degenerate pixel size (zero geotransform scale)".to_string(),
+        }
+    }
 }
 
 impl std::fmt::Display for ProbeError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnsupportedCrs { detail, .. } | Self::Other(detail) => {
-                formatter.write_str(detail)
-            }
+            Self::UnsupportedCrs { detail, .. }
+            | Self::NotGeoreferenced { detail }
+            | Self::Other(detail) => formatter.write_str(detail),
         }
     }
 }

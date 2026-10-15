@@ -535,6 +535,90 @@ fn importing_a_file_that_is_not_a_geotiff_is_refused_before_it_is_read() {
     assert_refused_in_dialog(&library, &root, &error, "dem.asc");
 }
 
+/// A one-cell Float32 TIFF that is readable but not placed: with no
+/// georeferencing tags, or (`zero_scale`) with a pixel scale of zero.
+fn ungeoreferenced_tiff(root: &Path, name: &str, zero_scale: bool) -> PathBuf {
+    // (tag, type, count, value or data): SHORT is 3, LONG is 4, DOUBLE is 12;
+    // doubles and the cell follow the directory, in entry order.
+    let mut entries: Vec<(u16, u16, Vec<f64>)> = vec![
+        (256, 3, vec![1.0]),  // ImageWidth
+        (257, 3, vec![1.0]),  // ImageLength
+        (258, 3, vec![32.0]), // BitsPerSample
+        (259, 3, vec![1.0]),  // Compression: none
+        (262, 3, vec![1.0]),  // Photometric: black is zero
+        (273, 4, vec![]),     // StripOffsets: the cell, filled in below
+        (277, 3, vec![1.0]),  // SamplesPerPixel
+        (278, 3, vec![1.0]),  // RowsPerStrip
+        (279, 4, vec![4.0]),  // StripByteCounts
+        (339, 3, vec![3.0]),  // SampleFormat: float
+    ];
+    if zero_scale {
+        entries.push((33550, 12, vec![0.0, 0.0, 0.0])); // ModelPixelScale
+        entries.push((33922, 12, vec![0.0, 0.0, 0.0, 445_000.0, 6_806_000.0, 0.0])); // ModelTiepoint
+    }
+    let directory_end = 8 + 2 + entries.len() * 12 + 4;
+    let doubles: usize = entries
+        .iter()
+        .filter(|(_, kind, _)| *kind == 12)
+        .map(|(_, _, values)| values.len() * 8)
+        .sum();
+    let cell_at = (directory_end + doubles) as u32;
+    let mut bytes = b"II\x2a\x00".to_vec();
+    bytes.extend_from_slice(&8u32.to_le_bytes());
+    bytes.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    let mut data = Vec::new();
+    for (tag, kind, values) in &entries {
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        bytes.extend_from_slice(&kind.to_le_bytes());
+        let count = values.len().max(1) as u32;
+        bytes.extend_from_slice(&count.to_le_bytes());
+        match kind {
+            3 => {
+                bytes.extend_from_slice(&(values[0] as u16).to_le_bytes());
+                bytes.extend_from_slice(&[0, 0]);
+            }
+            4 => {
+                let value = values.first().map_or(cell_at, |value| *value as u32);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            _ => {
+                let at = (directory_end + data.len()) as u32;
+                bytes.extend_from_slice(&at.to_le_bytes());
+                data.extend(values.iter().flat_map(|value| value.to_le_bytes()));
+            }
+        }
+    }
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&data);
+    assert_eq!(bytes.len(), cell_at as usize);
+    bytes.extend_from_slice(&1.5f32.to_le_bytes());
+    let path = root.join(format!("{name}.tif"));
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+/// A readable TIFF without a geotransform, or with a pixel size of zero, is
+/// refused as one Canopi cannot place, not as a file it cannot read.
+#[test]
+fn an_ungeoreferenced_tiff_is_refused_as_having_no_coordinate_system() {
+    let root = scratch("import-untagged");
+    let library = attached_library(&root);
+    for (name, zero_scale) in [("scan", false), ("flat", true)] {
+        let source = ungeoreferenced_tiff(&root, name, zero_scale);
+        let refusal =
+            admission::check_sources_placeable(library.inner.engine.as_ref(), &[source], &|path| {
+                path.file_name().unwrap().to_string_lossy().into_owned()
+            })
+            .unwrap_err();
+        let file = format!("{name}.tif");
+        assert_eq!(
+            refusal.reason,
+            LidarImportRefusalReason::NoCrs { file: file.clone() }
+        );
+        assert!(refusal.detail.contains(&file), "{}", refusal.detail);
+    }
+}
+
 /// A chosen file that cannot be opened is refused by name, without its
 /// folder or the system's error, and creates nothing.
 #[cfg(unix)]
