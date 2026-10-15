@@ -58,8 +58,10 @@ export function LibraryPreview({ item, client, width, height, large = false }: {
   const [url, setUrl] = useState<string | null>(previewCache.get(key) ?? null)
   const [failed, setFailed] = useState(false)
 
+  // The release lets an unmounted or changed preview stop asking for its display.
   useEffect(() => {
-    if (ready) requestLidarDisplay(kind, item.id, item.generationId, variant)
+    if (!ready) return
+    return requestLidarDisplay(kind, item.id, item.generationId, variant)
   }, [ready, kind, item.id, item.generationId, variant])
 
   useEffect(() => {

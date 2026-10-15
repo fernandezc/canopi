@@ -1,8 +1,9 @@
-import { effect, signal } from '@preact/signals'
+import { effect, signal, untracked } from '@preact/signals'
 import type { convertFileSrc } from '@tauri-apps/api/core'
 import type { RasterDisplayLayer } from '../../maplibre/raster-display/adapter'
 import { lidarDisplayDescriptor, type LidarDisplayDescriptor } from '../../ipc/lidar'
 import type { LibraryItemRole } from '../../generated/contracts'
+import { lidarFailureMessage } from './lidar-failures'
 import { cutOutlierRange, requestCutOutlierRange, resetCutOutlierRanges } from './display-range'
 import { displayVariant, itemTypeStyle, type DisplayVariant, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
 import { storyPresentationOverrides } from '../story-presentation/overrides'
@@ -18,14 +19,44 @@ import { readCurrentLidarPresentation, refreshLidarLibrary, type LidarPresentati
  * Design reference, a library preview, or an entry set to Cut outliers) and
  * polls while it is preparing. Entries are identity-keyed, so a descriptor of
  * an older generation, or of the other variant, can never be used for this one.
+ *
+ * A key is asked only while something wants it: the map's effect, or a
+ * caller holding the release `requestLidarDisplay` returns (a preview). At
+ * most `MAX_CONCURRENT_CALLS` calls run at once, the rest queued, so a Data
+ * library mounting every preview together never fills the user-data
+ * executor's admissions and a Rename or Delete still finds a slot.
+ *
+ * A refused or failed call is no answer about the derivative: a wanted key is
+ * asked again, ever more slowly with a random spread, so keys refused together
+ * never re-ask together. A busy executor ("operations are busy") is only
+ * waited out: it never reads Display failed and records nothing. Any other
+ * call that keeps failing reads Display failed until one answers, its reason
+ * recorded once through `lidarFailureMessage`. When the last asker lets a key
+ * go, its re-asks stop and a call-failure Display failed is dropped, so the
+ * next asker asks afresh. A failed preparation is an answer and is never
+ * asked again unasked.
  */
 export const lidarDisplayDescriptors = signal<ReadonlyMap<string, LidarDisplayDescriptor>>(new Map())
 
 const PREPARING_POLL_MS = 800
+/** A refused call is asked again after 0.8 s, doubling up to this, each wait spread over its upper half. */
+const MAX_REASK_MS = 30_000
+/** Consecutive failed calls, busy refusals aside, before an entry reads Display failed. */
+const FAILURES_BEFORE_FAILED = 3
+/** Below the user-data executor's 8 admissions, so the library's own actions always find one. */
+const MAX_CONCURRENT_CALLS = 4
 const MAX_ENTRIES = 256
 
 const inflight = new Set<string>()
+/** Calls waiting for a free slot, in asking order. */
+const queued = new Map<string, () => void>()
 const pollTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** A key's run of failed calls: all of them (the back-off) and those that were no busy refusal (Display failed). */
+const refusals = new Map<string, { calls: number, failures: number }>()
+/** Unreleased `requestLidarDisplay` holds per key. */
+const holders = new Map<string, number>()
+/** Keys the map's effect asked for on its last run. */
+let effectWanted: ReadonlySet<string> = new Set()
 let storeGeneration = 0
 
 /** A descriptor's identity: entity, generation and the derivative it draws, so relief and elevation never share one. */
@@ -62,10 +93,41 @@ function store(key: string, descriptor: LidarDisplayDescriptor): void {
   lidarDisplayDescriptors.value = next
 }
 
+function wanted(key: string): boolean {
+  return (holders.get(key) ?? 0) > 0 || effectWanted.has(key)
+}
+
+/** A busy executor refused admission: wait it out, it says nothing about the derivative. */
+function isBusyRefusal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : typeof error === 'string' ? error : ''
+  return /^Native [\w-]+ operations are busy; try again$/.test(message)
+}
+
+/** Nothing wants the key any more: stop its re-asks, and drop a Display failed that came from failed calls. */
+function forget(key: string): void {
+  clearTimeout(pollTimers.get(key))
+  pollTimers.delete(key)
+  queued.delete(key)
+  if (!refusals.has(key)) return
+  refusals.delete(key)
+  if (lidarDisplayDescriptors.value.get(key)?.state !== 'Failed') return
+  const next = new Map(lidarDisplayDescriptors.value)
+  next.delete(key)
+  lidarDisplayDescriptors.value = next
+}
+
+function drainQueue(): void {
+  for (const [key, call] of queued) {
+    if (inflight.size >= MAX_CONCURRENT_CALLS) return
+    queued.delete(key)
+    call()
+  }
+}
+
 /**
  * Ask the library for one generation's descriptor of a variant unless an
  * answer that does not change on its own (ready, unavailable, failed) is
- * already stored.
+ * already stored, and hold the key until the returned release is called.
  */
 export function requestLidarDisplay(
   kind: LibraryItemRole,
@@ -73,50 +135,87 @@ export function requestLidarDisplay(
   generationId: string | null,
   variant: DisplayVariant,
   options: { retry?: boolean } = {},
-): void {
+): () => void {
+  const key = displayKey(kind, entityId, generationId, variant)
+  holders.set(key, (holders.get(key) ?? 0) + 1)
+  const owner = storeGeneration
+  ask(kind, entityId, generationId, variant, options.retry ?? false)
+  let released = false
+  return () => {
+    if (released || owner !== storeGeneration) return
+    released = true
+    const left = (holders.get(key) ?? 1) - 1
+    if (left > 0) holders.set(key, left)
+    else holders.delete(key)
+    if (!wanted(key)) forget(key)
+  }
+}
+
+function ask(kind: LibraryItemRole, entityId: string, generationId: string | null, variant: DisplayVariant, retry: boolean): void {
   const key = displayKey(kind, entityId, generationId, variant)
   const relief = variant === 'relief'
   const current = lidarDisplayDescriptors.value.get(key)
-  if (!options.retry && current && current.state !== 'Preparing') return
-  if (inflight.has(key) || (!options.retry && pollTimers.has(key))) return
-  inflight.add(key)
+  if (!retry && current && current.state !== 'Preparing' && !refusals.has(key)) return
+  if (inflight.has(key) || (!retry && (pollTimers.has(key) || queued.has(key)))) return
   const owner = storeGeneration
-  void lidarDisplayDescriptor({
-    kind,
-    entity_id: entityId,
-    expected_generation_id: generationId,
-    retry: options.retry ?? false,
-    relief,
-  })
-    .then((descriptor) => {
-      if (owner !== storeGeneration) return
-      store(key, descriptor)
-      if (descriptor.state === 'Preparing') {
-        pollTimers.set(key, setTimeout(() => {
-          pollTimers.delete(key)
-          if (owner === storeGeneration) requestLidarDisplay(kind, entityId, generationId, variant)
-        }, PREPARING_POLL_MS))
-      } else if (descriptor.state === 'Stale') {
-        // The item moved on: a fresh library read brings the new generation.
-        void refreshLidarLibrary()
-      }
+  const again = (delay: number) => {
+    pollTimers.set(key, setTimeout(() => {
+      pollTimers.delete(key)
+      if (owner === storeGeneration && wanted(key)) ask(kind, entityId, generationId, variant, false)
+    }, delay))
+  }
+  const call = () => {
+    inflight.add(key)
+    void lidarDisplayDescriptor({
+      kind,
+      entity_id: entityId,
+      expected_generation_id: generationId,
+      retry,
+      relief,
     })
-    .catch((error: unknown) => {
-      if (owner !== storeGeneration) return
-      store(key, {
-        kind,
-        entity_id: entityId,
-        generation_id: generationId,
-        profile: '',
-        relief,
-        state: 'Failed',
-        message: error instanceof Error ? error.message : String(error),
-        assets: [],
-        prepared_assets: 0,
-        total_assets: 0,
+      .then((descriptor) => {
+        if (owner !== storeGeneration) return
+        refusals.delete(key)
+        store(key, descriptor)
+        if (descriptor.state === 'Preparing') {
+          if (wanted(key)) again(PREPARING_POLL_MS)
+        } else if (descriptor.state === 'Stale') {
+          // The item moved on: a fresh library read brings the new generation.
+          void refreshLidarLibrary()
+        }
       })
-    })
-    .finally(() => inflight.delete(key))
+      .catch((error: unknown) => {
+        if (owner !== storeGeneration || !wanted(key)) return
+        const previous = refusals.get(key) ?? { calls: 0, failures: 0 }
+        const run = { calls: previous.calls + 1, failures: previous.failures + (isBusyRefusal(error) ? 0 : 1) }
+        refusals.set(key, run)
+        if (run.failures === FAILURES_BEFORE_FAILED && run.failures > previous.failures) {
+          store(key, {
+            kind,
+            entity_id: entityId,
+            generation_id: generationId,
+            profile: '',
+            relief,
+            state: 'Failed',
+            // The row reads Display failed; the reason goes to diagnostics, once per run of failures.
+            message: lidarFailureMessage(error),
+            assets: [],
+            prepared_assets: 0,
+            total_assets: 0,
+          })
+        }
+        clearTimeout(pollTimers.get(key))
+        const base = Math.min(MAX_REASK_MS, PREPARING_POLL_MS * 2 ** (run.calls - 1))
+        again(base * (0.5 + Math.random() / 2))
+      })
+      .finally(() => {
+        if (owner !== storeGeneration) return
+        inflight.delete(key)
+        drainQueue()
+      })
+  }
+  if (inflight.size >= MAX_CONCURRENT_CALLS) queued.set(key, call)
+  else call()
 }
 
 /**
@@ -146,12 +245,18 @@ export function installLidarDisplayDescriptors(toAssetUrl: (path: string) => str
   displayDisposer = effect(() => {
     const presentedIds = storyPresentationOverrides.value?.siteDataIds ?? null
     const descriptors = lidarDisplayDescriptors.value
+    const asked = new Set<string>()
+    const asks: Array<() => void> = []
     for (const item of readCurrentLidarPresentation()) {
       if (item.availability !== 'present' || !item.generationId) continue
       const variant = entryVariant(item)
       const cutOutliers = variant === 'elevation' && item.range?.mode === 'CutOutliers'
       // A hidden entry set to Cut outliers still reads its range: its fields and legend show it, and Custom starts from it.
-      if (mapShown(item, presentedIds) || cutOutliers) requestLidarDisplay(item.kind, item.id, item.generationId, variant)
+      if (mapShown(item, presentedIds) || cutOutliers) {
+        const { kind, id, generationId } = item
+        asked.add(displayKey(kind, id, generationId, variant))
+        asks.push(() => ask(kind, id, generationId, variant, false))
+      }
       if (!cutOutliers) continue
       const key = displayKey(item.kind, item.id, item.generationId, 'elevation')
       const descriptor = descriptors.get(key)
@@ -159,6 +264,13 @@ export function installLidarDisplayDescriptors(toAssetUrl: (path: string) => str
         requestCutOutlierRange(key, descriptor.assets.map((asset) => ({ url: toAssetUrl(asset.path), bbox: asset.bounds })))
       }
     }
+    const dropped = [...effectWanted].filter((key) => !asked.has(key))
+    effectWanted = asked
+    // Untracked: forgetting writes the descriptors this effect reads.
+    untracked(() => {
+      for (const key of dropped) if (!wanted(key)) forget(key)
+      for (const request of asks) request()
+    })
   })
 }
 
@@ -169,7 +281,11 @@ export function disposeLidarDisplayDescriptors(): void {
   resetCutOutlierRanges()
   for (const timer of pollTimers.values()) clearTimeout(timer)
   pollTimers.clear()
+  refusals.clear()
   inflight.clear()
+  queued.clear()
+  holders.clear()
+  effectWanted = new Set()
 }
 
 /** Replicates Tauri v2 `convertFileSrc` so pure projection stays testable. */

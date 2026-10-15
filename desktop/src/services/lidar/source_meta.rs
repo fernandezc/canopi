@@ -307,18 +307,27 @@ fn analyses_over(item_id: &str, analyses: &[AnalysisMeta]) -> Vec<AnalysisMeta> 
 }
 
 /// Write every original's meta beside it; an original no longer on disk is
-/// skipped. Returns how many files changed.
+/// skipped. Returns how many files changed. A meta that cannot be written
+/// stays stale alone: the rest are still written, and the failures come back
+/// together, each naming its file.
 pub fn refresh(connection: &Connection, paths: &LidarPaths) -> Result<usize, String> {
     let mut written = 0;
+    let mut failures = Vec::new();
     for meta in derive_all(connection, paths)? {
         if !paths.source_original(&meta.sha256).is_file() {
             continue;
         }
-        if write(&paths.source_meta(&meta.sha256), &meta)? {
-            written += 1;
+        match write(&paths.source_meta(&meta.sha256), &meta) {
+            Ok(true) => written += 1,
+            Ok(false) => {}
+            Err(error) => failures.push(error),
         }
     }
-    Ok(written)
+    if failures.is_empty() {
+        Ok(written)
+    } else {
+        Err(failures.join("; "))
+    }
 }
 
 /// Mark one original released before the catalogue commit that drops its
@@ -543,6 +552,42 @@ mod tests {
         assert_eq!(item.analyses[0].inputs[0].item_id, "lyr-a");
         let other = metas.iter().find(|meta| meta.sha256 == "sha-3").unwrap();
         assert_eq!(other.items[0].analyses.len(), 1);
+        std::fs::remove_dir_all(&scratch).unwrap();
+    }
+
+    /// One original whose meta cannot be written keeps only its own meta
+    /// stale: every other original's meta is still rewritten, and the failure
+    /// is still returned, naming the original it hit.
+    #[test]
+    fn an_unwritable_meta_leaves_the_other_originals_rewritten() {
+        let connection = fresh_catalogue();
+        for (layer, sha) in [("lyr-a", "sha-1"), ("lyr-b", "sha-2"), ("lyr-c", "sha-3")] {
+            test_support::seed_published_item(
+                &connection,
+                layer,
+                layer,
+                RasterQuantity::GroundElevation.key(),
+                "m",
+                &[(sha, "tile.tif")],
+            );
+        }
+        let scratch = crate::test_scratch::TestScratch::new("canopi-source-meta-unwritable");
+        let paths = LidarPaths::open(&scratch).unwrap();
+        for sha in ["sha-1", "sha-2", "sha-3"] {
+            std::fs::create_dir_all(paths.source_dir(sha)).unwrap();
+            std::fs::write(paths.source_original(sha), b"tif").unwrap();
+        }
+        // A directory where sha-2's meta.json belongs: publishing it fails
+        // whoever runs the test, root included.
+        std::fs::create_dir_all(paths.source_meta("sha-2")).unwrap();
+
+        let error = refresh(&connection, &paths).unwrap_err();
+        assert!(error.contains("sha-2"), "{error}");
+        assert!(read(&paths.source_meta("sha-1")).is_some());
+        assert!(
+            read(&paths.source_meta("sha-3")).is_some(),
+            "an original after the failing one is still rewritten"
+        );
         std::fs::remove_dir_all(&scratch).unwrap();
     }
 
