@@ -2227,3 +2227,92 @@ fn a_failing_removal_never_fails_a_committed_delete() {
     assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Two tiles imported as one item: the item and its two `sources/<sha256>/`
+/// folders, the first one's locked read-only.
+#[cfg(unix)]
+fn two_tile_item_with_one_locked_original(
+    library: &LidarLibrary,
+    root: &Path,
+) -> (String, PathBuf, PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let west = plane(library, root, "west", 445_000.0);
+    let east = plane(library, root, "east", 445_064.0);
+    let receipt = library
+        .import_item(
+            "Tiles",
+            RasterQuantity::GroundElevation,
+            None,
+            false,
+            vec![west, east],
+        )
+        .unwrap();
+    assert_eq!(
+        await_import(library, &receipt.job_id),
+        LidarImportJobState::Complete
+    );
+    let mut folders: Vec<PathBuf> = std::fs::read_dir(library.inner.paths.root().join("sources"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    folders.sort();
+    assert_eq!(folders.len(), 2);
+    std::fs::set_permissions(&folders[0], std::fs::Permissions::from_mode(0o555)).unwrap();
+    (receipt.layer_id, folders.remove(0), folders.remove(0))
+}
+
+/// An original whose meta cannot be released keeps only its own files: a
+/// committed Delete still frees every other original it no longer claims.
+#[cfg(unix)]
+#[test]
+fn an_unwritable_original_never_keeps_another_deleted_original() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("delete-one-locked");
+    let library = attached_library(&root);
+    let (layer_id, locked, free) = two_tile_item_with_one_locked_original(&library, &root);
+
+    let deleted = library.delete_item(&layer_id);
+    let free_kept = free.exists();
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    deleted.unwrap();
+    assert!(!free_kept, "the writable original is freed at once");
+    assert!(
+        locked.exists(),
+        "the locked original waits for the next start"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The start-up release skips an original whose meta cannot be released and
+/// still frees every other original nothing claims.
+#[cfg(unix)]
+#[test]
+fn an_unwritable_original_never_keeps_another_original_at_the_next_start() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("prune-one-locked");
+    let library = attached_library(&root);
+    let (layer_id, locked, free) = two_tile_item_with_one_locked_original(&library, &root);
+    let lease = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    library.delete_item(&layer_id).unwrap();
+    drop(lease);
+    assert!(free.exists(), "kept while the job runs");
+    close(library);
+
+    let reopened = attached_library(&root);
+    let free_kept = free.exists();
+    let files = library_files(&reopened);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(!free_kept, "the writable original is freed at start");
+    assert!(
+        locked.exists(),
+        "the locked original waits for a later start"
+    );
+    assert!(
+        files.iter().all(|file| !file.starts_with(&free)),
+        "{files:?}"
+    );
+    close(reopened);
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -462,9 +462,7 @@ impl LidarLibrary {
             let transaction = connection
                 .unchecked_transaction()
                 .map_err(|e| e.to_string())?;
-            for sha256 in import::release_unclaimed_originals(&transaction, known)? {
-                source_meta::release(&self.inner.paths, &sha256)?;
-            }
+            import::release_unclaimed_originals(&transaction, &self.inner.paths, known)?;
             transaction.commit().map_err(|e| e.to_string())?;
         }
         for entry in entries.flatten() {
@@ -874,13 +872,11 @@ impl LidarLibrary {
             let transaction = connection
                 .unchecked_transaction()
                 .map_err(|e| e.to_string())?;
-            let originals =
-                import::release_unclaimed_originals(&transaction, deleted.originals.clone())?;
-            // Before the commit, so a stop between it and the removal never
-            // lets a catalogue rebuild list the item again.
-            for sha256 in &originals {
-                source_meta::release(&self.inner.paths, sha256)?;
-            }
+            let originals = import::release_unclaimed_originals(
+                &transaction,
+                &self.inner.paths,
+                deleted.originals.clone(),
+            )?;
             transaction.commit().map_err(|e| e.to_string())?;
             (originals, catalogue::referenced_asset_digests(&connection)?)
         };
@@ -1382,12 +1378,8 @@ impl LidarLibrary {
         if !delete_unpublished_item_rows(&transaction, layer_id)? {
             return Err("this item is published; delete it from the library instead".to_string());
         }
-        let originals = import::release_unclaimed_originals(&transaction, managed)?;
-        // Before the commit, so a stop between it and the removal never lets
-        // a catalogue rebuild list the item again.
-        for sha256 in &originals {
-            source_meta::release(&self.inner.paths, sha256)?;
-        }
+        let originals =
+            import::release_unclaimed_originals(&transaction, &self.inner.paths, managed)?;
         transaction.commit().map_err(|e| e.to_string())?;
         Ok((lease, originals))
     }
