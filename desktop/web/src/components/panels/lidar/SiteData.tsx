@@ -175,9 +175,7 @@ export function SiteDataList({ view }: { readonly view: SiteDataView }) {
             <button type="button" className={styles.noticeButton} onClick={dismissAttachmentFailure}>{t('canvas.lidar.library.dismiss')}</button>
           </>}
         >
-          {failure.message
-            ? t('canvas.lidar.layers.failed', { name: nameOfItem(failure.itemId), message: failure.message })
-            : t('canvas.lidar.layers.failedNoMessage', { name: nameOfItem(failure.itemId) })}
+          {t('canvas.lidar.layers.failedNoMessage', { name: nameOfItem(failure.itemId) })}
         </Notice>
       )}
       {(items.length > FILTER_ABOVE || filtering) && (

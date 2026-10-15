@@ -269,7 +269,7 @@ export function DataLibraryView({ focusId }: { readonly focusId: string | null }
     if (row.status === 'failed' && row.role === 'Source') {
       return (
         <div className={styles.job}>
-          <span role="status">{row.message || t('canvas.lidar.library.importFailed')}</span>
+          <span role="status">{t('canvas.lidar.library.importFailed')}</span>
           <button type="button" disabled={busy} onClick={() => void run(() => retryLibraryImport(row.id))}>
             {t('canvas.lidar.library.retry')}
           </button>
@@ -283,7 +283,7 @@ export function DataLibraryView({ focusId }: { readonly focusId: string | null }
       return (
         <div className={styles.job}>
           {row.run?.state !== 'Cancelled' && (
-            <span role="status">{row.message || t('canvas.lidar.library.calculationFailed')}</span>
+            <span role="status">{t('canvas.lidar.library.calculationFailed')}</span>
           )}
           <button type="button" disabled={busy || !row.provenance} onClick={() => refresh(row)}>
             {t('canvas.lidar.library.retry')}
@@ -294,7 +294,7 @@ export function DataLibraryView({ focusId }: { readonly focusId: string | null }
     if (row.status === 'ready' && row.run?.state === 'Failed') {
       return (
         <div className={styles.job}>
-          <span role="status">{t('analyses.details.refreshFailed', { message: row.run.message ?? '' })}</span>
+          <span role="status">{t('analyses.details.refreshFailed')}</span>
         </div>
       )
     }

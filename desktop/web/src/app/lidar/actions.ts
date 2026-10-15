@@ -298,8 +298,10 @@ export const pendingAttachments = signal<readonly PendingAttachment[]>([])
 /**
  * The last import or analysis that failed before it could join its Design, so
  * Site data can say so; a cancel is the user's own choice and is not reported.
+ * The job's stored text is never shown (it stays in the library for
+ * diagnostics).
  */
-export const attachmentFailure = signal<{ readonly itemId: string; readonly message: string | null } | null>(null)
+export const attachmentFailure = signal<{ readonly itemId: string } | null>(null)
 
 export function dismissAttachmentFailure(): void {
   attachmentFailure.value = null
@@ -333,7 +335,7 @@ export function settleResultAttachments(snapshot: LibrarySnapshot | null): void 
       const job = failed?.import_job ?? null
       const run = failed?.run ?? null
       if (failed && (job?.state === 'Failed' || run?.state === 'Failed')) {
-        attachmentFailure.value = { itemId: failed.id, message: job?.message ?? run?.message ?? null }
+        attachmentFailure.value = { itemId: failed.id }
       }
       continue
     }

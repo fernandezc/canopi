@@ -149,7 +149,7 @@ describe('Data Library actions', () => {
     expect(upsertMock).toHaveBeenCalledWith('Source', 'layer-9', 'Ground')
   })
 
-  it('reports an import that failed and never adds it', async () => {
+  it('reports an import that failed, without the text its job stored, and never adds it', async () => {
     dismissAttachmentFailure()
     importItemMock.mockResolvedValue({ layer_id: 'layer-8', job_id: 'job-8' })
     await importLibraryItem(['/a.tif'], 'Ground', 'GroundElevation', { label: null, unknown: false })
@@ -157,7 +157,7 @@ describe('Data Library actions', () => {
       state: 'Failed', generation_id: null,
       import_job: { job_id: 'job-8', layer_id: 'layer-8', state: 'Failed', message: 'not a raster', progress: null },
     })]))
-    expect(attachmentFailure.value).toEqual({ itemId: 'layer-8', message: 'not a raster' })
+    expect(attachmentFailure.value).toEqual({ itemId: 'layer-8' })
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
@@ -505,7 +505,7 @@ describe('analysis runs', () => {
     expect(pendingAttachments.value.map((entry) => entry.itemIds)).toContainEqual([failed])
     settleResultAttachments(snapshotWith({ id: failed!, state: 'Failed', run: { job_id: 'j', state: 'Failed', message: 'engine stopped' } }))
     expect(pendingAttachments.value).toEqual([])
-    expect(attachmentFailure.value).toEqual({ itemId: failed, message: 'engine stopped' })
+    expect(attachmentFailure.value).toEqual({ itemId: failed })
 
     dismissAttachmentFailure()
     const { item_ids: [cancelled] } = await runAnalysis(SLOPE_REQUEST)
