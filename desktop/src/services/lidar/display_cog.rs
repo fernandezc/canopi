@@ -105,12 +105,23 @@ pub(crate) struct DisplayPreparation {
     running: bool,
 }
 
-fn plan_key(kind: LibraryItemRole, entity_id: &str, generation_id: &str) -> String {
+/// A plan's identity in the preparation lane: the variant is part of it, so
+/// relief and elevation never share a pending plan or a failure.
+fn plan_key(kind: LibraryItemRole, entity_id: &str, generation_id: &str, relief: bool) -> String {
+    let variant = if relief { "/relief" } else { "" };
+    format!(
+        "{}{generation_id}{variant}",
+        entity_plan_prefix(kind, entity_id)
+    )
+}
+
+/// What every plan key of one entity starts with.
+fn entity_plan_prefix(kind: LibraryItemRole, entity_id: &str) -> String {
     let kind = match kind {
         LibraryItemRole::Source => "source",
         LibraryItemRole::Derived => "derived",
     };
-    format!("{kind}/{entity_id}/{generation_id}")
+    format!("{kind}/{entity_id}/")
 }
 
 fn nodata_tag(nodata: Option<f32>) -> String {
@@ -201,11 +212,7 @@ fn build_plan(
                 lattice: manifest.grid.clone(),
                 crs_ref: manifest.crs_ref.clone(),
             });
-            let parts = grouped_parts(
-                &format!("{DISPLAY_PROFILE}-gen-{}", result.id),
-                &reader,
-                coordinates,
-            );
+            let parts = grouped_parts(&gen_prefix(&result.id), &reader, coordinates);
             Ok(Planned::Plan(Arc::new(DisplayPlan {
                 kind,
                 entity_id: entity_id.to_string(),
@@ -221,13 +228,22 @@ fn build_plan(
 /// its item's zoom: an asset shared by items at different latitudes gets one
 /// derivative per zoom.
 fn asset_key(sha256: &str, nodata: Option<f32>, zoom: u32) -> String {
-    format!(
-        "{DISPLAY_PROFILE}-asset-{sha256}-{}-z{zoom}",
-        nodata_tag(nodata)
-    )
+    format!("{}{}-z{zoom}", asset_prefix(sha256), nodata_tag(nodata))
 }
 
-/// Group occupied chunks into parts of at most `PART_CHUNKS`² chunks.
+/// What every derivative key of one numeric COG starts with, whatever its
+/// NoData rule, zoom or variant.
+pub(super) fn asset_prefix(sha256: &str) -> String {
+    format!("{DISPLAY_PROFILE}-asset-{sha256}-")
+}
+
+/// What every derivative key of one derived generation's parts starts with.
+pub(super) fn gen_prefix(generation_id: &str) -> String {
+    format!("{DISPLAY_PROFILE}-gen-{generation_id}-")
+}
+
+/// Group occupied chunks into parts of at most `PART_CHUNKS`² chunks, each
+/// keyed `prefix` and its group coordinates.
 fn grouped_parts(
     prefix: &str,
     reader: &Arc<WindowReader>,
@@ -243,7 +259,7 @@ fn grouped_parts(
     groups
         .into_iter()
         .map(|((group_y, group_x), chunks)| PartSpec {
-            key: format!("{prefix}-{group_x}_{group_y}"),
+            key: format!("{prefix}{group_x}_{group_y}"),
             source: PartSource::Windows {
                 reader: Arc::clone(reader),
                 chunks,
@@ -395,7 +411,7 @@ impl LidarLibrary {
             descriptor.assets = assets;
             return Ok(descriptor);
         }
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
         let failure = {
             let mut state = self.display_preparation()?;
             if request.retry {
@@ -422,8 +438,36 @@ impl LidarLibrary {
             .map_err(|_| "LiDAR display preparation state poisoned".to_string())
     }
 
+    /// Drop the entity's queued plans and remembered failures, every variant
+    /// and generation; a plan already running finishes.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Delete everywhere calls it (canopi-44vf)")
+    )]
+    pub(super) fn forget_entity_plans(
+        &self,
+        kind: LibraryItemRole,
+        entity_id: &str,
+    ) -> Result<(), String> {
+        let prefix = entity_plan_prefix(kind, entity_id);
+        let mut state = self.display_preparation()?;
+        let state = &mut *state;
+        state.plans.retain(|key, _| !key.starts_with(&prefix));
+        state.failures.retain(|key, _| !key.starts_with(&prefix));
+        let pending = &mut state.pending;
+        state.queue.retain(|plan| {
+            let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+            let keep = !key.starts_with(&prefix);
+            if !keep {
+                pending.remove(&key);
+            }
+            keep
+        });
+        Ok(())
+    }
+
     fn enqueue_display_preparation(&self, plan: Arc<DisplayPlan>) -> Result<(), String> {
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
         let start = {
             let mut state = self.display_preparation()?;
             state.plans.insert(key.clone(), Arc::clone(&plan));
@@ -453,7 +497,7 @@ impl LidarLibrary {
                         next
                     });
                     let Some(plan) = next else { break };
-                    let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+                    let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
                     let worker = library.clone();
                     let job = Arc::clone(&plan);
                     let outcome = executor
@@ -724,20 +768,26 @@ impl LidarLibrary {
 /// their files: an unpublished import's (`import::discard_job_files`). No
 /// WebView reads them, since only a published item is drawn.
 pub(super) fn forget_asset_derivatives(library: &LidarLibrary, sha256: &str) -> Result<(), String> {
-    let prefix = format!("{DISPLAY_PROFILE}-asset-{sha256}-");
+    forget_derivatives(library, &asset_prefix(sha256))
+}
+
+/// Forget every registered derivative whose key starts with `prefix`
+/// ([`asset_prefix`], [`gen_prefix`]) and remove its file; the caller makes
+/// sure no drawn item still uses them.
+pub(super) fn forget_derivatives(library: &LidarLibrary, prefix: &str) -> Result<(), String> {
     let files: Vec<String> = {
         let display = library.display()?;
         let files = display
             .prepare("SELECT file FROM display_cogs WHERE instr(key, ?1) = 1 AND file != ''")
             .map_err(|e| e.to_string())?
-            .query_map([&prefix], |row| row.get::<_, String>(0))
+            .query_map([prefix], |row| row.get::<_, String>(0))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         display
             .execute(
                 "DELETE FROM display_cogs WHERE instr(key, ?1) = 1",
-                [&prefix],
+                [prefix],
             )
             .map_err(|e| e.to_string())?;
         files
@@ -750,6 +800,26 @@ pub(super) fn forget_asset_derivatives(library: &LidarLibrary, sha256: &str) -> 
         }
     }
     Ok(())
+}
+
+/// Every registered derivative key, in key order.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the startup derivative sweep calls it (canopi-44vf)"
+    )
+)]
+pub(super) fn registered_derivative_keys(library: &LidarLibrary) -> Result<Vec<String>, String> {
+    let display = library.display()?;
+    let mut statement = display
+        .prepare("SELECT key FROM display_cogs ORDER BY key")
+        .map_err(|e| e.to_string())?;
+    statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 /// Remove staging leftovers, derivatives of an earlier profile and published
@@ -943,7 +1013,7 @@ mod tests {
             crs_ref: String::new(),
         });
         // Two adjacent chunks and one 200 chunks away.
-        let parts = grouped_parts("gen-1", &reader, vec![(0, 0), (1, 0), (200, 3)]);
+        let parts = grouped_parts("gen-1-", &reader, vec![(0, 0), (1, 0), (200, 3)]);
         let keys: Vec<&str> = parts.iter().map(|part| part.key.as_str()).collect();
         assert_eq!(keys, ["gen-1-0_0", "gen-1-50_0"]);
         let PartSource::Windows { chunks, .. } = &parts[1].source else {
@@ -975,7 +1045,7 @@ mod tests {
             },
             crs_ref: String::new(),
         });
-        let parts = grouped_parts("gen-2", &reader, vec![(-1, -1), (0, 0)]);
+        let parts = grouped_parts("gen-2-", &reader, vec![(-1, -1), (0, 0)]);
         let keys: Vec<&str> = parts.iter().map(|part| part.key.as_str()).collect();
         assert_eq!(keys, ["gen-2--1_-1", "gen-2-0_0"]);
     }
@@ -1218,14 +1288,8 @@ mod library_tests {
             .unwrap();
         // Rewrite each row as the first profile keyed it: without a profile.
         {
+            let keys = registered_derivative_keys(&library).unwrap();
             let display = library.display().unwrap();
-            let keys: Vec<String> = display
-                .prepare("SELECT key FROM display_cogs")
-                .unwrap()
-                .query_map([], |row| row.get(0))
-                .unwrap()
-                .collect::<Result<_, _>>()
-                .unwrap();
             assert!(!keys.is_empty());
             for key in keys {
                 assert!(key.starts_with(&format!("{DISPLAY_PROFILE}-")), "{key}");
@@ -2079,6 +2143,107 @@ mod chunk_display_tests {
             .unwrap();
         assert_eq!(ready.state, LidarDisplayState::Ready);
         assert_eq!(ready.assets.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A plan's identity: each variant has its own key, and every key of an
+    /// entity starts with its prefix, which another entity's never does.
+    #[test]
+    fn each_variant_of_an_entity_plan_has_its_own_key_inside_the_entity_prefix() {
+        let elevation = plan_key(LibraryItemRole::Source, "lyr-a", "gen-1", false);
+        let relief = plan_key(LibraryItemRole::Source, "lyr-a", "gen-1", true);
+        assert_ne!(elevation, relief);
+        let prefix = entity_plan_prefix(LibraryItemRole::Source, "lyr-a");
+        assert!(elevation.starts_with(&prefix) && relief.starts_with(&prefix));
+        assert!(!plan_key(LibraryItemRole::Source, "lyr-ab", "gen-1", false).starts_with(&prefix));
+        assert!(!plan_key(LibraryItemRole::Derived, "lyr-a", "gen-1", false).starts_with(&prefix));
+        assert!(asset_key("sha", Some(-9999.0), 17).starts_with(&asset_prefix("sha")));
+    }
+
+    /// Forgetting one generation's prefix removes its derivatives' rows and
+    /// files, and leaves another generation's.
+    #[test]
+    fn forgetting_a_generation_prefix_frees_only_its_derivatives() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-forget-gen");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        for (item, generation_id) in [("item-a", "dgen-a"), ("item-b", "dgen-b")] {
+            seed_chunk_result(&library, item, generation_id);
+            generation::publish_test_chunk(&library, generation_id, 0, 0, 4, 4, &[1.0; 16]);
+            library
+                .prepare_display_now(LibraryItemRole::Derived, item)
+                .unwrap();
+        }
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert_eq!(keys.len(), 2, "{keys:?}");
+        assert!(
+            keys.iter()
+                .any(|key| key.starts_with(&gen_prefix("dgen-a")))
+        );
+        let files = |library: &LidarLibrary| {
+            std::fs::read_dir(library.inner.paths.display_cog_dir())
+                .unwrap()
+                .count()
+        };
+        assert_eq!(files(&library), 2);
+
+        forget_derivatives(&library, &gen_prefix("dgen-a")).unwrap();
+        let kept = registered_derivative_keys(&library).unwrap();
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert!(kept[0].starts_with(&gen_prefix("dgen-b")), "{kept:?}");
+        assert_eq!(files(&library), 1);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Forgetting an entity's plans drops its queued plans, pending marks and
+    /// failures of every variant, and keeps another entity's.
+    #[test]
+    fn forgetting_an_entitys_plans_drops_its_queue_and_failures_only() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-forget-plans");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let cancel = AtomicBool::new(false);
+        for (item, generation_id) in [("item-a", "dgen-a"), ("item-b", "dgen-b")] {
+            seed_chunk_result(&library, item, generation_id);
+            generation::publish_test_chunk(&library, generation_id, 0, 0, 4, 4, &[1.0; 16]);
+            let Planned::Plan(plan) =
+                build_plan(&library, LibraryItemRole::Derived, item, &cancel).unwrap()
+            else {
+                panic!("a published result has a plan")
+            };
+            let mut state = library.display_preparation().unwrap();
+            let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+            state.plans.insert(key.clone(), Arc::clone(&plan));
+            state.pending.insert(key.clone());
+            state.queue.push_back(plan);
+            state.failures.insert(key, "failed".to_string());
+            state.failures.insert(
+                plan_key(LibraryItemRole::Derived, item, generation_id, true),
+                "failed".to_string(),
+            );
+        }
+
+        library
+            .forget_entity_plans(LibraryItemRole::Derived, "item-a")
+            .unwrap();
+        let state = library.display_preparation().unwrap();
+        let kept = entity_plan_prefix(LibraryItemRole::Derived, "item-b");
+        assert_eq!(state.queue.len(), 1);
+        assert_eq!(state.queue[0].entity_id, "item-b");
+        for keys in [
+            state.plans.keys().collect::<Vec<_>>(),
+            state.pending.iter().collect(),
+            state.failures.keys().collect(),
+        ] {
+            assert!(
+                !keys.is_empty() && keys.iter().all(|key| key.starts_with(&kept)),
+                "{keys:?}"
+            );
+        }
+        assert_eq!(state.failures.len(), 2);
+        drop(state);
+        drop(library);
         let _ = std::fs::remove_dir_all(&root);
     }
 }
