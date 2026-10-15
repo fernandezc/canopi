@@ -156,9 +156,10 @@ test.describe('Profile (g5)', () => {
     await page.mouse.up()
     await expect(chart(page)).toHaveCount(0)
 
-    // With Select armed, a right-click on the line (off the length chip at its middle) opens its menu.
+    // With Select armed, a right-click on the line (off the length chip at its middle and the fixture's lavender on it
+    // near 30 %, whose plant menu would open instead) opens its menu.
     await tool(page, 'Select').click()
-    await page.mouse.click(at(0.3, 0.62).x, at(0.3, 0.62).y, { button: 'right' })
+    await page.mouse.click(at(0.25, 0.62).x, at(0.25, 0.62).y, { button: 'right' })
     await page.getByRole('menuitem', { name: 'Profile this line' }).click()
 
     await expect(chart(page).getByRole('listitem').first()).toContainText('IGN ground elevation')
