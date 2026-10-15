@@ -1842,3 +1842,165 @@ fn dismissing_a_failed_import_leaves_no_file_behind() {
     assert_eq!(library_files(&library), Vec::<PathBuf>::new());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// The kind a refusal crosses IPC with: `null` for one that is only text.
+fn refusal_kind(error: &impl serde::Serialize) -> serde_json::Value {
+    serde_json::to_value(error).unwrap()["reason"]["kind"].clone()
+}
+
+/// canopi-bkbh: Import and Retry refusals carry their kind, so the frontend
+/// names each in the interface language; the detail stays English.
+#[test]
+#[ignore = "expected-fail L canopi-bkbh"]
+fn import_and_retry_refusals_carry_their_kind() {
+    let root = scratch("refusal-kinds");
+    let library = attached_library(&root);
+    let import = |source: PathBuf| {
+        library
+            .import_item(
+                "Refused",
+                RasterQuantity::GroundElevation,
+                None,
+                false,
+                vec![source],
+            )
+            .unwrap_err()
+    };
+    assert_eq!(
+        refusal_kind(&import(root.join("gone.tif"))),
+        "SourceMissing"
+    );
+    let ascii = root.join("dem.asc");
+    std::fs::write(&ascii, "ncols 1\nnrows 1\n").unwrap();
+    assert_eq!(refusal_kind(&import(ascii)), "NotGeotiff");
+    let refused =
+        serde_json::to_value(import(plane_in_code(&library, &root, "nyc", 2263))).unwrap();
+    assert_eq!(
+        refused["reason"],
+        serde_json::json!({ "kind": "UnsupportedCrs", "file": "nyc.tif", "crs": "EPSG:2263" })
+    );
+
+    let layer_id = failed_import(&library, root.join("lost.tif"), "first failure");
+    assert_eq!(
+        refusal_kind(&library.retry_import(&layer_id).unwrap_err()),
+        "SourceMissing"
+    );
+    let tile = plane(&library, &root, "terrain", 445_000.0);
+    let lease = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    assert_eq!(refusal_kind(&import(tile)), "JobRunning");
+    drop(lease);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-9m01: a GeoTIFF whose header reads but whose data is cut short is
+/// accepted at Import and fails as a job; the job keeps the engine's detail,
+/// by file name, for diagnostics.
+#[test]
+fn a_truncated_geotiff_fails_as_a_job_with_its_detail_kept() {
+    let root = scratch("import-truncated");
+    let library = attached_library(&root);
+    let source = plane(&library, &root, "truncated", 445_000.0);
+    let bytes = std::fs::read(&source).unwrap();
+    std::fs::write(&source, &bytes[..bytes.len() * 3 / 4]).unwrap();
+    let receipt = library
+        .import_item(
+            "Truncated",
+            RasterQuantity::GroundElevation,
+            None,
+            false,
+            vec![source],
+        )
+        .expect("the header reads, so Import accepts the file");
+    assert_eq!(
+        await_import(&library, &receipt.job_id),
+        LidarImportJobState::Failed
+    );
+    let detail = row_message(&library, &receipt.layer_id);
+    assert!(detail.contains("truncated.tif"), "{detail}");
+    assert!(!detail.contains(&root.display().to_string()), "{detail}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The item data files Delete everywhere frees: originals, source COGs and
+/// display derivatives (job folders are outside canopi-44vf).
+fn item_data_files(library: &LidarLibrary) -> Vec<PathBuf> {
+    let jobs = library.inner.paths.jobs_dir();
+    library_files(library)
+        .into_iter()
+        .filter(|path| !path.starts_with(&jobs))
+        .collect()
+}
+
+/// An item imported from `tile` and settled, as the app shows it.
+fn imported(library: &LidarLibrary, name: &str, tile: &Path) -> String {
+    let receipt = library
+        .import_item(
+            name,
+            RasterQuantity::GroundElevation,
+            None,
+            false,
+            vec![tile.to_path_buf()],
+        )
+        .unwrap();
+    assert_eq!(
+        await_import(library, &receipt.job_id),
+        LidarImportJobState::Complete
+    );
+    receipt.layer_id
+}
+
+/// canopi-44vf: Delete everywhere frees the item's original, its source COG
+/// and its display derivatives, so disk use drops.
+#[test]
+#[ignore = "expected-fail L canopi-44vf"]
+fn deleting_an_item_everywhere_frees_its_files() {
+    let root = scratch("delete-frees");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    assert!(!item_data_files(&library).is_empty());
+    assert!(
+        !display_cog::registered_derivative_keys(&library)
+            .unwrap()
+            .is_empty()
+    );
+
+    library.delete_item(&layer_id).unwrap();
+    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    assert_eq!(
+        display_cog::registered_derivative_keys(&library).unwrap(),
+        Vec::<String>::new()
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: deleting one of two items imported from the same file keeps
+/// what the other still draws from; deleting the second frees everything.
+#[test]
+#[ignore = "expected-fail L canopi-44vf"]
+fn deleting_one_of_two_items_sharing_a_file_keeps_it_for_the_other() {
+    let root = scratch("delete-shared");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let first = imported(&library, "First", &tile);
+    let second = imported(&library, "Second", &tile);
+
+    library.delete_item(&first).unwrap();
+    let descriptor = library
+        .display_descriptor(&LidarDisplayRequest {
+            kind: LibraryItemRole::Source,
+            entity_id: second.clone(),
+            expected_generation_id: None,
+            retry: false,
+            relief: false,
+        })
+        .unwrap();
+    assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+    for asset in &descriptor.assets {
+        assert!(Path::new(&asset.path).is_file(), "{} is kept", asset.path);
+    }
+
+    library.delete_item(&second).unwrap();
+    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}

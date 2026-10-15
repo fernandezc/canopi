@@ -273,3 +273,20 @@ pub(crate) mod capacity_probe {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// canopi-bkbh: a free-space refusal names the work and the sizes, never
+    /// the folder, whose path can spell out the user's name.
+    #[test]
+    #[ignore = "expected-fail L canopi-bkbh"]
+    fn a_free_space_refusal_names_no_directory() {
+        let _full = capacity_probe::override_available(1024);
+        let directory = Path::new("/home/someone/.local/share/canopi/lidar/display-cog");
+        let error = require_free_space(directory, 1 << 30, "The display derivative").unwrap_err();
+        assert!(error.contains("The display derivative"), "{error}");
+        assert!(!error.contains("/home/someone"), "{error}");
+    }
+}
