@@ -42,13 +42,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub(super) const DISPLAY_PROFILE: &str = "display-cog-3857-v2";
 /// SHA-256 of what places and draws this profile's pixels beyond each CRS
 /// row's own definition (proj4rs, the Web Mercator and WGS84 rows, the
-/// warp's lattices for sample grids and the web fixture derivative); a test
+/// warp's lattices for sample grids, and the web fixture derivative and
+/// relief); a test
 /// fails when any changes, so the profile is bumped with it. Each row's
 /// definition is recorded on its own (`ROW_DIGESTS` in the tests), so a new
-/// row needs no bump and an edited one does.
+/// row needs no bump and an edited one does. The relief joined the digest
+/// under v2 without a bump: no relief derivative was written before it.
 #[cfg(test)]
 const DISPLAY_PROFILE_DIGEST: &str =
-    "b1aa9c381fac462998b1f2013e1b74f7eca20e3541a04120f6455e4d4538ae4f";
+    "59433f6b60345fa26dd95881958506c266aee501465b2f883b2ec2b25b31bda6";
 /// Largest side of a composed part, in 1024-cell chunks: a part is composed
 /// in memory and converted whole, so 4×4 chunks keep it inside the engine's
 /// capacity limit (`import::MAX_RAW_EXTRACTION_CELLS`).
@@ -1935,12 +1937,120 @@ mod library_tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// The web suite draws this relief with the real cog-tiler
+    /// (`raster-display/rust-display-cog.test.ts`) at its three finest
+    /// levels: a rolling Lambert-93 ground elevation with a NoData hole,
+    /// shaded by the engine. Its bytes enter [`profile_digest_inputs`], so a
+    /// shading change bumps the display profile. Rewrite it with
+    /// `CANOPI_UPDATE_FIXTURES=1`.
+    #[test]
+    fn the_web_relief_fixture_is_what_the_engine_writes() {
+        let root = crate::test_scratch::TestScratch::new("canopi-relief-fixture");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).expect("library opens");
+        let cancel = AtomicBool::new(false);
+        let (columns, rows) = (640u32, 160u32);
+        let values: Vec<f32> = (0..rows)
+            .flat_map(|row| {
+                (0..columns).map(move |column| {
+                    let (x, y) = (column as f32, row as f32);
+                    if (x - 200.0).hypot(y - 80.0) < 28.0 {
+                        -9999.0
+                    } else {
+                        100.0 + 8.0 * (x / 23.0).sin() + 6.0 * (y / 17.0).cos() + 0.05 * x
+                    }
+                })
+            })
+            .collect();
+        let raw = root.join("relief.raw");
+        super::super::import::write_f32_raw(&raw, &values).unwrap();
+        let source = root.join("relief.tif");
+        super::super::import::raw_to_tif(
+            library.inner.engine.as_ref(),
+            &cancel,
+            &raw,
+            &source,
+            &RasterGrid {
+                width: columns,
+                height: rows,
+                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+            },
+            "EPSG:2154",
+            -9999.0,
+        )
+        .unwrap();
+        let layer_id = library
+            .create_layer("relief", RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(&library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: layer_id,
+                expected_generation_id: None,
+                retry: false,
+                relief: true,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        let [asset] = descriptor.assets.as_slice() else {
+            panic!("one relief asset: {descriptor:?}")
+        };
+        let probe = info(&library, &asset.path);
+        assert!(probe.overview_count >= 2, "{probe:?}");
+        let stale =
+            "the web relief fixture is stale: rerun this test with CANOPI_UPDATE_FIXTURES=1";
+        check_web_fixture(
+            &library,
+            Path::new(&asset.path),
+            "rust-display-relief.tif",
+            stale,
+        );
+        let zoom = super::super::rust_engine::display_zoom(
+            "EPSG:2154",
+            [&RasterGrid {
+                width: columns,
+                height: rows,
+                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+            }],
+        )
+        .unwrap();
+        let expected = serde_json::json!({
+            "zoom": zoom,
+            "nodata": probe.nodata,
+            "bounds": asset.bounds,
+            "levels": probe.overview_count + 1,
+        });
+        let json = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("web/src/maplibre/raster-display/fixtures/rust-display-relief.json");
+        if std::env::var_os("CANOPI_UPDATE_FIXTURES").is_some() {
+            std::fs::write(
+                &json,
+                serde_json::to_string_pretty(&expected).unwrap() + "\n",
+            )
+            .unwrap();
+        }
+        let committed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&json).expect(stale)).expect(stale);
+        assert!(
+            same_fixture(&committed, &expected),
+            "{stale}\ncommitted: {committed}\nnow: {expected}"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// What decides a display pixel's place and value beyond each row's own
     /// definition: proj4rs and the Web Mercator and WGS84 rows every
     /// transform passes through, the lattice the warp gives fixed sample
     /// grids in each kind of projection at four cell sizes (its rung, edge
     /// and padding rules), and the bytes of the web fixture derivative (its
-    /// sampling, mesh and file layout). A change to any must bump
+    /// sampling, mesh and file layout) and of the web relief fixture (its
+    /// shading and per-level stack). A change to any must bump
     /// `DISPLAY_PROFILE` (and then the digest): derivatives written before
     /// it would otherwise be served again beside new ones. Lattices are
     /// whole pixel indices, so a last-bit difference in a platform's libm
@@ -1981,17 +2091,22 @@ mod library_tests {
                 ));
             }
         }
-        let fixture = std::fs::read(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("web/src/maplibre/raster-display/fixtures/rust-display-cog.tif"),
-        )
-        .expect("the web display fixture");
+        let fixture = |name: &str| {
+            let bytes = std::fs::read(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("web/src/maplibre/raster-display/fixtures")
+                    .join(name),
+            )
+            .expect("the web display fixtures");
+            sha2::Sha256::digest(&bytes)
+        };
         format!(
-            "{:?}|{:?}|proj4rs {}|{lattices}|fixture {:x}",
+            "{:?}|{:?}|proj4rs {}|{lattices}|fixture {:x}|relief {:x}",
             crs_table::row_of(3857),
             crs_table::row_of(4326),
             super::super::rust_engine::PROJ4RS_VERSION,
-            sha2::Sha256::digest(&fixture)
+            fixture("rust-display-cog.tif"),
+            fixture("rust-display-relief.tif")
         )
     }
 
