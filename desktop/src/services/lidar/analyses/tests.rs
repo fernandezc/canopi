@@ -76,6 +76,26 @@ fn installed(version: &str) -> Result<GeolibreTool, String> {
 // Registry
 // ---------------------------------------------------------------------------
 
+/// Relief is drawn for imported elevations only: a result's display parts
+/// are windows of its chunks, which the relief writer does not shade, and a
+/// result asked for relief is unavailable. The first analysis that outputs
+/// an elevation therefore brings Windows-part relief with it.
+#[test]
+fn no_analysis_outputs_an_elevation() {
+    for analysis in ANALYSIS_REGISTRY {
+        for output in analysis.outputs {
+            let LibraryItemType::Raster { quantity } = output.item else {
+                continue;
+            };
+            assert!(
+                !crate::services::lidar::display_cog::draws_relief(quantity),
+                "{} outputs {quantity:?}, which draws as relief: relief for derived parts first",
+                analysis.id
+            );
+        }
+    }
+}
+
 /// Every registry entry runs on exactly one executor and every executor has an
 /// entry; a windowed halo fits the bounded readers.
 #[test]

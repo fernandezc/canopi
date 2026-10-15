@@ -146,7 +146,7 @@ fn nodata_tag(nodata: Option<f32>) -> String {
 
 /// Whether an item of `quantity` draws as relief by default (D2): the three
 /// elevations.
-fn draws_relief(quantity: RasterQuantity) -> bool {
+pub(super) fn draws_relief(quantity: RasterQuantity) -> bool {
     matches!(
         quantity,
         RasterQuantity::GroundElevation
