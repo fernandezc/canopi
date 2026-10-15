@@ -68,6 +68,7 @@ export function requestLidarDisplay(
     entity_id: entityId,
     expected_generation_id: generationId,
     retry: options.retry ?? false,
+    relief: false,
   })
     .then((descriptor) => {
       if (owner !== storeGeneration) return
@@ -89,6 +90,7 @@ export function requestLidarDisplay(
         entity_id: entityId,
         generation_id: generationId,
         profile: '',
+        relief: false,
         state: 'Failed',
         message: error instanceof Error ? error.message : String(error),
         assets: [],

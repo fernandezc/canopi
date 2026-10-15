@@ -239,6 +239,11 @@ pub struct LidarDisplayRequest {
     /// Restart a failed preparation instead of reporting the failure again.
     #[serde(default)]
     pub retry: bool,
+    /// Ask for the grey shaded relief derivative instead of the elevation
+    /// one; a separate derivative with its own identity (plan, cache entry
+    /// and failure).
+    #[serde(default)]
+    pub relief: bool,
 }
 
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
@@ -250,6 +255,8 @@ pub struct LidarDisplayDescriptor {
     pub generation_id: Option<String>,
     /// Versioned display profile; part of every derivative's identity.
     pub profile: String,
+    /// The request's variant echoed: these are the relief derivatives.
+    pub relief: bool,
     pub state: LidarDisplayState,
     pub message: Option<String>,
     /// Top-first: the first listed asset wins where assets overlap.
@@ -257,6 +264,52 @@ pub struct LidarDisplayDescriptor {
     /// Derivatives already prepared out of `total_assets`.
     pub prepared_assets: u32,
     pub total_assets: u32,
+}
+
+/// Why Import or Retry refused a selection before any job started.
+///
+/// The frontend names `reason` in the interface language; `detail` is the
+/// English the backend wrote, for diagnostics only and never shown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct LidarImportRefusal {
+    pub reason: LidarImportRefusalReason,
+    pub detail: String,
+}
+
+/// The refusals Import and Retry name; anything else is `Internal`. A file
+/// is named by its file name, never its folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(tag = "kind")]
+pub enum LidarImportRefusalReason {
+    TooManyFiles { limit: u32 },
+    SourceTooLarge { file: String, limit_mib: u32 },
+    ImportTooLarge { limit_mib: u32 },
+    SourceMissing { file: String },
+    Unreadable { file: String },
+    NotGeotiff { file: String },
+    NoCrs { file: String },
+    /// `crs` is how the file names its system, such as `EPSG:2263`.
+    UnsupportedCrs { file: String, crs: String },
+    JobRunning,
+    LibraryUnavailable,
+    Internal,
+}
+
+/// An untyped refusal: its text is kept as the detail.
+impl From<String> for LidarImportRefusal {
+    fn from(detail: String) -> Self {
+        Self {
+            reason: LidarImportRefusalReason::Internal,
+            detail,
+        }
+    }
+}
+
+/// The English detail, for callers that still report text.
+impl From<LidarImportRefusal> for String {
+    fn from(refusal: LidarImportRefusal) -> Self {
+        refusal.detail
+    }
 }
 
 // `.canopi` presentation section: ordered references to library sources and
@@ -307,6 +360,8 @@ pub struct LidarPresentationEntry {
 #[cfg_attr(feature = "design-schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
 pub enum LidarRamp {
+    // Grey shaded relief, drawn from its own display derivative.
+    Relief,
     Terrain,
     Earth,
     Greens,
@@ -331,6 +386,39 @@ pub enum LidarColourRange {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_refusal_crosses_ipc_with_its_kind_beside_its_fields() {
+        let refusal = LidarImportRefusal {
+            reason: LidarImportRefusalReason::UnsupportedCrs {
+                file: "tile.tif".to_string(),
+                crs: "EPSG:2263".to_string(),
+            },
+            detail: "EPSG:2263 is not a supported coordinate system.".to_string(),
+        };
+        assert_eq!(
+            serde_json::to_value(&refusal).unwrap(),
+            json!({
+                "reason": { "kind": "UnsupportedCrs", "file": "tile.tif", "crs": "EPSG:2263" },
+                "detail": "EPSG:2263 is not a supported coordinate system."
+            })
+        );
+        let untyped = LidarImportRefusal::from("disk full".to_string());
+        assert_eq!(
+            serde_json::to_value(&untyped).unwrap()["reason"],
+            json!({ "kind": "Internal" })
+        );
+        assert_eq!(String::from(untyped), "disk full");
+    }
+
+    #[test]
+    fn a_display_request_without_relief_asks_for_elevation() {
+        let request: LidarDisplayRequest = serde_json::from_value(json!({
+            "kind": "Source", "entity_id": "ground", "expected_generation_id": null
+        }))
+        .expect("an older request decodes");
+        assert!(!request.relief && !request.retry);
+    }
 
     #[test]
     fn a_batched_sample_crosses_ipc_in_target_order() {

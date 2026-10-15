@@ -12,6 +12,8 @@ import { unitSuffix } from './item-types'
  * values come from native inspection.
  */
 const RAMP_STOPS: Readonly<Record<LidarRamp, readonly string[]>> = {
+  // No kind offers Relief yet (canopi-2add).
+  Relief: ['#000000', '#202020', '#404040', '#606060', '#808080', '#9f9f9f', '#bfbfbf', '#dfdfdf', '#ffffff'],
   Terrain: [
     '#aeefd5', '#b0f2cd', '#b1f4c1', '#b2f6b5', '#bbf7b2', '#c8f9b2', '#d8fab2', '#eafcb2',
     '#f7fcb2', '#eff4a3', '#cfe888', '#b2dc72', '#8dce5b', '#68c047', '#48b437', '#29a62c',

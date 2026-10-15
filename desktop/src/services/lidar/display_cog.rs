@@ -337,6 +337,7 @@ impl LidarLibrary {
                 entity_id: request.entity_id.clone(),
                 generation_id,
                 profile: DISPLAY_PROFILE.to_string(),
+                relief: request.relief,
                 state,
                 message,
                 assets: Vec::new(),
@@ -1082,6 +1083,7 @@ mod library_tests {
                 entity_id: layer_id.clone(),
                 expected_generation_id: Some(generation_id.clone()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -1121,6 +1123,7 @@ mod library_tests {
                 entity_id: layer_id.clone(),
                 expected_generation_id: Some("gen-older".to_string()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(stale.state, LidarDisplayState::Stale);
@@ -1136,6 +1139,7 @@ mod library_tests {
                 entity_id: empty_id,
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(empty.state, LidarDisplayState::Unavailable);
@@ -1331,6 +1335,7 @@ mod library_tests {
                 entity_id: layer_id.to_string(),
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -1979,6 +1984,7 @@ mod chunk_display_tests {
                 entity_id: "item-far".to_string(),
                 expected_generation_id: Some("dgen-far".to_string()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -2068,6 +2074,7 @@ mod chunk_display_tests {
                 entity_id: "item-cap".to_string(),
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(ready.state, LidarDisplayState::Ready);

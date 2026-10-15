@@ -56,6 +56,7 @@ function descriptor(overrides: Partial<LidarDisplayDescriptor> = {}): LidarDispl
     entity_id: 'lyr-1',
     generation_id: 'gen-2',
     profile: 'display-cog-3857-v2',
+    relief: false,
     state: 'Ready',
     message: null,
     assets: [
@@ -158,7 +159,7 @@ describe('LiDAR display descriptor requests', () => {
     await vi.advanceTimersByTimeAsync(5000)
     expect(invoke).toHaveBeenCalledTimes(2)
     expect(invoke).toHaveBeenCalledWith('lidar_display_descriptor', {
-      request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false },
+      request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: false },
     })
   })
 
@@ -188,7 +189,7 @@ describe('LiDAR display descriptor requests', () => {
       })
       await vi.advanceTimersByTimeAsync(0)
       expect(invoke).toHaveBeenCalledWith('lidar_display_descriptor', {
-        request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false },
+        request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: false },
       })
     } finally {
       setStoryPresentationOverrides(null)

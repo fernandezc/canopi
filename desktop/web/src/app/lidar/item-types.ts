@@ -58,6 +58,8 @@ interface RasterQuantityType {
 
 /** The renderer's colormap for each ramp (`cog-tiler-wasm`'s built-in names). */
 const RAMP_COLORMAPS: Readonly<Record<LidarRamp, string>> = {
+  // No kind offers Relief yet (canopi-2add).
+  Relief: 'gray',
   // Hypsometric without blue.
   Terrain: 'schwarzwald',
   Earth: 'turbid',

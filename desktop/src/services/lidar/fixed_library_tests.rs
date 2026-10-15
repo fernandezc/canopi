@@ -284,6 +284,7 @@ fn an_import_publishes_one_fixed_item_with_display_ready_and_nothing_refreshes()
             entity_id: receipt.layer_id.clone(),
             expected_generation_id: Some(generation.clone()),
             retry: false,
+            relief: false,
         })
         .unwrap();
     assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
