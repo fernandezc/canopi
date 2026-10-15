@@ -2,7 +2,8 @@
 // toolbar, three clicks and a double-click finish a line and arm Select; the chart draws one path per curve, hovering
 // says where, Steepest moves the cursor, × ends the profile;
 // Copy values writes tab-separated text in the locale's decimals (the gallery's clipboard stub reads it back); and
-// "Profile this line" on a Line zone's canvas menu draws that line's profile (U49 Q29). The memory backend samples its
+// "Profile this line" on a Line zone's canvas menu draws that line's profile (U49 Q29); in Russian the header fits with
+// Copied beside the iconed Copy values (canopi-vggx). The memory backend samples its
 // analytic site, which covers the west of the fixture Design. The gallery runs no canvas key router, so Enter, Backspace
 // and the Esc order are checked through the real key path in jsdom (canvas-interaction-e2e.profile.test.ts). DOM
 // assertions only, no baselines.
@@ -109,6 +110,35 @@ test.describe('Profile (g5)', () => {
     expect(first[1]).toMatch(/^\d+,\d{7}$/)
     expect(first[2]).toMatch(/^\d+,\d{7}$/)
     expect(lines.slice(1).some((line) => /\t\d+,\d{2}(\t|$)/.test(line)), 'some value in the locale\'s decimals').toBe(true)
+  })
+
+  test('in Russian the header fits with Copied beside the iconed Copy values', async ({ page }) => {
+    await openGallery(page, { surface: 'site-data', locale: 'ru' })
+    const { at } = await mapPoints(page, 'Карта проекта')
+    const panel = page.locator('aside').filter({ has: page.getByRole('button', { name: 'Профиль', exact: true }) })
+    await panel.getByRole('button', { name: 'Профиль', exact: true }).click()
+    await page.mouse.click(at(0.22).x, at(0.22).y)
+    await page.waitForTimeout(PAST_MULTI_CLICK_MS)
+    await page.mouse.dblclick(at(0.6).x, at(0.6).y)
+
+    const copy = panel.getByRole('button', { name: 'Копировать значения', exact: true })
+    await expect(copy.locator('svg')).toHaveAttribute('width', '16')
+    await copy.click()
+    await expect(panel.getByText('Скопировано')).toBeVisible()
+    // The header's row: nothing overflows it, the button's label is never cut, and every control ends inside the row.
+    const fit = await copy.evaluate((button) => {
+      const header = button.parentElement!
+      const row = header.getBoundingClientRect()
+      return {
+        header: header.scrollWidth <= header.clientWidth,
+        label: button.scrollWidth <= button.clientWidth,
+        outside: Array.from(header.children).filter((child) => {
+          const rect = child.getBoundingClientRect()
+          return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
+        }).map((child) => child.textContent || child.getAttribute('aria-label')),
+      }
+    })
+    expect(fit).toEqual({ header: true, label: true, outside: [] })
   })
 
   test('Profile this line on a Line zone\'s menu draws that line\'s profile', async ({ page }) => {

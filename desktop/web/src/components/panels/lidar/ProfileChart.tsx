@@ -132,7 +132,10 @@ function CopyValues({ profile }: { readonly profile: ReadyProfile }) {
           {t(feedback === 'failed' ? 'siteData.chart.copyFailed' : 'siteData.chart.copied')}
         </span>
       ) : null}
-      <button type="button" className={styles.textButton} onClick={copy}>{t('siteData.chart.copyValues')}</button>
+      <button type="button" className={styles.textButton} onClick={copy}>
+        <ControlIcon name="copy" size={16} />
+        {t('siteData.chart.copyValues')}
+      </button>
     </>
   )
 }

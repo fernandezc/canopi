@@ -24,7 +24,7 @@
 .copyFailed { color: var(--color-danger); }
 
 .textButton, .iconButton, .linkButton { font: inherit; cursor: pointer; border: 0; background: transparent; color: var(--color-text); }
-.textButton { min-height: var(--control-size-sm); padding: 0 var(--space-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); font-size: var(--text-xs); }
+.textButton { display: inline-flex; flex-shrink: 0; align-items: center; gap: var(--space-1); min-height: var(--control-size-sm); padding: 0 var(--space-2); white-space: nowrap; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); font-size: var(--text-xs); }
 .iconButton { position: relative; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: var(--control-size-sm); height: var(--control-size-sm); padding: 0; border-radius: var(--radius-md); color: var(--color-text-secondary); }
 .textButton:hover, .iconButton:hover, .linkButton:hover { background: var(--color-control-hover); }
 .linkButton { padding: 0 var(--space-0-5); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--color-accent-ink); text-decoration: underline; text-underline-offset: 2px; }
