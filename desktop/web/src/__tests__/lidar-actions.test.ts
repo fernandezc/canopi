@@ -17,6 +17,7 @@ const patchMock = vi.hoisted(() => vi.fn())
 const reconcileNamesMock = vi.hoisted(() => vi.fn())
 const refreshMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const ensurePollingMock = vi.hoisted(() => vi.fn())
+const showAppFolderMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const sessionIdentity = vi.hoisted(() => ({ value: 'design-a' as string | null }))
 const presentation = vi.hoisted(() => ({ value: [] as Array<{
   id: string
@@ -40,6 +41,8 @@ vi.mock('../ipc/lidar', () => ({
   lidarRerunAnalysis: rerunAnalysisMock,
   lidarRetryImport: retryImportMock,
 }))
+
+vi.mock('../ipc/settings', () => ({ showAppFolder: showAppFolderMock }))
 
 vi.mock('../app/design-edit/lidar', async (importOriginal) => ({
   sameColourRange: (await importOriginal<typeof import('../app/design-edit/lidar')>()).sameColourRange,
@@ -88,6 +91,7 @@ import {
   setLidarEntryDisplay,
   setLidarEntryVisibility,
   setSiteDataShown,
+  showDataLibraryFolder,
   attachmentFailure,
   dismissAttachmentFailure,
   pendingAttachments,
@@ -220,6 +224,16 @@ describe('Data Library actions', () => {
     await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif can’t be found. Choose the files again.')
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(ensurePollingMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a failed Show in folder in the interface language, its native text kept for diagnostics only', async () => {
+    resetFrontendDiagnosticsForTests()
+    const native = 'Canopi could not create the folder: Permission denied (os error 13)'
+    showAppFolderMock.mockRejectedValueOnce(native)
+    await expect(showDataLibraryFolder()).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(showAppFolderMock).toHaveBeenCalledWith('data_library')
+    expect(lidarStatusMessage.value).not.toContain('Permission denied')
+    expect(recentFrontendDiagnostics().some((entry) => entry.message.includes(native))).toBe(true)
   })
 
   /** The message a refused Import publishes in `language`, and what diagnostics kept of it. */

@@ -137,9 +137,9 @@ export async function fetchLibraryDiskUsage(): Promise<number> {
   return lidarLibraryDiskUsage()
 }
 
-/** Data library › Show in folder: the same reveal as Settings › Files and data. */
+/** Data library › Show in folder: the same reveal as Settings › Files and data; a failure reads like any library action's. */
 export async function showDataLibraryFolder(): Promise<void> {
-  return showAppFolder('data_library')
+  return withLidarError(() => showAppFolder('data_library'))
 }
 
 export async function fetchDeleteImpact(id: string): Promise<LibraryDeleteImpact> {
