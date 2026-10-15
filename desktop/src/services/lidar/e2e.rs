@@ -86,6 +86,7 @@ fn assert_displays(
             entity_id: entity_id.to_string(),
             expected_generation_id: None,
             retry: false,
+            relief: false,
         })
         .expect("descriptor reads");
     assert_eq!(

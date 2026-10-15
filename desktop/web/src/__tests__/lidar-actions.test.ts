@@ -95,6 +95,8 @@ import {
   settleResultAttachments,
 } from '../app/lidar/actions'
 import { lidarStatusMessage } from '../app/lidar/library-store'
+import { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } from '../app/problem-report/diagnostics'
+import { locale } from '../app/settings/state'
 import { librarySnapshot, slopeItem, sourceItem } from './support/library-fixtures'
 
 interface Deferred<T> {
@@ -219,6 +221,43 @@ describe('Data Library actions', () => {
     expect(ensurePollingMock).not.toHaveBeenCalled()
   })
 
+  /** The message a refused Import publishes in `language`, and what diagnostics kept of it. */
+  async function refusedImport(refusal: unknown, language: 'en' | 'fr'): Promise<{ shown: string | null, thrown: string, kept: string[] }> {
+    locale.value = language
+    resetFrontendDiagnosticsForTests()
+    importItemMock.mockRejectedValueOnce(refusal)
+    const thrown = await importLibraryItem(['/data/dem.asc'], 'Ground', 'GroundElevation', { label: null, unknown: false })
+      .then(() => '', (error: unknown) => error instanceof Error ? error.message : String(error))
+    return { shown: lidarStatusMessage.value, thrown, kept: recentFrontendDiagnostics().map((entry) => entry.message) }
+  }
+
+  it.fails('[expected-fail L canopi-bkbh] names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
+    const detail = 'dem.asc is not a GeoTIFF: TIFF magic bytes missing at offset 0'
+    const refusal = { reason: { kind: 'NotGeotiff', file: 'dem.asc' }, detail }
+    try {
+      const english = await refusedImport(refusal, 'en')
+      const french = await refusedImport(refusal, 'fr')
+      for (const outcome of [english, french]) {
+        expect(outcome.shown).toContain('dem.asc')
+        expect(outcome.shown).not.toContain('magic bytes')
+        expect(outcome.shown).not.toContain('[object Object]')
+        expect(outcome.thrown).toBe(outcome.shown)
+        expect(outcome.kept.some((message) => message.includes(detail))).toBe(true)
+      }
+      expect(french.shown).not.toBe(english.shown)
+    } finally {
+      locale.value = 'en'
+    }
+  })
+
+  it.fails('[expected-fail L canopi-bkbh] shows an Internal refusal, or any other failure, as the generic message', async () => {
+    const internal = await refusedImport({ reason: { kind: 'Internal' }, detail: 'sqlite: database is locked' }, 'en')
+    const plain = await refusedImport(new Error('engine stopped'), 'en')
+    expect(internal.shown).not.toContain('sqlite')
+    expect(plain.shown).toBe(internal.shown)
+    expect(internal.kept.some((message) => message.includes('database is locked'))).toBe(true)
+  })
+
   it('removes the deleted item from the Design that asked for the deletion', async () => {
     deleteItemMock.mockResolvedValue(undefined)
     await deleteLibraryItem('analysis-1')
@@ -315,11 +354,21 @@ describe('Design data references', () => {
 
     // The kind's first ramp is its default.
     patchMock.mockClear()
-    setLidarEntryDisplay('ground', { ramp: 'Terrain' })
-    setLidarEntryDisplay('canopy', { ramp: 'Greens' })
     setLidarEntryDisplay('slope', { ramp: 'YellowRed' })
     setLidarEntryDisplay('other', { ramp: 'Magma' })
-    for (const id of ['ground', 'canopy', 'slope', 'other']) expect(stored(id)).toEqual({ ramp: null })
+    for (const id of ['slope', 'other']) expect(stored(id)).toEqual({ ramp: null })
+  })
+
+  it.fails('[expected-fail R canopi-2add] stores Relief picked on MNT, MNS or MNH as null, so Relief has one encoding', () => {
+    const entry = (id: string, quantity: RasterQuantity) =>
+      ({ id, order: 0, parentId: null, itemType: { kind: 'Raster' as const, quantity }, units: 'm' })
+    presentation.value = [entry('ground', 'GroundElevation'), entry('surface', 'SurfaceElevation'), entry('canopy', 'AboveGroundHeight')]
+    const stored = (id: string) => patchMock.mock.calls.find(([called]) => called === id)?.[1]
+    patchMock.mockClear()
+    for (const id of ['ground', 'surface', 'canopy']) {
+      setLidarEntryDisplay(id, { ramp: 'Relief' })
+      expect(stored(id)).toEqual({ ramp: null })
+    }
   })
 
   it('never stores a range or opacity the Design could not be reopened with, keeping the rest of the patch', () => {

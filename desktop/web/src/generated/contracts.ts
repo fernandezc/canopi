@@ -416,6 +416,8 @@ export type LidarDisplayDescriptor = {
 	generation_id: string | null,
 	// Versioned display profile; part of every derivative's identity.
 	profile: string,
+	// The request's variant echoed: these are the relief derivatives.
+	relief: boolean,
 	state: LidarDisplayState,
 	message: string | null,
 	// Top-first: the first listed asset wins where assets overlap.
@@ -456,6 +458,12 @@ export type LidarDisplayRequest = {
 	expected_generation_id: string | null,
 	// Restart a failed preparation instead of reporting the failure again.
 	retry?: boolean,
+	/**
+	 *  Ask for the grey shaded relief derivative instead of the elevation
+	 *  one; a separate derivative with its own identity (plan, cache entry
+	 *  and failure).
+	 */
+	relief?: boolean,
 };
 
 // Whether an entity's display derivative can be drawn now.
@@ -519,6 +527,25 @@ export type LidarImportReceipt = {
 	layer_id: string,
 	job_id: string,
 };
+
+/**
+ *  Why Import or Retry refused a selection before any job started.
+ *
+ *  The frontend names `reason` in the interface language; `detail` is the
+ *  English the backend wrote, for diagnostics only and never shown.
+ */
+export type LidarImportRefusal = {
+	reason: LidarImportRefusalReason,
+	detail: string,
+};
+
+/**
+ *  The refusals Import and Retry name; anything else is `Internal`. A file
+ *  is named by its file name, never its folder.
+ */
+export type LidarImportRefusalReason = { kind: "TooManyFiles"; limit: number } | { kind: "SourceTooLarge"; file: string; limit_mib: number } | { kind: "ImportTooLarge"; limit_mib: number } | { kind: "SourceMissing"; file: string } | { kind: "Unreadable"; file: string } | { kind: "NotGeotiff"; file: string } | { kind: "NoCrs"; file: string } |
+// `crs` is how the file names its system, such as `EPSG:2263`.
+{ kind: "UnsupportedCrs"; file: string; crs: string } | { kind: "JobRunning" } | { kind: "LibraryUnavailable" } | { kind: "Internal" };
 
 /**
  *  The ordered source files of one fixed library item.
@@ -589,7 +616,7 @@ export type LidarPresentationSection = {
 	entries: LidarPresentationEntry[],
 };
 
-export type LidarRamp = "Terrain" | "Earth" | "Greens" | "YellowRed" | "Magma" | "Gray";
+export type LidarRamp = "Relief" | "Terrain" | "Earth" | "Greens" | "YellowRed" | "Magma" | "Gray";
 
 // State of a library item: its operation while it runs, then a fixed result.
 export type LidarResultState = "Preparing" | "Ready" | "Failed";

@@ -674,6 +674,17 @@ describe('Data library, Import and Analyze dialogs', () => {
       expect(actions.dismissLibraryImport).toHaveBeenCalledWith('x')
     })
 
+    it.fails('[expected-fail L canopi-bkbh] words a failed import row as Import failed, never the engine text stored on its job', () => {
+      lidarLibrary.value = library([layer('x', 'Broken', {
+        generation_id: null, state: 'Failed',
+        import_job: { job_id: 'job-x', layer_id: 'x', state: 'Failed', message: 'TIFF read error: strip 3 is truncated', progress: null },
+      })])
+      mount()
+      expect(container.textContent).toContain('Import failed')
+      expect(container.textContent).not.toContain('truncated')
+      expect(button('Retry')).toBeTruthy()
+    })
+
     it('nests results under the data they were calculated from', () => {
       lidarLibrary.value = library([layer('a', 'Ground'), layer('b', 'Canopy')], [slope('s', 'a')])
       mount()
@@ -788,6 +799,25 @@ describe('Data library, Import and Analyze dialogs', () => {
       expect(cancelled!.textContent).toContain('Annulé')
       expect(cancelled!.textContent).not.toContain('analysis cancelled')
       expect(failed!.textContent).toContain('engine stopped')
+    })
+
+    it.fails('[expected-fail L canopi-bkbh] words a failed run in history by its state alone, keeping the engine text out of it', async () => {
+      locale.value = 'fr'
+      actions.fetchProcessingHistory.mockResolvedValueOnce({
+        definition_id: 's-def',
+        runs: [{ job_id: 'j1', state: 'Failed', message: 'engine stopped', recipe_version: 1, tool: null, inputs: [], created_at: '1790000000000', finished_at: null, outputs: [] }],
+        next_cursor: null,
+      })
+      lidarLibrary.value = library([layer('a', 'Ground')], [slope('s', 'a', { name: 'Steepness' })])
+      act(() => {
+        openDataLibrary('s')
+        render(<DataDialogs />, container)
+      })
+      await act(async () => { await new Promise((resolve) => setTimeout(resolve, 130)) })
+      await act(async () => {})
+      const [failed] = Array.from(container.querySelectorAll('section[aria-label="Historique des traitements"] li'))
+      expect(failed!.textContent).toContain('Échec')
+      expect(failed!.textContent).not.toContain('engine stopped')
     })
 
     it('offers Cancel for a running calculation and cancels its job', async () => {

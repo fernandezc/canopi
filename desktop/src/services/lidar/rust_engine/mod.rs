@@ -360,7 +360,7 @@ impl RasterEngine for RustRasterEngine {
 
     fn probe(&self, raster: &Path, cancel: &AtomicBool) -> Result<RasterProbe, String> {
         check_cancel(cancel)?;
-        source::probe(raster)
+        Ok(source::probe(raster)?)
     }
 
     #[cfg(test)]

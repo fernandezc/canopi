@@ -15,7 +15,7 @@ import {
 import { siteDataLines, type SiteDataLine } from '../../../app/lidar/analysis-groups'
 import { analysisTitle } from '../../../app/analyses/registry'
 import { viewDesignLocation, viewLidarCoverage } from '../../../app/lidar/camera-request'
-import { lidarDisplayStyle, readLidarDisplay } from '../../../app/lidar/display'
+import { lidarDisplayStyle, readLidarEntryDisplay } from '../../../app/lidar/display'
 import { formatRasterRange, legendGradient } from '../../../app/lidar/display-legend'
 import { itemTypeLabel } from '../../../app/lidar/item-types'
 import { beginDataImport, openDataLibrary } from '../../../app/lidar/library-navigation'
@@ -513,7 +513,7 @@ function Trailing({ row }: { readonly row: LidarPresentationItem }) {
   }
   if (row.state !== 'Ready') return <span className={`${styles.trailing} ${styles.muted}`} data-trailing>{t('canvas.lidar.library.preparing')}</span>
   if (!row.shown) return <span className={styles.trailing} data-trailing />
-  const display = row.generationId ? readLidarDisplay(row.kind, row.id, row.generationId) : null
+  const display = readLidarEntryDisplay(row)
   if (display?.state === 'Failed') return <span className={`${styles.trailing} ${styles.warning}`} data-trailing>{t('canvas.lidar.library.displayFailed')}</span>
   if (display?.state === 'Preparing') return <span className={`${styles.trailing} ${styles.muted}`} data-trailing>{t('canvas.lidar.library.preparing')}</span>
   const value = siteValues.value?.rows.get(row.id)

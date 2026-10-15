@@ -304,6 +304,7 @@ export const CANOPI_FILE_SCHEMA = {
     },
     "LidarRamp": {
       "enum": [
+        "Relief",
         "Terrain",
         "Earth",
         "Greens",

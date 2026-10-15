@@ -105,12 +105,23 @@ pub(crate) struct DisplayPreparation {
     running: bool,
 }
 
-fn plan_key(kind: LibraryItemRole, entity_id: &str, generation_id: &str) -> String {
+/// A plan's identity in the preparation lane: the variant is part of it, so
+/// relief and elevation never share a pending plan or a failure.
+fn plan_key(kind: LibraryItemRole, entity_id: &str, generation_id: &str, relief: bool) -> String {
+    let variant = if relief { "/relief" } else { "" };
+    format!(
+        "{}{generation_id}{variant}",
+        entity_plan_prefix(kind, entity_id)
+    )
+}
+
+/// What every plan key of one entity starts with.
+fn entity_plan_prefix(kind: LibraryItemRole, entity_id: &str) -> String {
     let kind = match kind {
         LibraryItemRole::Source => "source",
         LibraryItemRole::Derived => "derived",
     };
-    format!("{kind}/{entity_id}/{generation_id}")
+    format!("{kind}/{entity_id}/")
 }
 
 fn nodata_tag(nodata: Option<f32>) -> String {
@@ -201,11 +212,7 @@ fn build_plan(
                 lattice: manifest.grid.clone(),
                 crs_ref: manifest.crs_ref.clone(),
             });
-            let parts = grouped_parts(
-                &format!("{DISPLAY_PROFILE}-gen-{}", result.id),
-                &reader,
-                coordinates,
-            );
+            let parts = grouped_parts(&gen_prefix(&result.id), &reader, coordinates);
             Ok(Planned::Plan(Arc::new(DisplayPlan {
                 kind,
                 entity_id: entity_id.to_string(),
@@ -221,13 +228,22 @@ fn build_plan(
 /// its item's zoom: an asset shared by items at different latitudes gets one
 /// derivative per zoom.
 fn asset_key(sha256: &str, nodata: Option<f32>, zoom: u32) -> String {
-    format!(
-        "{DISPLAY_PROFILE}-asset-{sha256}-{}-z{zoom}",
-        nodata_tag(nodata)
-    )
+    format!("{}{}-z{zoom}", asset_prefix(sha256), nodata_tag(nodata))
 }
 
-/// Group occupied chunks into parts of at most `PART_CHUNKS`² chunks.
+/// What every derivative key of one numeric COG starts with, whatever its
+/// NoData rule, zoom or variant.
+pub(super) fn asset_prefix(sha256: &str) -> String {
+    format!("{DISPLAY_PROFILE}-asset-{sha256}-")
+}
+
+/// What every derivative key of one derived generation's parts starts with.
+pub(super) fn gen_prefix(generation_id: &str) -> String {
+    format!("{DISPLAY_PROFILE}-gen-{generation_id}-")
+}
+
+/// Group occupied chunks into parts of at most `PART_CHUNKS`² chunks, each
+/// keyed `prefix` and its group coordinates.
 fn grouped_parts(
     prefix: &str,
     reader: &Arc<WindowReader>,
@@ -243,7 +259,7 @@ fn grouped_parts(
     groups
         .into_iter()
         .map(|((group_y, group_x), chunks)| PartSpec {
-            key: format!("{prefix}-{group_x}_{group_y}"),
+            key: format!("{prefix}{group_x}_{group_y}"),
             source: PartSource::Windows {
                 reader: Arc::clone(reader),
                 chunks,
@@ -337,6 +353,7 @@ impl LidarLibrary {
                 entity_id: request.entity_id.clone(),
                 generation_id,
                 profile: DISPLAY_PROFILE.to_string(),
+                relief: request.relief,
                 state,
                 message,
                 assets: Vec::new(),
@@ -394,7 +411,7 @@ impl LidarLibrary {
             descriptor.assets = assets;
             return Ok(descriptor);
         }
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
         let failure = {
             let mut state = self.display_preparation()?;
             if request.retry {
@@ -421,8 +438,36 @@ impl LidarLibrary {
             .map_err(|_| "LiDAR display preparation state poisoned".to_string())
     }
 
+    /// Drop the entity's queued plans and remembered failures, every variant
+    /// and generation; a plan already running finishes.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "Delete everywhere calls it (canopi-44vf)")
+    )]
+    pub(super) fn forget_entity_plans(
+        &self,
+        kind: LibraryItemRole,
+        entity_id: &str,
+    ) -> Result<(), String> {
+        let prefix = entity_plan_prefix(kind, entity_id);
+        let mut state = self.display_preparation()?;
+        let state = &mut *state;
+        state.plans.retain(|key, _| !key.starts_with(&prefix));
+        state.failures.retain(|key, _| !key.starts_with(&prefix));
+        let pending = &mut state.pending;
+        state.queue.retain(|plan| {
+            let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+            let keep = !key.starts_with(&prefix);
+            if !keep {
+                pending.remove(&key);
+            }
+            keep
+        });
+        Ok(())
+    }
+
     fn enqueue_display_preparation(&self, plan: Arc<DisplayPlan>) -> Result<(), String> {
-        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+        let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
         let start = {
             let mut state = self.display_preparation()?;
             state.plans.insert(key.clone(), Arc::clone(&plan));
@@ -452,7 +497,7 @@ impl LidarLibrary {
                         next
                     });
                     let Some(plan) = next else { break };
-                    let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id);
+                    let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
                     let worker = library.clone();
                     let job = Arc::clone(&plan);
                     let outcome = executor
@@ -723,20 +768,26 @@ impl LidarLibrary {
 /// their files: an unpublished import's (`import::discard_job_files`). No
 /// WebView reads them, since only a published item is drawn.
 pub(super) fn forget_asset_derivatives(library: &LidarLibrary, sha256: &str) -> Result<(), String> {
-    let prefix = format!("{DISPLAY_PROFILE}-asset-{sha256}-");
+    forget_derivatives(library, &asset_prefix(sha256))
+}
+
+/// Forget every registered derivative whose key starts with `prefix`
+/// ([`asset_prefix`], [`gen_prefix`]) and remove its file; the caller makes
+/// sure no drawn item still uses them.
+pub(super) fn forget_derivatives(library: &LidarLibrary, prefix: &str) -> Result<(), String> {
     let files: Vec<String> = {
         let display = library.display()?;
         let files = display
             .prepare("SELECT file FROM display_cogs WHERE instr(key, ?1) = 1 AND file != ''")
             .map_err(|e| e.to_string())?
-            .query_map([&prefix], |row| row.get::<_, String>(0))
+            .query_map([prefix], |row| row.get::<_, String>(0))
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         display
             .execute(
                 "DELETE FROM display_cogs WHERE instr(key, ?1) = 1",
-                [&prefix],
+                [prefix],
             )
             .map_err(|e| e.to_string())?;
         files
@@ -749,6 +800,26 @@ pub(super) fn forget_asset_derivatives(library: &LidarLibrary, sha256: &str) -> 
         }
     }
     Ok(())
+}
+
+/// Every registered derivative key, in key order.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the startup derivative sweep calls it (canopi-44vf)"
+    )
+)]
+pub(super) fn registered_derivative_keys(library: &LidarLibrary) -> Result<Vec<String>, String> {
+    let display = library.display()?;
+    let mut statement = display
+        .prepare("SELECT key FROM display_cogs ORDER BY key")
+        .map_err(|e| e.to_string())?;
+    statement
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 /// Remove staging leftovers, derivatives of an earlier profile and published
@@ -942,7 +1013,7 @@ mod tests {
             crs_ref: String::new(),
         });
         // Two adjacent chunks and one 200 chunks away.
-        let parts = grouped_parts("gen-1", &reader, vec![(0, 0), (1, 0), (200, 3)]);
+        let parts = grouped_parts("gen-1-", &reader, vec![(0, 0), (1, 0), (200, 3)]);
         let keys: Vec<&str> = parts.iter().map(|part| part.key.as_str()).collect();
         assert_eq!(keys, ["gen-1-0_0", "gen-1-50_0"]);
         let PartSource::Windows { chunks, .. } = &parts[1].source else {
@@ -974,7 +1045,7 @@ mod tests {
             },
             crs_ref: String::new(),
         });
-        let parts = grouped_parts("gen-2", &reader, vec![(-1, -1), (0, 0)]);
+        let parts = grouped_parts("gen-2-", &reader, vec![(-1, -1), (0, 0)]);
         let keys: Vec<&str> = parts.iter().map(|part| part.key.as_str()).collect();
         assert_eq!(keys, ["gen-2--1_-1", "gen-2-0_0"]);
     }
@@ -1001,7 +1072,12 @@ mod library_tests {
     use super::*;
     use common_types::library::RasterQuantity;
 
-    fn plane_source(library: &LidarLibrary, root: &Path, name: &str, origin_x: f64) -> PathBuf {
+    pub(super) fn plane_source(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        origin_x: f64,
+    ) -> PathBuf {
         let engine = &library.inner.engine;
         let cancel = AtomicBool::new(false);
         let (width, height) = (600u32, 400u32);
@@ -1033,7 +1109,7 @@ mod library_tests {
         source
     }
 
-    fn info(library: &LidarLibrary, path: &str) -> super::super::engine::RasterProbe {
+    pub(super) fn info(library: &LidarLibrary, path: &str) -> super::super::engine::RasterProbe {
         library
             .inner
             .engine
@@ -1082,6 +1158,7 @@ mod library_tests {
                 entity_id: layer_id.clone(),
                 expected_generation_id: Some(generation_id.clone()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -1121,6 +1198,7 @@ mod library_tests {
                 entity_id: layer_id.clone(),
                 expected_generation_id: Some("gen-older".to_string()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(stale.state, LidarDisplayState::Stale);
@@ -1136,6 +1214,7 @@ mod library_tests {
                 entity_id: empty_id,
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(empty.state, LidarDisplayState::Unavailable);
@@ -1214,14 +1293,8 @@ mod library_tests {
             .unwrap();
         // Rewrite each row as the first profile keyed it: without a profile.
         {
+            let keys = registered_derivative_keys(&library).unwrap();
             let display = library.display().unwrap();
-            let keys: Vec<String> = display
-                .prepare("SELECT key FROM display_cogs")
-                .unwrap()
-                .query_map([], |row| row.get(0))
-                .unwrap()
-                .collect::<Result<_, _>>()
-                .unwrap();
             assert!(!keys.is_empty());
             for key in keys {
                 assert!(key.starts_with(&format!("{DISPLAY_PROFILE}-")), "{key}");
@@ -1331,6 +1404,7 @@ mod library_tests {
                 entity_id: layer_id.to_string(),
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -1931,7 +2005,9 @@ mod library_tests {
 
 #[cfg(test)]
 mod chunk_display_tests {
+    use super::library_tests::{info, plane_source};
     use super::*;
+    use common_types::library::RasterQuantity;
 
     /// A published slope result whose chunks the caller then writes.
     fn seed_chunk_result(library: &LidarLibrary, item_id: &str, generation_id: &str) {
@@ -1979,6 +2055,7 @@ mod chunk_display_tests {
                 entity_id: "item-far".to_string(),
                 expected_generation_id: Some("dgen-far".to_string()),
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
@@ -2068,10 +2145,415 @@ mod chunk_display_tests {
                 entity_id: "item-cap".to_string(),
                 expected_generation_id: None,
                 retry: false,
+                relief: false,
             })
             .unwrap();
         assert_eq!(ready.state, LidarDisplayState::Ready);
         assert_eq!(ready.assets.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A plan's identity: each variant has its own key, and every key of an
+    /// entity starts with its prefix, which another entity's never does.
+    #[test]
+    fn each_variant_of_an_entity_plan_has_its_own_key_inside_the_entity_prefix() {
+        let elevation = plan_key(LibraryItemRole::Source, "lyr-a", "gen-1", false);
+        let relief = plan_key(LibraryItemRole::Source, "lyr-a", "gen-1", true);
+        assert_ne!(elevation, relief);
+        let prefix = entity_plan_prefix(LibraryItemRole::Source, "lyr-a");
+        assert!(elevation.starts_with(&prefix) && relief.starts_with(&prefix));
+        assert!(!plan_key(LibraryItemRole::Source, "lyr-ab", "gen-1", false).starts_with(&prefix));
+        assert!(!plan_key(LibraryItemRole::Derived, "lyr-a", "gen-1", false).starts_with(&prefix));
+        assert!(asset_key("sha", Some(-9999.0), 17).starts_with(&asset_prefix("sha")));
+    }
+
+    /// Forgetting one generation's prefix removes its derivatives' rows and
+    /// files, and leaves another generation's.
+    #[test]
+    fn forgetting_a_generation_prefix_frees_only_its_derivatives() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-forget-gen");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        for (item, generation_id) in [("item-a", "dgen-a"), ("item-b", "dgen-b")] {
+            seed_chunk_result(&library, item, generation_id);
+            generation::publish_test_chunk(&library, generation_id, 0, 0, 4, 4, &[1.0; 16]);
+            library
+                .prepare_display_now(LibraryItemRole::Derived, item)
+                .unwrap();
+        }
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert_eq!(keys.len(), 2, "{keys:?}");
+        assert!(
+            keys.iter()
+                .any(|key| key.starts_with(&gen_prefix("dgen-a")))
+        );
+        let files = |library: &LidarLibrary| {
+            std::fs::read_dir(library.inner.paths.display_cog_dir())
+                .unwrap()
+                .count()
+        };
+        assert_eq!(files(&library), 2);
+
+        forget_derivatives(&library, &gen_prefix("dgen-a")).unwrap();
+        let kept = registered_derivative_keys(&library).unwrap();
+        assert_eq!(kept.len(), 1, "{kept:?}");
+        assert!(kept[0].starts_with(&gen_prefix("dgen-b")), "{kept:?}");
+        assert_eq!(files(&library), 1);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Forgetting an entity's plans drops its queued plans, pending marks and
+    /// failures of every variant, and keeps another entity's.
+    #[test]
+    fn forgetting_an_entitys_plans_drops_its_queue_and_failures_only() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-forget-plans");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let cancel = AtomicBool::new(false);
+        for (item, generation_id) in [("item-a", "dgen-a"), ("item-b", "dgen-b")] {
+            seed_chunk_result(&library, item, generation_id);
+            generation::publish_test_chunk(&library, generation_id, 0, 0, 4, 4, &[1.0; 16]);
+            let Planned::Plan(plan) =
+                build_plan(&library, LibraryItemRole::Derived, item, &cancel).unwrap()
+            else {
+                panic!("a published result has a plan")
+            };
+            let mut state = library.display_preparation().unwrap();
+            let key = plan_key(plan.kind, &plan.entity_id, &plan.generation_id, false);
+            state.plans.insert(key.clone(), Arc::clone(&plan));
+            state.pending.insert(key.clone());
+            state.queue.push_back(plan);
+            state.failures.insert(key, "failed".to_string());
+            state.failures.insert(
+                plan_key(LibraryItemRole::Derived, item, generation_id, true),
+                "failed".to_string(),
+            );
+        }
+
+        library
+            .forget_entity_plans(LibraryItemRole::Derived, "item-a")
+            .unwrap();
+        let state = library.display_preparation().unwrap();
+        let kept = entity_plan_prefix(LibraryItemRole::Derived, "item-b");
+        assert_eq!(state.queue.len(), 1);
+        assert_eq!(state.queue[0].entity_id, "item-b");
+        for keys in [
+            state.plans.keys().collect::<Vec<_>>(),
+            state.pending.iter().collect(),
+            state.failures.keys().collect(),
+        ] {
+            assert!(
+                !keys.is_empty() && keys.iter().all(|key| key.starts_with(&kept)),
+                "{keys:?}"
+            );
+        }
+        assert_eq!(state.failures.len(), 2);
+        drop(state);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A published ground elevation from one plane source, its id and generation.
+    fn publish_ground(library: &LidarLibrary, root: &Path, name: &str) -> (String, String) {
+        publish_ground_at(library, root, name, 445_000.0)
+    }
+
+    /// [`publish_ground`] from a plane at `origin_x`, so its content differs.
+    fn publish_ground_at(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        origin_x: f64,
+    ) -> (String, String) {
+        let cancel = AtomicBool::new(false);
+        let source = plane_source(library, root, name, origin_x);
+        let layer_id = library
+            .create_layer(name, RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_and_publish(library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        let generation_id = library
+            .library_snapshot()
+            .unwrap()
+            .items
+            .into_iter()
+            .find(|layer| layer.id == layer_id)
+            .and_then(|layer| layer.generation_id)
+            .expect("published head");
+        (layer_id, generation_id)
+    }
+
+    fn ask(
+        library: &LidarLibrary,
+        kind: LibraryItemRole,
+        entity_id: &str,
+        relief: bool,
+    ) -> Result<LidarDisplayDescriptor, String> {
+        library.display_descriptor(&LidarDisplayRequest {
+            kind,
+            entity_id: entity_id.to_string(),
+            expected_generation_id: None,
+            retry: false,
+            relief,
+        })
+    }
+
+    // The relief user paths (canopi-2add) are written before the relief
+    // derivative exists, so each is ignored until stream R builds it. These
+    // tests have no executor: R makes `prepare_display_now` prepare what a
+    // test asks for when needed, and keeps the assertions.
+
+    /// A ground elevation asked for its relief gets its own derivative, keyed
+    /// apart from the elevation one, holding greys 1–255 and the display
+    /// NoData.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_ground_elevation_asked_with_relief_draws_its_own_grey_derivative() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, _) = publish_ground(&library, &root, "tile");
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        let elevation = ask(&library, LibraryItemRole::Source, &layer_id, false).unwrap();
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true).unwrap();
+        assert_eq!(elevation.state, LidarDisplayState::Ready, "{elevation:?}");
+        assert_eq!(relief.state, LidarDisplayState::Ready, "{relief:?}");
+        assert!(relief.relief && !elevation.relief);
+        assert_eq!(relief.assets.len(), 1);
+        assert_ne!(
+            relief.assets[0].path, elevation.assets[0].path,
+            "the relief is its own derivative"
+        );
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert!(keys.iter().any(|key| key.ends_with("-relief")), "{keys:?}");
+        let probe = info(&library, &relief.assets[0].path);
+        let values = library
+            .inner
+            .engine
+            .read_f32(
+                Path::new(&relief.assets[0].path),
+                probe.width,
+                probe.height,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
+        assert!(values.iter().any(|value| *value != DISPLAY_NODATA));
+        assert!(
+            values.iter().all(|value| *value == DISPLAY_NODATA
+                || (value.fract() == 0.0 && (1.0..=255.0).contains(value))),
+            "greys 1–255 or the display NoData"
+        );
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A failed relief plan is the relief's own: the elevation stays Ready.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_failed_relief_plan_leaves_the_elevation_ready() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-failed");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, generation_id) = publish_ground(&library, &root, "tile");
+        library
+            .prepare_display_now(LibraryItemRole::Source, &layer_id)
+            .unwrap();
+        for key in registered_derivative_keys(&library).unwrap() {
+            if key.ends_with("-relief") {
+                forget_derivatives(&library, &key).unwrap();
+            }
+        }
+        library.display_preparation().unwrap().failures.insert(
+            plan_key(LibraryItemRole::Source, &layer_id, &generation_id, true),
+            "the relief failed".to_string(),
+        );
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true).unwrap();
+        assert_eq!(relief.state, LidarDisplayState::Failed, "{relief:?}");
+        let elevation = ask(&library, LibraryItemRole::Source, &layer_id, false).unwrap();
+        assert_eq!(elevation.state, LidarDisplayState::Ready, "{elevation:?}");
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Relief and elevation asked for together queue two plans: neither is
+    /// lost to the other's pending mark.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn relief_and_elevation_asked_together_are_both_queued() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-queue");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (layer_id, generation_id) = publish_ground(&library, &root, "tile");
+        // Without an executor each request leaves its plan queued.
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, false);
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, true);
+        let state = library.display_preparation().unwrap();
+        for relief in [false, true] {
+            let key = plan_key(LibraryItemRole::Source, &layer_id, &generation_id, relief);
+            assert!(state.pending.contains(&key), "{key} is queued");
+        }
+        assert_eq!(state.queue.len(), 2);
+        drop(state);
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// canopi-44vf: Delete drops the item's display plans still queued (here
+    /// Colours asked just before Delete), so when the worker next runs
+    /// nothing registers or writes for the deleted item, before or after
+    /// reopening.
+    #[test]
+    #[ignore = "expected-fail L canopi-44vf"]
+    fn deleting_an_item_with_a_queued_display_plan_leaves_nothing_after_the_worker_runs() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-delete-queued");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (deleted, _) = publish_ground_at(&library, &root, "deleted", 445_000.0);
+        let (kept, _) = publish_ground_at(&library, &root, "kept", 452_000.0);
+        // Without an executor the request leaves its plan queued.
+        let _ = ask(&library, LibraryItemRole::Source, &deleted, false);
+        let queued_keys: Vec<String> = {
+            let state = library.display_preparation().unwrap();
+            assert_eq!(state.queue.len(), 1, "the plan is queued");
+            state.queue[0]
+                .parts
+                .iter()
+                .map(|part| part.key.clone())
+                .collect()
+        };
+        assert!(!queued_keys.is_empty());
+
+        library.delete_item(&deleted).unwrap();
+        {
+            let prefix = entity_plan_prefix(LibraryItemRole::Source, &deleted);
+            let state = library.display_preparation().unwrap();
+            assert!(
+                state.queue.iter().all(|plan| plan.entity_id != deleted)
+                    && state.plans.keys().all(|key| !key.starts_with(&prefix))
+                    && state.pending.iter().all(|key| !key.starts_with(&prefix)),
+                "Delete drops the queued plan"
+            );
+        }
+
+        // The worker starts with the next request and drains the queue in
+        // order, so once the kept item is ready any leftover plan has run.
+        library.attach_executor(crate::native_operation::NativeOperationExecutor::production());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let ready = loop {
+            let descriptor = ask(&library, LibraryItemRole::Source, &kept, false).unwrap();
+            if descriptor.state == LidarDisplayState::Ready {
+                break descriptor;
+            }
+            assert_ne!(
+                descriptor.state,
+                LidarDisplayState::Failed,
+                "{descriptor:?}"
+            );
+            assert!(std::time::Instant::now() < deadline, "{descriptor:?}");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        let kept_files: std::collections::BTreeSet<PathBuf> = ready
+            .assets
+            .iter()
+            .map(|asset| PathBuf::from(&asset.path))
+            .collect();
+        let display_files = |library: &LidarLibrary| -> std::collections::BTreeSet<PathBuf> {
+            std::fs::read_dir(library.inner.paths.display_cog_dir())
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| path.is_file())
+                .collect()
+        };
+        let leaked = |library: &LidarLibrary| -> Vec<String> {
+            registered_derivative_keys(library)
+                .unwrap()
+                .into_iter()
+                .filter(|key| queued_keys.contains(key))
+                .collect()
+        };
+        assert_eq!(leaked(&library), Vec::<String>::new());
+        assert_eq!(display_files(&library), kept_files);
+
+        let held = Arc::downgrade(&library.inner);
+        drop(library);
+        while held.strong_count() > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let reopened = LidarLibrary::open(&root).unwrap();
+        assert_eq!(leaked(&reopened), Vec::<String>::new());
+        assert_eq!(display_files(&reopened), kept_files);
+        drop(reopened);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// D8: the import prepares the kind's default view, so a new ground
+    /// elevation draws its relief at once; Colours is prepared the first time
+    /// it is asked for.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_new_ground_elevation_draws_relief_at_once_and_colours_on_first_pick() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-import");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let cancel = AtomicBool::new(false);
+        let source = plane_source(&library, &root, "tile", 445_000.0);
+        let layer_id = library
+            .create_layer("tile", RasterQuantity::GroundElevation, None, false)
+            .unwrap();
+        let job_id = library.record_import_job(&layer_id).unwrap();
+        super::super::import::stage_import(&library, &job_id, &layer_id, &[source], &cancel)
+            .unwrap();
+        let staging = super::super::import::read_staged_import(&library, &job_id).unwrap();
+        library.prepare_staged_display(&staging, &cancel).unwrap();
+        super::super::import::apply_import(&library, &staging, &cancel).unwrap();
+
+        let relief = ask(&library, LibraryItemRole::Source, &layer_id, true)
+            .expect("the relief is ready without a preparation");
+        assert_eq!(relief.state, LidarDisplayState::Ready, "{relief:?}");
+        let keys = registered_derivative_keys(&library).unwrap();
+        assert!(
+            !keys.is_empty() && keys.iter().all(|key| key.ends_with("-relief")),
+            "the import prepared the relief only: {keys:?}"
+        );
+        let generation_id = relief.generation_id.clone().unwrap();
+        let _ = ask(&library, LibraryItemRole::Source, &layer_id, false);
+        assert!(
+            library
+                .display_preparation()
+                .unwrap()
+                .pending
+                .contains(&plan_key(
+                    LibraryItemRole::Source,
+                    &layer_id,
+                    &generation_id,
+                    false
+                )),
+            "Colours is prepared on its first request"
+        );
+        drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// No analysis outputs an elevation in 2.0, so a derived item has no
+    /// relief to draw.
+    #[test]
+    #[ignore = "expected-fail R canopi-2add"]
+    fn a_derived_item_asked_for_relief_is_unavailable() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-relief-derived");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        seed_chunk_result(&library, "item-slope", "dgen-slope");
+        generation::publish_test_chunk(&library, "dgen-slope", 0, 0, 4, 4, &[1.0; 16]);
+        library
+            .prepare_display_now(LibraryItemRole::Derived, "item-slope")
+            .unwrap();
+        let relief = ask(&library, LibraryItemRole::Derived, "item-slope", true).unwrap();
+        assert_eq!(relief.state, LidarDisplayState::Unavailable, "{relief:?}");
+        drop(library);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

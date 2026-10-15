@@ -103,6 +103,34 @@ describe('an open item\'s Colors', () => {
   })
 })
 
+describe('an open item drawn as Relief', () => {
+  it.fails('[expected-fail R canopi-2add] opens an MNT, MNS or MNH on Relief, hiding Reverse, Legend and Range', () => {
+    for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
+      mount(item({ itemType: { kind: 'Raster', quantity } }))
+      const [first] = radios('Colors')
+      expect([first!.getAttribute('aria-label'), first!.getAttribute('aria-checked')]).toEqual(['Relief', 'true'])
+      expect(() => named('Reverse')).toThrow()
+      expect(container.querySelector('[aria-label="Legend"]')).toBeNull()
+      expect(radios('Range')).toEqual([])
+    }
+  })
+
+  it('shows Reverse, Legend and the stored range again once Colours is picked', () => {
+    mount(item({ ramp: 'Terrain', reversed: true, range: { mode: 'Custom', min: 110, max: 190 } }))
+    expect(named('Reverse').getAttribute('aria-pressed')).toBe('true')
+    expect(legend()).toEqual(['≤ 110 m', '≥ 190 m'])
+    expect(radios('Range').find((radio) => radio.getAttribute('aria-checked') === 'true')?.textContent).toBe('Custom')
+  })
+
+  it.fails('[expected-fail R canopi-2add] keeps Reset reachable under Relief while a Colours setting is stored', async () => {
+    mount(item({ reversed: true, range: { mode: 'Custom', min: 110, max: 190 } }))
+    expect(radios('Colors')[0]!.getAttribute('aria-label')).toBe('Relief')
+    expect(() => named('Reverse')).toThrow()
+    await click(named('Reset'))
+    expect(setLidarEntryDisplay).toHaveBeenCalledWith('a', { ramp: null, reversed: false, range: null })
+  })
+})
+
 describe('an open item\'s Range', () => {
   it('shows the mode and the values in use, and switches mode with one write', async () => {
     mount(item())

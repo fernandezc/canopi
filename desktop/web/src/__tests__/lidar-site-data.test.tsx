@@ -639,6 +639,13 @@ describe('pending work, failures and the Site data eye', () => {
     expect(libraryView.value).toEqual({ focusId: 'a' })
   })
 
+  it.fails('[expected-fail L canopi-bkbh] says work could not join the Design without the engine text its job stored', () => {
+    ;(pending.failure as Signal<unknown>).value = { itemId: 'a', message: 'not a raster' }
+    mount()
+    expect(container.textContent).toContain('Ground could not be added to this Design.')
+    expect(container.textContent).not.toContain('not a raster')
+  })
+
   it('says when the Layers eye hides all site data, with Show, and dims the rows keeping their eyes', async () => {
     setDesign([{ kind: 'Source', id: 'a', order: 0 }], false)
     mount()

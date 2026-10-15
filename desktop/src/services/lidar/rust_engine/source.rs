@@ -8,7 +8,7 @@
 //! streamed working set; such a file is loaded whole after the capacity
 //! limit. Its keys name its CRS (`crs::from_geokeys`).
 
-use super::super::engine::RasterProbe;
+use super::super::engine::{ProbeError, RasterProbe};
 use super::super::grid::RasterGrid;
 use super::super::import::validate_working_grid;
 use super::super::prepared_raster::RasterWindow;
@@ -45,7 +45,7 @@ impl Opened {
 }
 
 /// Header facts of a GeoTIFF.
-pub(super) fn probe(path: &Path) -> Result<RasterProbe, String> {
+pub(super) fn probe(path: &Path) -> Result<RasterProbe, ProbeError> {
     Ok(probe_tiff(&read_header(path)?)?.0)
 }
 
