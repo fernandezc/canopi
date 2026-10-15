@@ -291,37 +291,22 @@ function storyFixture(origin: { lon: number; lat: number }, long: boolean): { vi
 }
 
 /**
- * `state=lidar-raster&raster=colours`: the Design sits on the 34 × 24 cell display COG the Rust engine wrote
- * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), so the canvas draws the ground
- * elevation picked in Colours through Desktop's raster renderer.
+ * `state=lidar-raster`: the Design sits on the 34 × 24 cell display COG the Rust engine wrote
+ * (src/maplibre/raster-display/fixtures/rust-display-cog.{tif,json}, near Delft), inside the relief it wrote around
+ * the same source (rust-display-relief.{tif,json}), so the canvas draws the ground elevation through Desktop's raster
+ * renderer as it opens, on Relief, and in place once a Colours ramp is picked.
  */
 export const galleryRasterSite = {
   origin: { lon: 4.36759, lat: 52.011435 },
   bounds: [4.367580413818352, 52.011365324340304, 4.367762804031366, 52.01144456811651] as [number, number, number, number],
+  reliefBounds: reliefFixture.bounds as [number, number, number, number],
   valueRange: [19.75, 90.25] as [number, number],
-}
-
-const reliefBounds = reliefFixture.bounds as [number, number, number, number]
-
-/**
- * `state=lidar-raster`: the Design sits on the relief the Rust engine wrote
- * (src/maplibre/raster-display/fixtures/rust-display-relief.{tif,json}, a Lambert-93 plane in western France), so the
- * canvas draws the ground elevation as it opens, on Relief. Its Colours derivative is the COG near Delft, off this view.
- */
-export const galleryReliefSite = {
-  origin: { lon: (reliefBounds[0] + reliefBounds[2]) / 2, lat: (reliefBounds[1] + reliefBounds[3]) / 2 },
-  bounds: reliefBounds,
-}
-
-/** Where `state=lidar-raster` places the Design: on the relief, or with `raster=colours` on the elevation COG. */
-export function galleryRasterView(): 'relief' | 'colours' {
-  return typeof location !== 'undefined' && new URLSearchParams(location.search).get('raster') === 'colours' ? 'colours' : 'relief'
 }
 
 /** The Design's site, as the gallery states place it. */
 function designOrigin(state: string): { lon: number; lat: number } {
   if (state === 'located') return { lon: 0.033854, lat: 48.220272 }
-  if (state === 'lidar-raster') return galleryRasterView() === 'colours' ? galleryRasterSite.origin : galleryReliefSite.origin
+  if (state === 'lidar-raster') return galleryRasterSite.origin
   return { lon: 13, lat: 23 }
 }
 

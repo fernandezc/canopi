@@ -47,10 +47,11 @@ pub(super) const DISPLAY_PROFILE: &str = "display-cog-3857-v2";
 /// fails when any changes, so the profile is bumped with it. Each row's
 /// definition is recorded on its own (`ROW_DIGESTS` in the tests), so a new
 /// row needs no bump and an edited one does. The relief joined the digest
-/// under v2 without a bump: no relief derivative was written before it.
+/// under v2 without a bump, and its fixture moved under the web display
+/// fixture without one: no relief derivative was written before it.
 #[cfg(test)]
 const DISPLAY_PROFILE_DIGEST: &str =
-    "59433f6b60345fa26dd95881958506c266aee501465b2f883b2ec2b25b31bda6";
+    "3be60df74a45245546a6bc47ae404721e5e006a22fea4cf5f1f7567b80506b15";
 /// Largest side of a composed part, in 1024-cell chunks: a part is composed
 /// in memory and converted whole, so 4×4 chunks keep it inside the engine's
 /// capacity limit (`import::MAX_RAW_EXTRACTION_CELLS`).
@@ -1937,10 +1938,17 @@ mod library_tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// RD New top-left corner of the relief fixture's 1 m plane: 640 × 160
+    /// cells centred on the web display fixture's source
+    /// ([`publish_rd_item`]), so the gallery's Colours round trip draws the
+    /// elevation COG where it drew the relief.
+    const RELIEF_ORIGIN: (f64, f64) = (84_686.0, 447_576.0);
+
     /// The web suite draws this relief with the real cog-tiler
     /// (`raster-display/rust-display-cog.test.ts`) at its three finest
-    /// levels: a rolling Lambert-93 ground elevation with a NoData hole,
-    /// shaded by the engine. Its bytes enter [`profile_digest_inputs`], so a
+    /// levels, and the UI gallery draws it under the web display fixture: a
+    /// rolling RD New ground elevation around that fixture's source, with a
+    /// NoData hole, shaded by the engine. Its bytes enter [`profile_digest_inputs`], so a
     /// shading change bumps the display profile. Rewrite it with
     /// `CANOPI_UPDATE_FIXTURES=1`.
     #[test]
@@ -1973,9 +1981,9 @@ mod library_tests {
             &RasterGrid {
                 width: columns,
                 height: rows,
-                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+                geotransform: [RELIEF_ORIGIN.0, 1.0, 0.0, RELIEF_ORIGIN.1, 0.0, -1.0],
             },
-            "EPSG:2154",
+            "EPSG:28992",
             -9999.0,
         )
         .unwrap();
@@ -2012,11 +2020,11 @@ mod library_tests {
             stale,
         );
         let zoom = super::super::rust_engine::display_zoom(
-            "EPSG:2154",
+            "EPSG:28992",
             [&RasterGrid {
                 width: columns,
                 height: rows,
-                geotransform: [SEAM_ORIGIN.0, 1.0, 0.0, SEAM_ORIGIN.1, 0.0, -1.0],
+                geotransform: [RELIEF_ORIGIN.0, 1.0, 0.0, RELIEF_ORIGIN.1, 0.0, -1.0],
             }],
         )
         .unwrap();

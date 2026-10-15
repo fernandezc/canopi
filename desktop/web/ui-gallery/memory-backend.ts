@@ -27,8 +27,6 @@ import {
   frenchNames,
   galleryLongSiteDataNames,
   galleryRasterSite,
-  galleryRasterView,
-  galleryReliefSite,
   species,
   specimens,
 } from './fixtures'
@@ -59,7 +57,7 @@ let stamps: SavedObjectStamp[] = state === 'empty' ? [] : ['Orchard guild', 'Pol
 // so a pointer over the east of the planting reads no data.
 const lidarBounds: [number, number, number, number] = state !== 'lidar-raster'
   ? [12.9998, 22.9998, 13.0001, 23.0002]
-  : galleryRasterView() === 'colours' ? galleryRasterSite.bounds : galleryReliefSite.bounds
+  : galleryRasterSite.bounds
 const galleryTool = { engine: 'geolibre', version: 'geolibre-cli 1.5.3 (gallery)', revision: 'aac2b7439786aac2b7439786', tools: ['slope'] }
 const galleryCreatedAt = String(Date.UTC(2026, 8, 12, 9, 30))
 
@@ -490,7 +488,7 @@ export async function invoke<T>(command: string, args: Record<string, unknown> =
       // `state=lidar-raster` serves the Rust engine's display COGs for the ground elevation: its relief when asked for
       // Relief, else its elevation; every other derivative stays a placeholder.
       const asset = request.relief
-        ? { path: rasterDisplayReliefUrl, bounds: galleryReliefSite.bounds }
+        ? { path: rasterDisplayReliefUrl, bounds: galleryRasterSite.reliefBounds }
         : { path: rasterDisplayCogUrl, bounds: galleryRasterSite.bounds }
       result = state === 'lidar-raster' && request.entity_id === 'lidar-ground'
         ? { ...descriptor, state: 'Ready', assets: [asset], prepared_assets: 1, total_assets: 1 }

@@ -155,8 +155,8 @@ describe('a relief derivative the Rust engine wrote', () => {
    * the corner hold NoData the pixel is transparent. cog-tiler picks a tile's
    * level by comparing float resolutions (`_chooseLevel`), so a tile at an
    * overview's zoom may read another level (measured with cog-tiler-wasm
-   * 0.4.0: zoom 16 reads level 0, and the two zoom-15 tiles read levels 2
-   * and 1): each tile at the item's zoom and two below draws one level's
+   * 0.4.0 near Delft: zooms 17 and 16 read level 0, 15 level 1 and 14
+   * level 2): each tile at the item's zoom and three below draws one level's
    * greys exactly so, and each of the three levels is drawn.
    */
   it('draws the stored grey within 1 at its three finest levels, NoData transparent', async () => {
@@ -217,7 +217,7 @@ describe('a relief derivative the Rust engine wrote', () => {
     const drawnLevels = new Set<number>()
     const unmatched: string[] = []
     let empty = 0
-    for (let k = 0; k < 3; k += 1) {
+    for (let k = 0; k < 4; k += 1) {
       const z = relief.zoom - k
       const [x0, y0] = tileOf(west, north, z)
       const [x1, y1] = tileOf(east, south, z)
