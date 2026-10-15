@@ -32,7 +32,8 @@ jobs:
       github.event.pull_request.head.repo.full_name != github.repository ||
       (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The canvas lane alone took 25.7 min on 2026-10-15; at 30 the job was cancelled before the gallery lane reported (canopi-a407).
+    timeout-minutes: 60
     # The same image run locally gives the same pixels, so baselines can be recorded with
     # `docker run` on a workstation. Its tag matches the exact @playwright/test version in
     # desktop/web/package.json; a bump changes both and re-records the baselines.
