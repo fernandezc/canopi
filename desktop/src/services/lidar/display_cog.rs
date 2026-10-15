@@ -2256,8 +2256,18 @@ mod chunk_display_tests {
 
     /// A published ground elevation from one plane source, its id and generation.
     fn publish_ground(library: &LidarLibrary, root: &Path, name: &str) -> (String, String) {
+        publish_ground_at(library, root, name, 445_000.0)
+    }
+
+    /// [`publish_ground`] from a plane at `origin_x`, so its content differs.
+    fn publish_ground_at(
+        library: &LidarLibrary,
+        root: &Path,
+        name: &str,
+        origin_x: f64,
+    ) -> (String, String) {
         let cancel = AtomicBool::new(false);
-        let source = plane_source(library, root, name, 445_000.0);
+        let source = plane_source(library, root, name, origin_x);
         let layer_id = library
             .create_layer(name, RasterQuantity::GroundElevation, None, false)
             .unwrap();
@@ -2389,6 +2399,94 @@ mod chunk_display_tests {
         assert_eq!(state.queue.len(), 2);
         drop(state);
         drop(library);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// canopi-44vf: Delete drops the item's display plans still queued (here
+    /// Colours asked just before Delete), so when the worker next runs
+    /// nothing registers or writes for the deleted item, before or after
+    /// reopening.
+    #[test]
+    #[ignore = "expected-fail L canopi-44vf"]
+    fn deleting_an_item_with_a_queued_display_plan_leaves_nothing_after_the_worker_runs() {
+        let root = crate::test_scratch::TestScratch::new("canopi-display-delete-queued");
+        std::fs::create_dir_all(&root).unwrap();
+        let library = LidarLibrary::open(&root).unwrap();
+        let (deleted, _) = publish_ground_at(&library, &root, "deleted", 445_000.0);
+        let (kept, _) = publish_ground_at(&library, &root, "kept", 452_000.0);
+        // Without an executor the request leaves its plan queued.
+        let _ = ask(&library, LibraryItemRole::Source, &deleted, false);
+        let queued_keys: Vec<String> = {
+            let state = library.display_preparation().unwrap();
+            assert_eq!(state.queue.len(), 1, "the plan is queued");
+            state.queue[0]
+                .parts
+                .iter()
+                .map(|part| part.key.clone())
+                .collect()
+        };
+        assert!(!queued_keys.is_empty());
+
+        library.delete_item(&deleted).unwrap();
+        {
+            let prefix = entity_plan_prefix(LibraryItemRole::Source, &deleted);
+            let state = library.display_preparation().unwrap();
+            assert!(
+                state.queue.iter().all(|plan| plan.entity_id != deleted)
+                    && state.plans.keys().all(|key| !key.starts_with(&prefix))
+                    && state.pending.iter().all(|key| !key.starts_with(&prefix)),
+                "Delete drops the queued plan"
+            );
+        }
+
+        // The worker starts with the next request and drains the queue in
+        // order, so once the kept item is ready any leftover plan has run.
+        library.attach_executor(crate::native_operation::NativeOperationExecutor::production());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        let ready = loop {
+            let descriptor = ask(&library, LibraryItemRole::Source, &kept, false).unwrap();
+            if descriptor.state == LidarDisplayState::Ready {
+                break descriptor;
+            }
+            assert_ne!(
+                descriptor.state,
+                LidarDisplayState::Failed,
+                "{descriptor:?}"
+            );
+            assert!(std::time::Instant::now() < deadline, "{descriptor:?}");
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        let kept_files: std::collections::BTreeSet<PathBuf> = ready
+            .assets
+            .iter()
+            .map(|asset| PathBuf::from(&asset.path))
+            .collect();
+        let display_files = |library: &LidarLibrary| -> std::collections::BTreeSet<PathBuf> {
+            std::fs::read_dir(library.inner.paths.display_cog_dir())
+                .unwrap()
+                .map(|entry| entry.unwrap().path())
+                .filter(|path| path.is_file())
+                .collect()
+        };
+        let leaked = |library: &LidarLibrary| -> Vec<String> {
+            registered_derivative_keys(library)
+                .unwrap()
+                .into_iter()
+                .filter(|key| queued_keys.contains(key))
+                .collect()
+        };
+        assert_eq!(leaked(&library), Vec::<String>::new());
+        assert_eq!(display_files(&library), kept_files);
+
+        let held = Arc::downgrade(&library.inner);
+        drop(library);
+        while held.strong_count() > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let reopened = LidarLibrary::open(&root).unwrap();
+        assert_eq!(leaked(&reopened), Vec::<String>::new());
+        assert_eq!(display_files(&reopened), kept_files);
+        drop(reopened);
         let _ = std::fs::remove_dir_all(&root);
     }
 
