@@ -112,7 +112,7 @@ test.describe('Profile (g5)', () => {
     expect(lines.slice(1).some((line) => /\t\d+,\d{2}(\t|$)/.test(line)), 'some value in the locale\'s decimals').toBe(true)
   })
 
-  test('in Russian the header fits with Copied beside the iconed Copy values, down to a 360 px phone\'s sheet', async ({ page }) => {
+  test('in Russian the header fits with Copied beside the iconed Copy values, down to a 360 px phone\'s sheet, and keeps its height while scrubbing (canopi-vggx)', async ({ page }) => {
     await openGallery(page, { surface: 'site-data', locale: 'ru' })
     const { at } = await mapPoints(page, 'Карта проекта')
     const panel = page.locator('aside').filter({ has: page.getByRole('button', { name: 'Профиль', exact: true }) })
@@ -123,31 +123,46 @@ test.describe('Profile (g5)', () => {
 
     const copy = panel.getByRole('button', { name: 'Копировать значения', exact: true })
     await expect(copy.locator('svg')).toHaveAttribute('width', '16')
-    await copy.click()
-    await expect(panel.getByText('Скопировано')).toBeVisible()
+    const plot = panel.getByRole('region', { name: 'Профиль' }).locator(':scope > svg')
+    const cursorAt = panel.getByText(/^На \d/)
     // The header's row at the desktop panel, then at the panel a phone's sheet leaves (390 and 360 px viewports, less
-    // the sheet's padding and border): nothing overflows it, the button's label is never cut, and every control ends
-    // inside the row.
+    // the sheet's padding and border), with Copied showing: nothing overflows it, the button's label is never cut, every
+    // control ends inside the row, and scrubbing the plots (which adds "На …") keeps the row's height, so the plots
+    // never move under the finger.
+    const measure = (asideWidth: number | null) => copy.evaluate((button, width) => {
+      const aside = button.closest('aside')!
+      if (width !== null) {
+        aside.style.width = `${width}px`
+        aside.style.flex = 'none'
+      }
+      const header = button.parentElement!
+      const row = header.getBoundingClientRect()
+      return {
+        width,
+        height: Math.round(row.height),
+        header: header.scrollWidth <= header.clientWidth,
+        label: button.scrollWidth <= button.clientWidth,
+        outside: Array.from(header.children).filter((child) => {
+          const rect = child.getBoundingClientRect()
+          return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
+        }).map((child) => child.textContent || child.getAttribute('aria-label')),
+      }
+    }, asideWidth)
     for (const width of [null, 372, 342]) {
-      const fit = await copy.evaluate((button, asideWidth) => {
-        const aside = button.closest('aside')!
-        if (asideWidth !== null) {
-          aside.style.width = `${asideWidth}px`
-          aside.style.flex = 'none'
-        }
-        const header = button.parentElement!
-        const row = header.getBoundingClientRect()
-        return {
-          width: asideWidth,
-          header: header.scrollWidth <= header.clientWidth,
-          label: button.scrollWidth <= button.clientWidth,
-          outside: Array.from(header.children).filter((child) => {
-            const rect = child.getBoundingClientRect()
-            return rect.width > 0 && (rect.left < row.left - 0.5 || rect.right > row.right + 0.5)
-          }).map((child) => child.textContent || child.getAttribute('aria-label')),
-        }
-      }, width)
-      expect(fit).toEqual({ width, header: true, label: true, outside: [] })
+      await measure(width)
+      await copy.click()
+      await expect(panel.getByText('Скопировано')).toBeVisible()
+      const still = await measure(width)
+      expect({ ...still, height: 0 }).toEqual({ width, height: 0, header: true, label: true, outside: [] })
+      const box = await plot.boundingBox()
+      if (!box) throw new Error('no plot')
+      await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.3)
+      // "На …" is in the header (cut to its room, which beside Copied on a phone may be none).
+      await expect(cursorAt).toHaveCount(1)
+      await expect(panel.getByText('Скопировано')).toBeVisible()
+      expect(await measure(width)).toEqual(still)
+      // Copied clears before the next width, so each copy shows it afresh.
+      await expect(panel.getByText('Скопировано')).toHaveCount(0)
     }
   })
 

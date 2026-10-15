@@ -20,7 +20,9 @@
 .title { margin: 0; font-size: var(--text-sm); font-weight: 600; }
 .length, .at { font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .length { white-space: nowrap; color: var(--color-text-muted); }
-.at { flex: 1 1 auto; min-width: 0; color: var(--color-text-secondary); }
+/* "At {distance}" takes only the room the other items leave and stays on one line, so scrubbing beside Copied never
+   squeezes Copy values or grows the header under the finger (a phone's sheet in Russian). */
+.at { flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--color-text-secondary); }
 .copied, .copyFailed { font-size: var(--text-xs); }
 .copied { color: var(--color-text-secondary); }
 .copyFailed { color: var(--color-danger); }
