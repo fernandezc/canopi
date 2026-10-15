@@ -16,6 +16,7 @@ import { lidarListLibrary } from '../../ipc/lidar'
 import { derivedItemName } from '../analyses/registry'
 import { currentDesign } from '../document-session/store'
 import { lidarLibraryStatus } from '../health/state'
+import { lidarFailureMessage } from './lidar-failures'
 import { referenceDrawOrder } from './reference-tree'
 
 const LIDAR_POLL_INTERVAL_MS = 1500
@@ -57,7 +58,9 @@ async function readLibrarySnapshot(startSequence: number): Promise<LibrarySnapsh
 
 /**
  * Refresh the library snapshot. Overlapping callers coalesce onto the read in
- * flight; a failed read keeps the previous snapshot (Web has no library).
+ * flight; a failed read keeps the previous snapshot (Web has no library) and
+ * publishes the generic message, its reason going to diagnostics once per
+ * streak of failed reads.
  */
 export async function refreshLidarLibrary(): Promise<void> {
   if (refreshInFlight) {
@@ -69,7 +72,8 @@ export async function refreshLidarLibrary(): Promise<void> {
     try {
       await readLibrarySnapshot(startSequence)
     } catch (error) {
-      lidarStatusMessage.value = error instanceof Error ? error.message : String(error)
+      // Polling goes on while work runs; a streak of failed reads is recorded once, until a read succeeds.
+      lidarStatusMessage.value = lidarFailureMessage(error, !lidarLibraryReadFailed.value)
       lidarLibraryReadFailed.value = true
     } finally {
       refreshInFlight = null

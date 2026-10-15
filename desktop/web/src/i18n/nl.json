@@ -627,7 +627,6 @@
         "importing": "Bezig met importeren",
         "cancelImport": "Import annuleren",
         "cancelCalculation": "Berekening annuleren",
-        "failed": "{{name}} kon niet aan dit ontwerp worden toegevoegd: {{message}}",
         "failedNoMessage": "{{name}} kon niet aan dit ontwerp worden toegevoegd.",
         "showInLibrary": "Tonen in de databibliotheek",
         "details": "Details",
@@ -663,6 +662,20 @@
           "apartTitle": "Deze bestanden dekken je terrein niet.",
           "apartBody": "Ze liggen {{distance}} van dit ontwerp. Je kunt ze toch in je bibliotheek importeren."
         }
+      },
+      "failure": {
+        "generic": "Canopi kon dit niet voltooien. Probeer het opnieuw en meld een probleem als het blijft mislukken.",
+        "tooManyFiles": "Eén import kan hoogstens {{limit, number}} bestanden bevatten. Kies minder bestanden.",
+        "sourceTooLarge": "{{file}} is te groot: één bestand mag hoogstens {{size}} zijn.",
+        "importTooLarge": "Deze bestanden zijn samen te groot: één import mag hoogstens {{size}} zijn.",
+        "sourceMissing": "{{file}} is niet gevonden. Kies de bestanden opnieuw.",
+        "unreadable": "{{file}} kan niet als GeoTIFF-raster worden gelezen.",
+        "notGeotiff": "{{file}} is geen GeoTIFF. Canopi importeert GeoTIFF-rasters.",
+        "noCrs": "{{file}} heeft geen coördinatenstelsel, dus Canopi kan het niet plaatsen.",
+        "unsupportedCrs": "{{file}} gebruikt {{crs}}, een coördinatenstelsel dat Canopi niet kan plaatsen. Herprojecteer het naar Lambert-93 (EPSG:2154), een UTM-zone of WGS 84 en importeer het opnieuw.",
+        "unsupportedCrsUnnamed": "{{file}} gebruikt een coördinatenstelsel dat Canopi niet kan plaatsen. Herprojecteer het naar Lambert-93 (EPSG:2154), een UTM-zone of WGS 84 en importeer het opnieuw.",
+        "jobRunning": "Er loopt een andere import of berekening. Probeer het opnieuw als die klaar is.",
+        "libraryUnavailable": "De Databibliotheek kan nu niet worden gewijzigd. De melding ervan zegt waarom."
       }
     },
     "basemap": {
@@ -1674,7 +1687,7 @@
       "refresh": "Vernieuwen",
       "refreshAria": "{{name}} vernieuwen",
       "refreshing": "Bezig met vernieuwen",
-      "refreshFailed": "De laatste vernieuwing is mislukt. {{message}}",
+      "refreshFailed": "De laatste vernieuwing is mislukt.",
       "history": "Verwerkingsgeschiedenis",
       "historyEmpty": "Geen uitvoeringen vastgelegd.",
       "historyLoading": "Geschiedenis laden",

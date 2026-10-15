@@ -627,7 +627,6 @@
         "importing": "가져오는 중",
         "cancelImport": "가져오기 취소",
         "cancelCalculation": "계산 취소",
-        "failed": "{{name}}을(를) 이 디자인에 추가할 수 없습니다: {{message}}",
         "failedNoMessage": "{{name}}을(를) 이 디자인에 추가할 수 없습니다.",
         "showInLibrary": "데이터 라이브러리에서 보기",
         "details": "세부 정보",
@@ -663,6 +662,20 @@
           "apartTitle": "이 파일은 부지를 덮지 않습니다.",
           "apartBody": "이 디자인에서 {{distance}} 떨어져 있습니다. 라이브러리로는 가져올 수 있습니다."
         }
+      },
+      "failure": {
+        "generic": "Canopi가 이 작업을 끝내지 못했습니다. 다시 시도하고, 계속 실패하면 문제를 신고하세요.",
+        "tooManyFiles": "한 번의 가져오기에는 파일을 최대 {{limit, number}}개까지 넣을 수 있습니다. 파일 수를 줄이세요.",
+        "sourceTooLarge": "{{file}}이(가) 너무 큽니다. 파일 하나는 최대 {{size}}까지입니다.",
+        "importTooLarge": "이 파일들은 합쳐서 너무 큽니다. 한 번의 가져오기는 최대 {{size}}까지입니다.",
+        "sourceMissing": "{{file}}을(를) 찾을 수 없습니다. 파일을 다시 선택하세요.",
+        "unreadable": "{{file}}을(를) GeoTIFF 래스터로 읽을 수 없습니다.",
+        "notGeotiff": "{{file}}은(는) GeoTIFF가 아닙니다. Canopi는 GeoTIFF 래스터를 가져옵니다.",
+        "noCrs": "{{file}}에 좌표계가 없어 Canopi가 배치할 수 없습니다.",
+        "unsupportedCrs": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계 {{crs}}을(를) 사용합니다. Lambert-93(EPSG:2154), UTM 구역 또는 WGS 84로 재투영한 뒤 다시 가져오세요.",
+        "unsupportedCrsUnnamed": "{{file}}은(는) Canopi가 배치할 수 없는 좌표계를 사용합니다. Lambert-93(EPSG:2154), UTM 구역 또는 WGS 84로 재투영한 뒤 다시 가져오세요.",
+        "jobRunning": "다른 가져오기나 계산이 진행 중입니다. 끝난 뒤 다시 시도하세요.",
+        "libraryUnavailable": "지금은 데이터 라이브러리를 변경할 수 없습니다. 라이브러리 알림에 이유가 나와 있습니다."
       }
     },
     "basemap": {
@@ -1674,7 +1687,7 @@
       "refresh": "새로 고침",
       "refreshAria": "{{name}} 새로 고침",
       "refreshing": "새로 고치는 중",
-      "refreshFailed": "마지막 새로 고침에 실패했습니다. {{message}}",
+      "refreshFailed": "마지막 새로 고침에 실패했습니다.",
       "history": "처리 기록",
       "historyEmpty": "기록된 실행이 없습니다.",
       "historyLoading": "기록을 불러오는 중",

@@ -627,7 +627,6 @@
         "importing": "Importing",
         "cancelImport": "Cancel import",
         "cancelCalculation": "Cancel calculation",
-        "failed": "{{name}} could not be added to this Design: {{message}}",
         "failedNoMessage": "{{name}} could not be added to this Design.",
         "showInLibrary": "Show in the Data library",
         "details": "Details",
@@ -663,6 +662,20 @@
           "apartTitle": "These files don’t cover your site.",
           "apartBody": "They lie {{distance}} from this Design. You can still import them to your library."
         }
+      },
+      "failure": {
+        "generic": "Canopi couldn’t finish this. Try again, and report a problem if it keeps failing.",
+        "tooManyFiles": "One import can hold at most {{limit, number}} files. Choose fewer files.",
+        "sourceTooLarge": "{{file}} is too large: one file can be at most {{size}}.",
+        "importTooLarge": "These files are too large together: one import can be at most {{size}}.",
+        "sourceMissing": "{{file}} can’t be found. Choose the files again.",
+        "unreadable": "{{file}} can’t be read as a GeoTIFF raster.",
+        "notGeotiff": "{{file}} isn’t a GeoTIFF. Canopi imports GeoTIFF rasters.",
+        "noCrs": "{{file}} has no coordinate system, so Canopi can’t place it.",
+        "unsupportedCrs": "{{file}} uses {{crs}}, a coordinate system Canopi can’t place. Reproject it to Lambert-93 (EPSG:2154), a UTM zone or WGS 84, then import it again.",
+        "unsupportedCrsUnnamed": "{{file}} uses a coordinate system Canopi can’t place. Reproject it to Lambert-93 (EPSG:2154), a UTM zone or WGS 84, then import it again.",
+        "jobRunning": "Another import or calculation is running. Try again when it finishes.",
+        "libraryUnavailable": "The Data library can’t take changes right now. Its notice says why."
       }
     },
     "basemap": {
@@ -1674,7 +1687,7 @@
       "refresh": "Refresh",
       "refreshAria": "Refresh {{name}}",
       "refreshing": "Refreshing",
-      "refreshFailed": "Last refresh failed. {{message}}",
+      "refreshFailed": "Last refresh failed.",
       "history": "Processing history",
       "historyEmpty": "No runs recorded.",
       "historyLoading": "Loading history",

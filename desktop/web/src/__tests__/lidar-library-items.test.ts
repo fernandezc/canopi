@@ -33,16 +33,17 @@ describe('Data Library items', () => {
     expect(items).toMatchObject([{ id: 's', depth: 0, name: 'Orphan' }])
   })
 
-  it('shows an unpublished import as preparing while it runs and failed after', () => {
+  it('shows an unpublished import as preparing while it runs and failed after, never carrying its job’s text', () => {
     const job = { job_id: 'j', layer_id: 'x', message: 'bad file', progress: null }
     const [running] = libraryItems(snapshot([sourceItem('x', 'X', { generation_id: null, state: 'Preparing', import_job: { ...job, state: 'Staging' } })]))
     const [failed] = libraryItems(snapshot([sourceItem('x', 'X', { generation_id: null, state: 'Failed', import_job: { ...job, state: 'Failed' } })]))
 
     expect(running).toMatchObject({ status: 'preparing', importJob: { state: 'Staging' } })
-    expect(failed).toMatchObject({ status: 'failed', message: 'bad file' })
+    expect(failed).toMatchObject({ status: 'failed' })
+    expect(JSON.stringify({ ...failed, importJob: null })).not.toContain('bad file')
   })
 
-  it('reports a derived item’s run message and keeps it ready while a refresh runs', () => {
+  it('reports a derived item’s failed run, without its text, and keeps it ready while a refresh runs', () => {
     const [, refreshing] = libraryItems(snapshot([
       sourceItem('a', 'A'),
       slopeItem('s', 'a', { run: { job_id: 'j2', state: 'Preparing', message: null }, freshness: { state: 'Stale', reasons: [{ reason: 'RecipeUpdated', from: 1, to: 2 }] } }),
@@ -53,7 +54,8 @@ describe('Data Library items', () => {
     ]))
 
     expect(refreshing).toMatchObject({ status: 'ready', run: { state: 'Preparing' }, freshness: { state: 'Stale' } })
-    expect(failed).toMatchObject({ status: 'failed', message: 'engine stopped' })
+    expect(failed).toMatchObject({ status: 'failed', run: { state: 'Failed' } })
+    expect(failed).not.toHaveProperty('message')
   })
 
   it('keeps unsettled operations visible whatever the search and filter', () => {

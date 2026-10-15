@@ -97,12 +97,9 @@ if (fixtureState === 'lidar-progress') {
     { key: 'lidar-slope-running-def', kind: 'analysis', identity, itemIds: ['lidar-slope-running'] },
   ]
 }
-// A failed attachment with a long path in its message, as the Site data notice shows it (canopi-6spu).
+// A failed attachment, as the Site data notice shows it (canopi-6spu).
 if (fixtureState === 'lidar-failure') {
-  attachmentFailure.value = {
-    itemId: 'lidar-ground',
-    message: 'Failed to inspect /home/canopi/Documents/LiDAR/ign-mns-paris-2024/tiles/missing-tile-0652_6862.tif: No such file or directory (os error 2)',
-  }
+  attachmentFailure.value = { itemId: 'lidar-ground' }
 }
 const planningView = readPlanningViewState()
 planningView.calendarMonth.value = '2026-09-01'

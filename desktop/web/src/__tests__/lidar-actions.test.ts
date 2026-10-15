@@ -17,6 +17,7 @@ const patchMock = vi.hoisted(() => vi.fn())
 const reconcileNamesMock = vi.hoisted(() => vi.fn())
 const refreshMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const ensurePollingMock = vi.hoisted(() => vi.fn())
+const showAppFolderMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const sessionIdentity = vi.hoisted(() => ({ value: 'design-a' as string | null }))
 const presentation = vi.hoisted(() => ({ value: [] as Array<{
   id: string
@@ -40,6 +41,8 @@ vi.mock('../ipc/lidar', () => ({
   lidarRerunAnalysis: rerunAnalysisMock,
   lidarRetryImport: retryImportMock,
 }))
+
+vi.mock('../ipc/settings', () => ({ showAppFolder: showAppFolderMock }))
 
 vi.mock('../app/design-edit/lidar', async (importOriginal) => ({
   sameColourRange: (await importOriginal<typeof import('../app/design-edit/lidar')>()).sameColourRange,
@@ -88,6 +91,7 @@ import {
   setLidarEntryDisplay,
   setLidarEntryVisibility,
   setSiteDataShown,
+  showDataLibraryFolder,
   attachmentFailure,
   dismissAttachmentFailure,
   pendingAttachments,
@@ -149,7 +153,7 @@ describe('Data Library actions', () => {
     expect(upsertMock).toHaveBeenCalledWith('Source', 'layer-9', 'Ground')
   })
 
-  it('reports an import that failed and never adds it', async () => {
+  it('reports an import that failed, without the text its job stored, and never adds it', async () => {
     dismissAttachmentFailure()
     importItemMock.mockResolvedValue({ layer_id: 'layer-8', job_id: 'job-8' })
     await importLibraryItem(['/a.tif'], 'Ground', 'GroundElevation', { label: null, unknown: false })
@@ -157,7 +161,7 @@ describe('Data Library actions', () => {
       state: 'Failed', generation_id: null,
       import_job: { job_id: 'job-8', layer_id: 'layer-8', state: 'Failed', message: 'not a raster', progress: null },
     })]))
-    expect(attachmentFailure.value).toEqual({ itemId: 'layer-8', message: 'not a raster' })
+    expect(attachmentFailure.value).toEqual({ itemId: 'layer-8' })
     expect(upsertMock).not.toHaveBeenCalled()
   })
 
@@ -208,17 +212,36 @@ describe('Data Library actions', () => {
     expect(designEdits()).toBe(0)
   })
 
-  it('publishes and rethrows a refused library operation', async () => {
+  it('publishes and rethrows a refused library operation in the interface language, never its English text', async () => {
     renameItemMock.mockRejectedValueOnce(new Error('name is empty'))
-    await expect(renameLibraryItem('layer-1', ' ')).rejects.toThrow('name is empty')
-    expect(lidarStatusMessage.value).toBe('name is empty')
+    await expect(renameLibraryItem('layer-1', ' ')).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).toContain('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).not.toContain('name is empty')
   })
 
-  it('refreshes the library after a refused Retry, so the row shows the refusal written onto its job', async () => {
-    retryImportMock.mockRejectedValueOnce(new Error('delft.tif cannot be found; choose the files again'))
-    await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif cannot be found')
+  it('refreshes the library after a refused Retry, so the row shows its import failed again, and names the refusal', async () => {
+    retryImportMock.mockRejectedValueOnce({ reason: { kind: 'SourceMissing', file: 'delft.tif' }, detail: 'delft.tif cannot be found; choose the files again' })
+    await expect(retryLibraryImport('layer-2')).rejects.toThrow('delft.tif can’t be found. Choose the files again.')
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(ensurePollingMock).not.toHaveBeenCalled()
+  })
+
+  it('shows a failed Show in folder in the interface language, its native text kept for diagnostics only', async () => {
+    resetFrontendDiagnosticsForTests()
+    const native = 'Canopi could not create the folder: Permission denied (os error 13)'
+    showAppFolderMock.mockRejectedValueOnce(native)
+    await expect(showDataLibraryFolder()).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(showAppFolderMock).toHaveBeenCalledWith('data_library')
+    expect(lidarStatusMessage.value).toBeNull()
+    expect(recentFrontendDiagnostics().some((entry) => entry.message.includes(native))).toBe(true)
+  })
+
+  it('leaves a standing library read failure in place when Show in folder succeeds, since the list is still stale', async () => {
+    const standing = 'Canopi couldn’t finish this. The library could not be read.'
+    lidarStatusMessage.value = standing
+    showAppFolderMock.mockResolvedValueOnce(undefined)
+    await showDataLibraryFolder()
+    expect(lidarStatusMessage.value).toBe(standing)
   })
 
   /** The message a refused Import publishes in `language`, and what diagnostics kept of it. */
@@ -231,7 +254,7 @@ describe('Data Library actions', () => {
     return { shown: lidarStatusMessage.value, thrown, kept: recentFrontendDiagnostics().map((entry) => entry.message) }
   }
 
-  it.fails('[expected-fail L canopi-bkbh] names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
+  it('names a typed Import refusal in the locale, by file name, and keeps the English detail for diagnostics only', async () => {
     const detail = 'dem.asc is not a GeoTIFF: TIFF magic bytes missing at offset 0'
     const refusal = { reason: { kind: 'NotGeotiff', file: 'dem.asc' }, detail }
     try {
@@ -250,7 +273,7 @@ describe('Data Library actions', () => {
     }
   })
 
-  it.fails('[expected-fail L canopi-bkbh] shows an Internal refusal, or any other failure, as the generic message', async () => {
+  it('shows an Internal refusal, or any other failure, as the generic message', async () => {
     const internal = await refusedImport({ reason: { kind: 'Internal' }, detail: 'sqlite: database is locked' }, 'en')
     const plain = await refusedImport(new Error('engine stopped'), 'en')
     expect(internal.shown).not.toContain('sqlite')
@@ -504,7 +527,7 @@ describe('analysis runs', () => {
     expect(pendingAttachments.value.map((entry) => entry.itemIds)).toContainEqual([failed])
     settleResultAttachments(snapshotWith({ id: failed!, state: 'Failed', run: { job_id: 'j', state: 'Failed', message: 'engine stopped' } }))
     expect(pendingAttachments.value).toEqual([])
-    expect(attachmentFailure.value).toEqual({ itemId: failed, message: 'engine stopped' })
+    expect(attachmentFailure.value).toEqual({ itemId: failed })
 
     dismissAttachmentFailure()
     const { item_ids: [cancelled] } = await runAnalysis(SLOPE_REQUEST)
@@ -521,9 +544,10 @@ describe('analysis runs', () => {
     expect(designEdits()).toBe(0)
   })
 
-  it('publishes a refused run through the shared status', async () => {
+  it('publishes a refused run through the shared status, as the generic message', async () => {
     createAnalysisMock.mockRejectedValueOnce(new Error('unit is required'))
-    await expect(runAnalysis(SLOPE_REQUEST)).rejects.toThrow('unit is required')
-    expect(lidarStatusMessage.value).toBe('unit is required')
+    await expect(runAnalysis(SLOPE_REQUEST)).rejects.toThrow('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).toContain('Canopi couldn’t finish this.')
+    expect(lidarStatusMessage.value).not.toContain('unit is required')
   })
 })

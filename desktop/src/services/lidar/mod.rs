@@ -37,11 +37,12 @@ pub(crate) mod source_meta;
 
 use catalogue::{new_id, now_iso};
 use common_types::library::{
-    AnalysisReceipt, AnalysisRequest, LibraryDeleteImpact, ProcessingHistoryPage, ProcessingRun,
-    ProcessingRunOutput, RasterQuantity,
+    AnalysisReceipt, AnalysisRequest, LibraryDeleteImpact, LibraryItemRole, ProcessingHistoryPage,
+    ProcessingRun, ProcessingRunOutput, RasterQuantity,
 };
 use common_types::lidar::{
     LidarImportJob, LidarImportJobState, LidarImportProgress, LidarImportProgressPhase,
+    LidarImportRefusal, LidarImportRefusalReason,
 };
 use engine::RasterEngine;
 use paths::LidarPaths;
@@ -150,6 +151,19 @@ pub(crate) fn display_basis_label(
 /// creating running work that would compete for the same disk, memory and
 /// in-process raster buffers. Its key only tells holders apart: Import takes
 /// it before its item and job exist, so nothing is recorded on a busy library.
+/// What a committed Delete leaves to free: the item's own jobs, which must
+/// let go first, and the candidates nothing else may still claim.
+#[derive(Debug)]
+pub(crate) struct DeletedItem {
+    pub(crate) job_ids: Vec<String>,
+    originals: Vec<String>,
+    assets: Vec<String>,
+    generations: Vec<String>,
+}
+
+/// The key prefix of a lease held only to free files.
+const FREEING_LEASE: &str = "free";
+
 pub(crate) struct HeavyJobLease {
     inner: Arc<LidarLibraryInner>,
     job_id: String,
@@ -172,6 +186,13 @@ impl HeavyJobLease {
             inner: library.inner.clone(),
             job_id: job_id.to_string(),
         })
+    }
+}
+
+impl HeavyJobLease {
+    /// The lease Delete and Dismiss free files under.
+    fn acquire_for_freeing(library: &LidarLibrary) -> Result<Self, String> {
+        Self::acquire(library, &new_id(FREEING_LEASE))
     }
 }
 
@@ -355,12 +376,13 @@ impl LidarLibrary {
 
     /// Best-effort bounded cleanup at startup: job roots of settled jobs,
     /// released originals, unregistered display derivatives, settled analysis
-    /// scratch, leftover engine output, unpublished chunk rows and
-    /// unreferenced assets. Each step that fails is logged and left for the
-    /// next start; none stops the library.
+    /// scratch, leftover engine output, unpublished chunk rows, unreferenced
+    /// assets and the derivatives of assets and generations now gone. Each
+    /// step that fails is logged and left for the next start; none stops the
+    /// library.
     fn prune_transient_artifacts(&self) {
         type Step = fn(&LidarLibrary) -> Result<(), String>;
-        let steps: [(&str, Step); 7] = [
+        let steps: [(&str, Step); 8] = [
             ("settled job roots", Self::prune_settled_job_roots),
             ("released originals", Self::prune_released_originals),
             // Display derivatives nobody registered, and interrupted writes,
@@ -376,6 +398,10 @@ impl LidarLibrary {
                 Self::discard_unpublished_chunk_rows,
             ),
             ("unreferenced assets", Self::prune_unreferenced_assets),
+            (
+                "orphaned display derivatives",
+                Self::prune_orphaned_derivatives,
+            ),
         ];
         for (step, prune) in steps {
             if let Err(error) = prune(self) {
@@ -415,10 +441,12 @@ impl LidarLibrary {
         Ok(())
     }
 
-    /// Remove each `sources/<sha256>/` folder nothing claims: no catalogue row
-    /// names it and its `meta.json` names no item. Dismiss releases an
-    /// original's meta and rows, then removes its folder; a stop or a failed
-    /// removal between the two leaves the folder for this step.
+    /// Release each original no item and no saved import selection claims,
+    /// then remove each `sources/<sha256>/` folder nothing claims: no
+    /// catalogue row names it and its `meta.json` names no item. Dismiss and
+    /// Delete release an original's meta and rows, then remove its folder; a
+    /// stop or a failed removal between the two, or a Delete while another
+    /// raster job ran, leaves the rest for this step.
     fn prune_released_originals(&self) -> Result<(), String> {
         let sources = self.inner.paths.root().join("sources");
         let entries = match std::fs::read_dir(&sources) {
@@ -429,6 +457,23 @@ impl LidarLibrary {
         let connection = self.catalogue()?;
         if catalogue::jobs_in_flight(&connection)? {
             return Ok(());
+        }
+        {
+            let known: Vec<String> = {
+                let mut statement = connection
+                    .prepare("SELECT sha256 FROM lidar_sources")
+                    .map_err(|e| e.to_string())?;
+                statement
+                    .query_map([], |row| row.get::<_, String>(0))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<_, _>>()
+                    .map_err(|e| e.to_string())?
+            };
+            let transaction = connection
+                .unchecked_transaction()
+                .map_err(|e| e.to_string())?;
+            import::release_unclaimed_originals(&transaction, &self.inner.paths, known)?;
+            transaction.commit().map_err(|e| e.to_string())?;
         }
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
@@ -475,6 +520,51 @@ impl LidarLibrary {
         let discarded = catalogue::discard_unpublished_chunks(&connection)?;
         if discarded > 0 {
             tracing::info!(discarded, "discarded unpublished raster chunk rows");
+        }
+        Ok(())
+    }
+
+    /// Forget each registered display derivative whose asset no catalogue
+    /// row references and whose generation is gone, with its file: those of
+    /// an item deleted while another raster job ran, or prepared by a plan
+    /// that was already running when its item was deleted. Runs after the
+    /// unreferenced assets go, and not while a job is in flight.
+    fn prune_orphaned_derivatives(&self) -> Result<(), String> {
+        let (referenced, generations) = {
+            let connection = self.catalogue()?;
+            if catalogue::jobs_in_flight(&connection)? {
+                return Ok(());
+            }
+            let mut statement = connection
+                .prepare(
+                    "SELECT id FROM lidar_derived_generations
+                     UNION SELECT id FROM lidar_layer_generations",
+                )
+                .map_err(|e| e.to_string())?;
+            let generations: Vec<String> = statement
+                .query_map([], |row| row.get::<_, String>(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<_, _>>()
+                .map_err(|e| e.to_string())?;
+            (
+                catalogue::referenced_asset_digests(&connection)?,
+                generations,
+            )
+        };
+        let owners: Vec<String> = referenced
+            .iter()
+            .map(|sha256| display_cog::asset_prefix(sha256))
+            .chain(generations.iter().map(|id| display_cog::gen_prefix(id)))
+            .collect();
+        let mut forgotten = 0usize;
+        for key in display_cog::registered_derivative_keys(self)? {
+            if !owners.iter().any(|owner| key.starts_with(owner.as_str())) {
+                display_cog::forget_derivatives(self, &key)?;
+                forgotten += 1;
+            }
+        }
+        if forgotten > 0 {
+            tracing::info!(forgotten, "forgot display derivatives of deleted items");
         }
         Ok(())
     }
@@ -633,33 +723,47 @@ impl LidarLibrary {
         })
     }
 
-    /// Delete one library item.
+    /// Test support: Delete as `lidar_delete_item` runs it, without waiting
+    /// for the item's own cancelled jobs before freeing its files.
+    #[cfg(test)]
+    pub(crate) fn delete_item(&self, item_id: &str) -> Result<(), String> {
+        let deleted = self.delete_item_rows(item_id)?;
+        self.free_deleted_item(&deleted);
+        Ok(())
+    }
+
+    /// Delete one library item: cancel its jobs, delete its rows in one
+    /// committed transaction and drop its queued display plans. Returns what
+    /// [`Self::free_deleted_item`] frees once those jobs have let go.
     ///
     /// Refused while results were calculated from it: they keep their meaning
     /// only while their input exists, so they are deleted explicitly first and
     /// there is no cascade. A derived item takes its generations with it, and
     /// its definition, runs and history go with the definition's last item.
-    pub fn delete_item(&self, item_id: &str) -> Result<(), String> {
+    pub(crate) fn delete_item_rows(&self, item_id: &str) -> Result<DeletedItem, String> {
         self.ensure_writable()?;
-        let job_ids = {
+        let (kind, job_ids) = {
             let connection = self.catalogue()?;
             refuse_dependents(&connection, item_id)?;
             if catalogue::get_layer(&connection, item_id)?.is_some() {
-                string_column(
+                let jobs = string_column(
                     &connection,
                     "SELECT id FROM lidar_import_jobs WHERE layer_id = ?1",
                     item_id,
-                )?
+                )?;
+                (LibraryItemRole::Source, jobs)
             } else if let Some(item) = catalogue::get_derived_item(&connection, item_id)? {
-                if catalogue::definition_items(&connection, &item.definition_id)?.len() == 1 {
-                    string_column(
-                        &connection,
-                        "SELECT id FROM lidar_analysis_jobs WHERE definition_id = ?1",
-                        &item.definition_id,
-                    )?
-                } else {
-                    Vec::new()
-                }
+                let jobs =
+                    if catalogue::definition_items(&connection, &item.definition_id)?.len() == 1 {
+                        string_column(
+                            &connection,
+                            "SELECT id FROM lidar_analysis_jobs WHERE definition_id = ?1",
+                            &item.definition_id,
+                        )?
+                    } else {
+                        Vec::new()
+                    };
+                (LibraryItemRole::Derived, jobs)
             } else {
                 return Err(format!("Item {item_id} does not exist"));
             }
@@ -674,15 +778,166 @@ impl LidarLibrary {
         // Recheck inside the transaction: a result created meanwhile keeps its
         // input.
         refuse_dependents(&transaction, item_id)?;
-        if catalogue::get_layer(&transaction, item_id)?.is_some() {
-            delete_source_rows(&transaction, item_id)?;
-        } else {
-            delete_derived_rows(&transaction, item_id)?;
-        }
+        let deleted = match kind {
+            LibraryItemRole::Source => {
+                let mut originals = string_column(
+                    &transaction,
+                    "SELECT DISTINCT interpretation.source_sha256
+                     FROM lidar_collection_members AS member
+                     JOIN lidar_interpretations AS interpretation
+                       ON interpretation.id = member.interpretation_id
+                     JOIN lidar_layer_generations AS generation
+                       ON generation.id = member.generation_id
+                     WHERE generation.layer_id = ?1",
+                    item_id,
+                )?;
+                for sha256 in self.saved_managed_originals(&transaction, item_id)? {
+                    if !originals.contains(&sha256) {
+                        originals.push(sha256);
+                    }
+                }
+                let assets = string_column(
+                    &transaction,
+                    "SELECT DISTINCT cog.asset_sha256
+                     FROM lidar_collection_members AS member
+                     JOIN lidar_interpretation_cogs AS cog
+                       ON cog.interpretation_id = member.interpretation_id
+                     JOIN lidar_layer_generations AS generation
+                       ON generation.id = member.generation_id
+                     WHERE generation.layer_id = ?1
+                     UNION
+                     SELECT chunk.asset_sha256 FROM lidar_generation_chunks AS chunk
+                     JOIN lidar_layer_generations AS generation
+                       ON generation.id = chunk.generation_id
+                     WHERE generation.layer_id = ?1",
+                    item_id,
+                )?;
+                let generations = string_column(
+                    &transaction,
+                    "SELECT id FROM lidar_layer_generations WHERE layer_id = ?1",
+                    item_id,
+                )?;
+                delete_source_rows(&transaction, item_id)?;
+                DeletedItem {
+                    job_ids,
+                    originals,
+                    assets,
+                    generations,
+                }
+            }
+            LibraryItemRole::Derived => {
+                let assets = string_column(
+                    &transaction,
+                    "SELECT DISTINCT chunk.asset_sha256 FROM lidar_generation_chunks AS chunk
+                     JOIN lidar_derived_generations AS generation
+                       ON generation.id = chunk.generation_id
+                     WHERE generation.item_id = ?1",
+                    item_id,
+                )?;
+                let generations = string_column(
+                    &transaction,
+                    "SELECT id FROM lidar_derived_generations WHERE item_id = ?1",
+                    item_id,
+                )?;
+                delete_derived_rows(&transaction, item_id)?;
+                DeletedItem {
+                    job_ids,
+                    originals: Vec::new(),
+                    assets,
+                    generations,
+                }
+            }
+        };
         transaction.commit().map_err(|e| e.to_string())?;
         drop(connection);
+        if let Err(error) = self.forget_entity_plans(kind, item_id) {
+            tracing::warn!(item_id, %error, "a deleted item's display plans were kept");
+        }
         self.refresh_source_meta();
-        Ok(())
+        Ok(deleted)
+    }
+
+    /// Free what a committed Delete left: the managed originals and source
+    /// COGs no other item claims, the chunks of its generations, their display
+    /// derivatives (relief included) and its settled jobs' folders.
+    ///
+    /// Runs under the heavy lease, as Dismiss does, so no import stages the
+    /// same content meanwhile; while another raster job holds it, or a removal
+    /// fails, the files stay and the next start frees them. Never fails.
+    pub(crate) fn free_deleted_item(&self, deleted: &DeletedItem) {
+        let Ok(_lease) = HeavyJobLease::acquire_for_freeing(self) else {
+            tracing::info!(
+                "a raster job is running; a deleted item's files are freed at the next start"
+            );
+            return;
+        };
+        if let Err(error) = self.release_deleted_files(deleted) {
+            tracing::warn!(%error, "a deleted item's files were kept until the next start");
+        }
+    }
+
+    fn release_deleted_files(&self, deleted: &DeletedItem) -> Result<(), String> {
+        let (originals, referenced) = {
+            let connection = self.catalogue()?;
+            let transaction = connection
+                .unchecked_transaction()
+                .map_err(|e| e.to_string())?;
+            let originals = import::release_unclaimed_originals(
+                &transaction,
+                &self.inner.paths,
+                deleted.originals.clone(),
+            )?;
+            transaction.commit().map_err(|e| e.to_string())?;
+            (originals, catalogue::referenced_asset_digests(&connection)?)
+        };
+        let mut kept = Vec::new();
+        if let Err(error) = import::remove_original_dirs(self, &originals) {
+            kept.push(error);
+        }
+        for sha256 in deleted
+            .assets
+            .iter()
+            .filter(|sha| !referenced.contains(*sha))
+        {
+            // The row first: an asset left without one is swept at start.
+            if let Err(error) = self.catalogue().and_then(|connection| {
+                connection
+                    .execute(
+                        "DELETE FROM lidar_raster_assets WHERE sha256 = ?1",
+                        [sha256],
+                    )
+                    .map_err(|e| e.to_string())
+            }) {
+                kept.push(error);
+                continue;
+            }
+            for freed in [
+                import::remove_dir_if_present(&self.inner.paths.asset_dir(sha256)),
+                display_cog::forget_asset_derivatives(self, sha256),
+            ] {
+                if let Err(error) = freed {
+                    kept.push(error);
+                }
+            }
+        }
+        for generation_id in &deleted.generations {
+            if let Err(error) =
+                display_cog::forget_derivatives(self, &display_cog::gen_prefix(generation_id))
+            {
+                kept.push(error);
+            }
+        }
+        // Under the lease every job of the item has let go of its folder.
+        for job_id in &deleted.job_ids {
+            if let Err(error) = import::remove_job_root(self, job_id) {
+                kept.push(error);
+            }
+        }
+        if kept.is_empty() {
+            Ok(())
+        } else {
+            Err(kept.join("; "))
+        }
     }
 
     /// One bounded page of a definition's runs, newest first.
@@ -1125,7 +1380,7 @@ impl LidarLibrary {
         let lease = if managed.is_empty() {
             None
         } else {
-            Some(HeavyJobLease::acquire(self, &new_id("dis"))?)
+            Some(HeavyJobLease::acquire_for_freeing(self)?)
         };
         let transaction = connection
             .unchecked_transaction()
@@ -1133,12 +1388,8 @@ impl LidarLibrary {
         if !delete_unpublished_item_rows(&transaction, layer_id)? {
             return Err("this item is published; delete it from the library instead".to_string());
         }
-        let originals = import::release_unclaimed_originals(&transaction, managed)?;
-        // Before the commit, so a stop between it and the removal never lets
-        // a catalogue rebuild list the item again.
-        for sha256 in &originals {
-            source_meta::release(&self.inner.paths, sha256)?;
-        }
+        let originals =
+            import::release_unclaimed_originals(&transaction, &self.inner.paths, managed)?;
         transaction.commit().map_err(|e| e.to_string())?;
         Ok((lease, originals))
     }
@@ -1176,7 +1427,8 @@ impl LidarLibrary {
     /// Record and start one import as a new library item. A file Canopi
     /// cannot place, or a raster job already running, is refused here, in the
     /// import dialog, before any item or job exists (canopi-try2, U31, U32);
-    /// only headers are read.
+    /// only headers are read. Every refusal carries its kind; one that is
+    /// only text (a failed catalogue write) is `Internal`.
     pub fn import_item(
         &self,
         name: &str,
@@ -1184,17 +1436,33 @@ impl LidarLibrary {
         unit_label: Option<&str>,
         unit_unknown: bool,
         paths: Vec<PathBuf>,
-    ) -> Result<common_types::lidar::LidarImportReceipt, String> {
+    ) -> Result<common_types::lidar::LidarImportReceipt, LidarImportRefusal> {
+        self.admit_writes()?;
         import::validate_selection(&paths, &admission::source_name)?;
         admission::check_sources_placeable(
             self.inner.engine.as_ref(),
             &paths,
             &admission::source_name,
         )?;
-        let lease = HeavyJobLease::acquire(self, &new_id("imp"))?;
+        let lease = self.admit_heavy_job()?;
         let (layer_id, job_id) =
             self.record_import_item(name, quantity, unit_label, unit_unknown, &paths)?;
-        self.start_recorded_import(lease, &layer_id, &job_id, paths)
+        Ok(self.start_recorded_import(lease, &layer_id, &job_id, paths)?)
+    }
+
+    /// Import's and Retry's writable check: a library opened read-only or not
+    /// at all refuses as `LibraryUnavailable`.
+    fn admit_writes(&self) -> Result<(), LidarImportRefusal> {
+        self.ensure_writable().map_err(|detail| {
+            admission::refusal(LidarImportRefusalReason::LibraryUnavailable, detail)
+        })
+    }
+
+    /// The heavy lease of a new import; another raster job holding it
+    /// refuses as `JobRunning`.
+    fn admit_heavy_job(&self) -> Result<HeavyJobLease, LidarImportRefusal> {
+        HeavyJobLease::acquire(self, &new_id("imp"))
+            .map_err(|detail| admission::refusal(LidarImportRefusalReason::JobRunning, detail))
     }
 
     /// Retry a failed unpublished import with its saved request.
@@ -1206,30 +1474,31 @@ impl LidarLibrary {
     pub fn retry_import(
         &self,
         layer_id: &str,
-    ) -> Result<common_types::lidar::LidarImportReceipt, String> {
+    ) -> Result<common_types::lidar::LidarImportReceipt, LidarImportRefusal> {
+        self.admit_writes()?;
         let SavedRetry {
             latest_job, paths, ..
-        } = {
-            self.ensure_writable()?;
-            saved_retry(&*self.catalogue()?, layer_id)?
-        };
-        let checked = self.saved_source_names(&paths).and_then(|names| {
-            let name_of = |path: &std::path::Path| {
-                names
-                    .get(path)
-                    .cloned()
-                    .unwrap_or_else(|| admission::source_name(path))
-            };
-            import::validate_selection(&paths, &name_of)?;
-            admission::check_sources_placeable(self.inner.engine.as_ref(), &paths, &name_of)
-        });
-        if let Err(error) = checked {
-            self.refuse_retry(&latest_job, &error);
-            return Err(error);
+        } = saved_retry(&*self.catalogue()?, layer_id)?;
+        let checked = self
+            .saved_source_names(&paths)
+            .map_err(LidarImportRefusal::from)
+            .and_then(|names| {
+                let name_of = |path: &std::path::Path| {
+                    names
+                        .get(path)
+                        .cloned()
+                        .unwrap_or_else(|| admission::source_name(path))
+                };
+                import::validate_selection(&paths, &name_of)?;
+                admission::check_sources_placeable(self.inner.engine.as_ref(), &paths, &name_of)
+            });
+        if let Err(refusal) = checked {
+            self.refuse_retry(&latest_job, &refusal);
+            return Err(refusal);
         }
-        let lease = HeavyJobLease::acquire(self, &new_id("imp"))?;
+        let lease = self.admit_heavy_job()?;
         let (layer_id, job_id, paths) = self.record_import_retry(layer_id)?;
-        self.start_recorded_import(lease, &layer_id, &job_id, paths)
+        Ok(self.start_recorded_import(lease, &layer_id, &job_id, paths)?)
     }
 
     /// The file names a saved selection's managed originals were imported
@@ -1286,16 +1555,17 @@ impl LidarLibrary {
         })
     }
 
-    /// A refused Retry's reason, kept as the failure of the item's latest
-    /// import instead of a new job row. Best effort: the caller returns the
-    /// refusal whatever happens to this write.
-    fn refuse_retry(&self, latest_job: &str, message: &str) {
+    /// A refused Retry, kept as the failure of the item's latest import
+    /// instead of a new job row; the job keeps the English detail for
+    /// diagnostics (the row shows Import failed). Best effort: the caller
+    /// returns the refusal whatever happens to this write.
+    fn refuse_retry(&self, latest_job: &str, refusal: &LidarImportRefusal) {
         let written = self.catalogue().and_then(|connection| {
             connection
                 .execute(
                     "UPDATE lidar_import_jobs SET state = 'failed', message = ?2, updated_at = ?3
                      WHERE id = ?1 AND state = 'failed'",
-                    rusqlite::params![latest_job, message, now_iso()],
+                    rusqlite::params![latest_job, refusal.detail, now_iso()],
                 )
                 .map_err(|e| e.to_string())
         });
@@ -1304,7 +1574,10 @@ impl LidarLibrary {
         }
     }
 
+    /// Mark an import failed. Its row reads only Import failed, so the reason
+    /// goes to the log a problem report carries.
     fn fail_import_job(&self, job_id: &str, message: &str) {
+        tracing::warn!(job_id, error = %message, "LiDAR import failed");
         if let Ok(connection) = self.catalogue() {
             let _ = connection.execute(
                 "UPDATE lidar_import_jobs
@@ -1476,8 +1749,10 @@ impl LidarLibrary {
     /// returns once its import is withdrawn, and a failed import reads Failed
     /// as it starts settling, while the job may still be stopping or freeing
     /// its files, so Import, Retry and Dismiss wait here, with no executor
-    /// permit held, instead of refusing work the library no longer shows. A
-    /// running job nobody cancelled still refuses them.
+    /// permit held, instead of refusing work the library no longer shows.
+    /// They wait the same way while Delete or Dismiss frees files under the
+    /// lease, so no import or calculation is named when none runs. A running
+    /// job nobody cancelled still refuses them.
     pub async fn await_stopping_jobs(&self) {
         loop {
             let stopping = self
@@ -1485,7 +1760,29 @@ impl LidarLibrary {
                 .cancel_flags
                 .lock()
                 .is_ok_and(|flags| flags.values().any(|flag| flag.load(Ordering::Relaxed)));
-            if !stopping {
+            let freeing = self.inner.heavy_job.lock().is_ok_and(|holder| {
+                holder
+                    .as_deref()
+                    .is_some_and(|key| key.starts_with(&format!("{FREEING_LEASE}-")))
+            });
+            if !stopping && !freeing {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    }
+
+    /// Wait until each of `job_ids` has settled and let go of the heavy lease,
+    /// with no executor permit held: Delete frees a deleted item's files once
+    /// its own cancelled jobs stop, never waiting on another item's job.
+    pub async fn await_jobs_settled(&self, job_ids: &[String]) {
+        loop {
+            let settling = self
+                .inner
+                .cancel_flags
+                .lock()
+                .is_ok_and(|flags| job_ids.iter().any(|job_id| flags.contains_key(job_id)));
+            if !settling {
                 return;
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1544,13 +1841,21 @@ impl LidarLibrary {
                     "LiDAR analysis published"
                 );
             }
-            Err(error) => {
-                if let Ok(connection) = self.catalogue() {
-                    analyses::settle_unpublished(&connection, &job_id, &error);
-                }
-            }
+            Err(error) => self.fail_analysis_job(&job_id, &error),
         }
         self.settle_cancel(&job_id);
+    }
+
+    /// Settle an analysis job that published nothing, as cancelled or failed.
+    /// A failed row reads only Calculation failed, so the reason goes to the
+    /// log a problem report carries.
+    fn fail_analysis_job(&self, job_id: &str, error: &str) {
+        if error != "cancelled" {
+            tracing::warn!(job_id, error, "LiDAR analysis failed");
+        }
+        if let Ok(connection) = self.catalogue() {
+            analyses::settle_unpublished(&connection, job_id, error);
+        }
     }
 
     fn start_analysis(&self, job_id: &str) {
@@ -2058,13 +2363,14 @@ mod tests {
             "lidar_analysis_inputs",
             "lidar_analysis_definitions",
             "lidar_generation_chunks",
+            // The original and the asset no other item claims go with it
+            // (canopi-44vf).
+            "lidar_interpretations",
+            "lidar_sources",
+            "lidar_raster_assets",
         ] {
             assert_eq!(row_count(&connection, table), 0, "{table}");
         }
-        assert_eq!(row_count(&connection, "lidar_interpretations"), 1);
-        // Immutable content-addressed assets outlive the generation that
-        // referenced them; only catalogue-aware reclamation removes bytes.
-        assert_eq!(row_count(&connection, "lidar_raster_assets"), 1);
         drop(connection);
         drop(library);
         std::fs::remove_dir_all(root).unwrap();

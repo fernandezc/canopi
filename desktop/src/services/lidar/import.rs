@@ -18,7 +18,9 @@ use super::paths::LidarPaths;
 use super::prepared_raster::PreparedRaster;
 #[cfg(test)]
 use super::prepared_raster::RasterWindow;
-use common_types::lidar::LidarImportProgressPhase;
+use common_types::lidar::{
+    LidarImportProgressPhase, LidarImportRefusal, LidarImportRefusalReason as Reason,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::io::{Read as _, Write as _};
@@ -422,31 +424,40 @@ fn layer_lattice_grid(
 /// can raise it for its own thread and nothing else changes. Refusals name a
 /// source through `name_of` ([`admission::source_name`] for the user's files;
 /// Retry names a managed original by the file it was imported as), never its
-/// folder or a system error.
+/// folder or a system error. The dialog never submits an empty selection, so
+/// one is `Internal`; a folder reads as a file that cannot be read.
 pub(super) fn validate_selection(
     source_paths: &[PathBuf],
     name_of: &dyn Fn(&Path) -> String,
-) -> Result<(), String> {
+) -> Result<(), LidarImportRefusal> {
     if source_paths.is_empty() {
-        return Err("select at least one raster source".to_string());
+        return Err("select at least one raster source".to_string().into());
     }
     admission::check_source_count(source_paths.len())?;
     let mut total_bytes = 0u64;
     for path in source_paths {
         let name = name_of(path);
+        let file = name.clone();
         let metadata = std::fs::metadata(path).map_err(|error| match error.kind() {
-            std::io::ErrorKind::NotFound => {
-                format!("{name} cannot be found; choose the files again")
-            }
-            _ => format!("{name} cannot be read; choose the files again"),
+            std::io::ErrorKind::NotFound => admission::refusal(
+                Reason::SourceMissing { file },
+                format!("{name} cannot be found; choose the files again"),
+            ),
+            _ => admission::refusal(
+                Reason::Unreadable { file },
+                format!("{name} cannot be read; choose the files again"),
+            ),
         })?;
         if !metadata.is_file() {
-            return Err(format!("{name} is not a file; choose the files again"));
+            return Err(admission::refusal(
+                Reason::Unreadable { file: name.clone() },
+                format!("{name} is not a file; choose the files again"),
+            ));
         }
         admission::check_source_bytes(&name, metadata.len())?;
         total_bytes = total_bytes
             .checked_add(metadata.len())
-            .ok_or_else(|| "selected source sizes overflow the import budget".to_string())?;
+            .ok_or_else(admission::import_too_large)?;
     }
     admission::check_import_bytes(total_bytes)
 }
@@ -496,8 +507,14 @@ fn stage_managed_original(
             total = total
                 .checked_add(read as u64)
                 .ok_or_else(|| "source byte count overflow".to_string())?;
-            admission::check_source_bytes(&admission::source_name(source_path), total)
-                .map_err(|error| format!("{error} while the managed original was being copied"))?;
+            admission::check_source_bytes(&admission::source_name(source_path), total).map_err(
+                |error| {
+                    format!(
+                        "{} while the managed original was being copied",
+                        error.detail
+                    )
+                },
+            )?;
             hasher.update(&buffer[..read]);
             target
                 .write_all(&buffer[..read])
@@ -570,7 +587,7 @@ fn hash_file_limited(path: &Path, cancel: &AtomicBool) -> Result<(String, u64), 
             .checked_add(read as u64)
             .ok_or_else(|| "managed source size overflow".to_string())?;
         admission::check_source_bytes(&admission::source_name(path), total)
-            .map_err(|error| format!("{error} while the managed original was verified"))?;
+            .map_err(|error| format!("{} while the managed original was verified", error.detail))?;
         hasher.update(&buffer[..read]);
     }
     Ok((format!("{:x}", hasher.finalize()), total))
@@ -1118,7 +1135,7 @@ pub(super) fn discard_job_files(library: &LidarLibrary, job_id: &str) -> Result<
         let transaction = connection
             .unchecked_transaction()
             .map_err(|e| e.to_string())?;
-        let originals = release_unclaimed_originals(&transaction, created)?;
+        let originals = release_unclaimed_originals(&transaction, paths, created)?;
         transaction.commit().map_err(|e| e.to_string())?;
         let referenced = catalogue::referenced_asset_digests(&connection)?;
         let cogs: Vec<String> = staged
@@ -1135,13 +1152,19 @@ pub(super) fn discard_job_files(library: &LidarLibrary, job_id: &str) -> Result<
     remove_job_root(library, job_id)
 }
 
-/// Delete the catalogue rows of each managed original in `candidates` that no
-/// published item and no saved import selection claims, and return those
-/// originals; the caller commits, then removes them with
-/// [`remove_original_dirs`]. Run under the heavy lease, so no import stages
-/// the same content meanwhile.
+/// Release each managed original in `candidates` that no published item and
+/// no saved import selection claims: mark its meta released, then delete its
+/// catalogue rows, and return those originals; the caller commits, then
+/// removes them with [`remove_original_dirs`]. Run under the heavy lease, so
+/// no import stages the same content meanwhile.
+///
+/// The meta goes before the commit, so a stop between it and the removal
+/// never lets a catalogue rebuild list the item again. An original whose meta
+/// cannot be written keeps its rows and files for a later start, and never
+/// keeps another.
 pub(super) fn release_unclaimed_originals(
     transaction: &rusqlite::Connection,
+    paths: &LidarPaths,
     candidates: Vec<String>,
 ) -> Result<Vec<String>, String> {
     let mut released = Vec::new();
@@ -1162,6 +1185,10 @@ pub(super) fn release_unclaimed_originals(
         if claimed {
             continue;
         }
+        if let Err(error) = super::source_meta::release(paths, &sha256) {
+            tracing::warn!(%error, "an unclaimed original was kept until a later start");
+            continue;
+        }
         for sql in [
             "DELETE FROM lidar_interpretation_cogs WHERE interpretation_id IN
              (SELECT id FROM lidar_interpretations WHERE source_sha256 = ?1)",
@@ -1179,23 +1206,32 @@ pub(super) fn release_unclaimed_originals(
 
 /// Remove the directories, original and `meta.json`, of released originals.
 /// The original goes first, so a removal that fails part way never leaves
-/// one without the meta that says it names no item.
+/// one without the meta that says it names no item; one that fails never
+/// keeps another.
 pub(super) fn remove_original_dirs(
     library: &LidarLibrary,
     originals: &[String],
 ) -> Result<(), String> {
+    let mut kept = Vec::new();
     for sha256 in originals {
-        match std::fs::remove_file(library.inner.paths.source_original(sha256)) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("Failed to remove an original: {error}")),
+        let removed = match std::fs::remove_file(library.inner.paths.source_original(sha256)) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(format!("Failed to remove an original: {error}")),
         }
-        remove_dir_if_present(&library.inner.paths.source_dir(sha256))?;
+        .and_then(|()| remove_dir_if_present(&library.inner.paths.source_dir(sha256)));
+        if let Err(error) = removed {
+            kept.push(error);
+        }
     }
-    Ok(())
+    if kept.is_empty() {
+        Ok(())
+    } else {
+        Err(kept.join("; "))
+    }
 }
 
-fn remove_dir_if_present(dir: &Path) -> Result<(), String> {
+pub(super) fn remove_dir_if_present(dir: &Path) -> Result<(), String> {
     match std::fs::remove_dir_all(dir) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -1660,11 +1696,9 @@ mod tests {
     #[test]
     fn source_selection_caps_count_and_bytes_before_staging() {
         let too_many = vec![PathBuf::from("unused"); admission::MAX_SOURCE_FILES_PER_IMPORT + 1];
-        assert!(
-            validate_selection(&too_many, &admission::source_name)
-                .unwrap_err()
-                .contains("at most")
-        );
+        let refused = validate_selection(&too_many, &admission::source_name).unwrap_err();
+        assert_eq!(refused.reason, Reason::TooManyFiles { limit: 24 });
+        assert!(refused.detail.contains("at most"), "{}", refused.detail);
 
         let scratch = crate::test_scratch::TestScratch::new("canopi-oversized-source");
         let path = scratch.join("oversized-source");
@@ -1672,7 +1706,14 @@ mod tests {
         file.set_len(admission::MAX_SOURCE_FILE_BYTES + 1).unwrap();
         let error =
             validate_selection(std::slice::from_ref(&path), &admission::source_name).unwrap_err();
-        assert!(error.contains("per-source limit"));
+        assert_eq!(
+            error.reason,
+            Reason::SourceTooLarge {
+                file: "oversized-source".to_string(),
+                limit_mib: 2048
+            }
+        );
+        assert!(error.detail.contains("per-source limit"));
         let _ = std::fs::remove_file(path);
     }
 

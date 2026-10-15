@@ -627,7 +627,6 @@
         "importing": "Importando",
         "cancelImport": "Cancelar importação",
         "cancelCalculation": "Cancelar cálculo",
-        "failed": "Não foi possível adicionar {{name}} a este design: {{message}}",
         "failedNoMessage": "Não foi possível adicionar {{name}} a este design.",
         "showInLibrary": "Mostrar na Biblioteca de dados",
         "details": "Detalhes",
@@ -663,6 +662,20 @@
           "apartTitle": "Estes arquivos não cobrem o seu terreno.",
           "apartBody": "Eles ficam a {{distance}} deste design. Você ainda pode importá-los para a sua biblioteca."
         }
+      },
+      "failure": {
+        "generic": "O Canopi não conseguiu concluir. Tente novamente e relate um problema se continuar a falhar.",
+        "tooManyFiles": "Uma importação pode ter no máximo {{limit, number}} arquivos. Escolha menos arquivos.",
+        "sourceTooLarge": "{{file}} é grande demais: um arquivo pode ter no máximo {{size}}.",
+        "importTooLarge": "Estes arquivos são grandes demais juntos: uma importação pode ter no máximo {{size}}.",
+        "sourceMissing": "Não foi possível encontrar {{file}}. Escolha os arquivos novamente.",
+        "unreadable": "Não foi possível ler {{file}} como raster GeoTIFF.",
+        "notGeotiff": "{{file}} não é um GeoTIFF. O Canopi importa rasters GeoTIFF.",
+        "noCrs": "{{file}} não tem sistema de coordenadas, então o Canopi não consegue posicioná-lo.",
+        "unsupportedCrs": "{{file}} usa {{crs}}, um sistema de coordenadas que o Canopi não consegue posicionar. Reprojete-o para Lambert-93 (EPSG:2154), uma zona UTM ou WGS 84 e importe-o novamente.",
+        "unsupportedCrsUnnamed": "{{file}} usa um sistema de coordenadas que o Canopi não consegue posicionar. Reprojete-o para Lambert-93 (EPSG:2154), uma zona UTM ou WGS 84 e importe-o novamente.",
+        "jobRunning": "Outra importação ou cálculo está em andamento. Tente novamente quando terminar.",
+        "libraryUnavailable": "A Biblioteca de dados não aceita alterações agora. O aviso dela explica o motivo."
       }
     },
     "basemap": {
@@ -1674,7 +1687,7 @@
       "refresh": "Atualizar",
       "refreshAria": "Atualizar {{name}}",
       "refreshing": "Atualizando",
-      "refreshFailed": "A última atualização falhou. {{message}}",
+      "refreshFailed": "A última atualização falhou.",
       "history": "Histórico de processamento",
       "historyEmpty": "Nenhuma execução registrada.",
       "historyLoading": "Carregando histórico",

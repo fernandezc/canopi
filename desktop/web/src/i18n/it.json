@@ -627,7 +627,6 @@
         "importing": "Importazione in corso",
         "cancelImport": "Annulla importazione",
         "cancelCalculation": "Annulla calcolo",
-        "failed": "Impossibile aggiungere {{name}} a questo progetto: {{message}}",
         "failedNoMessage": "Impossibile aggiungere {{name}} a questo progetto.",
         "showInLibrary": "Mostra nella libreria dati",
         "details": "Dettagli",
@@ -663,6 +662,20 @@
           "apartTitle": "Questi file non coprono il tuo terreno.",
           "apartBody": "Si trovano a {{distance}} da questo progetto. Puoi comunque importarli nella tua libreria."
         }
+      },
+      "failure": {
+        "generic": "Canopi non è riuscito a completare l’operazione. Riprova e segnala un problema se continua a non riuscire.",
+        "tooManyFiles": "Un’importazione può contenere al massimo {{limit, number}} file. Scegli meno file.",
+        "sourceTooLarge": "{{file}} è troppo grande: un file può occupare al massimo {{size}}.",
+        "importTooLarge": "Questi file sono troppo grandi insieme: un’importazione può occupare al massimo {{size}}.",
+        "sourceMissing": "Impossibile trovare {{file}}. Scegli di nuovo i file.",
+        "unreadable": "Impossibile leggere {{file}} come raster GeoTIFF.",
+        "notGeotiff": "{{file}} non è un GeoTIFF. Canopi importa raster GeoTIFF.",
+        "noCrs": "{{file}} non ha un sistema di coordinate, quindi Canopi non può posizionarlo.",
+        "unsupportedCrs": "{{file}} usa {{crs}}, un sistema di coordinate che Canopi non sa posizionare. Riproiettalo in Lambert-93 (EPSG:2154), in una zona UTM o in WGS 84, poi importalo di nuovo.",
+        "unsupportedCrsUnnamed": "{{file}} usa un sistema di coordinate che Canopi non sa posizionare. Riproiettalo in Lambert-93 (EPSG:2154), in una zona UTM o in WGS 84, poi importalo di nuovo.",
+        "jobRunning": "È in corso un’altra importazione o un altro calcolo. Riprova quando è terminato.",
+        "libraryUnavailable": "La Libreria dati non accetta modifiche in questo momento. Il suo avviso spiega perché."
       }
     },
     "basemap": {
@@ -1674,7 +1687,7 @@
       "refresh": "Aggiorna",
       "refreshAria": "Aggiorna {{name}}",
       "refreshing": "Aggiornamento in corso",
-      "refreshFailed": "L’ultimo aggiornamento non è riuscito. {{message}}",
+      "refreshFailed": "L’ultimo aggiornamento non è riuscito.",
       "history": "Cronologia di elaborazione",
       "historyEmpty": "Nessuna esecuzione registrata.",
       "historyLoading": "Caricamento della cronologia",

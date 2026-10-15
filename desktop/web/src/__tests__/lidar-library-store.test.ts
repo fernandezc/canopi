@@ -17,6 +17,7 @@ import {
   stopLidarPolling,
 } from '../app/lidar/library-store'
 import { locale } from '../app/settings/state'
+import { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } from '../app/problem-report/diagnostics'
 
 const emptyLibrary: LibrarySnapshot = librarySnapshot([])
 
@@ -110,16 +111,36 @@ describe('LiDAR library polling', () => {
     expect(lidarLibrary.value?.items).toHaveLength(1)
   })
 
-  it('refuses a malformed snapshot as a failed read and stops polling', async () => {
+  it('refuses a malformed snapshot as a failed read in the interface language, keeping the reason for diagnostics, and stops polling', async () => {
+    resetFrontendDiagnosticsForTests()
+    locale.value = 'fr'
     listLibraryMock.mockResolvedValue({ plant_db: 'missing' })
     ensureLidarPolling()
     await flushMicrotasks()
     await flushMicrotasks()
+    locale.value = 'en'
     expect(lidarLibrary.value).toBeNull()
-    expect(lidarStatusMessage.value).toMatch(/malformed/i)
+    expect(lidarStatusMessage.value).toMatch(/^Canopi n’a pas pu terminer\./)
+    expect(recentFrontendDiagnostics().some((entry) => /malformed/i.test(entry.message))).toBe(true)
     const calls = listLibraryMock.mock.calls.length
     await vi.advanceTimersByTimeAsync(5000)
     expect(listLibraryMock.mock.calls.length).toBe(calls)
+  })
+
+  it('keeps polling running work through failed reads, recording the failure once until a read succeeds', async () => {
+    listLibraryMock.mockResolvedValue(importing('Staging'))
+    ensureLidarPolling()
+    await flushMicrotasks()
+    resetFrontendDiagnosticsForTests()
+    listLibraryMock.mockRejectedValue('LibraryUnavailable: catalogue is locked')
+    await vi.advanceTimersByTimeAsync(1_500 * 10)
+    const failures = () => recentFrontendDiagnostics().filter((entry) => entry.message.includes('catalogue is locked')).length
+    expect(listLibraryMock.mock.calls.length).toBeGreaterThanOrEqual(10)
+    expect(failures()).toBe(1)
+
+    listLibraryMock.mockResolvedValueOnce(importing('Staging'))
+    await vi.advanceTimersByTimeAsync(1_500 * 3)
+    expect(failures()).toBe(2)
   })
 })
 

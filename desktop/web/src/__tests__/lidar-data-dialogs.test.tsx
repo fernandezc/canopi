@@ -667,14 +667,14 @@ describe('Data library, Import and Analyze dialogs', () => {
       })])
       mount()
 
-      expect(container.textContent).toContain('unreadable file')
+      expect(container.textContent).toContain('Import failed')
       await click(button('Retry'))
       await click(button('Dismiss'))
       expect(actions.retryLibraryImport).toHaveBeenCalledWith('x')
       expect(actions.dismissLibraryImport).toHaveBeenCalledWith('x')
     })
 
-    it.fails('[expected-fail L canopi-bkbh] words a failed import row as Import failed, never the engine text stored on its job', () => {
+    it('words a failed import row as Import failed, never the engine text stored on its job', () => {
       lidarLibrary.value = library([layer('x', 'Broken', {
         generation_id: null, state: 'Failed',
         import_job: { job_id: 'job-x', layer_id: 'x', state: 'Failed', message: 'TIFF read error: strip 3 is truncated', progress: null },
@@ -714,7 +714,8 @@ describe('Data library, Import and Analyze dialogs', () => {
       await focusItem('s')
 
       expect(detailsHeading()).toBe('Steepness')
-      expect(container.textContent).toContain('engine stopped')
+      expect(container.textContent).toContain('Calculation failed')
+      expect(container.textContent).not.toContain('engine stopped')
       await click(button(/^Retry$/))
       expect(actions.rerunAnalysis).toHaveBeenCalledWith('s-def')
     })
@@ -774,12 +775,13 @@ describe('Data library, Import and Analyze dialogs', () => {
       await act(async () => {})
       expect(actions.fetchProcessingHistory).toHaveBeenLastCalledWith('s-def', 'c1')
       expect(history.querySelectorAll('li')).toHaveLength(2)
-      expect(history.textContent).toContain('engine stopped')
+      expect(history.textContent).toContain('Failed')
+      expect(history.textContent).not.toContain('engine stopped')
       expect(history.textContent).toContain('Nothing published')
       expect(() => button('Show more')).toThrow()
     })
 
-    it('words a run in history by its state, showing a message only as a failure\'s reason', async () => {
+    it('words a cancelled run in history by its state, never the text its job stored', async () => {
       const run = (job: string, state: 'Cancelled' | 'Failed', message: string) => ({
         job_id: job, state, message, recipe_version: 1, tool: null, inputs: [],
         created_at: '1790000000000', finished_at: null, outputs: [],
@@ -798,10 +800,10 @@ describe('Data library, Import and Analyze dialogs', () => {
       const [cancelled, failed] = Array.from(container.querySelectorAll('section[aria-label="Historique des traitements"] li'))
       expect(cancelled!.textContent).toContain('Annulé')
       expect(cancelled!.textContent).not.toContain('analysis cancelled')
-      expect(failed!.textContent).toContain('engine stopped')
+      expect(failed!.textContent).toContain('Échec')
     })
 
-    it.fails('[expected-fail L canopi-bkbh] words a failed run in history by its state alone, keeping the engine text out of it', async () => {
+    it('words a failed run in history by its state alone, keeping the engine text out of it', async () => {
       locale.value = 'fr'
       actions.fetchProcessingHistory.mockResolvedValueOnce({
         definition_id: 's-def',

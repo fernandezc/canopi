@@ -631,16 +631,16 @@ describe('pending work, failures and the Site data eye', () => {
     expect(actions.cancelAnalysisJob).toHaveBeenCalledWith(expect.objectContaining({ id: 'r' }))
   })
 
-  it('says when work started here could not join the Design', async () => {
-    ;(pending.failure as Signal<unknown>).value = { itemId: 'a', message: 'not a raster' }
+  it('says when work started here could not join the Design, with Show in the Data library', async () => {
+    ;(pending.failure as Signal<unknown>).value = { itemId: 'a' }
     mount()
-    expect(container.textContent).toContain('Ground could not be added to this Design: not a raster')
+    expect(container.textContent).toContain('Ground could not be added to this Design.')
     await click(button('Show in the Data library'))
     expect(actions.dismissAttachmentFailure).toHaveBeenCalled()
     expect(libraryView.value).toEqual({ focusId: 'a' })
   })
 
-  it.fails('[expected-fail L canopi-bkbh] says work could not join the Design without the engine text its job stored', () => {
+  it('says work could not join the Design without the engine text its job stored', () => {
     ;(pending.failure as Signal<unknown>).value = { itemId: 'a', message: 'not a raster' }
     mount()
     expect(container.textContent).toContain('Ground could not be added to this Design.')

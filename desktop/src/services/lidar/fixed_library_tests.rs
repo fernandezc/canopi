@@ -6,7 +6,9 @@
 
 use super::*;
 use common_types::library::{LibraryItemRole, LibraryItemSummary, RasterQuantity};
-use common_types::lidar::{LidarDisplayRequest, LidarDisplayState, LidarResultState};
+use common_types::lidar::{
+    LidarDisplayRequest, LidarDisplayState, LidarImportRefusalReason, LidarResultState,
+};
 use std::path::Path;
 
 fn scratch(label: &str) -> crate::test_scratch::TestScratch {
@@ -465,7 +467,8 @@ fn importing_a_missing_file_is_refused_by_name_and_creates_nothing() {
             false,
             vec![root.join("gone.tif")],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("cannot be found"), "{error}");
     assert_refused_in_dialog(&library, &root, &error, "gone.tif");
 }
@@ -478,7 +481,7 @@ fn importing_a_geotiff_in_a_refused_code_is_refused_and_creates_nothing() {
     let root = scratch("import-refused-code");
     let library = attached_library(&root);
     let source = plane_in_code(&library, &root, "elsewhere", 65_000);
-    let error = library
+    let refusal = library
         .import_item(
             "Elsewhere",
             RasterQuantity::GroundElevation,
@@ -487,6 +490,14 @@ fn importing_a_geotiff_in_a_refused_code_is_refused_and_creates_nothing() {
             vec![source],
         )
         .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        LidarImportRefusalReason::UnsupportedCrs {
+            file: "elsewhere.tif".to_string(),
+            crs: "EPSG:65000".to_string()
+        }
+    );
+    let error = refusal.detail;
     assert!(
         error.contains("65000"),
         "the refusal names the code: {error}"
@@ -514,13 +525,98 @@ fn importing_a_file_that_is_not_a_geotiff_is_refused_before_it_is_read() {
             false,
             vec![source],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("not a GeoTIFF"), "{error}");
     assert!(
         !error.contains("readable raster"),
         "refused before a reader parsed it: {error}"
     );
     assert_refused_in_dialog(&library, &root, &error, "dem.asc");
+}
+
+/// A one-cell Float32 TIFF that is readable but not placed: with no
+/// georeferencing tags, or (`zero_scale`) with a pixel scale of zero.
+fn ungeoreferenced_tiff(root: &Path, name: &str, zero_scale: bool) -> PathBuf {
+    // (tag, type, count, value or data): SHORT is 3, LONG is 4, DOUBLE is 12;
+    // doubles and the cell follow the directory, in entry order.
+    let mut entries: Vec<(u16, u16, Vec<f64>)> = vec![
+        (256, 3, vec![1.0]),  // ImageWidth
+        (257, 3, vec![1.0]),  // ImageLength
+        (258, 3, vec![32.0]), // BitsPerSample
+        (259, 3, vec![1.0]),  // Compression: none
+        (262, 3, vec![1.0]),  // Photometric: black is zero
+        (273, 4, vec![]),     // StripOffsets: the cell, filled in below
+        (277, 3, vec![1.0]),  // SamplesPerPixel
+        (278, 3, vec![1.0]),  // RowsPerStrip
+        (279, 4, vec![4.0]),  // StripByteCounts
+        (339, 3, vec![3.0]),  // SampleFormat: float
+    ];
+    if zero_scale {
+        entries.push((33550, 12, vec![0.0, 0.0, 0.0])); // ModelPixelScale
+        entries.push((33922, 12, vec![0.0, 0.0, 0.0, 445_000.0, 6_806_000.0, 0.0])); // ModelTiepoint
+    }
+    let directory_end = 8 + 2 + entries.len() * 12 + 4;
+    let doubles: usize = entries
+        .iter()
+        .filter(|(_, kind, _)| *kind == 12)
+        .map(|(_, _, values)| values.len() * 8)
+        .sum();
+    let cell_at = (directory_end + doubles) as u32;
+    let mut bytes = b"II\x2a\x00".to_vec();
+    bytes.extend_from_slice(&8u32.to_le_bytes());
+    bytes.extend_from_slice(&(entries.len() as u16).to_le_bytes());
+    let mut data = Vec::new();
+    for (tag, kind, values) in &entries {
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        bytes.extend_from_slice(&kind.to_le_bytes());
+        let count = values.len().max(1) as u32;
+        bytes.extend_from_slice(&count.to_le_bytes());
+        match kind {
+            3 => {
+                bytes.extend_from_slice(&(values[0] as u16).to_le_bytes());
+                bytes.extend_from_slice(&[0, 0]);
+            }
+            4 => {
+                let value = values.first().map_or(cell_at, |value| *value as u32);
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            _ => {
+                let at = (directory_end + data.len()) as u32;
+                bytes.extend_from_slice(&at.to_le_bytes());
+                data.extend(values.iter().flat_map(|value| value.to_le_bytes()));
+            }
+        }
+    }
+    bytes.extend_from_slice(&0u32.to_le_bytes());
+    bytes.extend_from_slice(&data);
+    assert_eq!(bytes.len(), cell_at as usize);
+    bytes.extend_from_slice(&1.5f32.to_le_bytes());
+    let path = root.join(format!("{name}.tif"));
+    std::fs::write(&path, bytes).unwrap();
+    path
+}
+
+/// A readable TIFF without a geotransform, or with a pixel size of zero, is
+/// refused as one Canopi cannot place, not as a file it cannot read.
+#[test]
+fn an_ungeoreferenced_tiff_is_refused_as_having_no_coordinate_system() {
+    let root = scratch("import-untagged");
+    let library = attached_library(&root);
+    for (name, zero_scale) in [("scan", false), ("flat", true)] {
+        let source = ungeoreferenced_tiff(&root, name, zero_scale);
+        let refusal =
+            admission::check_sources_placeable(library.inner.engine.as_ref(), &[source], &|path| {
+                path.file_name().unwrap().to_string_lossy().into_owned()
+            })
+            .unwrap_err();
+        let file = format!("{name}.tif");
+        assert_eq!(
+            refusal.reason,
+            LidarImportRefusalReason::NoCrs { file: file.clone() }
+        );
+        assert!(refusal.detail.contains(&file), "{}", refusal.detail);
+    }
 }
 
 /// A chosen file that cannot be opened is refused by name, without its
@@ -548,6 +644,13 @@ fn importing_a_file_that_cannot_be_opened_is_refused_by_name() {
         )
         .unwrap_err();
     std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        error.reason,
+        LidarImportRefusalReason::Unreadable {
+            file: "locked.tif".to_string()
+        }
+    );
+    let error = error.detail;
     assert!(error.contains("cannot be read"), "{error}");
     assert_refused_in_dialog(&library, &root, &error, "locked.tif");
 }
@@ -587,11 +690,11 @@ fn retrying_an_import_whose_file_is_gone_is_refused_on_its_item_without_a_new_jo
     let root = scratch("retry-missing");
     let library = attached_library(&root);
     let layer_id = failed_import(&library, root.join("gone.tif"), "first failure");
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(error.contains("gone.tif cannot be found"), "{error}");
     assert!(!error.contains(&root.display().to_string()), "{error}");
     assert_eq!(row_message(&library, &layer_id), error);
-    assert_eq!(library.retry_import(&layer_id).unwrap_err(), error);
+    assert_eq!(library.retry_import(&layer_id).unwrap_err().detail, error);
     assert_eq!(count(&library, "SELECT COUNT(*) FROM lidar_import_jobs"), 1);
 }
 
@@ -638,7 +741,7 @@ fn a_refused_retry_returns_its_reason_when_the_row_cannot_be_updated() {
              BEGIN SELECT RAISE(ABORT, 'jobs are read-only'); END;",
         )
         .unwrap();
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(error.contains("gone.tif cannot be found"), "{error}");
     assert!(!error.contains("read-only"), "{error}");
     assert_eq!(count(&library, "SELECT COUNT(*) FROM lidar_import_jobs"), 1);
@@ -747,6 +850,15 @@ fn retrying_a_rebuilt_item_in_a_refused_code_keeps_the_refusal_on_the_item() {
     let (library, layer_id) = rebuilt_library(&root, &tile, "sha-refused");
     let jobs = count(&library, "SELECT COUNT(*) FROM lidar_import_jobs");
     let error = library.retry_import(&layer_id).unwrap_err();
+    assert_eq!(
+        error.reason,
+        LidarImportRefusalReason::UnsupportedCrs {
+            file: "elsewhere.tif".to_string(),
+            crs: "EPSG:65000".to_string()
+        },
+        "a rebuilt item's refusal names the file it was imported as"
+    );
+    let error = error.detail;
     assert!(
         error.contains("65000"),
         "the refusal names the code: {error}"
@@ -778,7 +890,7 @@ fn retrying_a_rebuilt_item_whose_original_is_gone_names_the_imported_file() {
     let root = scratch("retry-rebuilt-gone");
     let (library, layer_id) = rebuilt_library(&root, &tile, "sha-gone");
     std::fs::remove_file(library.inner.paths.source_original("sha-gone")).unwrap();
-    let error = library.retry_import(&layer_id).unwrap_err();
+    let error = library.retry_import(&layer_id).unwrap_err().detail;
     assert!(
         error.starts_with("elsewhere.tif cannot be found"),
         "{error}"
@@ -805,9 +917,12 @@ fn import_and_retry_are_refused_with_nothing_recorded_while_a_raster_job_runs() 
             false,
             vec![tile],
         )
-        .unwrap_err();
+        .unwrap_err()
+        .detail;
     assert!(error.contains("already running"), "{error}");
     let error = library.retry_import(&layer_id).unwrap_err();
+    assert_eq!(error.reason, LidarImportRefusalReason::JobRunning);
+    let error = error.detail;
     assert!(error.contains("already running"), "{error}");
 
     assert_eq!(
@@ -1852,7 +1967,6 @@ fn refusal_kind(error: &impl serde::Serialize) -> serde_json::Value {
 /// canopi-bkbh: Import and Retry refusals carry their kind, so the frontend
 /// names each in the interface language; the detail stays English.
 #[test]
-#[ignore = "expected-fail L canopi-bkbh"]
 fn import_and_retry_refusals_carry_their_kind() {
     let root = scratch("refusal-kinds");
     let library = attached_library(&root);
@@ -1922,16 +2036,6 @@ fn a_truncated_geotiff_fails_as_a_job_with_its_detail_kept() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// The item data files Delete everywhere frees: originals, source COGs and
-/// display derivatives (job folders are outside canopi-44vf).
-fn item_data_files(library: &LidarLibrary) -> Vec<PathBuf> {
-    let jobs = library.inner.paths.jobs_dir();
-    library_files(library)
-        .into_iter()
-        .filter(|path| !path.starts_with(&jobs))
-        .collect()
-}
-
 /// An item imported from `tile` and settled, as the app shows it.
 fn imported(library: &LidarLibrary, name: &str, tile: &Path) -> String {
     let receipt = library
@@ -1950,24 +2054,40 @@ fn imported(library: &LidarLibrary, name: &str, tile: &Path) -> String {
     receipt.layer_id
 }
 
-/// canopi-44vf: Delete everywhere frees the item's original, its source COG
-/// and its display derivatives, so disk use drops.
+/// canopi-44vf, through the real command: Delete everywhere frees the item's
+/// original, its source COG, its display derivatives and its settled job's
+/// folder, so disk use drops.
 #[test]
-#[ignore = "expected-fail L canopi-44vf"]
 fn deleting_an_item_everywhere_frees_its_files() {
+    use tauri::Manager;
     let root = scratch("delete-frees");
-    let library = attached_library(&root);
+    let library = LidarLibrary::open(&root).unwrap();
+    let executor = crate::native_operation::NativeOperationExecutor::production();
+    library.attach_executor(executor.clone());
+    let app = tauri::test::mock_builder()
+        .manage(library.clone())
+        .manage(executor)
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .unwrap();
     let tile = plane(&library, &root, "tile", 445_000.0);
     let layer_id = imported(&library, "Tile", &tile);
-    assert!(!item_data_files(&library).is_empty());
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    assert!(!library_files(&library).is_empty());
     assert!(
         !display_cog::registered_derivative_keys(&library)
             .unwrap()
             .is_empty()
     );
 
-    library.delete_item(&layer_id).unwrap();
-    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    tauri::async_runtime::block_on(crate::commands::lidar::lidar_delete_item(
+        app.state(),
+        app.state(),
+        layer_id,
+    ))
+    .unwrap();
+    assert_eq!(library_files(&library), Vec::<PathBuf>::new());
     assert_eq!(
         display_cog::registered_derivative_keys(&library).unwrap(),
         Vec::<String>::new()
@@ -1978,30 +2098,291 @@ fn deleting_an_item_everywhere_frees_its_files() {
 /// canopi-44vf: deleting one of two items imported from the same file keeps
 /// what the other still draws from; deleting the second frees everything.
 #[test]
-#[ignore = "expected-fail L canopi-44vf"]
 fn deleting_one_of_two_items_sharing_a_file_keeps_it_for_the_other() {
     let root = scratch("delete-shared");
     let library = attached_library(&root);
     let tile = plane(&library, &root, "tile", 445_000.0);
     let first = imported(&library, "First", &tile);
     let second = imported(&library, "Second", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &first)
+        .unwrap();
 
     library.delete_item(&first).unwrap();
-    let descriptor = library
-        .display_descriptor(&LidarDisplayRequest {
-            kind: LibraryItemRole::Source,
-            entity_id: second.clone(),
-            expected_generation_id: None,
-            retry: false,
-            relief: false,
-        })
-        .unwrap();
-    assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
-    for asset in &descriptor.assets {
-        assert!(Path::new(&asset.path).is_file(), "{} is kept", asset.path);
+    for relief in [false, true] {
+        let descriptor = library
+            .display_descriptor(&LidarDisplayRequest {
+                kind: LibraryItemRole::Source,
+                entity_id: second.clone(),
+                expected_generation_id: None,
+                retry: false,
+                relief,
+            })
+            .unwrap();
+        assert_eq!(descriptor.state, LidarDisplayState::Ready, "{descriptor:?}");
+        for asset in &descriptor.assets {
+            assert!(Path::new(&asset.path).is_file(), "{} is kept", asset.path);
+        }
     }
 
     library.delete_item(&second).unwrap();
-    assert_eq!(item_data_files(&library), Vec::<PathBuf>::new());
+    assert_eq!(library_files(&library), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: deleting a calculated result frees its chunks and its display
+/// derivatives; its input keeps every file of its own.
+#[test]
+fn deleting_a_result_frees_its_chunks_and_derivatives() {
+    let root = scratch("delete-result");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    let kept_files = library_files(&library);
+    let kept_keys = display_cog::registered_derivative_keys(&library).unwrap();
+    let source_generation = catalogue::head_generation(&library.catalogue().unwrap(), &layer_id)
+        .unwrap()
+        .unwrap()
+        .id;
+    let result = "item-slope".to_string();
+    seed_result(
+        &library.catalogue().unwrap(),
+        &layer_id,
+        &result,
+        &source_generation,
+    );
+    generation::publish_test_chunk(&library, "dgen-item-slope", 0, 0, 4, 4, &[1.0f32; 16]);
+    library
+        .prepare_display_now(LibraryItemRole::Derived, &result)
+        .unwrap();
+    assert_ne!(library_files(&library), kept_files);
+
+    library.delete_item(&result).unwrap();
+    assert_eq!(library_files(&library), kept_files);
+    assert_eq!(
+        display_cog::registered_derivative_keys(&library).unwrap(),
+        kept_keys
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: Delete while another raster job holds the heavy lease removes
+/// the item at once and leaves its files, which that job might be staging
+/// again; the next start frees them, display derivatives included.
+#[test]
+fn deleting_while_another_raster_job_runs_frees_the_files_at_the_next_start() {
+    let root = scratch("delete-busy");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    library
+        .prepare_display_now(LibraryItemRole::Source, &layer_id)
+        .unwrap();
+    let files = library_files(&library);
+
+    let lease = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    library.delete_item(&layer_id).unwrap();
+    assert!(library.library_snapshot().unwrap().items.is_empty());
+    assert_eq!(library_files(&library), files, "kept while the job runs");
+    drop(lease);
+    close(library);
+
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
+    assert_eq!(
+        display_cog::registered_derivative_keys(&reopened).unwrap(),
+        Vec::<String>::new()
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// canopi-44vf: a file Delete cannot remove never fails the committed
+/// Delete; the item is gone, and the next start frees what was left.
+#[cfg(unix)]
+#[test]
+fn a_failing_removal_never_fails_a_committed_delete() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("delete-locked");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let layer_id = imported(&library, "Tile", &tile);
+    let originals: Vec<PathBuf> = std::fs::read_dir(library.inner.paths.root().join("sources"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    assert_eq!(originals.len(), 1);
+    let locked = &originals[0];
+    std::fs::set_permissions(locked, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+    let deleted = library.delete_item(&layer_id);
+    std::fs::set_permissions(locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    deleted.unwrap();
+    assert!(library.library_snapshot().unwrap().items.is_empty());
+    close(library);
+
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Two tiles imported as one item: the item and its two `sources/<sha256>/`
+/// folders, the first one's locked read-only.
+#[cfg(unix)]
+fn two_tile_item_with_one_locked_original(
+    library: &LidarLibrary,
+    root: &Path,
+) -> (String, PathBuf, PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let west = plane(library, root, "west", 445_000.0);
+    let east = plane(library, root, "east", 445_064.0);
+    let receipt = library
+        .import_item(
+            "Tiles",
+            RasterQuantity::GroundElevation,
+            None,
+            false,
+            vec![west, east],
+        )
+        .unwrap();
+    assert_eq!(
+        await_import(library, &receipt.job_id),
+        LidarImportJobState::Complete
+    );
+    let mut folders: Vec<PathBuf> = std::fs::read_dir(library.inner.paths.root().join("sources"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    folders.sort();
+    assert_eq!(folders.len(), 2);
+    std::fs::set_permissions(&folders[0], std::fs::Permissions::from_mode(0o555)).unwrap();
+    (receipt.layer_id, folders.remove(0), folders.remove(0))
+}
+
+/// An original whose meta cannot be released keeps only its own files: a
+/// committed Delete still frees every other original it no longer claims.
+#[cfg(unix)]
+#[test]
+fn an_unwritable_original_never_keeps_another_deleted_original() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("delete-one-locked");
+    let library = attached_library(&root);
+    let (layer_id, locked, free) = two_tile_item_with_one_locked_original(&library, &root);
+
+    let deleted = library.delete_item(&layer_id);
+    let free_kept = free.exists();
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    deleted.unwrap();
+    assert!(!free_kept, "the writable original is freed at once");
+    assert!(
+        locked.exists(),
+        "the locked original waits for the next start"
+    );
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The start-up release skips an original whose meta cannot be released and
+/// still frees every other original nothing claims.
+#[cfg(unix)]
+#[test]
+fn an_unwritable_original_never_keeps_another_original_at_the_next_start() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch("prune-one-locked");
+    let library = attached_library(&root);
+    let (layer_id, locked, free) = two_tile_item_with_one_locked_original(&library, &root);
+    let lease = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    library.delete_item(&layer_id).unwrap();
+    drop(lease);
+    assert!(free.exists(), "kept while the job runs");
+    close(library);
+
+    let reopened = attached_library(&root);
+    let free_kept = free.exists();
+    let files = library_files(&reopened);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(!free_kept, "the writable original is freed at start");
+    assert!(
+        locked.exists(),
+        "the locked original waits for a later start"
+    );
+    assert!(
+        files.iter().all(|file| !file.starts_with(&free)),
+        "{files:?}"
+    );
+    close(reopened);
+    let reopened = attached_library(&root);
+    assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Import, Retry and Dismiss wait while Delete or Dismiss frees files under
+/// the heavy lease, instead of refusing as if an import or calculation ran.
+#[test]
+fn work_admitted_after_stopping_jobs_waits_for_files_being_freed() {
+    let root = scratch("await-freeing");
+    let library = attached_library(&root);
+    let freeing = HeavyJobLease::acquire_for_freeing(&library).unwrap();
+    let (sent, waited) = std::sync::mpsc::channel();
+    let waiting = library.clone();
+    std::thread::spawn(move || {
+        tauri::async_runtime::block_on(waiting.await_stopping_jobs());
+        let _ = sent.send(());
+    });
+    assert!(
+        waited
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err(),
+        "waits while files are freed"
+    );
+    drop(freeing);
+    waited
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("admitted once the files are freed");
+
+    let running = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    tauri::async_runtime::block_on(library.await_stopping_jobs());
+    drop(running);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// D6: a job failure shows only the generic message, so its reason reaches
+/// the log a problem report carries; a cancelled job logs no failure.
+#[test]
+fn a_failed_job_logs_its_reason_for_the_problem_report() {
+    #[derive(Clone, Default)]
+    struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let root = scratch("failure-logged");
+    let library = attached_library(&root);
+    let tile = plane(&library, &root, "tile", 445_000.0);
+    let log = Captured::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer({
+            let log = log.clone();
+            move || log.clone()
+        })
+        .with_ansi(false)
+        .with_max_level(tracing::Level::WARN)
+        .finish();
+    tracing::subscriber::with_default(subscriber, || {
+        failed_import(&library, tile, "tiling failed on tile.tif");
+        library.fail_analysis_job("anl-broken", "the engine stopped on slope");
+        library.fail_analysis_job("anl-stopped", "cancelled");
+    });
+    let written = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
+    assert!(written.contains("tiling failed on tile.tif"), "{written}");
+    assert!(written.contains("the engine stopped on slope"), "{written}");
+    assert!(written.contains("anl-broken"), "{written}");
+    assert!(!written.contains("anl-stopped"), "{written}");
     let _ = std::fs::remove_dir_all(&root);
 }

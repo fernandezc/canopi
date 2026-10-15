@@ -47,6 +47,7 @@ import {
   readCurrentLidarPresentation,
   refreshLidarLibrary,
 } from './library-store'
+import { lidarFailureMessage } from './lidar-failures'
 import { siblingMoveOrders } from './reference-tree'
 import { kindDisplayDefaults } from './item-types'
 import { designSessionStore } from '../document-session/store'
@@ -102,7 +103,8 @@ export async function importLibraryItem(
 /**
  * Retry a failed or cancelled import with its saved selection. A refused
  * Retry still refreshes: the library writes the refusal onto the item's
- * latest job, and polling has stopped, so only this read shows it.
+ * latest job, and polling has stopped, so only this read shows the row
+ * failed again.
  */
 export async function retryLibraryImport(layerId: string): Promise<void> {
   try {
@@ -135,9 +137,14 @@ export async function fetchLibraryDiskUsage(): Promise<number> {
   return lidarLibraryDiskUsage()
 }
 
-/** Data library › Show in folder: the same reveal as Settings › Files and data. */
+/**
+ * Data library › Show in folder: the same reveal as Settings › Files and data.
+ * Its failure reads like any library action's but is only thrown, for the view
+ * to show inline: the reveal changes no library state, so it neither clears
+ * nor replaces the shared status (a standing read failure stays shown).
+ */
 export async function showDataLibraryFolder(): Promise<void> {
-  return showAppFolder('data_library')
+  return withFailureMessage(() => showAppFolder('data_library'))
 }
 
 export async function fetchDeleteImpact(id: string): Promise<LibraryDeleteImpact> {
@@ -296,8 +303,10 @@ export const pendingAttachments = signal<readonly PendingAttachment[]>([])
 /**
  * The last import or analysis that failed before it could join its Design, so
  * Site data can say so; a cancel is the user's own choice and is not reported.
+ * The job's stored text is never shown (it stays in the library for
+ * diagnostics).
  */
-export const attachmentFailure = signal<{ readonly itemId: string; readonly message: string | null } | null>(null)
+export const attachmentFailure = signal<{ readonly itemId: string } | null>(null)
 
 export function dismissAttachmentFailure(): void {
   attachmentFailure.value = null
@@ -331,7 +340,7 @@ export function settleResultAttachments(snapshot: LibrarySnapshot | null): void 
       const job = failed?.import_job ?? null
       const run = failed?.run ?? null
       if (failed && (job?.state === 'Failed' || run?.state === 'Failed')) {
-        attachmentFailure.value = { itemId: failed.id, message: job?.message ?? run?.message ?? null }
+        attachmentFailure.value = { itemId: failed.id }
       }
       continue
     }
@@ -384,16 +393,26 @@ function removePresentedEntities(ids: string[]): void {
 }
 
 /**
- * Run one library action, surfacing its failure through the shared status.
- * The message is published and re-thrown so callers can show it inline.
+ * Run one library action, surfacing its failure through the shared status in
+ * the interface language (`lidarFailureMessage`; the failure's own text goes
+ * to diagnostics). The message is published and re-thrown so callers can show
+ * it inline.
  */
 async function withLidarError<T>(work: () => Promise<T>): Promise<T> {
   lidarStatusMessage.value = null
   try {
+    return await withFailureMessage(work)
+  } catch (error) {
+    lidarStatusMessage.value = (error as Error).message
+    throw error
+  }
+}
+
+/** Re-throw `work`'s failure as `lidarFailureMessage`, leaving the shared status alone. */
+async function withFailureMessage<T>(work: () => Promise<T>): Promise<T> {
+  try {
     return await work()
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    lidarStatusMessage.value = message
-    throw error instanceof Error ? error : new Error(message)
+    throw new Error(lidarFailureMessage(error))
   }
 }

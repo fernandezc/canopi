@@ -47,7 +47,6 @@ export interface LibraryItem {
   readonly group: AnalysisGroup | null
   /** Nesting depth in the list: 0 for a top-level row. */
   readonly depth: number
-  readonly message: string | null
   /** When the item entered the library (epoch milliseconds as a string). */
   readonly createdAt: string
 }
@@ -98,9 +97,6 @@ export function libraryItems(snapshot: LibrarySnapshot | null, sort: LibrarySort
       dependents: summary.dependents,
       parentId: summary.provenance?.inputs[0]?.item_id ?? null,
       group: summary.provenance ? analysisGroup(summary.provenance.analysis_id) : null,
-      message: summary.role === 'Source'
-        ? (published ? null : job?.message ?? null)
-        : summary.run?.message ?? null,
       createdAt: summary.created_at,
     }
   })
