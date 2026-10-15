@@ -330,6 +330,25 @@ describe('ProfileChart', () => {
     expect(profileLine.value).not.toBeNull()
   })
 
+  it.fails('[expected-fail P canopi-vggx] a failed read says so with Retry, never No values, and Retry draws the curves', async () => {
+    sampling.answer = () => { throw new Error('sampling refused') }
+    await drawLine()
+    expect(container.textContent).not.toContain('No values along this line')
+    expect(container.textContent).not.toContain('sampling refused')
+    expect(container.querySelector('section > svg path')).toBeNull()
+    sampling.answer = analyticSite
+    await act(async () => { button('Retry').click() })
+    await settle()
+    expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
+  })
+
+  it.fails('[expected-fail P canopi-vggx] Copy values shows the board\'s copy icon and keeps its name', async () => {
+    await drawLine()
+    const copy = button('Copy values')
+    expect(copy.querySelector('svg')).not.toBeNull()
+    expect(copy.getAttribute('aria-label') ?? copy.textContent?.trim()).toBe('Copy values')
+  })
+
   it('says so when the line has no values', async () => {
     sampling.answer = (request) => request.targets.map(() => ({ Values: { values: request.points.map(() => null) } }))
     await drawLine()
