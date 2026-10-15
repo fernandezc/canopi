@@ -56,6 +56,12 @@ interface RasterQuantityType {
   defaultRange(units: string): LidarColourRange
 }
 
+/**
+ * Which display derivative an entry draws: the elevation values a ramp colours,
+ * or the grey shaded relief prepared from them.
+ */
+export type DisplayVariant = 'elevation' | 'relief'
+
 /** The renderer's colormap for each ramp (`cog-tiler-wasm`'s built-in names). */
 const RAMP_COLORMAPS: Readonly<Record<LidarRamp, string>> = {
   // No kind offers Relief yet (canopi-2add).

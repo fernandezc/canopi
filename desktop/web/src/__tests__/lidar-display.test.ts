@@ -70,8 +70,13 @@ function descriptor(overrides: Partial<LidarDisplayDescriptor> = {}): LidarDispl
 }
 
 describe('LiDAR display projection', () => {
+  it('keys a descriptor by its derivative too, so relief and elevation never share one', () => {
+    expect(display.displayKey('Source', 'lyr-1', 'gen-2', 'relief')).not.toBe(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'))
+    expect(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation')).not.toBe(display.displayKey('Derived', 'lyr-1', 'gen-2', 'elevation'))
+  })
+
   it('draws a ready generation from its ordered asset URLs with one layer-wide stretch', () => {
-    const descriptors = new Map([[display.displayKey('Source', 'lyr-1', 'gen-2'), descriptor()]])
+    const descriptors = new Map([[display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), descriptor()]])
     const [layer] = display.lidarDisplayLayers([item()], descriptors, null, (path) => `asset://localhost/${encodeURIComponent(path)}`)
     expect(layer).toEqual({
       id: 'lidar-source-lyr-1-gen-2',
@@ -91,8 +96,8 @@ describe('LiDAR display projection', () => {
   it('draws nothing for hidden, unavailable, preparing or other-generation references', () => {
     const ready = descriptor()
     const descriptors = new Map([
-      [display.displayKey('Source', 'lyr-1', 'gen-2'), ready],
-      [display.displayKey('Source', 'lyr-3', 'gen-9'), descriptor({ entity_id: 'lyr-3', generation_id: 'gen-9', state: 'Preparing' })],
+      [display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), ready],
+      [display.displayKey('Source', 'lyr-3', 'gen-9', 'elevation'), descriptor({ entity_id: 'lyr-3', generation_id: 'gen-9', state: 'Preparing' })],
     ])
     expect(display.lidarDisplayLayers([
       item({ visible: false, shown: false }),
@@ -105,8 +110,8 @@ describe('LiDAR display projection', () => {
 
   it('draws what a presented story step shows, whatever the Design stores', () => {
     const descriptors = new Map([
-      [display.displayKey('Source', 'lyr-1', 'gen-2'), descriptor()],
-      [display.displayKey('Source', 'lyr-2', 'gen-2'), descriptor({ entity_id: 'lyr-2' })],
+      [display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), descriptor()],
+      [display.displayKey('Source', 'lyr-2', 'gen-2', 'elevation'), descriptor({ entity_id: 'lyr-2' })],
     ])
     const items = [item({ visible: false, shown: false }), item({ id: 'lyr-2' })]
     const drawn = (presented: ReadonlySet<string> | null) =>
@@ -128,7 +133,7 @@ describe('LiDAR display projection', () => {
 
   it('names a derived layer as a result, keyed by its role', () => {
     const derived = item({ kind: 'Derived', id: 'slope-1', itemType: { kind: 'Raster', quantity: 'Slope' }, units: '°' })
-    const descriptors = new Map([[display.displayKey('Derived', 'slope-1', 'gen-2'), descriptor({ kind: 'Derived', entity_id: 'slope-1' })]])
+    const descriptors = new Map([[display.displayKey('Derived', 'slope-1', 'gen-2', 'elevation'), descriptor({ kind: 'Derived', entity_id: 'slope-1' })]])
     const [layer] = display.lidarDisplayLayers([derived], descriptors, null, (path) => path)
     expect(layer).toMatchObject({ id: 'lidar-result-slope-1-gen-2', colormap: 'ylorrd', reversed: false, rescale: [0, 30] })
   })
@@ -230,13 +235,13 @@ describe('LiDAR display descriptor requests', () => {
       await vi.advanceTimersByTimeAsync(0)
       // requestCutOutlierRange reads a key once; the effect may ask again as descriptors land.
       expect([...new Set(requestCutOutlierRange.mock.calls.map((call) => JSON.stringify(call)))].map((call) => JSON.parse(call))).toEqual([[
-        display.displayKey('Source', 'lyr-1', 'gen-2'),
+        display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'),
         [
           { url: 'served:/data/lidar/display-cog/asset-top.tif', bbox: [0, 0, 0.6, 1] },
           { url: 'served:/data/lidar/display-cog/asset under.tif', bbox: [0.4, -0.1, 1, 1] },
         ],
       ]])
-      cutRanges.set(display.displayKey('Source', 'lyr-1', 'gen-2'), [106, 129])
+      cutRanges.set(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), [106, 129])
       expect(display.lidarDisplayStyle(item({ range: { mode: 'CutOutliers' } }))?.rescale).toEqual([106, 129])
       expect(display.lidarDisplayStyle(item({ range: { mode: 'CutOutliers' }, generationId: 'gen-3' }))?.rescale).toEqual([104, 132])
     } finally {
@@ -269,7 +274,7 @@ describe('LiDAR display descriptor requests', () => {
       display.installLidarDisplayDescriptors((path) => `served:${path}`)
       await vi.advanceTimersByTimeAsync(0)
       expect(invoke.mock.calls.map(([, args]) => (args as { request: { entity_id: string } }).request.entity_id)).toEqual(['lyr-1'])
-      expect(requestCutOutlierRange).toHaveBeenCalledWith(display.displayKey('Source', 'lyr-1', 'gen-2'), expect.any(Array))
+      expect(requestCutOutlierRange).toHaveBeenCalledWith(display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), expect.any(Array))
       expect(display.lidarDisplayLayers([item({ visible: false, shown: false, range: { mode: 'CutOutliers' } })], display.lidarDisplayDescriptors.value, null)).toEqual([])
     } finally {
       display.disposeLidarDisplayDescriptors()

@@ -4,7 +4,7 @@ import type { RasterDisplayLayer } from '../../maplibre/raster-display/adapter'
 import { lidarDisplayDescriptor, type LidarDisplayDescriptor } from '../../ipc/lidar'
 import type { LibraryItemRole } from '../../generated/contracts'
 import { cutOutlierRange, requestCutOutlierRange, resetCutOutlierRanges } from './display-range'
-import { itemTypeStyle, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
+import { itemTypeStyle, type DisplayVariant, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
 import { storyPresentationOverrides } from '../story-presentation/overrides'
 import { readCurrentLidarPresentation, refreshLidarLibrary, type LidarPresentationItem } from './library-store'
 
@@ -27,8 +27,9 @@ const inflight = new Set<string>()
 const pollTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let storeGeneration = 0
 
-export function displayKey(kind: LibraryItemRole, entityId: string, generationId: string | null): string {
-  return `${kind}/${entityId}/${generationId ?? ''}`
+/** A descriptor's identity: entity, generation and the derivative it draws, so relief and elevation never share one. */
+export function displayKey(kind: LibraryItemRole, entityId: string, generationId: string | null, variant: DisplayVariant): string {
+  return `${kind}/${entityId}/${generationId ?? ''}${variant === 'relief' ? '/relief' : ''}`
 }
 
 export function readLidarDisplay(
@@ -36,7 +37,14 @@ export function readLidarDisplay(
   entityId: string,
   generationId: string | null,
 ): LidarDisplayDescriptor | null {
-  return lidarDisplayDescriptors.value.get(displayKey(kind, entityId, generationId)) ?? null
+  return lidarDisplayDescriptors.value.get(displayKey(kind, entityId, generationId, 'elevation')) ?? null
+}
+
+/** The descriptor of what one Site data entry draws, for its row's Preparing and Display failed. */
+export function readLidarEntryDisplay(
+  item: Pick<LidarPresentationItem, 'kind' | 'id' | 'generationId' | 'itemType' | 'ramp'>,
+): LidarDisplayDescriptor | null {
+  return item.generationId ? readLidarDisplay(item.kind, item.id, item.generationId) : null
 }
 
 function store(key: string, descriptor: LidarDisplayDescriptor): void {
@@ -57,7 +65,7 @@ export function requestLidarDisplay(
   generationId: string | null,
   options: { retry?: boolean } = {},
 ): void {
-  const key = displayKey(kind, entityId, generationId)
+  const key = displayKey(kind, entityId, generationId, 'elevation')
   const current = lidarDisplayDescriptors.value.get(key)
   if (!options.retry && current && current.state !== 'Preparing') return
   if (inflight.has(key) || (!options.retry && pollTimers.has(key))) return
@@ -133,7 +141,7 @@ export function installLidarDisplayDescriptors(toAssetUrl: (path: string) => str
       // A hidden entry set to Cut outliers still reads its range: its fields and legend show it, and Custom starts from it.
       if (mapShown(item, presentedIds) || cutOutliers) requestLidarDisplay(item.kind, item.id, item.generationId)
       if (!cutOutliers) continue
-      const key = displayKey(item.kind, item.id, item.generationId)
+      const key = displayKey(item.kind, item.id, item.generationId, 'elevation')
       const descriptor = descriptors.get(key)
       if (descriptor?.state === 'Ready' && descriptor.generation_id === item.generationId) {
         requestCutOutlierRange(key, descriptor.assets.map((asset) => ({ url: toAssetUrl(asset.path), bbox: asset.bounds })))
@@ -170,7 +178,7 @@ export function lidarDisplayStyle(
 ): LidarDisplayStyle | null {
   if (!item.itemType) return null
   const cutRange = item.range?.mode === 'CutOutliers' && item.generationId
-    ? cutOutlierRange(displayKey(item.kind, item.id, item.generationId))
+    ? cutOutlierRange(displayKey(item.kind, item.id, item.generationId, 'elevation'))
     : null
   return itemTypeStyle(item.itemType, { ...item, cutRange })
 }
@@ -189,7 +197,7 @@ export function lidarDisplayLayers(
   const layers: RasterDisplayLayer[] = []
   for (const item of items) {
     if (!mapShown(item, presentedIds) || item.availability !== 'present' || !item.generationId) continue
-    const descriptor = descriptors.get(displayKey(item.kind, item.id, item.generationId))
+    const descriptor = descriptors.get(displayKey(item.kind, item.id, item.generationId, 'elevation'))
     if (!descriptor || descriptor.state !== 'Ready' || descriptor.generation_id !== item.generationId) continue
     if (descriptor.assets.length === 0) continue
     const style = lidarDisplayStyle(item)
