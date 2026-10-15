@@ -161,6 +161,9 @@ pub(crate) struct DeletedItem {
     generations: Vec<String>,
 }
 
+/// The key prefix of a lease held only to free files.
+const FREEING_LEASE: &str = "free";
+
 pub(crate) struct HeavyJobLease {
     inner: Arc<LidarLibraryInner>,
     job_id: String,
@@ -183,6 +186,13 @@ impl HeavyJobLease {
             inner: library.inner.clone(),
             job_id: job_id.to_string(),
         })
+    }
+}
+
+impl HeavyJobLease {
+    /// The lease Delete and Dismiss free files under.
+    fn acquire_for_freeing(library: &LidarLibrary) -> Result<Self, String> {
+        Self::acquire(library, &new_id(FREEING_LEASE))
     }
 }
 
@@ -855,7 +865,7 @@ impl LidarLibrary {
     /// same content meanwhile; while another raster job holds it, or a removal
     /// fails, the files stay and the next start frees them. Never fails.
     pub(crate) fn free_deleted_item(&self, deleted: &DeletedItem) {
-        let Ok(_lease) = HeavyJobLease::acquire(self, &new_id("del")) else {
+        let Ok(_lease) = HeavyJobLease::acquire_for_freeing(self) else {
             tracing::info!(
                 "a raster job is running; a deleted item's files are freed at the next start"
             );
@@ -1370,7 +1380,7 @@ impl LidarLibrary {
         let lease = if managed.is_empty() {
             None
         } else {
-            Some(HeavyJobLease::acquire(self, &new_id("dis"))?)
+            Some(HeavyJobLease::acquire_for_freeing(self)?)
         };
         let transaction = connection
             .unchecked_transaction()
@@ -1736,8 +1746,10 @@ impl LidarLibrary {
     /// returns once its import is withdrawn, and a failed import reads Failed
     /// as it starts settling, while the job may still be stopping or freeing
     /// its files, so Import, Retry and Dismiss wait here, with no executor
-    /// permit held, instead of refusing work the library no longer shows. A
-    /// running job nobody cancelled still refuses them.
+    /// permit held, instead of refusing work the library no longer shows.
+    /// They wait the same way while Delete or Dismiss frees files under the
+    /// lease, so no import or calculation is named when none runs. A running
+    /// job nobody cancelled still refuses them.
     pub async fn await_stopping_jobs(&self) {
         loop {
             let stopping = self
@@ -1745,7 +1757,12 @@ impl LidarLibrary {
                 .cancel_flags
                 .lock()
                 .is_ok_and(|flags| flags.values().any(|flag| flag.load(Ordering::Relaxed)));
-            if !stopping {
+            let freeing = self.inner.heavy_job.lock().is_ok_and(|holder| {
+                holder
+                    .as_deref()
+                    .is_some_and(|key| key.starts_with(&format!("{FREEING_LEASE}-")))
+            });
+            if !stopping && !freeing {
                 return;
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;

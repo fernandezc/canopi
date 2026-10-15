@@ -2316,3 +2316,33 @@ fn an_unwritable_original_never_keeps_another_original_at_the_next_start() {
     assert_eq!(library_files(&reopened), Vec::<PathBuf>::new());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Import, Retry and Dismiss wait while Delete or Dismiss frees files under
+/// the heavy lease, instead of refusing as if an import or calculation ran.
+#[test]
+fn work_admitted_after_stopping_jobs_waits_for_files_being_freed() {
+    let root = scratch("await-freeing");
+    let library = attached_library(&root);
+    let freeing = HeavyJobLease::acquire_for_freeing(&library).unwrap();
+    let (sent, waited) = std::sync::mpsc::channel();
+    let waiting = library.clone();
+    std::thread::spawn(move || {
+        tauri::async_runtime::block_on(waiting.await_stopping_jobs());
+        let _ = sent.send(());
+    });
+    assert!(
+        waited
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .is_err(),
+        "waits while files are freed"
+    );
+    drop(freeing);
+    waited
+        .recv_timeout(std::time::Duration::from_secs(5))
+        .expect("admitted once the files are freed");
+
+    let running = HeavyJobLease::acquire(&library, "imp-running").unwrap();
+    tauri::async_runtime::block_on(library.await_stopping_jobs());
+    drop(running);
+    let _ = std::fs::remove_dir_all(&root);
+}
