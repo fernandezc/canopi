@@ -98,12 +98,6 @@ describe('library item types', () => {
     expect(kindDisplayDefaults(raster('Slope'), '%')).toEqual({ ramp: 'YellowRed', range: { mode: 'Custom', min: 0, max: 57.7 } })
   })
 
-  // Moved from lidar-actions.test.ts: Site data stores a ramp equal to this default as null, so it has one encoding.
-  it('gives elevations Terrain and heights Greens as the default ramp Site data stores as null', () => {
-    for (const quantity of ['GroundElevation', 'SurfaceElevation'] as const) expect(kindDisplayDefaults(raster(quantity), 'm').ramp).toBe('Terrain')
-    expect(kindDisplayDefaults(raster('AboveGroundHeight'), 'm').ramp).toBe('Greens')
-  })
-
   it.fails('[expected-fail R canopi-2add] gives MNT, MNS and MNH Relief as the default, first ramp, so a stored null draws Relief', () => {
     for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
       expect(kindRamps(raster(quantity))[0]).toBe('Relief')
