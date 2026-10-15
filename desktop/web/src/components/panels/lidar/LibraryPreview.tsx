@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { lidarAssetUrl, readLidarDisplay, requestLidarDisplay } from '../../../app/lidar/display'
-import { itemTypeStyle } from '../../../app/lidar/item-types'
+import { displayVariant, itemTypeStyle } from '../../../app/lidar/item-types'
 import type { LibraryItem } from '../../../app/lidar/library-items'
 import { rasterWorkerPool, type RasterPoolClient } from '../../../maplibre/raster-display/pool'
 import { t } from '../../../i18n'
@@ -24,7 +24,7 @@ export function usePreviewClient(): RasterPoolClient | null {
 }
 
 const MAX_CACHED_PREVIEWS = 96
-/** Rendered previews by generation, size and style; object URLs revoked on eviction. */
+/** Rendered previews by generation, variant, size and style; object URLs revoked on eviction. */
 const previewCache = new Map<string, string>()
 
 function remember(key: string, url: string): void {
@@ -50,16 +50,17 @@ export function LibraryPreview({ item, client, width, height, large = false }: {
 }) {
   const kind = item.role
   const ready = item.status === 'ready' && item.generationId !== null
-  const descriptor = ready ? readLidarDisplay(kind, item.id, item.generationId) : null
-  // A preview draws the item kind's default look; an entry's own look belongs to its Design.
+  // A preview draws the item kind's default look (Relief for elevations and heights); an entry's own look belongs to its Design.
+  const variant = displayVariant(item.itemType, { ramp: null })
+  const descriptor = ready ? readLidarDisplay(kind, item.id, item.generationId, variant) : null
   const style = itemTypeStyle(item.itemType, { units: item.units, displayRange: item.displayRange, ramp: null, reversed: false, range: null })
-  const key = `${item.generationId}|${width}x${height}|${style.colormap}|${style.reversed}|${style.rescale.join(',')}`
+  const key = `${item.generationId}|${variant}|${width}x${height}|${style.colormap}|${style.reversed}|${style.rescale.join(',')}`
   const [url, setUrl] = useState<string | null>(previewCache.get(key) ?? null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    if (ready) requestLidarDisplay(kind, item.id, item.generationId)
-  }, [ready, kind, item.id, item.generationId])
+    if (ready) requestLidarDisplay(kind, item.id, item.generationId, variant)
+  }, [ready, kind, item.id, item.generationId, variant])
 
   useEffect(() => {
     const cached = previewCache.get(key)

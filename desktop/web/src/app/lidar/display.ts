@@ -4,19 +4,20 @@ import type { RasterDisplayLayer } from '../../maplibre/raster-display/adapter'
 import { lidarDisplayDescriptor, type LidarDisplayDescriptor } from '../../ipc/lidar'
 import type { LibraryItemRole } from '../../generated/contracts'
 import { cutOutlierRange, requestCutOutlierRange, resetCutOutlierRanges } from './display-range'
-import { itemTypeStyle, type DisplayVariant, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
+import { displayVariant, itemTypeStyle, type DisplayVariant, type LidarDisplayStyle, type RasterStyleInput } from './item-types'
 import { storyPresentationOverrides } from '../story-presentation/overrides'
 import { readCurrentLidarPresentation, refreshLidarLibrary, type LidarPresentationItem } from './library-store'
 
 /**
- * Display descriptors of library entities, keyed by entity and generation.
+ * Display descriptors of library entities, keyed by entity, generation and
+ * variant (`displayVariant`: the relief Relief draws, else the elevation a
+ * ramp colours).
  *
  * The library owns derivative preparation; this store only asks for the
  * descriptor of each generation something wants to draw or measure (a visible
  * Design reference, a library preview, or an entry set to Cut outliers) and
- * polls while it is preparing. Entries are
- * identity-keyed, so a descriptor of an older generation can never be used for
- * a newer one.
+ * polls while it is preparing. Entries are identity-keyed, so a descriptor of
+ * an older generation, or of the other variant, can never be used for this one.
  */
 export const lidarDisplayDescriptors = signal<ReadonlyMap<string, LidarDisplayDescriptor>>(new Map())
 
@@ -36,15 +37,21 @@ export function readLidarDisplay(
   kind: LibraryItemRole,
   entityId: string,
   generationId: string | null,
+  variant: DisplayVariant,
 ): LidarDisplayDescriptor | null {
-  return lidarDisplayDescriptors.value.get(displayKey(kind, entityId, generationId, 'elevation')) ?? null
+  return lidarDisplayDescriptors.value.get(displayKey(kind, entityId, generationId, variant)) ?? null
+}
+
+/** The derivative one entry draws; a reference whose item is gone draws nothing, so its elevation stands in. */
+function entryVariant(item: Pick<LidarPresentationItem, 'itemType' | 'ramp'>): DisplayVariant {
+  return item.itemType ? displayVariant(item.itemType, item) : 'elevation'
 }
 
 /** The descriptor of what one Site data entry draws, for its row's Preparing and Display failed. */
 export function readLidarEntryDisplay(
   item: Pick<LidarPresentationItem, 'kind' | 'id' | 'generationId' | 'itemType' | 'ramp'>,
 ): LidarDisplayDescriptor | null {
-  return item.generationId ? readLidarDisplay(item.kind, item.id, item.generationId) : null
+  return item.generationId ? readLidarDisplay(item.kind, item.id, item.generationId, entryVariant(item)) : null
 }
 
 function store(key: string, descriptor: LidarDisplayDescriptor): void {
@@ -56,16 +63,19 @@ function store(key: string, descriptor: LidarDisplayDescriptor): void {
 }
 
 /**
- * Ask the library for one generation's descriptor unless an answer that does
- * not change on its own (ready, unavailable, failed) is already stored.
+ * Ask the library for one generation's descriptor of a variant unless an
+ * answer that does not change on its own (ready, unavailable, failed) is
+ * already stored.
  */
 export function requestLidarDisplay(
   kind: LibraryItemRole,
   entityId: string,
   generationId: string | null,
+  variant: DisplayVariant,
   options: { retry?: boolean } = {},
 ): void {
-  const key = displayKey(kind, entityId, generationId, 'elevation')
+  const key = displayKey(kind, entityId, generationId, variant)
+  const relief = variant === 'relief'
   const current = lidarDisplayDescriptors.value.get(key)
   if (!options.retry && current && current.state !== 'Preparing') return
   if (inflight.has(key) || (!options.retry && pollTimers.has(key))) return
@@ -76,7 +86,7 @@ export function requestLidarDisplay(
     entity_id: entityId,
     expected_generation_id: generationId,
     retry: options.retry ?? false,
-    relief: false,
+    relief,
   })
     .then((descriptor) => {
       if (owner !== storeGeneration) return
@@ -84,7 +94,7 @@ export function requestLidarDisplay(
       if (descriptor.state === 'Preparing') {
         pollTimers.set(key, setTimeout(() => {
           pollTimers.delete(key)
-          if (owner === storeGeneration) requestLidarDisplay(kind, entityId, generationId)
+          if (owner === storeGeneration) requestLidarDisplay(kind, entityId, generationId, variant)
         }, PREPARING_POLL_MS))
       } else if (descriptor.state === 'Stale') {
         // The item moved on: a fresh library read brings the new generation.
@@ -98,7 +108,7 @@ export function requestLidarDisplay(
         entity_id: entityId,
         generation_id: generationId,
         profile: '',
-        relief: false,
+        relief,
         state: 'Failed',
         message: error instanceof Error ? error.message : String(error),
         assets: [],
@@ -125,9 +135,10 @@ let displayDisposer: (() => void) | null = null
 
 /**
  * Keep descriptors current for every reference the map draws, a presented
- * story step's included, and for every entry set to Cut outliers, shown or
- * not, and read that entry's range once its display is ready (`toAssetUrl`
- * serves the display COGs).
+ * story step's included, of the variant it draws, and for every entry drawn
+ * in Colours set to Cut outliers, shown or not, and read that entry's range
+ * from its elevation once ready (`toAssetUrl` serves the display COGs). Relief
+ * draws stored greys, so an entry drawing it reads no range.
  * Installed for the Desktop workspace lifetime next to the library workflow.
  */
 export function installLidarDisplayDescriptors(toAssetUrl: (path: string) => string = lidarAssetUrl): void {
@@ -137,9 +148,10 @@ export function installLidarDisplayDescriptors(toAssetUrl: (path: string) => str
     const descriptors = lidarDisplayDescriptors.value
     for (const item of readCurrentLidarPresentation()) {
       if (item.availability !== 'present' || !item.generationId) continue
-      const cutOutliers = item.range?.mode === 'CutOutliers'
+      const variant = entryVariant(item)
+      const cutOutliers = variant === 'elevation' && item.range?.mode === 'CutOutliers'
       // A hidden entry set to Cut outliers still reads its range: its fields and legend show it, and Custom starts from it.
-      if (mapShown(item, presentedIds) || cutOutliers) requestLidarDisplay(item.kind, item.id, item.generationId)
+      if (mapShown(item, presentedIds) || cutOutliers) requestLidarDisplay(item.kind, item.id, item.generationId, variant)
       if (!cutOutliers) continue
       const key = displayKey(item.kind, item.id, item.generationId, 'elevation')
       const descriptor = descriptors.get(key)
@@ -177,7 +189,7 @@ export function lidarDisplayStyle(
   item: RasterStyleInput & Pick<LidarPresentationItem, 'kind' | 'id' | 'generationId' | 'itemType'>,
 ): LidarDisplayStyle | null {
   if (!item.itemType) return null
-  const cutRange = item.range?.mode === 'CutOutliers' && item.generationId
+  const cutRange = item.range?.mode === 'CutOutliers' && item.generationId && entryVariant(item) === 'elevation'
     ? cutOutlierRange(displayKey(item.kind, item.id, item.generationId, 'elevation'))
     : null
   return itemTypeStyle(item.itemType, { ...item, cutRange })
@@ -185,8 +197,10 @@ export function lidarDisplayStyle(
 
 /**
  * Project the references the map draws (`mapShown`) into renderer layers,
- * back to front. A reference whose derivatives are not ready draws nothing
- * yet; the rest of the band keeps rendering.
+ * back to front, each from the derivative of the variant it draws; a relief
+ * layer's id ends `-relief`, so the renderer never restyles one variant's
+ * tiles into the other. A reference whose derivatives are not ready draws
+ * nothing yet; the rest of the band keeps rendering.
  */
 export function lidarDisplayLayers(
   items: readonly LidarPresentationItem[],
@@ -197,7 +211,8 @@ export function lidarDisplayLayers(
   const layers: RasterDisplayLayer[] = []
   for (const item of items) {
     if (!mapShown(item, presentedIds) || item.availability !== 'present' || !item.generationId) continue
-    const descriptor = descriptors.get(displayKey(item.kind, item.id, item.generationId, 'elevation'))
+    const variant = entryVariant(item)
+    const descriptor = descriptors.get(displayKey(item.kind, item.id, item.generationId, variant))
     if (!descriptor || descriptor.state !== 'Ready' || descriptor.generation_id !== item.generationId) continue
     if (descriptor.assets.length === 0) continue
     const style = lidarDisplayStyle(item)
@@ -212,7 +227,7 @@ export function lidarDisplayLayers(
       [Infinity, Infinity, -Infinity, -Infinity],
     )
     layers.push({
-      id: `lidar-${item.kind === 'Derived' ? 'result' : 'source'}-${item.id}-${item.generationId}`,
+      id: `lidar-${item.kind === 'Derived' ? 'result' : 'source'}-${item.id}-${item.generationId}${variant === 'relief' ? '-relief' : ''}`,
       name: item.name,
       assets: descriptor.assets.map((asset) => ({ url: toAssetUrl(asset.path), bbox: asset.bounds })),
       bounds,

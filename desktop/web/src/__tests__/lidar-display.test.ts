@@ -113,7 +113,7 @@ describe('LiDAR display projection', () => {
       [display.displayKey('Source', 'lyr-1', 'gen-2', 'elevation'), descriptor()],
       [display.displayKey('Source', 'lyr-2', 'gen-2', 'elevation'), descriptor({ entity_id: 'lyr-2' })],
     ])
-    const items = [item({ visible: false, shown: false }), item({ id: 'lyr-2' })]
+    const items = [item({ ramp: 'Terrain', visible: false, shown: false }), item({ id: 'lyr-2', ramp: 'Terrain' })]
     const drawn = (presented: ReadonlySet<string> | null) =>
       display.lidarDisplayLayers(items, descriptors, presented, (path) => path).map((layer) => layer.id)
 
@@ -144,7 +144,7 @@ describe('LiDAR display projection', () => {
     ])
   }
 
-  it.fails('[expected-fail R canopi-2add] draws an MNT, MNS or MNH at its default ramp in gray over 0–255 from its relief derivative', () => {
+  it('draws an MNT, MNS or MNH at its default ramp in gray over 0–255 from its relief derivative', () => {
     for (const quantity of ['GroundElevation', 'SurfaceElevation', 'AboveGroundHeight'] as const) {
       const [layer] = display.lidarDisplayLayers([item({ itemType: { kind: 'Raster', quantity } })], bothVariants(), null, (path) => path)
       expect(layer).toMatchObject({
@@ -187,12 +187,12 @@ describe('LiDAR display descriptor requests', () => {
     invoke
       .mockResolvedValueOnce(descriptor({ state: 'Preparing', assets: [], prepared_assets: 1 }))
       .mockResolvedValueOnce(descriptor())
-    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2')
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')
     await vi.advanceTimersByTimeAsync(0)
-    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2')?.state).toBe('Preparing')
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')?.state).toBe('Preparing')
     await vi.advanceTimersByTimeAsync(800)
-    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2')?.state).toBe('Ready')
-    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2')
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')?.state).toBe('Ready')
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')
     await vi.advanceTimersByTimeAsync(5000)
     expect(invoke).toHaveBeenCalledTimes(2)
     expect(invoke).toHaveBeenCalledWith('lidar_display_descriptor', {
@@ -225,8 +225,9 @@ describe('LiDAR display descriptor requests', () => {
         mapLayers: createDefaultMapLayers(), siteDataIds: new Set(['lyr-1']), plantLabels: 'names', targets: [],
       })
       await vi.advanceTimersByTimeAsync(0)
+      // The ground elevation draws Relief, its default.
       expect(invoke).toHaveBeenCalledWith('lidar_display_descriptor', {
-        request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: false },
+        request: { kind: 'Source', entity_id: 'lyr-1', expected_generation_id: 'gen-2', retry: false, relief: true },
       })
     } finally {
       setStoryPresentationOverrides(null)
@@ -238,11 +239,11 @@ describe('LiDAR display descriptor requests', () => {
   it('never stores a late answer after the owner is disposed', async () => {
     let answer!: (value: LidarDisplayDescriptor) => void
     invoke.mockReturnValueOnce(new Promise((resolve) => { answer = resolve }))
-    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2')
+    display.requestLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')
     display.disposeLidarDisplayDescriptors()
     answer(descriptor())
     await vi.advanceTimersByTimeAsync(0)
-    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2')).toBeNull()
+    expect(display.readLidarDisplay('Source', 'lyr-1', 'gen-2', 'elevation')).toBeNull()
   })
 
   it('reads Cut outliers\' range only for an entry set to it with a ready display, by generation, and draws it', async () => {
@@ -284,7 +285,7 @@ describe('LiDAR display descriptor requests', () => {
     }
   })
 
-  it.fails('[expected-fail R canopi-2add] asks for the relief of an entry drawing Relief, and reads Cut outliers only from an elevation drawn in Colours', async () => {
+  it('asks for the relief of an entry drawing Relief, and reads Cut outliers only from an elevation drawn in Colours', async () => {
     requestCutOutlierRange.mockClear()
     invoke.mockImplementation(async (_command: string, args: { request: { entity_id: string, expected_generation_id: string, relief?: boolean } }) =>
       descriptor({ entity_id: args.request.entity_id, generation_id: args.request.expected_generation_id, relief: args.request.relief ?? false }))
@@ -315,7 +316,7 @@ describe('LiDAR display descriptor requests', () => {
     }
   })
 
-  it.fails('[expected-fail R canopi-2add] a library preview of an MNT asks for its relief, the kind\'s default look', async () => {
+  it('a library preview of an MNT asks for its relief, the kind\'s default look', async () => {
     invoke.mockResolvedValue(descriptor({ relief: true }))
     const { h, render } = await import('preact')
     const { act } = await import('preact/test-utils')
