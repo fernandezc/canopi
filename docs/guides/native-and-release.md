@@ -62,7 +62,7 @@ cd desktop/web && npm audit --omit=dev && npm audit     # before a release
 
 - `CANOPI_SKIP_BUNDLED_DB=1` (read by `desktop/build.rs`) drops the DB from the bundle so the crate builds without `desktop/resources/canopi-core.db`; CI sets it and a release build with it warns. Only debug builds fall back to the repository DB (`lib.rs`).
 - Release builds derive an immutable asset name (`species_catalog_contract.py value prepared-db-asset-name`), download it from the `canopi-core-db` tag and verify the prepared profile before packaging.
-- Publish: `scripts/publish-db-release.sh --export-path <export>.db [--tag <tag>] [--repo <owner/repo>]` prepares the DB and the Web catalog from the pinned export and uploads each under its identity name with a `.sha256`, never over an existing one; `--web-catalog-only` adds the catalog to a published DB. A catalog change publishes its asset before same-repository PR packaging can pass ([species catalog](species-catalog.md)).
+- Publish: `scripts/publish-db-release.sh --export-path <export>.db [--tag <tag>] [--repo <owner/repo>]` prepares the DB and the Web catalog from the pinned export and uploads each under its identity name with a `.sha256`, never over one; `--web-catalog-only` adds the catalog to a published DB; `--dry-run` uploads nothing. A catalog change publishes its asset before same-repository PR packaging can pass ([species catalog](species-catalog.md)).
 
 ## Release workflow
 
