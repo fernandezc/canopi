@@ -557,6 +557,18 @@ fi
             "canopi-core-v13-published.db", "canopi-core-v13-published.db.sha256",
             "canopi-web-catalog-test.tar.gz", "canopi-web-catalog-test.tar.gz.sha256"])
 
+    def test_dry_run_builds_and_names_both_assets_but_uploads_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, python_calls, gh_calls = self._run_publisher(Path(tmp), [], "--dry-run")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any("prepare-db.py" in call for call in python_calls))
+        self.assertTrue(any("generate-web-catalog.py" in call for call in python_calls))
+        self.assertFalse(any(call[:2] == ["release", "upload"] for call in gh_calls))
+        for name in ["canopi-core-v13-published.db", "canopi-web-catalog-test.tar.gz"]:
+            self.assertIn(f"Would upload: {name}\n", result.stdout)
+            self.assertIn(f"Would upload: {name}.sha256\n", result.stdout)
+
     def test_publisher_refuses_published_identities_and_a_catalog_without_its_db(self):
         cases = [
             ([], ("--web-catalog-only",), "needs canopi-core-v13-published.db"),

@@ -24,6 +24,7 @@ Options:
   --tag TAG            GitHub release tag to upload to (default: canopi-core-db)
   --repo OWNER/REPO    GitHub repository (default: detected from git remote)
   --web-catalog-only   Publish only the Web catalog, for a DB identity already on the tag
+  --dry-run            Build and verify everything, print the asset names, upload nothing
 
 Publishes the prepared DB and the Web catalog generated from the same export, each
 under its identity name with a .sha256, and never overwrites an existing asset.
@@ -62,6 +63,7 @@ tag="canopi-core-db"
 repo="$(detect_repo || true)"
 tmpdir=""
 web_catalog_only=0
+dry_run=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +85,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --web-catalog-only)
       web_catalog_only=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
       shift
       ;;
     -h|--help)
@@ -187,6 +193,14 @@ if [[ "$web_catalog_only" -eq 0 ]]; then
   db_sha256="$(sha256sum "$upload_path" | awk '{print $1}')"
   printf '%s  %s\n' "$db_sha256" "$asset_name" > "$checksum_path"
   uploads=("$upload_path" "$checksum_path" "${uploads[@]}")
+fi
+
+if [[ "$dry_run" -eq 1 ]]; then
+  for upload in "${uploads[@]}"; do
+    log "Would upload: $(basename "$upload")"
+  done
+  log "Dry run: nothing uploaded to $repo@$tag"
+  exit 0
 fi
 
 log "Uploading identity assets and checksums"
