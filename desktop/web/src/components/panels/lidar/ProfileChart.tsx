@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
-import type { JSX } from 'preact'
+import type { JSX, Ref } from 'preact'
 import { buildProfilePlot, curveStyle, distanceTicks, indexAtX, type PlotArea } from '../../../app/lidar/profile-chart'
 import {
   profileCopyText,
@@ -44,8 +44,9 @@ const COPY_FEEDBACK_MS = 2000
  * The Site data profile chart (canopi-f47t.42, spec §1.10 "Profile"), pinned to the bottom of the Site data panel, which
  * mounts it with no props: it reads the profile itself and draws nothing while no profile is shown. Header: "Profile",
  * the length, "At {distance}" while the cursor is on the chart, Copy values and ×. A failed read says so, with a Retry the
- * user presses (never retried by itself); pressing it moves focus to the chart while it reads, and back to Retry if the
- * read fails again, so a keyboard user stays in the profile. Elevation curves share the first plot
+ * user presses (never retried by itself): the whole chart when no curve has a value, otherwise the legend line of each
+ * curve that could not be read, with one Retry under the legend. Pressing Retry moves focus to the chart while it reads,
+ * and back to Retry if the read fails again, so a keyboard user stays in the profile. Elevation curves share the first plot
  * and height curves a strip under it, sharing distance and cursor; hovering or scrubbing moves the cursor, which the map
  * shows as a ring on the line. The legend gives each curve's value at the cursor while the pointer is on the plots,
  * otherwise Rise and Steepest (a button that moves the cursor there until it loses focus) or Highest.
@@ -55,8 +56,8 @@ export function ProfileChart() {
   const section = useRef<HTMLElement>(null)
   const retryButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
-    if (profile.status === 'read-failed' && document.activeElement === section.current) retryButton.current?.focus()
-  }, [profile.status])
+    if (offersRetry(profile) && document.activeElement === section.current) retryButton.current?.focus()
+  }, [profile])
   if (profile.status === 'none') return null
   const language = locale.value
   // Retry unmounts as the read starts: the section, which every state keeps, holds focus meanwhile.
@@ -77,7 +78,7 @@ export function ProfileChart() {
         </button>
       </div>
       {profile.status === 'ready'
-        ? <ReadyChart profile={profile} language={language} />
+        ? <ReadyChart profile={profile} language={language} retry={retry} retryButton={retryButton} />
         : profile.status === 'read-failed'
           ? (
               <div className={styles.failed}>
@@ -88,6 +89,11 @@ export function ProfileChart() {
           : <p className={styles.state}>{t(STATE_TEXT[profile.status])}</p>}
     </section>
   )
+}
+
+/** Whether the profile shows Retry: the read failed, or some curve's data could not be read. */
+function offersRetry(profile: SiteProfile): boolean {
+  return profile.status === 'read-failed' || (profile.status === 'ready' && profile.curves.some((curve) => curve.readFailed))
 }
 
 /** "At {distance}" while the cursor is on the chart. Only this, the cursor marks and the legend follow the cursor. */
@@ -190,7 +196,12 @@ function drawProfile(profile: ReadyProfile): { readonly drawn: readonly DrawnPlo
  * The plots and legend. The curves, axes and ticks are drawn once per profile and locale; a pointer move re-renders
  * only the cursor marks, the legend readings and "At …".
  */
-function ReadyChart({ profile, language }: { readonly profile: ReadyProfile; readonly language: string }) {
+function ReadyChart({ profile, language, retry, retryButton }: {
+  readonly profile: ReadyProfile
+  readonly language: string
+  retry(): void
+  readonly retryButton: Ref<HTMLButtonElement>
+}) {
   const { drawn, bottom } = useMemo(() => drawProfile(profile), [profile])
   const { distances } = profile.samples
   // Readings replace the legend's Rise and Steepest only while the pointer is on the plots: a cursor Steepest set keeps
@@ -268,6 +279,13 @@ function ReadyChart({ profile, language }: { readonly profile: ReadyProfile; rea
           <LegendLine key={curve.id} curve={curve} index={index} language={language} reading={hovering} releaseSteepest={releaseSteepest} />
         ))}
       </ul>
+      {offersRetry(profile)
+        ? (
+            <div className={styles.failed}>
+              <button ref={retryButton} type="button" className={styles.textButton} onClick={retry}>{t('siteData.chart.retry')}</button>
+            </div>
+          )
+        : null}
     </>
   )
 }
@@ -311,7 +329,9 @@ function LegendLine({ curve, index, language, reading: showsReading, releaseStee
   const style = curveStyle(index)
   const one = numberFormat(language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   let reading: JSX.Element
-  if (cursor !== null) {
+  if (curve.readFailed) {
+    reading = <span className={styles.reading}>{t('siteData.chart.readFailed')}</span>
+  } else if (cursor !== null) {
     const value = curve.values[cursor] ?? null
     reading = value === null
       ? <span className={styles.reading} aria-label={t('siteData.noData')}>—</span>

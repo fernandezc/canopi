@@ -1393,7 +1393,7 @@ fn an_unreadable_target_answers_unavailable_and_the_batch_still_reads() {
     assert_eq!(values(&series[0]), vec![Some(5.0), None]);
     assert_eq!(
         series[1],
-        unavailable(LidarSampleUnavailableReason::UnsupportedInput)
+        unavailable(LidarSampleUnavailableReason::ReadFailed)
     );
     assert_eq!(
         series[2],
@@ -1406,6 +1406,39 @@ fn an_unreadable_target_answers_unavailable_and_the_batch_still_reads() {
 /// unreadable is reported once per generation, not once per request.
 #[test]
 fn an_unreadable_target_is_reported_once_however_often_it_is_sampled() {
+    let root = scratch_root("batch-reported-once");
+    let library = LidarLibrary::open(&root).unwrap();
+    let plane = plane_layer(&library, &root, 16, 16);
+    let corrupt = chunk_result(&library, &plane, "item-corrupt-once");
+    let cells: Vec<f32> = (0..16).map(|index| 300.0 + index as f32).collect();
+    let asset = generation::publish_test_chunk(&library, &corrupt, 0, 0, 4, 4, &cells);
+    std::fs::write(&asset.path, b"not a tiff").unwrap();
+    let aimed = target(LibraryItemRole::Derived, "item-corrupt-once", &corrupt);
+
+    let written = warnings_during(|| {
+        for column in 0..4 {
+            let series = sample(
+                &library,
+                vec![aimed.clone()],
+                vec![point(f64::from(column) + 0.5, -1.5)],
+            );
+            assert_eq!(
+                series[0],
+                unavailable(LidarSampleUnavailableReason::ReadFailed)
+            );
+        }
+    });
+    assert_eq!(
+        written
+            .matches("a LiDAR sample target could not be read")
+            .count(),
+        1,
+        "{written}"
+    );
+}
+
+/// The warnings logged while `run` runs, as plain text.
+fn warnings_during(run: impl FnOnce()) -> String {
     #[derive(Clone, Default)]
     struct Captured(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
     impl std::io::Write for Captured {
@@ -1417,15 +1450,6 @@ fn an_unreadable_target_is_reported_once_however_often_it_is_sampled() {
             Ok(())
         }
     }
-    let root = scratch_root("batch-reported-once");
-    let library = LidarLibrary::open(&root).unwrap();
-    let plane = plane_layer(&library, &root, 16, 16);
-    let corrupt = chunk_result(&library, &plane, "item-corrupt-once");
-    let cells: Vec<f32> = (0..16).map(|index| 300.0 + index as f32).collect();
-    let asset = generation::publish_test_chunk(&library, &corrupt, 0, 0, 4, 4, &cells);
-    std::fs::write(&asset.path, b"not a tiff").unwrap();
-    let aimed = target(LibraryItemRole::Derived, "item-corrupt-once", &corrupt);
-
     let log = Captured::default();
     let subscriber = tracing_subscriber::fmt()
         .with_writer({
@@ -1435,27 +1459,64 @@ fn an_unreadable_target_is_reported_once_however_often_it_is_sampled() {
         .with_ansi(false)
         .with_max_level(tracing::Level::WARN)
         .finish();
-    tracing::subscriber::with_default(subscriber, || {
-        for column in 0..4 {
-            let series = sample(
-                &library,
-                vec![aimed.clone()],
-                vec![point(f64::from(column) + 0.5, -1.5)],
-            );
-            assert_eq!(
-                series[0],
-                unavailable(LidarSampleUnavailableReason::UnsupportedInput)
-            );
-        }
+    tracing::subscriber::with_default(subscriber, run);
+    String::from_utf8(log.0.lock().unwrap().clone()).unwrap()
+}
+
+/// A chunk file the app may not open answers `ReadFailed`, so the profile
+/// offers Retry, and the log names the real cause instead of "missing".
+/// Root ignores mode bits, so the test skips itself when the file still opens.
+#[cfg(unix)]
+#[test]
+fn a_chunk_the_app_may_not_open_answers_read_failed_and_logs_the_cause() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = scratch_root("batch-permission-denied");
+    let library = LidarLibrary::open(&root).unwrap();
+    let plane = plane_layer(&library, &root, 16, 16);
+    let locked = chunk_result(&library, &plane, "item-locked");
+    let cells: Vec<f32> = (0..16).map(|index| 500.0 + index as f32).collect();
+    let asset = generation::publish_test_chunk(&library, &locked, 0, 0, 4, 4, &cells);
+    std::fs::set_permissions(&asset.path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::File::open(&asset.path).is_ok() {
+        std::fs::set_permissions(&asset.path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        eprintln!("skipped: mode bits do not stop this user (root)");
+        return;
+    }
+    let aimed = target(LibraryItemRole::Derived, "item-locked", &locked);
+
+    let written = warnings_during(|| {
+        let series = sample(&library, vec![aimed.clone()], vec![point(0.5, -0.5)]);
+        assert_eq!(
+            series[0],
+            unavailable(LidarSampleUnavailableReason::ReadFailed)
+        );
     });
-    let written = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
-    assert_eq!(
-        written
-            .matches("a LiDAR sample target could not be read")
-            .count(),
-        1,
-        "{written}"
-    );
+    std::fs::set_permissions(&asset.path, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(written.contains("cannot open prepared raster"), "{written}");
+    assert!(written.contains("Permission denied"), "{written}");
+    assert!(!written.contains("missing"), "{written}");
+}
+
+/// A chunk file that is gone answers `ReadFailed` and the log says it is missing.
+#[test]
+fn a_chunk_that_is_gone_answers_read_failed_and_logs_missing() {
+    let root = scratch_root("batch-chunk-gone");
+    let library = LidarLibrary::open(&root).unwrap();
+    let plane = plane_layer(&library, &root, 16, 16);
+    let gone = chunk_result(&library, &plane, "item-gone");
+    let cells: Vec<f32> = (0..16).map(|index| 700.0 + index as f32).collect();
+    let asset = generation::publish_test_chunk(&library, &gone, 0, 0, 4, 4, &cells);
+    std::fs::remove_file(&asset.path).unwrap();
+    let aimed = target(LibraryItemRole::Derived, "item-gone", &gone);
+
+    let written = warnings_during(|| {
+        let series = sample(&library, vec![aimed.clone()], vec![point(0.5, -0.5)]);
+        assert_eq!(
+            series[0],
+            unavailable(LidarSampleUnavailableReason::ReadFailed)
+        );
+    });
+    assert!(written.contains("prepared raster is missing"), "{written}");
 }
 
 /// N points in one request equal N one-point requests and the analytic plane:

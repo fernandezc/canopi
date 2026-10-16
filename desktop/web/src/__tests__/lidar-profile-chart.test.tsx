@@ -343,6 +343,62 @@ describe('ProfileChart', () => {
     expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
   })
 
+  it('a curve whose data could not be read says so in its legend line with one Retry under the legend, which draws it', async () => {
+    sampling.answer = (request) => analyticSite(request).map((series, index) =>
+      request.targets[index]!.entity_id === 'mns' ? { Unavailable: { reason: 'ReadFailed' } } : series)
+    await drawLine()
+    expect(container.textContent).not.toContain('No values along this line')
+    const lines = legendLines()
+    expect(lines.filter((line) => line.includes('Couldn’t read the values along this line'))).toEqual([
+      expect.stringContaining('MNS · IGN'),
+    ])
+    expect(lines.find((line) => line.includes('MNT · IGN'))).toContain('Rise')
+    const retries = Array.from(container.querySelectorAll('button')).filter((candidate) => candidate.textContent === 'Retry')
+    expect(retries).toHaveLength(1)
+    expect(retries[0]!.closest('li')).toBeNull()
+    expect(container.querySelector('ul')!.nextElementSibling).toBe(retries[0]!.parentElement)
+
+    sampling.answer = analyticSite
+    const asked = sampling.requests.length
+    const section = container.querySelector('section')!
+    retries[0]!.focus()
+    await act(async () => { button('Retry').click() })
+    expect(document.activeElement).toBe(section)
+    await settle()
+    expect(sampling.requests).toHaveLength(asked + 1)
+    expect(sampling.requests[asked]).toEqual(sampling.requests[asked - 1])
+    expect(container.querySelectorAll('section > svg path')).toHaveLength(3)
+    expect(container.textContent).not.toContain('Couldn’t read the values along this line')
+    expect(Array.from(container.querySelectorAll('button')).some((candidate) => candidate.textContent === 'Retry')).toBe(false)
+  })
+
+  it('a partly failed read that fails again puts focus back on Retry under the legend', async () => {
+    sampling.answer = (request) => analyticSite(request).map((series, index) =>
+      request.targets[index]!.entity_id === 'mns' ? { Unavailable: { reason: 'ReadFailed' } } : series)
+    await drawLine()
+    button('Retry').focus()
+    await act(async () => { button('Retry').click() })
+    await settle()
+    expect(document.activeElement).toBe(button('Retry'))
+    // A read that works ends the run of failures, which the app's one profile keeps across tests.
+    sampling.answer = analyticSite
+    await act(async () => { button('Retry').click() })
+    await settle()
+  })
+
+  it('every curve failing to read is the whole chart\'s read-failed state, never No values', async () => {
+    sampling.answer = (request) => request.targets.map(() => ({ Unavailable: { reason: 'ReadFailed' } }))
+    await drawLine()
+    expect(container.textContent).not.toContain('No values along this line')
+    expect(container.textContent).toContain('Couldn’t read the values along this line')
+    expect(container.querySelector('section > svg')).toBeNull()
+    expect(button('Retry')).toBeTruthy()
+    // A read that works ends the run of failures, which the app's one profile keeps across tests.
+    sampling.answer = analyticSite
+    await act(async () => { button('Retry').click() })
+    await settle()
+  })
+
   // The chart reads only its own copy; the reason goes to diagnostics, once per run of failures, so Retry or a
   // redrawn line on a failing library never fills the problem report's ring.
   it('a failed read records its reason in diagnostics once, however often it is retried or redrawn', async () => {

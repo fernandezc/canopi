@@ -232,10 +232,11 @@ pub(super) fn check_sample_caps(request: &LidarSamplePointsRequest) -> Result<()
 /// the caller aimed at, before or after the read, answers `StaleGeneration`,
 /// so a late answer is never presented as current; an item that is gone answers
 /// `MissingGeneration`. A point off the data reads `None`: out of coverage is
-/// no data, not an error. A target that cannot be read (a CRS the engine
-/// rejects, a manifest or raster that does not parse) answers `Unavailable` on
-/// its own row, so one broken item never blanks the others; only the caps fail
-/// the whole batch.
+/// no data, not an error. A point the generation's CRS rejects answers
+/// `TransformFailed`; a target whose stored data cannot be read (a catalogue
+/// row, manifest or raster that does not open or parse) answers `ReadFailed`
+/// on its own row, so one broken item never blanks the others and the caller
+/// may ask again; only the caps fail the whole batch.
 pub(super) fn sample_points(
     library: &LidarLibrary,
     engine: &dyn RasterEngine,
@@ -254,7 +255,7 @@ pub(super) fn sample_points(
             sample_target(library, engine, &cancel, target, &request.points).unwrap_or_else(
                 |error| {
                     // Once per generation: row values ask again on every
-                    // pointer move, and the row shows nothing either way.
+                    // pointer move.
                     if memo(library).first_report(&target.entity_id, &target.expected_generation_id)
                     {
                         tracing::warn!(
@@ -263,7 +264,7 @@ pub(super) fn sample_points(
                             "a LiDAR sample target could not be read"
                         );
                     }
-                    unavailable(LidarSampleUnavailableReason::UnsupportedInput)
+                    unavailable(LidarSampleUnavailableReason::ReadFailed)
                 },
             )
         })

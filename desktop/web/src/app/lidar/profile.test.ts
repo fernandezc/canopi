@@ -5,6 +5,7 @@ import type { LidarSamplePointsRequest, LidarSampleSeries } from '../../generate
 import { setCurrentCanvasSession } from '../../canvas/session'
 import type { CanvasRuntimeSurfaces } from '../../canvas/runtime/runtime'
 import { activePanel, sidePanel } from '../shell/state'
+import { recentFrontendDiagnostics, resetFrontendDiagnosticsForTests } from '../problem-report/diagnostics'
 import {
   createSiteProfile,
   profileCopyText,
@@ -51,6 +52,8 @@ function manualBackend() {
 async function settle(): Promise<void> {
   for (let index = 0; index < 10; index += 1) await Promise.resolve()
 }
+
+const READ_FAILED: LidarSampleSeries = { Unavailable: { reason: 'ReadFailed' } }
 
 function values(...list: (number | null)[]): LidarSampleSeries {
   return { Values: { values: list } }
@@ -347,6 +350,50 @@ describe('createSiteProfile: request key, batches and stale answers', () => {
     expect(calls).toHaveLength(2)
   })
 
+  it('a curve whose data could not be read is read-failed, not no-values', async () => {
+    const failed = profileOf([at(0, 0), at(1, 0)], [source('mnt')])
+    await failed.calls[0]!.answer(() => READ_FAILED)
+    expect(failed.owner.profile.value).toEqual({ status: 'read-failed', lengthM: expect.closeTo(1, 6) })
+    await settle()
+    expect(failed.calls).toHaveLength(1)
+  })
+
+  it('a curve that could not be read beside one with values is ready, with that curve marked failed', async () => {
+    const { calls, owner } = profileOf([at(0, 0), at(1, 0)], [source('mnt', 'elevation', { resolutionM: 0.5 }), source('dsm', 'elevation', { resolutionM: 0.5 })])
+    await calls[0]!.answer((target) => target === 0 ? values(1, 2, 3) : READ_FAILED)
+    const curves = ready(owner.profile.value).curves
+    expect(curves.map((curve) => [curve.id, curve.readFailed])).toEqual([['mnt', false], ['dsm', true]])
+  })
+
+  it('Retry after a partly failed read re-asks the same key once and draws both curves', async () => {
+    const { calls, owner } = profileOf([at(0, 0), at(1, 0)], [source('mnt', 'elevation', { resolutionM: 0.5 }), source('dsm', 'elevation', { resolutionM: 0.5 })])
+    await calls[0]!.answer((target) => target === 0 ? values(1, 2, 3) : READ_FAILED)
+
+    owner.retry()
+    owner.retry()
+    expect(calls).toHaveLength(2)
+    expect(calls[1]!.request).toEqual(calls[0]!.request)
+
+    await calls[1]!.answer((target) => target === 0 ? values(1, 2, 3) : values(4, 5, 6))
+    expect(ready(owner.profile.value).curves.map((curve) => curve.readFailed)).toEqual([false, false])
+    owner.retry()
+    expect(calls).toHaveLength(2)
+  })
+
+  it('a run of curve read failures records one diagnostic; a read that works ends the run', async () => {
+    resetFrontendDiagnosticsForTests()
+    const { calls, owner } = profileOf([at(0, 0), at(1, 0)], [source('mnt')])
+    await calls[0]!.answer(() => READ_FAILED)
+    owner.retry()
+    await calls[1]!.answer(() => READ_FAILED)
+    expect(recentFrontendDiagnostics().filter((entry) => entry.source === 'lidar-library')).toHaveLength(1)
+    owner.retry()
+    await calls[2]!.answer(() => values(1, 2))
+    owner.retry()
+    expect(calls).toHaveLength(3)
+    resetFrontendDiagnosticsForTests()
+  })
+
   it('closing after a failed read sends nothing', async () => {
     const { calls, lineSignal, status } = profileOf([at(0, 0), at(1, 0)], [source('mnt')])
     await calls[0]!.fail()
@@ -395,6 +442,25 @@ describe('profileCopyText', () => {
     expect(lines[3]!.split('\t').slice(3)).toEqual(['', '3,46'])
     expect(lines).toHaveLength(5)
     expect(lines[4]).toBe('')
+  })
+
+  it('leaves out a curve whose read failed, so its column is not mistaken for no data', async () => {
+    const { calls, owner } = profileOf([at(0, 0), at(1, 0)], [
+      source('mnt', 'elevation', { name: 'MNT', resolutionM: 0.5 }),
+      source('mns', 'elevation', { name: 'MNS', resolutionM: 0.5 }),
+    ])
+    await calls[0]!.answer((target) => target === 0 ? values(128, 129, 130) : READ_FAILED)
+    const profile = ready(owner.profile.value)
+    expect(profile.curves.map((curve) => curve.readFailed)).toEqual([false, true])
+    const words: Record<string, string> = {
+      'siteData.chart.distance': 'Distance (m)', 'siteData.chart.longitude': 'Longitude', 'siteData.chart.latitude': 'Latitude',
+    }
+
+    const lines = profileCopyText(profile, 'en', (key) => words[key]!).split('\n')
+
+    expect(lines[0]).toBe('Distance (m)\tLongitude\tLatitude\tMNT (m)')
+    expect(lines[1]!.split('\t')).toHaveLength(4)
+    expect(lines[1]!.split('\t')[3]).toBe('128.00')
   })
 })
 
