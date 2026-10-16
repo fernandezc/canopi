@@ -266,7 +266,12 @@ class SpeciesCatalogContractCliTests(unittest.TestCase):
             self._write_executable(
                 fake_bin / "python3",
                 f"""#!/usr/bin/env bash
-if [[ "$*" == *"value prepared-schema-version"* ]]; then
+if [[ "$*" == *"catalog-asset-name"* ]]; then
+  printf '%s\\n' 'canopi-web-catalog-test.tar.gz'
+elif [[ "$*" == *"pack-catalog"* ]]; then
+  for out; do :; done
+  printf 'catalog' > "$out"
+elif [[ "$*" == *"value prepared-schema-version"* ]]; then
   printf '%s\\n' '{release.prepared_schema_version}'
 elif [[ "$*" == *"value prepared-db-asset-name"* ]]; then
   printf '%s\\n' '{asset_name}'
@@ -321,9 +326,11 @@ printf '%s\\0' "$@" >> "$GH_LOG"
             self.assertEqual(upload[:3], ["release", "upload", "canopi-core-db"])
             self.assertEqual(Path(upload[3]).name, asset_name)
             self.assertEqual(Path(upload[4]).name, f"{asset_name}.sha256")
-            self.assertNotIn("#", upload[3])
-            self.assertNotIn("#", upload[4])
-            self.assertEqual(upload[5:], ["--repo", "example/canopi"])
+            self.assertEqual(Path(upload[5]).name, "canopi-web-catalog-test.tar.gz")
+            self.assertEqual(Path(upload[6]).name, "canopi-web-catalog-test.tar.gz.sha256")
+            for argument in upload[3:7]:
+                self.assertNotIn("#", argument)
+            self.assertEqual(upload[7:], ["--repo", "example/canopi"])
 
     def test_publisher_refuses_identity_changed_during_prepare(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -338,7 +345,12 @@ printf '%s\\0' "$@" >> "$GH_LOG"
             self._write_executable(
                 fake_bin / "python3",
                 """#!/usr/bin/env bash
-if [[ "$*" == *"value prepared-schema-version"* ]]; then
+if [[ "$*" == *"catalog-asset-name"* ]]; then
+  printf '%s\\n' 'canopi-web-catalog-test.tar.gz'
+elif [[ "$*" == *"pack-catalog"* ]]; then
+  for out; do :; done
+  printf 'catalog' > "$out"
+elif [[ "$*" == *"value prepared-schema-version"* ]]; then
   printf '%s\\n' '13'
 elif [[ "$*" == *"value prepared-db-asset-name"* ]]; then
   if [[ -e "$IDENTITY_CHANGED" ]]; then
@@ -404,7 +416,12 @@ printf '%s\\0' "$@" >> "$GH_LOG"
             self._write_executable(
                 fake_bin / "python3",
                 """#!/usr/bin/env bash
-if [[ "$*" == *"value prepared-schema-version"* ]]; then
+if [[ "$*" == *"catalog-asset-name"* ]]; then
+  printf '%s\\n' 'canopi-web-catalog-test.tar.gz'
+elif [[ "$*" == *"pack-catalog"* ]]; then
+  for out; do :; done
+  printf 'catalog' > "$out"
+elif [[ "$*" == *"value prepared-schema-version"* ]]; then
   printf '%s\\n' '13'
 elif [[ "$*" == *"value prepared-db-asset-name"* ]]; then
   printf '%s\\n' 'canopi-core-v13-stable-identity.db'
@@ -455,6 +472,105 @@ printf '%s\\0' "$@" >> "$GH_LOG"
             self.assertIn("source snapshot changed during preparation", result.stderr)
             if gh_log.exists():
                 self.assertNotIn(b"upload", gh_log.read_bytes().split(b"\0"))
+
+    def _run_publisher(self, temp: Path, published_assets: list[str], *extra: str):
+        fake_bin = temp / "bin"
+        fake_bin.mkdir()
+        self._write_executable(
+            fake_bin / "python3",
+            """#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$PY_LOG"
+if [[ "$*" == *"catalog-asset-name"* ]]; then
+  printf '%s\\n' 'canopi-web-catalog-test.tar.gz'
+elif [[ "$*" == *"pack-catalog"* ]]; then
+  for out; do :; done
+  printf 'catalog' > "$out"
+elif [[ "$*" == *"value prepared-schema-version"* ]]; then
+  printf '%s\\n' '13'
+elif [[ "$*" == *"value prepared-db-asset-name"* ]]; then
+  printf '%s\\n' 'canopi-core-v13-published.db'
+elif [[ "$*" == *"prepare-db.py"* ]]; then
+  printf 'prepared' > "$OUTPUT_PATH"
+fi
+""",
+        )
+        self._write_executable(
+            fake_bin / "sha256sum",
+            """#!/usr/bin/env bash
+printf '%064d  %s\\n' 0 "$1"
+""",
+        )
+        self._write_executable(
+            fake_bin / "gh",
+            """#!/usr/bin/env bash
+printf '%s\\0' "$@" >> "$GH_LOG"
+printf '\\n' >> "$GH_LOG"
+if [[ "$1 $2" == "release view" ]]; then
+  printf '%s' "$PUBLISHED_ASSETS"
+fi
+""",
+        )
+        environment = os.environ.copy()
+        environment.update(
+            PATH=f"{fake_bin}:{environment['PATH']}",
+            PY_LOG=str(temp / "py-log"),
+            GH_LOG=str(temp / "gh-log"),
+            OUTPUT_PATH=str(temp / "prepared.db"),
+            PUBLISHED_ASSETS="".join(f"{name}\n" for name in published_assets),
+        )
+        result = subprocess.run(
+            ["bash", str(SCRIPT_DIR / "publish-db-release.sh"), "--export-path", str(temp / "export.db"),
+             "--output-path", str(temp / "prepared.db"), "--repo", "example/canopi", *extra],
+            cwd=SCRIPT_DIR.parent, env=environment, capture_output=True, text=True, check=False,
+        )
+        python_calls = (temp / "py-log").read_text().splitlines() if (temp / "py-log").exists() else []
+        gh_calls = [
+            [argument for argument in line.split("\0") if argument]
+            for line in ((temp / "gh-log").read_text().splitlines() if (temp / "gh-log").exists() else [])
+        ]
+        return result, python_calls, gh_calls
+
+    def test_web_catalog_only_adds_the_catalog_to_a_published_db_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, python_calls, gh_calls = self._run_publisher(
+                Path(tmp), ["canopi-core-v13-published.db"], "--web-catalog-only")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any("prepare-db.py" in call for call in python_calls))
+        self.assertTrue(any("verify-source-export" in call for call in python_calls))
+        self.assertTrue(any(call.startswith("scripts/generate-web-catalog.py --export-path") for call in python_calls))
+        upload = gh_calls[-1]
+        self.assertEqual(upload[:3], ["release", "upload", "canopi-core-db"])
+        self.assertEqual([Path(argument).name for argument in upload[3:5]],
+                         ["canopi-web-catalog-test.tar.gz", "canopi-web-catalog-test.tar.gz.sha256"])
+        self.assertEqual(upload[5:], ["--repo", "example/canopi"])
+
+    def test_publisher_uploads_db_and_catalog_together_from_one_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, python_calls, gh_calls = self._run_publisher(Path(tmp), [])
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        prepare = next(call for call in python_calls if "prepare-db.py" in call)
+        generate = next(call for call in python_calls if "generate-web-catalog.py" in call)
+        self.assertIn(prepare.split("--export-path ")[1].split()[0], generate)
+        self.assertEqual([Path(argument).name for argument in gh_calls[-1][3:7]], [
+            "canopi-core-v13-published.db", "canopi-core-v13-published.db.sha256",
+            "canopi-web-catalog-test.tar.gz", "canopi-web-catalog-test.tar.gz.sha256"])
+
+    def test_publisher_refuses_published_identities_and_a_catalog_without_its_db(self):
+        cases = [
+            ([], ("--web-catalog-only",), "needs canopi-core-v13-published.db"),
+            (["canopi-web-catalog-test.tar.gz", "canopi-core-v13-published.db"], ("--web-catalog-only",),
+             "already published"),
+            (["canopi-core-v13-published.db"], (), "use --web-catalog-only"),
+        ]
+        for published, extra, message in cases:
+            with self.subTest(published=published, extra=extra), tempfile.TemporaryDirectory() as tmp:
+                result, python_calls, gh_calls = self._run_publisher(Path(tmp), published, *extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(any("generate-web-catalog.py" in call for call in python_calls))
+                self.assertFalse(any(call[:2] == ["release", "upload"] for call in gh_calls))
 
     def test_source_export_identity_changes_asset_not_prepared_semantics(self):
         baseline = contract.project(contract.ProjectionTarget.RELEASE)
@@ -517,9 +633,18 @@ printf '%s\\0' "$@" >> "$GH_LOG"
             SCRIPT_DIR.parent / ".github/workflows/release-candidate.yml"
         ).read_text(encoding="utf-8")
         build_job = workflow.split("\n  build:\n", 1)[1].split(
+            "\n  web:\n",
+            1,
+        )[0]
+        web_job = workflow.split("\n  web:\n", 1)[1].split(
             "\n  manifest:\n",
             1,
         )[0]
+        self.assertIn("ref: ${{ needs.preflight.outputs.head_sha }}", web_job)
+        self.assertIn("needs.preflight.outputs.web_catalog_asset_name", web_job)
+        self.assertIn('sha256sum --check --strict "$ASSET_NAME.sha256"', web_job)
+        self.assertIn("web_release.py unpack-catalog", web_job)
+        self.assertIn('--commit "$HEAD_SHA"', web_job)
 
         self.assertIn(
             'expected_db_sha256="${{ needs.preflight.outputs.db_sha256 }}"',

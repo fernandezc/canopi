@@ -23,6 +23,10 @@ Options:
   --output-path PATH   Temporary output path for generated DB
   --tag TAG            GitHub release tag to upload to (default: canopi-core-db)
   --repo OWNER/REPO    GitHub repository (default: detected from git remote)
+  --web-catalog-only   Publish only the Web catalog, for a DB identity already on the tag
+
+Publishes the prepared DB and the Web catalog generated from the same export, each
+under its identity name with a .sha256, and never overwrites an existing asset.
 EOF
 }
 
@@ -57,6 +61,7 @@ output_path=""
 tag="canopi-core-db"
 repo="$(detect_repo || true)"
 tmpdir=""
+web_catalog_only=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,6 +80,10 @@ while [[ $# -gt 0 ]]; do
     --repo)
       repo="$2"
       shift 2
+      ;;
+    --web-catalog-only)
+      web_catalog_only=1
+      shift
       ;;
     -h|--help)
       usage
@@ -102,6 +111,11 @@ fi
 python3 scripts/species_catalog_contract.py check
 expected_schema_version="$(python3 scripts/species_catalog_contract.py value prepared-schema-version)"
 asset_name="$(python3 scripts/species_catalog_contract.py value prepared-db-asset-name)"
+web_asset_name="$(python3 scripts/web_release.py catalog-asset-name)"
+if [[ -z "$asset_name" || -z "$web_asset_name" ]]; then
+  echo "ERROR: Could not derive the DB and Web catalog asset names." >&2
+  exit 1
+fi
 
 tmpdir="$(mktemp -d)"
 trap '[[ -n "$tmpdir" ]] && rm -rf "$tmpdir"' EXIT
@@ -109,43 +123,81 @@ upload_dir="$tmpdir/upload"
 mkdir -p "$upload_dir"
 upload_path="$upload_dir/$asset_name"
 checksum_path="$upload_dir/${asset_name}.sha256"
+web_upload_path="$upload_dir/$web_asset_name"
+web_checksum_path="$upload_dir/${web_asset_name}.sha256"
 if [[ -z "$output_path" ]]; then
   output_path="$tmpdir/prepared.db"
 fi
 
-log "Building bundled DB from export: $export_path"
 log "Target release: $repo@$tag"
-python3 scripts/prepare-db.py --export-path "$export_path" --output-path "$output_path"
-
-if [[ ! -s "$output_path" ]]; then
-  echo "ERROR: Generated DB is missing or empty: $output_path" >&2
+log "Checking GitHub release tag exists: $tag"
+gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name' > "$tmpdir/assets.txt"
+if grep -Fxq "$web_asset_name" "$tmpdir/assets.txt"; then
+  echo "ERROR: $web_asset_name is already published on $tag; identity assets are never overwritten." >&2
   exit 1
 fi
 
-python3 scripts/species_catalog_contract.py verify-db --profile prepared "$output_path"
-python3 scripts/species_catalog_contract.py verify-source-export "$export_path"
+if [[ "$web_catalog_only" -eq 1 ]]; then
+  if ! grep -Fxq "$asset_name" "$tmpdir/assets.txt"; then
+    echo "ERROR: --web-catalog-only needs $asset_name on $tag; publish the DB and catalog together instead." >&2
+    exit 1
+  fi
+  python3 scripts/species_catalog_contract.py verify-source-export "$export_path"
+else
+  if grep -Fxq "$asset_name" "$tmpdir/assets.txt"; then
+    echo "ERROR: $asset_name is already published on $tag; use --web-catalog-only to add its Web catalog." >&2
+    exit 1
+  fi
+  log "Building bundled DB from export: $export_path"
+  python3 scripts/prepare-db.py --export-path "$export_path" --output-path "$output_path"
+
+  if [[ ! -s "$output_path" ]]; then
+    echo "ERROR: Generated DB is missing or empty: $output_path" >&2
+    exit 1
+  fi
+
+  python3 scripts/species_catalog_contract.py verify-db --profile prepared "$output_path"
+  python3 scripts/species_catalog_contract.py verify-source-export "$export_path"
+fi
+
+log "Generating the Web catalog from the same export"
+python3 scripts/generate-web-catalog.py --export-path "$export_path" --output-dir "$tmpdir/web-catalog"
+python3 -I scripts/web_release.py pack-catalog --catalog-dir "$tmpdir/web-catalog" --output "$web_upload_path"
+if [[ ! -s "$web_upload_path" ]]; then
+  echo "ERROR: Web catalog archive is missing or empty: $web_upload_path" >&2
+  exit 1
+fi
+
 python3 scripts/species_catalog_contract.py check
 publication_asset_name="$(python3 scripts/species_catalog_contract.py value prepared-db-asset-name)"
-if [[ "$publication_asset_name" != "$asset_name" ]]; then
-  echo "ERROR: Species Catalog release identity changed during preparation: expected $asset_name, observed $publication_asset_name" >&2
+publication_web_asset_name="$(python3 scripts/web_release.py catalog-asset-name)"
+if [[ "$publication_asset_name" != "$asset_name" || "$publication_web_asset_name" != "$web_asset_name" ]]; then
+  echo "ERROR: Species Catalog release identity changed during preparation: expected $asset_name and $web_asset_name, observed $publication_asset_name and $publication_web_asset_name" >&2
   exit 1
 fi
 
-if [[ "$output_path" != "$upload_path" ]] && ! ln "$output_path" "$upload_path" 2>/dev/null; then
-  cp "$output_path" "$upload_path"
+web_sha256="$(sha256sum "$web_upload_path" | awk '{print $1}')"
+printf '%s  %s\n' "$web_sha256" "$web_asset_name" > "$web_checksum_path"
+uploads=("$web_upload_path" "$web_checksum_path")
+
+if [[ "$web_catalog_only" -eq 0 ]]; then
+  if [[ "$output_path" != "$upload_path" ]] && ! ln "$output_path" "$upload_path" 2>/dev/null; then
+    cp "$output_path" "$upload_path"
+  fi
+  db_sha256="$(sha256sum "$upload_path" | awk '{print $1}')"
+  printf '%s  %s\n' "$db_sha256" "$asset_name" > "$checksum_path"
+  uploads=("$upload_path" "$checksum_path" "${uploads[@]}")
 fi
-db_sha256="$(sha256sum "$upload_path" | awk '{print $1}')"
-printf '%s  %s\n' "$db_sha256" "$asset_name" > "$checksum_path"
 
-log "Checking GitHub release tag exists: $tag"
-gh release view "$tag" --repo "$repo" >/dev/null
-
-log "Uploading DB asset and checksum"
+log "Uploading identity assets and checksums"
 gh release upload "$tag" \
-  "$upload_path" \
-  "$checksum_path" \
+  "${uploads[@]}" \
   --repo "$repo"
 
-log "Published $asset_name to $repo@$tag"
-log "Schema version: $expected_schema_version"
-log "SHA256: $db_sha256"
+if [[ "$web_catalog_only" -eq 0 ]]; then
+  log "Published $asset_name to $repo@$tag"
+  log "Schema version: $expected_schema_version"
+  log "SHA256: $db_sha256"
+fi
+log "Published $web_asset_name to $repo@$tag"
+log "Web catalog SHA256: $web_sha256"

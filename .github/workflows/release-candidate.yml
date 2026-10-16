@@ -31,6 +31,7 @@ jobs:
       head_sha: ${{ steps.head.outputs.head_sha }}
       db_sha256: ${{ steps.db.outputs.db_sha256 }}
       db_asset_name: ${{ steps.schema.outputs.db_asset_name }}
+      web_catalog_asset_name: ${{ steps.schema.outputs.web_catalog_asset_name }}
       expected_schema_version: ${{ steps.schema.outputs.expected_schema_version }}
     steps:
       - uses: actions/checkout@v7
@@ -128,10 +129,15 @@ jobs:
           python3 scripts/species_catalog_contract.py check
           expected_schema_version="$(python3 scripts/species_catalog_contract.py value prepared-schema-version)"
           db_asset_name="$(python3 scripts/species_catalog_contract.py value prepared-db-asset-name)"
+          web_catalog_asset_name="$(python3 scripts/web_release.py catalog-asset-name)"
           echo "Expected bundled DB schema version: $expected_schema_version"
           echo "Compiled bundled DB asset: $db_asset_name"
-          echo "expected_schema_version=$expected_schema_version" >> "$GITHUB_OUTPUT"
-          echo "db_asset_name=$db_asset_name" >> "$GITHUB_OUTPUT"
+          echo "Compiled Web catalog asset: $web_catalog_asset_name"
+          {
+            echo "expected_schema_version=$expected_schema_version"
+            echo "db_asset_name=$db_asset_name"
+            echo "web_catalog_asset_name=$web_catalog_asset_name"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Download bundled plant DB
         env:
@@ -178,6 +184,7 @@ jobs:
             echo "- DB asset: \`${{ steps.schema.outputs.db_asset_name }}\`"
             echo "- Expected DB schema: \`${{ steps.schema.outputs.expected_schema_version }}\`"
             echo "- DB sha256: \`${{ steps.db.outputs.db_sha256 }}\`"
+            echo "- Web catalog asset: \`${{ steps.schema.outputs.web_catalog_asset_name }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   build:
@@ -321,8 +328,76 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # The root Web Edition (web.projectcanopi.com) from the same commit, with the Web
+  # catalog published beside the DB by scripts/publish-db-release.sh.
+  web:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.head_sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/web/package-lock.json
+
+      - name: Download and verify the Web catalog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_NAME: ${{ needs.preflight.outputs.web_catalog_asset_name }}
+          DB_RELEASE_TAG: ${{ inputs.db_release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          download_dir="$RUNNER_TEMP/web-catalog"
+          mkdir -p "$download_dir"
+          gh release download "$DB_RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ASSET_NAME" \
+            --pattern "$ASSET_NAME.sha256" \
+            --dir "$download_dir"
+          (cd "$download_dir" && sha256sum --check --strict "$ASSET_NAME.sha256")
+          python3 -I scripts/web_release.py unpack-catalog \
+            --archive "$download_dir/$ASSET_NAME" \
+            --output-dir desktop/web/public/canopi-catalog
+
+      - name: Install frontend deps
+        run: npm ci --prefix desktop/web
+
+      - name: Package the root Web Edition
+        working-directory: desktop/web
+        run: npm run package:web:root
+
+      - name: Verify the Web Edition archive
+        id: archive
+        env:
+          HEAD_SHA: ${{ needs.preflight.outputs.head_sha }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="desktop/web/dist-web-artifacts/canopi-web-edition-root-v${RELEASE_VERSION}-${HEAD_SHA:0:12}.tar.gz"
+          python3 -I scripts/web_release.py verify \
+            --archive "$archive" \
+            --version "$RELEASE_VERSION" \
+            --commit "$HEAD_SHA" \
+            --output-dir "$RUNNER_TEMP/web-site"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the Web Edition archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: canopi-web-edition
+          path: ${{ steps.archive.outputs.archive }}
+          if-no-files-found: error
+          retention-days: 30
+
   manifest:
-    needs: [preflight, build]
+    needs: [preflight, build, web]
     runs-on: ubuntu-latest
     steps:
       - name: Download packaged artifacts
@@ -339,6 +414,7 @@ jobs:
           DB_ASSET_NAME: ${{ needs.preflight.outputs.db_asset_name }}
           DB_RELEASE_TAG: ${{ inputs.db_release_tag }}
           DB_SHA256: ${{ needs.preflight.outputs.db_sha256 }}
+          WEB_CATALOG_ASSET_NAME: ${{ needs.preflight.outputs.web_catalog_asset_name }}
           EXPECTED_SCHEMA_VERSION: ${{ needs.preflight.outputs.expected_schema_version }}
           HEAD_SHA: ${{ needs.preflight.outputs.head_sha }}
           REPOSITORY: ${{ github.repository }}
@@ -351,7 +427,8 @@ jobs:
               -name '*.AppImage' -o \
               -name '*.dmg' -o \
               -name '*.msi' -o \
-              -name '*.exe' \
+              -name '*.exe' -o \
+              -name 'canopi-web-edition-root-v*.tar.gz' \
             \) -print | sort | xargs sha256sum
           ) > SHA256SUMS.txt
 
@@ -372,6 +449,7 @@ jobs:
               "release_version": os.environ["BUILD_VERSION"],
               "db_release_tag": os.environ["DB_RELEASE_TAG"],
               "db_asset_name": os.environ["DB_ASSET_NAME"],
+              "web_catalog_asset_name": os.environ["WEB_CATALOG_ASSET_NAME"],
               "db_sha256": os.environ["DB_SHA256"],
               "expected_db_schema_version": int(os.environ["EXPECTED_SCHEMA_VERSION"]),
           }
@@ -386,7 +464,7 @@ jobs:
             echo
             echo "- Commit: \`${{ needs.preflight.outputs.head_sha }}\`"
             echo "- Version: \`${{ inputs.release_version }}\`"
-            echo "- Packaged artifact checksums: \`SHA256SUMS.txt\`"
+            echo "- Packaged artifact checksums (desktop and Web): \`SHA256SUMS.txt\`"
             echo "- Bundled DB checksum: \`${{ needs.preflight.outputs.db_sha256 }}\`"
             echo "- Promotion command: \`scripts/promote-release.sh --run-id ${{ github.run_id }} --tag <tag> --title <title>\`"
           } >> "$GITHUB_STEP_SUMMARY"
