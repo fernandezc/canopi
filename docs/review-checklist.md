@@ -93,7 +93,7 @@ Check every section in light and dark, English and French, and a 720 px tall win
 
 ## Web Edition and phones
 
-1. `npm run package:web`, serve the archive at `/app/`: the shell loads without missing assets or Tauri requests; New Design, Open a .canopi file…, Download a copy and "Saved in this browser" work.
+1. The candidate's `canopi-web-edition` archive served at `/`: the shell loads without missing assets or Tauri requests; New Design, Open a .canopi file…, Download a copy and "Saved in this browser" work.
 2. Browser catalog: browse, a two-character search and a filter work; sort offers Recommended and Name.
 3. Import GeoJSON, export GeoJSON, Budget CSV and the PDF; reload: the Draft is back.
 4. Layers reads "N terrain or height layers in this Design · Needs Canopi Desktop"; they survive a Web round trip.
