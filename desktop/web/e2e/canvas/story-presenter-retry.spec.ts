@@ -30,7 +30,11 @@ for (const { name, viewport, hasTouch } of LAYOUTS) {
 
     test('the notice and a working Retry show inside the presenter, and the canvas notice is back after Esc', async ({ page }) => {
       let styleRequests = 0
+      let styleRequestsSettled = 0
       page.on('request', (request) => { if (STYLE_REQUEST.test(request.url())) styleRequests += 1 })
+      const settle = (request: { url(): string }) => { if (STYLE_REQUEST.test(request.url())) styleRequestsSettled += 1 }
+      page.on('requestfailed', settle)
+      page.on('requestfinished', settle)
       await openBaseFixture(page)
       await expect(page.locator('[data-map-notice]')).toContainText(NOTICE_FAILED)
 
@@ -56,6 +60,9 @@ for (const { name, viewport, hasTouch } of LAYOUTS) {
       let before = styleRequests
       await retry.click()
       await expect.poll(() => styleRequests, 'a click on Retry asks for the basemap style again').toBeGreaterThan(before)
+      // A Retry can start a second style load that is cancelled at once; when it settles the notice draws a new Retry,
+      // so focus waits for every load (WebKit on main, 2026-10-16: Enter went to the replaced button).
+      await expect.poll(() => styleRequestsSettled === styleRequests, 'every style request has settled').toBe(true)
       await expect(retry).toBeVisible()
 
       // So does Enter on the focused Retry. Held, the request leaves the basemap loading with no Retry, so focus is on
