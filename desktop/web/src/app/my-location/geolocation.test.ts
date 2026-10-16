@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The browser's geolocation, the one module that calls it (canopi-f47t.53; plan P53; design check A4 and §4).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {

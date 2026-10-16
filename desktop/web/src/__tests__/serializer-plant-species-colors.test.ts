@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it } from 'vitest'
 import type { CanopiFile } from '../types/design'
 import { CURRENT_CANOPI_FILE_VERSION } from '../generated/canopi-design-format'

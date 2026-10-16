@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session (canvas v2 plan §4): the native context menu and the overview's
 // primary drag, the pointer cases phase 2's right button changes.
 // Shared fakes, helpers and fixture: support/canvas-interaction-setup.ts.

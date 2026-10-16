@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { createDefaultScenePersistedState } from '../../canvas/runtime/scene'
 import type { WorkspaceMapContributionSnapshot } from './workspace-map-contribution-adapter'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

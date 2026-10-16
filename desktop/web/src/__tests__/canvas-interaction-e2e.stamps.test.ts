@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session, split by the first tool a test arms (canvas v2 plan §4):
 // the Object and saved stamps end to end through the session: Esc and `[` `]` through the keyboard port, the
 // saved-stamp read model through the session's source bridge, and a Favorites drag over a held stamp. The stamp tools' own

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // canopi-etzh: a Web catalog that cannot load (the SPA's HTML in place of the manifest, a 404, a network failure)
 // shows the translated "The plant catalog couldn't load." with Retry in the results and the species panel, never the
 // raw error; the raw error goes to the frontend diagnostics only, never the console. Through the real reader, runtime,

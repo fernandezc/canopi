@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The phone's context bar (canopi-f47t.54, stream D, answers 18 and 22-26): what it shows, by priority. Its place in the
 // panel sheet and its taps are checked in the browser (e2e/canvas/phone-chrome.spec.ts).
 import { render } from 'preact'

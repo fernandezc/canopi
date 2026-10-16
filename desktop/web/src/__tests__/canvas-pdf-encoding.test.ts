@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { createPdfTextEngine, type PdfFontId } from '../app/canvas-pdf/text'

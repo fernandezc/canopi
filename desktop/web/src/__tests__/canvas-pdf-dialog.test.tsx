@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { PdfPreparation } from '../app/canvas-pdf/prepare'
 import { render } from 'preact'
 import { act } from 'preact/test-utils'

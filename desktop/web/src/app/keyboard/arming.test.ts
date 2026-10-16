@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // armCanvasTool (spec §1.6, P9): the one way app code arms a canvas tool, with each caller's own `from`; the map takes
 // focus after every arming but a shortcut's.
 import { signal } from '@preact/signals'

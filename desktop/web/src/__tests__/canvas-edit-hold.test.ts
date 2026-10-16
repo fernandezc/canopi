@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Edit › Cut and Delete from the menu bar and the palette (runCanvasIntent) honour the re-origin hold as the keys and the
 // canvas menu do (U39): while a draft is live they delete nothing, and the menu bar shows them disabled (S3b). The hold
 // comes from a real interaction session, whose tool calls move the query revision's transient history as the runtime's do.

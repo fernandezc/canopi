@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { stubTool, useStubTools, type StubTool } from '../../__tests__/support/tool-harness'
 import {

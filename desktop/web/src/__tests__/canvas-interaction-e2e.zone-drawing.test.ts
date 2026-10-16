@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session, split by the first tool a test arms (canvas v2 plan §4):
 // tests that arm Polygon, Rectangle, Ellipse, Line or Measure.
 // Shared fakes, helpers and fixture: support/canvas-interaction-setup.ts. The session draws its drafts into a recording

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session with touch input (canvas v2 phase 3, spec §2.2 "Touch" and
 // §3.4): the recogniser holds every touch press until 8 px, the lift or 500 ms, so a tap acts at the lift at the down
 // point and a pinch never reaches a tool. Real tools, the real recogniser and the real DOM source, in jsdom.

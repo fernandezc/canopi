@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from "preact";
 import { effect } from "@preact/signals";
 import { useRef } from "preact/hooks";

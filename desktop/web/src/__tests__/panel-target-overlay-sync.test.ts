@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createPanelTargetMapOverlayContract } from '../maplibre/panel-target-overlays'
 import { syncMapOverlay } from '../maplibre/panel-target-overlay-sync'

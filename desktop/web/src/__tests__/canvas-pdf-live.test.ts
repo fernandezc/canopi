@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CanvasPrintSnapshot } from '../canvas/print'

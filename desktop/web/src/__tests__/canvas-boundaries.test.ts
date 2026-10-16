@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 // Canvas v2 regex policies: couplings the declarative harness cannot see,
 // such as which element a listener is added to or which event type it names. Each policy walks every non-test
 // .ts/.tsx file under src/, blanks comments, applies its regex to the files of its scope and compares the matches per

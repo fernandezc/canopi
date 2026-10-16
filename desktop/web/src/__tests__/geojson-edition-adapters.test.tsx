@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { projectBrowserShellForTest } from './support/browser-shell-projection'
 import { flattenMenuActions } from '../app/shell-commands/menus'
 import { render } from 'preact'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { WorkspaceMapContributionSnapshot } from './workspace-map-contribution-adapter'
 import { describe, expect, it, vi } from 'vitest'
 import {

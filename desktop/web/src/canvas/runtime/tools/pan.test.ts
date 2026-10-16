@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installDesktopKeys } from '../../../__tests__/support/desktop-key-router'
 import { pressKey } from '../../../__tests__/support/key-router'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { setCanvasTool } from '../canvas/session-state'
 import { act } from 'preact/test-utils'

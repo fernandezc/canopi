@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import i18n from 'i18next'
 import { render } from 'preact'
 import { act } from 'preact/test-utils'

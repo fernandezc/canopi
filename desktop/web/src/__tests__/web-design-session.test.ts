@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { newDesignDefaults } from '../app/settings/state'
 import { createDefaultMapLayers, mapLayers } from '../app/map-layers/state'
 import { effect, signal } from '@preact/signals'

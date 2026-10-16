@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { projectBrowserShellForTest } from './support/browser-shell-projection'
 import { render } from 'preact'
 import { act } from 'preact/test-utils'

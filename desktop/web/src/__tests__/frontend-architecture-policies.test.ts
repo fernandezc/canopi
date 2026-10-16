@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { readFileSync } from 'node:fs'
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'

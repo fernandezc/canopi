@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { h, render } from 'preact'

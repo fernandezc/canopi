@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { act, setupRerender, teardown } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

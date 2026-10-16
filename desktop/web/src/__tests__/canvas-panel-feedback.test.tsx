@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs'
 import { useEffect } from 'preact/hooks'
 import { render } from 'preact'

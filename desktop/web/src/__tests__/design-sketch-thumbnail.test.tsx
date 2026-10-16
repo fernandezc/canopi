@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { describe, expect, it } from 'vitest'
 import { DesignSketchThumbnail, plantDotSize, plantsPath, zonesPath } from '../components/shared/DesignSketchThumbnail'

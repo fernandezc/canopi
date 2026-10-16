@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { effect } from '@preact/signals'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestCanvasQuerySurface } from '../../__tests__/support/canvas-query-surface'

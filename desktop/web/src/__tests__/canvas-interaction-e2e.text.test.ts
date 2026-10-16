@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session, split by the first tool a test arms (canvas v2 plan §4):
 // tests that arm Text, and the text note editor describe. Text runs on the ToolHost (tools/text-note.ts, whose own tests
 // drive it through the ToolHarness); these stay end to end, and the note field is the host's text entry

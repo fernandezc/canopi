@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'preact'

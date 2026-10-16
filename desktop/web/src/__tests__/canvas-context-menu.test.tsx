@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { createRef, render } from 'preact'
 import { profileLineMenu } from '../app/lidar/profile'
 import { act } from 'preact/test-utils'

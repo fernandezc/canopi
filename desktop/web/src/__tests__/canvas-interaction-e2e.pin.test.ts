@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The Site data pin end to end (canopi-f47t.42, spec §3.8, fixture J10): DOM pointer events through the real DOM source,
 // recogniser, router and tool host, with the real tools, reach the app adapter's pinAt. A tap no tool uses pins: a
 // Select tap on empty ground (after Select clears the selection) or any Pan-tool tap. Each press sends pointerdown

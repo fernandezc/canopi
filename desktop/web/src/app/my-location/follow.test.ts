@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Follow mode's camera half (canopi-f47t.53; design check A3; U54 Q13–Q15, Q17, Q12): the jumps through showPlace and
 // the exits on outside moves, a Design activation and a story presentation.
 import { signal } from '@preact/signals'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { captureWindowErrors } from '../../../__tests__/support/canvas-interaction-setup'
 import {

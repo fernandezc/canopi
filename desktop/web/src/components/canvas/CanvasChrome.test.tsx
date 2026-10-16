@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // canopi-23p2: the top-centre chips share one slot, which registers with the visible-map-area seam, so they stack
 // instead of covering each other; on a phone they are the context bar's (PhoneContextBar). jsdom has no layout, so this
 // checks the structure: no browser spec reads the slot's rects yet.

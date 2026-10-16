@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { describe, expect, it, vi } from 'vitest'
 import { mapAttributionFolded } from '../shell/visible-map-area'

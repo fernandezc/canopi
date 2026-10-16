@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { stubTool, useStubTools } from '../../../__tests__/support/tool-harness'
 import { createInteractionDeps, makePlant } from '../../../__tests__/support/canvas-interaction-setup'

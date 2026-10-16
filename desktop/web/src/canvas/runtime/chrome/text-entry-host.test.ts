@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createTestView, type TestView } from '../../../__tests__/support/test-view'
 import { CANVAS_CHROME_FONT_FAMILY } from '../../chrome-fonts'

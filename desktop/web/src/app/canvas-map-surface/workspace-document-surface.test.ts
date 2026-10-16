@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it, vi } from 'vitest'
 import { createCanvasDocumentReplacementToken, type CanvasDocumentSurface } from '../../canvas/runtime/runtime'
 import { createTestCanvasDocumentSurface } from '../../__tests__/support/canvas-runtime-surfaces'

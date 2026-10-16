@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The compass (spec §4.2, ADR 0015): always in the zoom group, a click or Enter/Space resets north, a drag on its face
 // turns the view about the screen centre with Shift for 15° steps, and Esc during a drag restores the starting camera
 // through the real key router (fixture I9).

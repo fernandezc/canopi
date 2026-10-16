@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createDesignSessionReplacement } from '../document-session/replacement'
 import { createDesignSessionStoreTestFixture, designSessionStore } from '../document-session/store'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { expect, it, vi } from 'vitest'
 import { getAnnotationPresentation } from './annotation-layout'
 import type { SceneAnnotationEntity } from './scene'

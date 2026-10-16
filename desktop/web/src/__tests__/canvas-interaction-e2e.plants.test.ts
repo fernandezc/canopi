@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The canvas interaction end to end through the session, split by the first tool a test arms (canvas v2 plan §4):
 // tests that arm Plant stamp or Plant a row, and the three Place plants describes.
 // Shared fakes, helpers and fixture: support/canvas-interaction-setup.ts.

@@ -82,7 +82,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
-      environment: "jsdom",
+      // Plain Node by default: jsdom's setup cost more than the tests it served (576 s of worker time per run,
+      // 2026-10-16). A test file that needs the DOM starts with `// @vitest-environment jsdom`; without it,
+      // `document` and `window` are undefined and the file fails, so no test passes without the page it needs.
+      environment: "node",
       // Test-only: MapLibre's TypeScript sources, for tests that run MapLibre's own code (view/camera-contract.test.ts,
       // maplibre/camera-driver.test.ts, maplibre/workspace-map.test.ts, __tests__/openfreemap-basemap.test.ts). Builds
       // never resolve it.

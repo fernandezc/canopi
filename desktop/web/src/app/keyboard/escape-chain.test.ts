@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The Esc chain through the key router (spec §3.7, §1.6 steps 4 and 8; fixtures I8, I10): the canvas port's layers, a
 // popover and the Site data pin, each an Esc layer, and one Esc runs one of them.
 import { signal } from '@preact/signals'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { afterEach, describe, expect, it } from 'vitest'
 import { GALLERY_SURFACES, parseGallerySurface } from '../../ui-gallery/surface-routing'

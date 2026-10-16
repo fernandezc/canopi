@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { focusOwner } from '../app/keyboard/focus-owner'
 import { placeSpeciesOnMap } from '../components/plant-db/place-species'

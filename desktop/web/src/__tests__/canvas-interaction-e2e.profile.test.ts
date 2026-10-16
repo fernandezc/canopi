@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The Profile tool end to end (canopi-f47t.42, spec §1.10, §3.2, §3.7; fixture J10): DOM pointer and key events through
 // the real DOM source, recogniser, router and tool host, with the real tools, reach ToolEffects.finishProfile. Each press
 // sends pointerdown detail 0, as WebKitGTK does (and Chromium for touch), so the recogniser counts a double-click or a

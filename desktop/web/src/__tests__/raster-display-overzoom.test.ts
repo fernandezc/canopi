@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * Overzoomed display tiles through the real `cog-tiler-wasm` on a relief
  * derivative the Rust engine wrote (`fixtures/rust-display-relief.tif`,

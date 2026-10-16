@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * The legend against the renderer that draws the map: the pinned
  * `cog-tiler-wasm`, its WebAssembly started in Node. An unknown colormap name

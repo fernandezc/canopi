@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { keyLike, TEST_KEY_PLATFORM } from '../../__tests__/support/key-router'

@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 import { createRequire } from 'node:module'
 import {
   createDuckDB,

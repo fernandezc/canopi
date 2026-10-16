@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import type { SceneRendererSnapshot, SceneRenderTarget } from './renderers/scene-types'
 import type { DraftPresentation } from './tools/draft'
 import type { ViewFrame } from './view/types'

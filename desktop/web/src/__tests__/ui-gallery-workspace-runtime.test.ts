@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { afterEach, describe, expect, it } from 'vitest'
 import { finishSiteProfile } from '../app/lidar/profile'

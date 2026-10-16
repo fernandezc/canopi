@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The focus owner (spec §1.6, ADR 0020): the F6 regions, the map's focus and the focus a user-opened component takes.
 import { createRef, h, render } from 'preact'
 import { useRef } from 'preact/hooks'

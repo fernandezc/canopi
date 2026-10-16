@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, expect, it, vi } from 'vitest'
 import { loadPdfFonts } from '../app/canvas-pdf/text'
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })

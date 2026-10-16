@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Production CSP rejects Pixi's generated functions; its shim avoids eval.
 import 'pixi.js/unsafe-eval'
 import { Container, Graphics, GraphicsContext, Text } from 'pixi.js'

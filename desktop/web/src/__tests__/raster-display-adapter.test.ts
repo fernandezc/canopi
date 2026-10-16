@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it, vi } from 'vitest'
 import { WORKSPACE_MAP_MAX_ZOOM } from '../canvas/workspace-camera-policy'
 import { createRasterDisplay, tileIsRelevant, type RasterDisplayLayer } from '../maplibre/raster-display/adapter'

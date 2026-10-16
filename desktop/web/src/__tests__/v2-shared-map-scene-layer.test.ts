@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import { Container, Text, Ticker, WebGLRenderer, type WebGLOptions } from 'pixi.js'
 import {

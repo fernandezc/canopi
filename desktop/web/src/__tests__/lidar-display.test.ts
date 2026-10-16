@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LidarDisplayDescriptor } from '../ipc/lidar'
 import type { LidarPresentationItem } from '../app/lidar/library-store'

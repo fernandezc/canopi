@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import type { Map as MapLibreMap } from 'maplibre-gl'
 import { effect, signal } from '@preact/signals'

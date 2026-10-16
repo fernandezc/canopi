@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { signal } from '@preact/signals'
 import { act } from 'preact/test-utils'
 import { render } from 'preact'

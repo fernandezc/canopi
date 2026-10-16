@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // U28 and U30: a Design keeps the view it was saved with (`map_view`, GeoLibre's mapView). Every write that happens anyway
 // (continuous save after an edit, a Draft write) carries the live view, and a manual Save or Save As always writes it; panning
 // alone edits nothing and writes nothing, so closing, switching Designs, page hide and focus loss write only what they would

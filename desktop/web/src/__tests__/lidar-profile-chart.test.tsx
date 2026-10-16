@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // The Site data profile chart through the real profile (canopi-f47t.42, spec §1.10 "Profile"): a profile line over two
 // shown elevation items and a height item, sampled through the app's one sampler over a faked lidar_sample_points,
 // drawn in jsdom. Hovering sets the map's hover point, Steepest moves the cursor, Copy values writes the text inside the

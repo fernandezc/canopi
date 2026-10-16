@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 // Adapted from GeoLibre tests/selection-drag-guard.test.ts at commit b3d91de (Copyright (c) 2026 Qiusheng Wu, MIT
 // License; see THIRD_PARTY_NOTICES.md), with the map host's DOM source around the guard.
 

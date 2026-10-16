@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * The display seam through its real implementations: a derivative the Rust
  * engine wrote (`fixtures/rust-display-cog.tif`, an RD New tile near Delft,

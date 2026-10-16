@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { persistLastView } from '../app/canvas-map-surface/last-view'
 import { createAppCanvasRuntimeAppAdapter } from '../app/canvas-runtime/app-adapter'

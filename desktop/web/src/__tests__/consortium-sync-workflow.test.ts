@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { beforeEach, afterEach, describe, expect, it } from 'vitest'
 import {
   designSessionFixture,

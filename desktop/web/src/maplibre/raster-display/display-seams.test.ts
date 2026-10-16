@@ -1,4 +1,3 @@
-// @vitest-environment node
 /**
  * Raster tile seams (canopi-f47t.49): adjacent derivatives of one item, and
  * an item drawn under them, read through the real `cog-tiler-wasm` and

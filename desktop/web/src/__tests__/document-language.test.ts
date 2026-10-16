@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { afterEach, describe, expect, it } from 'vitest'
 import { locale } from '../app/settings/state'
 import { initTheme } from '../utils/theme'

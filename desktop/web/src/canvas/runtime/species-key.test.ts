@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { expect, it, vi } from 'vitest'
 import { buildSpeciesKey } from './species-key'
 import { geoAt } from '../../__tests__/support/geo-design'

@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it, vi } from 'vitest'
 import { geoAt } from '../__tests__/support/geo-design'
 import { CURRENT_CANOPI_FILE_VERSION } from '../generated/canopi-design-format'

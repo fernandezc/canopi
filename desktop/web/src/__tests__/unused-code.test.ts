@@ -1,5 +1,3 @@
-// @vitest-environment node
-
 // The unused-code check (user, 2026-10-02).
 // It lists production files no production import chain reaches from an entry
 // point or a consumer, value and type exports no other module imports, and

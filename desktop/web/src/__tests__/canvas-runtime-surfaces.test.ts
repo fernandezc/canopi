@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs'
 import { signal } from '@preact/signals'
 import { afterEach, describe, expect, it } from 'vitest'
