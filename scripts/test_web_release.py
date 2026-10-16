@@ -354,6 +354,19 @@ class LiveCheckTests(unittest.TestCase):
             web_release.wait_for("https://example.test", self.site, timeout=0,
                                  get=lambda url: web_release.Response(200, {}, b"old"), sleep=calls.append)
 
+    def test_a_truncated_response_while_polling_is_retried(self):
+        import http.client
+        responses = [http.client.IncompleteRead(b"par"), self.get("/" + web_release.MANIFEST_NAME)]
+
+        def get(url):
+            response = responses.pop(0)
+            if isinstance(response, Exception):
+                raise response
+            return response
+        sleeps = []
+        web_release.wait_for("https://example.test", self.site, timeout=60, get=get, sleep=sleeps.append)
+        self.assertEqual(len(sleeps), 1)
+
     def test_deploy_url_reads_wrangler_output(self):
         output = ("Uploaded 3 files\n✨ Deployment complete! Take a peek over at https://1a2b3c4d.canopi-web.pages.dev\n"
                   "✨ Deployment alias URL: https://release-2-1-0.canopi-web.pages.dev\n")

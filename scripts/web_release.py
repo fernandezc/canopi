@@ -14,6 +14,7 @@ import argparse
 from dataclasses import dataclass
 import gzip
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -579,7 +580,8 @@ def wait_for(base_url: str, site: Path, timeout: float, interval: float = 15,
         try:
             if live_matches(base_url, site, get):
                 return
-        except (OSError, urllib.error.URLError):
+        # A deploy in flight can drop or truncate a response (http.client.IncompleteRead).
+        except (OSError, urllib.error.URLError, http.client.HTTPException):
             pass
         if time.monotonic() >= deadline:
             raise ReleaseError(f"{base_url} did not serve the release manifest within {timeout:.0f} s")
@@ -659,7 +661,7 @@ def main(argv: list[str] | None = None) -> int:
     except ReleaseError as error:
         print(f"ERROR: {args.command} failed:\n{error}", file=sys.stderr)
         return 1
-    except (OSError, urllib.error.URLError, ssl.SSLError) as error:
+    except (OSError, urllib.error.URLError, ssl.SSLError, http.client.HTTPException) as error:
         print(f"ERROR: {args.command} failed: {error}", file=sys.stderr)
         return 1
     return 0
