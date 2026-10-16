@@ -2,11 +2,10 @@ name: Build & Test
 
 on:
   push:
-    # All Canopi v2 work lands on feature/geolibre-adoption (AGENTS.md), so the
-    # gates run there as well as on main.
-    branches: [main, feature/geolibre-adoption]
+    # Work lands through PRs into main (AGENTS.md); main runs everything.
+    branches: [main]
   pull_request:
-    branches: [main, feature/geolibre-adoption]
+    branches: [main]
 
 # A newer push or PR update cancels the older run of the same ref; main always finishes.
 concurrency:
@@ -18,30 +17,29 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Rust caches are saved only from main and the v2 branch, whose caches every
-  # PR and later push can restore; PR refs restore without adding copies.
-  SAVE_RUST_CACHE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/geolibre-adoption') }}
+  # Rust caches are saved only from main, whose caches every PR can restore;
+  # PR refs restore without adding copies.
+  SAVE_RUST_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
   CANOPI_CORE_DB_RELEASE_TAG: canopi-core-db
 
 jobs:
-  # Docs, bead and design-board changes run only the docs checks. On a v2
-  # feature push, the Rust-side jobs (Rust lint and tests, LiDAR lanes,
+  # Docs, bead and design-board changes run only the docs checks. On a PR into
+  # main, the Rust-side jobs (Rust lint and tests, LiDAR lanes,
   # platform tests, installers) run when a Rust-side path changed and the
   # frontend tests and builds when a frontend or Rust-side path changed (Rust
-  # generates the frontend's contracts); main, PRs and an unknown base run all.
-  # A same-repo PR from main or the v2 branch (PR 33) runs nothing: the push
-  # run already checks its head commit and saves the caches a PR run cannot.
+  # generates the frontend's contracts); main and an unknown base run all.
+  # A same-repo PR from main runs nothing: the push run already checks its head.
   changes:
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
-      (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption')
+      github.head_ref != 'main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       actions: read
     env:
-      FEATURE_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/feature/geolibre-adoption' }}
+      PR_RUN: ${{ github.event_name == 'pull_request' }}
     outputs:
       code: ${{ steps.diff.outputs.code }}
       rust: ${{ steps.diff.outputs.rust }}
@@ -92,7 +90,7 @@ jobs:
             code=false
             if [ -n "$changed" ]; then code=true; fi
             rust=$code frontend=$code
-            if [ "$FEATURE_PUSH" = true ]; then
+            if [ "$PR_RUN" = true ]; then
               outside_web="$(grep -vE '^desktop/web/' <<<"$changed" || true)"
               rust=false frontend=false
               if grep -qE "$rust_paths" <<<"$outside_web" || grep -qE "$web_rust_paths" <<<"$changed"; then rust=true; fi
@@ -100,12 +98,12 @@ jobs:
             fi
           fi
           { echo "code=$code"; echo "rust=$rust"; echo "frontend=$frontend"; } >> "$GITHUB_OUTPUT"
-      # Feature-branch pushes package Linux and Apple silicon only, unless they
+      # PRs package Linux and Apple silicon only, unless they
       # change a packaging input (Cargo manifests and toolchain, build script,
       # Windows app manifest, icons, Tauri config, the sidecar and its smoke,
       # the Windows manifest check, npm manifests, build.yml and its actions);
-      # then, like pushes to main, pull requests and Release Candidate, all four.
-      # Feature pushes build one installer per OS: Linux .deb (as everywhere)
+      # then, like pushes to main and Release Candidate, all four.
+      # PRs build one installer per OS: Linux .deb (as everywhere)
       # and Windows NSIS only, the one the sidecar smoke unpacks; no MSI.
       - id: packaging
         env:
@@ -113,9 +111,9 @@ jobs:
         run: |
           set -euo pipefail
           windows_bundles=""
-          # LZMA took 13.5 of the Windows job's 24 min on 2026-10-14 for a 291 MiB installer; a feature push
+          # LZMA took 13.5 of the Windows job's 24 min on 2026-10-14 for a 291 MiB installer; a PR
           # checks that the installer builds and its sidecar runs, so zlib is enough. Release Candidate keeps LZMA.
-          if [ "$FEATURE_PUSH" = true ]; then windows_bundles="--bundles nsis --config .github/tauri-branch-nsis.json"; fi
+          if [ "$PR_RUN" = true ]; then windows_bundles="--bundles nsis --config .github/tauri-branch-nsis.json"; fi
           all='[
             {"os": "ubuntu-latest", "target": "x86_64-unknown-linux-gnu", "bundle_args": "--bundles deb"},
             {"os": "macos-14", "target": "aarch64-apple-darwin", "bundle_args": ""},
@@ -124,7 +122,7 @@ jobs:
           ]'
           inputs='^(Cargo\.lock$|([^/]+/)?Cargo\.toml$|rust-toolchain\.toml$|desktop/build\.rs$|desktop/windows-app-manifest\.xml$|desktop/icons/|desktop/tauri[^/]*\.json$|desktop/tauri\.conf|desktop/binaries/|scripts/build-geolibre-cli\.sh$|scripts/smoke-bundled-sidecar\.sh$|scripts/check_windows_manifest\.py$|desktop/web/package[^/]*\.json$|\.github/(workflows/build\.yml|actions/|tauri-branch-nsis\.json))'
           filter='.'
-          if [ "$FEATURE_PUSH" = true ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+          if [ "$PR_RUN" = true ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             changed="$(git diff --no-renames --name-only "$BASE" "$GITHUB_SHA")"
             if ! grep -qE "$inputs" <<<"$changed"; then
               filter='map(select(.os == "ubuntu-latest" or .os == "macos-14"))'
@@ -132,7 +130,7 @@ jobs:
           fi
           echo "matrix=$(jq -c "$filter" <<<"$all")" >> "$GITHUB_OUTPUT"
           # Native tests on Intel macOS (8 min, a scarce macOS runner) add little over Apple silicon on the same OS;
-          # feature pushes run them only when packaging inputs change, like the Intel package.
+          # PRs run them only when packaging inputs change, like the Intel package.
           platforms='[{"os": "macos-14", "target": "aarch64-apple-darwin"}, {"os": "macos-15-intel", "target": "x86_64-apple-darwin"}, {"os": "windows-latest", "target": "x86_64-pc-windows-msvc"}]'
           pfilter='.'
           if [ "$filter" != '.' ]; then pfilter='map(select(.os != "macos-15-intel"))'; fi
