@@ -36,8 +36,8 @@ jobs:
       (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption'))
     runs-on: ubuntu-latest
     # One job ran canvas then gallery in both engines and passed 30 min on 2026-10-15 (canopi-a407);
-    # split by suite, engine and spec-file shard (a file's tests run in order), each job is about
-    # a sixth of that, bounded by the slowest file (phone-chrome.spec.ts, about 7 min).
+    # split by suite, engine and shard (shards split tests, not files: fullyParallel), each job is
+    # about a sixth of that.
     timeout-minutes: 30
     strategy:
       fail-fast: false

@@ -3,6 +3,7 @@ name: Cache prune
 # Keeps the newest cache of each family per branch and deletes the older ones. A lockfile or toolchain change
 # gives every Rust cache a new key while the old ones stay; on 2026-10-16 that held 11.6 GB against GitHub's
 # 10 GB, so GitHub evicted caches still in use and the Windows release build compiled from scratch.
+# workflow_run and schedule run only from the default branch, so pruning starts once this file is on main.
 on:
   workflow_run:
     workflows: [Build & Test]
@@ -30,14 +31,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # A family is the key without its last segment (the lockfile, toolchain or input hash). The newest
-          # cache of a family on a ref stays; older ones on that ref go. Pull-request caches older than two
-          # days go too: their branch run already saved what later runs restore.
+          # A family is the key without its input hashes: the last segment (lockfile or input hash), and for
+          # rust-cache keys also the one before it (toolchain and environment). Entries of one key that differ
+          # in version (the cached paths: npm's cache inside a container and on the host) are separate
+          # families. The newest cache of a family on a ref stays; older ones on that ref go. Pull-request
+          # caches older than two days go too: their branch run already saved what later runs restore.
           gh api --paginate "repos/$REPO/actions/caches?per_page=100" \
-            --jq '.actions_caches[] | [.id, .ref, .key, .created_at] | @tsv' > caches.tsv
+            --jq '.actions_caches[] | [.id, .ref, .key, .created_at, .version] | @tsv' > caches.tsv
           cutoff="$(date -u -d '2 days ago' +%Y-%m-%dT%H:%M:%SZ)"
           sort -t $'\t' -k4,4r caches.tsv | awk -F'\t' -v cutoff="$cutoff" '
-            { family = $3; sub(/-[^-]+$/, "", family); group = $2 "\t" family }
+            { family = $3; sub(/-[^-]+$/, "", family); if (family ~ /^v0-rust-/) sub(/-[^-]+$/, "", family)
+              group = $2 "\t" family "\t" $5 }
             seen[group]++ { print $1; next }
             $2 ~ /^refs\/pull\// && $4 < cutoff { print $1 }
           ' > stale.txt
