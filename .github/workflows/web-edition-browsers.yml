@@ -7,10 +7,10 @@ on:
   # Only the Web Edition, the gallery and the version they show (tauri.conf.json, read by About) reach the
   # browsers; Rust, docs and beads do not.
   push:
-    branches: [main, feature/geolibre-adoption]
+    branches: [main]
     paths: ['desktop/web/**', '!desktop/web/**/*.md', 'desktop/tauri.conf.json', '.github/workflows/web-edition-browsers.yml']
   pull_request:
-    branches: [main, feature/geolibre-adoption]
+    branches: [main]
     paths: ['desktop/web/**', '!desktop/web/**/*.md', 'desktop/tauri.conf.json', '.github/workflows/web-edition-browsers.yml']
   workflow_dispatch:
     inputs:
@@ -27,13 +27,13 @@ concurrency:
 jobs:
   browsers:
     name: ${{ matrix.suite }} ${{ matrix.engine }} ${{ matrix.shard }}
-    # A same-repo PR from main or the v2 branch (PR 33) runs nothing: the push
+    # A same-repo PR from main runs nothing: the push
     # run already drives its head commit.
     if: >-
       !inputs.update_snapshots &&
       (github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
-      (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption'))
+      github.head_ref != 'main')
     runs-on: ubuntu-latest
     # One job ran canvas then gallery in both engines and passed 30 min on 2026-10-15 (canopi-a407);
     # split by suite, engine and shard (shards split tests, not files: fullyParallel), each job is
