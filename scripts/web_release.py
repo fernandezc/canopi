@@ -3,7 +3,7 @@
 
 Callers: `publish-db-release.sh` (catalog-asset-name, pack-catalog), the Release Candidate
 workflow's `web` job (catalog-asset-name, unpack-catalog, verify) and
-`publish-web-release.sh` (verify, live-matches, deploy-url, wait-for, http-check).
+`publish-web-release.sh` (verify, production-current, deploy-url, wait-for, http-check, check-tls).
 Archives are untrusted input: run this module with `python3 -I`; extraction writes only
 regular files and directories below a fresh directory.
 """
@@ -561,6 +561,17 @@ def live_matches(base_url: str, site: Path, get: Callable[[str], Response] = fet
     return response.status == 200 and response.body == (site / MANIFEST_NAME).read_bytes()
 
 
+def production_current(base_url: str, site: Path, get: Callable[[str], Response] = fetch) -> bool:
+    """Whether a deploy can be skipped: production serves this manifest and passes its checks."""
+    if not live_matches(base_url, site, get):
+        return False
+    try:
+        http_check(base_url, site, production=True, get=get)
+    except ReleaseError:
+        return False
+    return True
+
+
 def wait_for(base_url: str, site: Path, timeout: float, interval: float = 15,
              get: Callable[[str], Response] = fetch, sleep: Callable[[float], None] = time.sleep) -> None:
     deadline = time.monotonic() + timeout
@@ -606,7 +617,7 @@ def main(argv: list[str] | None = None) -> int:
     verify.add_argument("--checksums", type=Path)
     verify.add_argument("--output-dir", type=Path, required=True)
     verify.add_argument("--add-deploy-files", action="store_true")
-    for name in ("http-check", "live-matches", "wait-for"):
+    for name in ("http-check", "production-current", "wait-for"):
         live = sub.add_parser(name)
         live.add_argument("--base-url", required=True)
         live.add_argument("--site", type=Path, required=True)
@@ -636,8 +647,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "http-check":
             for line in http_check(args.base_url, args.site, production=args.production):
                 print(f"ok: {line}")
-        elif args.command == "live-matches":
-            return 0 if live_matches(args.base_url, args.site) else 3
+        elif args.command == "production-current":
+            return 0 if production_current(args.base_url, args.site) else 3
         elif args.command == "wait-for":
             wait_for(args.base_url, args.site, args.timeout)
             print(f"{args.base_url} serves the release manifest")

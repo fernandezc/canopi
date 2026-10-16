@@ -334,6 +334,16 @@ class LiveCheckTests(unittest.TestCase):
                 with self.assertRaisesRegex(web_release.ReleaseError, pattern):
                     self.check()
 
+    def test_production_is_current_only_when_it_serves_the_manifest_and_passes_its_checks(self):
+        self.assertTrue(web_release.production_current("https://example.test", self.site, get=self.get))
+        # A _headers fix keeps the manifest bytes, so a matching manifest alone must not skip the deploy.
+        self.overrides = {"/assets/web-1.js": web_release.Response(
+            200, {"x-content-type-options": "nosniff", "content-type": "application/javascript", "cache-control": "max-age=0"},
+            self.files["assets/web-1.js"])}
+        self.assertFalse(web_release.production_current("https://example.test", self.site, get=self.get))
+        self.overrides = {"/" + web_release.MANIFEST_NAME: web_release.Response(200, {}, b"old")}
+        self.assertFalse(web_release.production_current("https://example.test", self.site, get=self.get))
+
     def test_wait_for_polls_until_the_manifest_matches_or_times_out(self):
         calls = []
         responses = [web_release.Response(200, {}, b"old"), self.get("/" + web_release.MANIFEST_NAME)]

@@ -3,7 +3,8 @@
 # operator's logged-in wrangler (docs/guides/editions.md#web-publishing): verify, preview
 # deploy and checks, production deploy and checks. Checks live in scripts/web_release.py;
 # the browser smoke is desktop/web/e2e-release/. Safe to re-run: a production that already
-# serves the release manifest is only checked again.
+# serves the release manifest and passes its HTTP checks is only checked again; otherwise
+# (say, after a _headers fix) both deploys run again.
 
 set -Eeuo pipefail
 
@@ -177,8 +178,8 @@ smoke() {
     npx playwright test --config e2e-release/playwright.config.ts
 }
 
-if web_release live-matches --base-url "$PRODUCTION_URL" --site "$site" >> "$log_file" 2>&1; then
-  stage "Production already serves $version; skipping both deploys"
+if web_release production-current --base-url "$PRODUCTION_URL" --site "$site" >> "$log_file" 2>&1; then
+  stage "Production already serves $version and passes its HTTP checks; skipping both deploys"
 else
   preview_branch="release-${version}"
   stage "Deploying preview branch $preview_branch"
