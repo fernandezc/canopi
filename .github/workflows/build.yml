@@ -70,7 +70,7 @@ jobs:
       # the desktop shell outside desktop/web/, the scripts Rust or packaging
       # reads, the npm manifests (the Tauri CLI), the web fixtures Rust tests
       # read, the web files that call invoke() (native_command_policy checks
-      # every command is still invoked; keep this list in step), and CI.
+      # every command is still invoked; keep this list in step), and build.yml with its actions.
       - id: diff
         env:
           BASE: ${{ steps.base.outputs.sha }}
@@ -80,9 +80,9 @@ jobs:
           # Not docs: the app ships desktop/THIRD_PARTY_NOTICES.md and
           # third-party-notices.test.ts reads both copies.
           notices_paths='(^|/)THIRD_PARTY_NOTICES\.md$'
-          rust_paths='\.rs$|(^|/)Cargo\.toml$|^(Cargo\.lock|rust-toolchain\.toml|clippy\.toml)$|^(\.cargo|common-types|bindings-gen|desktop|\.github)/|^scripts/(build-geolibre-cli\.sh|smoke-bundled-sidecar\.sh|check_windows_manifest\.py|schema-contract\.json|species_catalog_contract\.py|species_search_normalization\.py|web_catalog_artifact_contract\.py)$'
+          rust_paths='\.rs$|(^|/)Cargo\.toml$|^(Cargo\.lock|rust-toolchain\.toml|clippy\.toml)$|^(\.cargo|common-types|bindings-gen|desktop)/|^\.github/(workflows/build\.yml|actions/|tauri-branch-nsis\.json)|^scripts/(build-geolibre-cli\.sh|smoke-bundled-sidecar\.sh|check_windows_manifest\.py|schema-contract\.json|species_catalog_contract\.py|species_search_normalization\.py|web_catalog_artifact_contract\.py)$'
           web_rust_paths='^desktop/web/(package(-lock)?\.json$|src/maplibre/raster-display/fixtures/|src/ipc/|src/app/canvas-pdf/platform\.desktop\.ts$|src/app/shell/bootstrap\.ts$)'
-          frontend_paths='^(desktop/web|\.github)/|^THIRD_PARTY_NOTICES\.md$'
+          frontend_paths='^desktop/web/|^\.github/workflows/build\.yml$|^THIRD_PARTY_NOTICES\.md$'
           if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             code=true rust=true frontend=true
           else
@@ -102,7 +102,7 @@ jobs:
       # Feature-branch pushes package Linux and Apple silicon only, unless they
       # change a packaging input (Cargo manifests and toolchain, build script,
       # Windows app manifest, icons, Tauri config, the sidecar and its smoke,
-      # the Windows manifest check, npm manifests, CI);
+      # the Windows manifest check, npm manifests, build.yml and its actions);
       # then, like pushes to main, pull requests and Release Candidate, all four.
       # Feature pushes build one installer per OS: Linux .deb (as everywhere)
       # and Windows NSIS only, the one the sidecar smoke unpacks; no MSI.
@@ -112,14 +112,16 @@ jobs:
         run: |
           set -euo pipefail
           windows_bundles=""
-          if [ "$FEATURE_PUSH" = true ]; then windows_bundles="--bundles nsis"; fi
+          # LZMA took 13.5 of the Windows job's 24 min on 2026-10-14 for a 291 MiB installer; a feature push
+          # checks that the installer builds and its sidecar runs, so zlib is enough. Release Candidate keeps LZMA.
+          if [ "$FEATURE_PUSH" = true ]; then windows_bundles="--bundles nsis --config .github/tauri-branch-nsis.json"; fi
           all='[
             {"os": "ubuntu-latest", "target": "x86_64-unknown-linux-gnu", "bundle_args": "--bundles deb"},
             {"os": "macos-14", "target": "aarch64-apple-darwin", "bundle_args": ""},
             {"os": "macos-15-intel", "target": "x86_64-apple-darwin", "bundle_args": ""},
             {"os": "windows-latest", "target": "x86_64-pc-windows-msvc", "bundle_args": "'"$windows_bundles"'"}
           ]'
-          inputs='^(Cargo\.lock$|([^/]+/)?Cargo\.toml$|rust-toolchain\.toml$|desktop/build\.rs$|desktop/windows-app-manifest\.xml$|desktop/icons/|desktop/tauri[^/]*\.json$|desktop/tauri\.conf|desktop/binaries/|scripts/build-geolibre-cli\.sh$|scripts/smoke-bundled-sidecar\.sh$|scripts/check_windows_manifest\.py$|desktop/web/package[^/]*\.json$|\.github/)'
+          inputs='^(Cargo\.lock$|([^/]+/)?Cargo\.toml$|rust-toolchain\.toml$|desktop/build\.rs$|desktop/windows-app-manifest\.xml$|desktop/icons/|desktop/tauri[^/]*\.json$|desktop/tauri\.conf|desktop/binaries/|scripts/build-geolibre-cli\.sh$|scripts/smoke-bundled-sidecar\.sh$|scripts/check_windows_manifest\.py$|desktop/web/package[^/]*\.json$|\.github/(workflows/build\.yml|actions/|tauri-branch-nsis\.json))'
           filter='.'
           if [ "$FEATURE_PUSH" = true ] && [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             changed="$(git diff --no-renames --name-only "$BASE" "$GITHUB_SHA")"

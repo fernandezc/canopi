@@ -4,12 +4,14 @@ name: Web Edition browsers
 # WebKit (stands in for WKWebView) with real input; canvas v2 plan section 3.2, canopi-9x95.
 # Then drives the UI gallery the same way (canopi-f47t.42, plan section 4).
 on:
+  # Only the Web Edition, the gallery and the version they show (tauri.conf.json, read by About) reach the
+  # browsers; Rust, docs and beads do not.
   push:
     branches: [main, feature/geolibre-adoption]
-    paths-ignore: ['docs/**', '.beads/**', '.interface-design/**', '**/*.md']
+    paths: ['desktop/web/**', '!desktop/web/**/*.md', 'desktop/tauri.conf.json', '.github/workflows/web-edition-browsers.yml']
   pull_request:
     branches: [main, feature/geolibre-adoption]
-    paths-ignore: ['docs/**', '.beads/**', '.interface-design/**', '**/*.md']
+    paths: ['desktop/web/**', '!desktop/web/**/*.md', 'desktop/tauri.conf.json', '.github/workflows/web-edition-browsers.yml']
   workflow_dispatch:
     inputs:
       update_snapshots:
@@ -24,16 +26,31 @@ concurrency:
 
 jobs:
   browsers:
-    name: Chromium and WebKit
+    name: ${{ matrix.suite }} ${{ matrix.engine }} ${{ matrix.shard }}
     # A same-repo PR from main or the v2 branch (PR 33) runs nothing: the push
     # run already drives its head commit.
     if: >-
-      github.event_name != 'pull_request' ||
+      !inputs.update_snapshots &&
+      (github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name != github.repository ||
-      (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption')
+      (github.head_ref != 'main' && github.head_ref != 'feature/geolibre-adoption'))
     runs-on: ubuntu-latest
-    # The canvas lane alone took 25.7 min on 2026-10-15; at 30 the job was cancelled before the gallery lane reported (canopi-a407).
-    timeout-minutes: 60
+    # One job ran canvas then gallery in both engines and passed 30 min on 2026-10-15 (canopi-a407);
+    # split by suite, engine and spec-file shard (a file's tests run in order), each job is about
+    # a sixth of that, bounded by the slowest file (phone-chrome.spec.ts, about 7 min).
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { suite: canvas, engine: chromium, project: chromium, shard: 1/3 }
+          - { suite: canvas, engine: chromium, project: chromium, shard: 2/3 }
+          - { suite: canvas, engine: chromium, project: chromium, shard: 3/3 }
+          - { suite: canvas, engine: webkit, project: webkit, shard: 1/3 }
+          - { suite: canvas, engine: webkit, project: webkit, shard: 2/3 }
+          - { suite: canvas, engine: webkit, project: webkit, shard: 3/3 }
+          - { suite: gallery, engine: chromium, project: gallery-chromium, shard: 1/1 }
+          - { suite: gallery, engine: webkit, project: gallery-webkit, shard: 1/1 }
     # The same image run locally gives the same pixels, so baselines can be recorded with
     # `docker run` on a workstation. Its tag matches the exact @playwright/test version in
     # desktop/web/package.json; a bump changes both and re-records the baselines.
@@ -54,41 +71,54 @@ jobs:
           cache-dependency-path: desktop/web/package-lock.json
 
       - name: Install frontend deps
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
+      # The gallery runs on its own dev server (ui-gallery/) and needs no build.
       - name: Build the Web Edition
+        if: matrix.suite == 'canvas'
         run: npm run build:web
 
       - name: Type-check the browser specs
+        if: matrix.suite == 'gallery'
         run: npx tsc -p e2e --noEmit
 
-      - name: Drive the Web Edition in Chromium and WebKit
-        if: ${{ !inputs.update_snapshots }}
-        run: npx playwright test e2e/canvas --project=chromium --project=webkit
-
-      # The UI gallery (ui-gallery/, its dev server started by playwright.config.ts) over memory fixtures: the
-      # Desktop panels and the shared workspace, Desktop's raster renderer included; DOM and pixel assertions only.
-      - name: Drive the UI gallery in Chromium and WebKit
-        if: ${{ !inputs.update_snapshots }}
-        run: npx playwright test e2e/gallery --project=gallery-chromium --project=gallery-webkit
-
-      - name: Record the screenshot baselines
-        if: ${{ inputs.update_snapshots }}
-        run: npx playwright test e2e/canvas --project=chromium --project=webkit --update-snapshots
+      - name: Drive ${{ matrix.suite }} in ${{ matrix.engine }} (shard ${{ matrix.shard }})
+        run: npx playwright test e2e/${{ matrix.suite }} --project=${{ matrix.project }} --shard=${{ matrix.shard }}
 
       - name: Upload the report and traces
         if: ${{ failure() }}
         uses: actions/upload-artifact@v7
         with:
-          name: web-edition-browsers-report
+          name: web-edition-browsers-${{ matrix.suite }}-${{ matrix.engine }}-${{ strategy.job-index }}
           path: |
             desktop/web/playwright-report/
             desktop/web/test-results/
           if-no-files-found: ignore
           retention-days: 14
 
+  snapshots:
+    name: Record the screenshot baselines
+    if: ${{ inputs.update_snapshots }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    defaults:
+      run:
+        working-directory: desktop/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build:web
+      - run: npx playwright test e2e/canvas --project=chromium --project=webkit --update-snapshots
       - name: Upload the recorded baselines
-        if: ${{ !cancelled() && inputs.update_snapshots }}
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: web-edition-snapshots
