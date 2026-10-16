@@ -425,8 +425,9 @@ jobs:
       # when desktop/binaries holds it for the target (the runner's host).
       - uses: ./.github/actions/build-geolibre-cli
 
+      # Pinned: an unpinned npx fetched the newest CLI at every build (2.12.2 on 2026-10-14, 2.12.3 days later).
       - name: Build Tauri app
-        run: npx --prefix desktop/web @tauri-apps/cli build --target ${{ matrix.target }} ${{ matrix.bundle_args }} -- --locked
+        run: npx --prefix desktop/web @tauri-apps/cli@2.12.3 build --target ${{ matrix.target }} ${{ matrix.bundle_args }} -- --locked
 
       - name: Windows app selects Common Controls v6
         if: runner.os == 'Windows'
