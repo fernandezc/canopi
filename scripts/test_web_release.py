@@ -204,39 +204,71 @@ class ArchiveTests(ArchiveCase):
 
 
 class PublishScriptTests(ArchiveCase):
-    """publish-web-release.sh up to --verify-only, with a local GitHub boundary."""
+    """publish-web-release.sh up to its first deploy, with a local GitHub boundary."""
 
-    def publish(self, draft=False):
+    def publish(self, *extra, draft=False, release_checksums=None):
         checksums = self.build()
+        published = self.root / "published"
+        published.mkdir(exist_ok=True)
+        shutil.copy(release_checksums or checksums, published / checksums.name)
+        shutil.copy(self.archive, published / self.archive.name)
         fake = self.root / "bin"
         fake.mkdir(exist_ok=True)
-        gh = fake / "gh"
-        gh.write_text(f"""#!/usr/bin/env bash
+        (fake / "gh").write_text(f"""#!/usr/bin/env bash
+echo "gh $*" >> {self.root}/calls
 case "$1 $2" in
   "release view") printf '%s\\n' {"true" if draft else "false"} ;;
   "api repos/example/canopi/commits/v2.1.0") printf '%s\\n' {COMMIT} ;;
   "release download")
-    for arg; do if [[ "$prev" == --dir ]]; then dir="$arg"; fi; prev="$arg"; done
-    cp {self.archive} {checksums} "$dir/" ;;
+    for arg; do
+      if [[ "$prev" == --dir ]]; then dir="$arg"; fi
+      if [[ "$prev" == --pattern ]]; then cp {published}/$arg "$dir/" 2>/dev/null || true; fi
+      prev="$arg"
+    done ;;
   *) exit 1 ;;
 esac
 """)
-        gh.chmod(0o755)
+        for tool in ["npx", "docker"]:
+            (fake / tool).write_text(f'#!/usr/bin/env bash\necho "{tool} $*" >> {self.root}/calls\nexit 1\n')
+        for tool in fake.iterdir():
+            tool.chmod(0o755)
         return subprocess.run(
             ["bash", str(Path(__file__).with_name("publish-web-release.sh")), "--tag", "v2.1.0",
-             "--repo", "example/canopi", "--verify-only"],
+             "--repo", "example/canopi", *extra],
             env={**os.environ, "PATH": f"{fake}{os.pathsep}{os.environ['PATH']}", "TMPDIR": str(self.root)},
             capture_output=True, text=True)
 
+    def calls(self):
+        path = self.root / "calls"
+        return path.read_text().splitlines() if path.exists() else []
+
     def test_verify_only_downloads_and_admits_the_published_archive(self):
-        result = self.publish()
+        result = self.publish("--verify-only")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("stopping before deploy", result.stdout)
 
     def test_a_draft_release_is_never_deployed(self):
-        result = self.publish(draft=True)
+        result = self.publish("--verify-only", draft=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not a published release", result.stderr)
+
+    def test_a_local_artifact_is_deployed_only_if_the_release_checksums_vouch_for_it(self):
+        # The operator's local copy carries its own matching checksum file; the release's differs.
+        local = self.root / "local"
+        local.mkdir()
+        checksums = self.build()
+        shutil.copy(self.archive, local / self.archive.name)
+        shutil.copy(checksums, local / checksums.name)
+        release_checksums = self.root / "release-sums.txt"
+        release_checksums.write_text("0" * 64 + f"  {self.archive.name}\n")
+        result = self.publish("--artifact", str(local / self.archive.name), release_checksums=release_checksums)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("checksum mismatch", result.stderr)
+        downloads = [call for call in self.calls() if call.startswith("gh release download")]
+        self.assertEqual(len(downloads), 1)
+        self.assertIn("--pattern WEB-RELEASE-SHA256SUMS.txt", downloads[0])
+        self.assertNotIn(".tar.gz", downloads[0])
+        self.assertFalse(any(call.startswith(("npx", "docker")) for call in self.calls()))
 
 
 class LiveCheckTests(unittest.TestCase):

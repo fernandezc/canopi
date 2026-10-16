@@ -22,7 +22,8 @@ Options:
   --repo OWNER/REPO    GitHub repository (default: opencanopi/canopi)
   --project NAME       Cloudflare Pages project (default: canopi-web)
   --artifact PATH      Use a local canopi-web-edition-root-*.tar.gz instead of downloading it
-  --checksums PATH     WEB-RELEASE-SHA256SUMS.txt for --artifact (default: beside the archive)
+  --checksums PATH     With --artifact --verify-only: checksums to trust (default: beside the archive);
+                       a deploy always verifies against the release's WEB-RELEASE-SHA256SUMS.txt
   --verify-only        Stop after verifying the archive and adding the deploy files
 EOF
 }
@@ -66,7 +67,8 @@ trap 'rm -rf "$work"' EXIT
 exec 3>&2
 failed=0
 on_error() {
-  if [[ "$failed" -eq 1 ]]; then return; fi
+  # A failing command substitution reports once, from the main shell.
+  if [[ "$failed" -eq 1 || "$BASH_SUBSHELL" -gt 0 ]]; then return; fi
   failed=1
   echo "[publish-web] FAILED. Last lines of $log_file:" >&3
   tail -n 40 "$log_file" >&3
@@ -122,6 +124,16 @@ if [[ -z "$artifact" ]]; then
     exit 1
   fi
   artifact="${archives[0]}"
+  checksums="$work/download/WEB-RELEASE-SHA256SUMS.txt"
+elif [[ "$verify_only" -eq 0 ]]; then
+  # A deploy trusts only the published release's checksums, never a file beside a local archive.
+  if [[ -n "$checksums" ]]; then
+    echo "ERROR: --checksums applies to --verify-only; a deploy verifies against $tag's WEB-RELEASE-SHA256SUMS.txt." >&2
+    exit 1
+  fi
+  stage "Downloading WEB-RELEASE-SHA256SUMS.txt for the local archive"
+  mkdir "$work/download"
+  run gh release download "$tag" --repo "$repo" --dir "$work/download" --pattern "WEB-RELEASE-SHA256SUMS.txt"
   checksums="$work/download/WEB-RELEASE-SHA256SUMS.txt"
 elif [[ -z "$checksums" ]]; then
   checksums="$(dirname "$artifact")/WEB-RELEASE-SHA256SUMS.txt"
