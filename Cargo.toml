@@ -1,9 +1,9 @@
 [workspace]
-members = ["desktop", "common-types", "lib-swift", "lib-cpp", "lib-c", "bindings-gen"]
+members = ["desktop", "common-types", "bindings-gen"]
 resolver = "2"
 
 [workspace.package]
 version = "2.0.0"
 edition = "2024"
-license = "AGPL-3.0-only"
-repository = "https://github.com/naejin/canopi"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/opencanopi/canopi"

@@ -9,6 +9,7 @@ import {
   createTerrainLayers,
   createTerrainSources,
 } from '../maplibre/terrain'
+import { TERRAIN_DATA_ATTRIBUTION } from '../canvas/contours'
 import {
   applyTerrainPaintUpdates,
   classifyTerrainSync,
@@ -43,6 +44,29 @@ describe('maplibre terrain contract', () => {
         }),
       }),
     ])
+  })
+
+  // The elevation is the AWS Terrain Tiles (Mapzen, from many public sources); the map credits name them while
+  // contours or hillshading draw, through each source's MapLibre attribution, and never otherwise.
+  it('credits the terrain data while contours or hillshading are on, and not otherwise', () => {
+    const state = {
+      contourIntervalMeters: 0,
+      contoursVisible: false,
+      contoursOpacity: 0.5,
+      hillshadeVisible: false,
+      hillshadeOpacity: 0.6,
+      isDark: false,
+    }
+    const credits = (next: typeof state) =>
+      createTerrainSources(PROTOCOLS, next).map(({ source }) => source.attribution)
+
+    expect(TERRAIN_DATA_ATTRIBUTION).toContain('Mapzen')
+    expect(TERRAIN_DATA_ATTRIBUTION).toContain('https://github.com/tilezen/joerd/blob/master/docs/attribution.md')
+    expect(credits(state)).toEqual([])
+    expect(credits({ ...state, contoursVisible: true })).toEqual([TERRAIN_DATA_ATTRIBUTION])
+    expect(credits({ ...state, hillshadeVisible: true })).toEqual([TERRAIN_DATA_ATTRIBUTION])
+    expect(credits({ ...state, contoursVisible: true, hillshadeVisible: true }))
+      .toEqual([TERRAIN_DATA_ATTRIBUTION, TERRAIN_DATA_ATTRIBUTION])
   })
 
   it('scales contour and hillshade styling from the terrain view controls', () => {

@@ -1,24 +1,41 @@
+import { encodeCanopiDesign } from "../app/contracts/canopi-design-wire";
 import { decodeCanopiDesign } from "../app/contracts/design-ingestion";
 import type { CanopiFile } from "../types/design";
-import {
-  createBrowserPartitionStorage,
-  type BrowserPartitionWriteResult,
-  type BrowserStorageAdapter as StorageAdapter,
-} from "./browser-partition-storage";
 
-const LEGACY_STORAGE_KEY = "canopi:web-app-data:v1";
-const V2_COMMITTED_AUTHORITY_STORAGE_KEY = "canopi:web-app-data:v2:authority";
-const V2_MIGRATION_PROGRESS_STORAGE_KEY = "canopi:web-app-data:v2:migration-progress";
-const V2_AUTHORITY_RESERVATION_STORAGE_KEY = "canopi:web-app-data:v2:authority-reservation";
-const RECORD_VERSION = 2 as const;
+// Canopi 2.0 keeps its records under the `v3` keys and migrates nothing
+// (ADR 0021). Web Edition 1.x wrote the `v1` document and then moved it into
+// the `v2:*` keys (1.0.1 to 1.2.0); 2.0 never reads, writes or deletes any of
+// them, so 1.x still opens them. It only checks whether one exists, to tell the
+// user once that they were not opened.
+const RECORD_VERSION = 3 as const;
+const EARLIER_KEYS: readonly string[] = [
+  "canopi:web-app-data:v1",
+  "canopi:web-app-data:v2:drafts",
+  "canopi:web-app-data:v2:settings",
+  "canopi:web-app-data:v2:species",
+  "canopi:web-app-data:v2:saved-object-stamps",
+  "canopi:web-app-data:v2:authority",
+  "canopi:web-app-data:v2:migration-progress",
+  "canopi:web-app-data:v2:authority-reservation",
+];
+/** Set once the user has been told that the 1.x data was left in place. */
+const KEPT_IN_PLACE_NOTICE_KEY = "canopi:web-app-data:before-2.0-kept-in-place-notice";
 const STORAGE_KEYS = {
-  drafts: "canopi:web-app-data:v2:drafts",
-  settings: "canopi:web-app-data:v2:settings",
-  species: "canopi:web-app-data:v2:species",
-  stamps: "canopi:web-app-data:v2:saved-object-stamps",
+  drafts: "canopi:web-app-data:v3:drafts",
+  settings: "canopi:web-app-data:v3:settings",
+  species: "canopi:web-app-data:v3:species",
+  stamps: "canopi:web-app-data:v3:saved-object-stamps",
 } as const;
 
-export type BrowserStorageAdapter = StorageAdapter;
+export interface BrowserStorageAdapter {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export type BrowserAppDataWriteResult<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: unknown };
 
 export interface BrowserDraftSummary {
   readonly id: string;
@@ -26,77 +43,77 @@ export interface BrowserDraftSummary {
   readonly updatedAt: string;
 }
 
-export interface BrowserSavedObjectStampRecord {
+interface BrowserSavedObjectStampRecord {
   readonly id: string;
   readonly name: string;
   readonly payload: unknown;
 }
 
-export type BrowserAppDataWriteResult<T> = BrowserPartitionWriteResult<T>;
-
-interface LegacyBrowserAppDataDocument {
-  readonly drafts: readonly BrowserDraftSummary[];
-  readonly draftFiles: Record<string, unknown>;
-  readonly settings: Record<string, unknown> | null;
-  readonly favoriteSpecies: readonly string[];
-  readonly recentlyViewedSpecies: readonly string[];
-  readonly savedObjectStamps: readonly BrowserSavedObjectStampRecord[];
-}
 
 interface BrowserDraftsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly drafts: readonly BrowserDraftSummary[];
   readonly draftFiles: Record<string, CanopiFile>;
+  /**
+   * Drafts this Canopi refuses to open (a damaged, newer or older Design), kept as their stored values so a write of another
+   * Draft never erases them.
+   */
+  readonly refused: RefusedDrafts;
+}
+
+interface RefusedDrafts {
+  readonly summaries: readonly unknown[];
+  readonly files: Record<string, unknown>;
 }
 
 interface BrowserSettingsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly settings: Record<string, unknown> | null;
 }
 
 interface BrowserSpeciesRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly favoriteSpecies: readonly string[];
   readonly recentlyViewedSpecies: readonly string[];
 }
 
 interface BrowserSavedObjectStampsRecord {
-  readonly version: 2;
+  readonly version: typeof RECORD_VERSION;
   readonly savedObjectStamps: readonly BrowserSavedObjectStampRecord[];
+}
+
+/** One independently stored record. A missing or unreadable record reads as empty. */
+interface BrowserStoragePartition<TRecord> {
+  readonly key: string;
+  accepts(value: unknown): boolean;
+  normalize(value: unknown): TRecord;
+  /** Storage form of a record; defaults to the record itself. */
+  encode?(record: TRecord): unknown;
 }
 
 const PARTITIONS = {
   drafts: {
     key: STORAGE_KEYS.drafts,
-    slot: 0,
     accepts: isSupportedDraftsRecord,
     normalize: normalizeDraftsRecord,
-    fromLegacy: draftsRecordFromLegacy,
-    toLegacy: legacyDocumentWithDrafts,
+    // Draft files are stored in the .canopi wire form, like every other
+    // persisted Design, so they decode through the same admission.
+    encode: encodeDraftsRecord,
   },
   settings: {
     key: STORAGE_KEYS.settings,
-    slot: 1,
     accepts: isSupportedSettingsRecord,
     normalize: normalizeSettingsRecord,
-    fromLegacy: settingsRecordFromLegacy,
-    toLegacy: legacyDocumentWithSettings,
   },
   species: {
     key: STORAGE_KEYS.species,
-    slot: 2,
     accepts: isSupportedSpeciesRecord,
     normalize: normalizeSpeciesRecord,
-    fromLegacy: speciesRecordFromLegacy,
-    toLegacy: legacyDocumentWithSpecies,
   },
   stamps: {
     key: STORAGE_KEYS.stamps,
-    slot: 3,
     accepts: isSupportedStampsRecord,
     normalize: normalizeStampsRecord,
-    fromLegacy: stampsRecordFromLegacy,
-    toLegacy: legacyDocumentWithStamps,
   },
 } as const;
 
@@ -104,6 +121,21 @@ interface SaveDraftOptions {
   readonly id?: string;
   readonly file: CanopiFile;
   readonly now: string;
+  /**
+   * The `updatedAt` this writer last read or wrote for the Draft (null: it
+   * never saw one). When another browser tab has since written the Draft, the
+   * save is refused with `BrowserDraftChangedError` instead of replacing it.
+   * Omitted: overwrite unconditionally.
+   */
+  readonly expectedUpdatedAt?: string | null;
+}
+
+/** Another browser tab wrote the Draft after this writer last read or wrote it. */
+export class BrowserDraftChangedError extends Error {
+  constructor(readonly draftId: string) {
+    super("The Draft was changed in another browser tab");
+    this.name = "BrowserDraftChangedError";
+  }
 }
 
 interface BrowserAppDataStoreOptions {
@@ -123,34 +155,59 @@ export interface BrowserAppDataStore {
   listRecentlyViewedSpecies(): readonly string[];
   saveSavedObjectStamps(records: readonly BrowserSavedObjectStampRecord[]): BrowserAppDataWriteResult<readonly BrowserSavedObjectStampRecord[]>;
   listSavedObjectStamps(): readonly BrowserSavedObjectStampRecord[];
+  /**
+   * True when the user should now be told that browser data from before
+   * Canopi 2.0 was not opened: the first start that finds any 1.x key
+   * (U59). Nothing but the
+   * notice marker is written; when even that does not fit, the notice repeats
+   * on later starts.
+   */
+  takeEarlierDataNotice(now: string): boolean;
 }
 
 export function createBrowserAppDataStore({
   storage = browserLocalStorageAdapter(),
 }: BrowserAppDataStoreOptions = {}): BrowserAppDataStore {
-  const { readPartition, writePartition } = createBrowserPartitionStorage({
-    storage,
-    legacyKey: LEGACY_STORAGE_KEY,
-    committedAuthorityKey: V2_COMMITTED_AUTHORITY_STORAGE_KEY,
-    migrationProgressKey: V2_MIGRATION_PROGRESS_STORAGE_KEY,
-    authorityReservationKey: V2_AUTHORITY_RESERVATION_STORAGE_KEY,
-    recordVersion: RECORD_VERSION,
-    partitions: Object.values(PARTITIONS),
-    decodeLegacy(raw) {
-      try {
-        return normalizeLegacyAppDataDocument(JSON.parse(raw));
-      } catch {
-        return emptyLegacyDocument();
-      }
-    },
-  });
+  function readPartition<TRecord>(partition: BrowserStoragePartition<TRecord>): TRecord {
+    try {
+      const raw = storage.getItem(partition.key);
+      if (raw === null) return partition.normalize(null);
+      const parsed: unknown = JSON.parse(raw);
+      return partition.normalize(partition.accepts(parsed) ? parsed : null);
+    } catch {
+      return partition.normalize(null);
+    }
+  }
+
+  function writePartition<TRecord, TValue>(
+    partition: BrowserStoragePartition<TRecord>,
+    mutate: (current: TRecord) => { next: TRecord; value: TValue },
+  ): BrowserAppDataWriteResult<TValue> {
+    try {
+      const mutation = mutate(readPartition(partition));
+      storage.setItem(
+        partition.key,
+        JSON.stringify(partition.encode ? partition.encode(mutation.next) : mutation.next),
+      );
+      return { ok: true, value: mutation.value };
+    } catch (error) {
+      return { ok: false, error };
+    }
+  }
 
   return {
-    saveDraft({ id: requestedId, file, now }) {
+    saveDraft({ id: requestedId, file, now, expectedUpdatedAt }) {
       return writePartition(
         PARTITIONS.drafts,
         (current) => {
           const id = normalizeDraftId(requestedId, file.name);
+          if (expectedUpdatedAt !== undefined) {
+            // A Draft deleted meanwhile is written again rather than lost.
+            const stored = current.drafts.find((draft) => draft.id === id);
+            if (stored && stored.updatedAt !== expectedUpdatedAt) {
+              throw new BrowserDraftChangedError(id);
+            }
+          }
           const summary = {
             id,
             name: file.name || "Untitled",
@@ -168,6 +225,7 @@ export function createBrowserAppDataStore({
                 ...current.draftFiles,
                 [summary.id]: file,
               },
+              refused: withoutRefusedDraft(current.refused, summary.id),
             },
             value: summary,
           };
@@ -196,6 +254,7 @@ export function createBrowserAppDataStore({
               version: RECORD_VERSION,
               drafts: current.drafts.filter((draft) => draft.id !== id),
               draftFiles,
+              refused: withoutRefusedDraft(current.refused, id),
             },
             value: null,
           };
@@ -279,7 +338,41 @@ export function createBrowserAppDataStore({
     listSavedObjectStamps() {
       return readPartition(PARTITIONS.stamps).savedObjectStamps;
     },
+
+    takeEarlierDataNotice(now) {
+      let found: boolean;
+      try {
+        found = EARLIER_KEYS.some((key) => storage.getItem(key) !== null);
+      } catch {
+        return false;
+      }
+      return noteKeptInPlace(storage, found, now);
+    },
   };
+}
+
+/**
+ * True when the user should now be told that earlier data stays in place:
+ * the first time it is found. The marker is cleared once nothing is found,
+ * and when it cannot be written the user is told again on the next start.
+ */
+function noteKeptInPlace(storage: BrowserStorageAdapter, found: boolean, now: string): boolean {
+  try {
+    const told = storage.getItem(KEPT_IN_PLACE_NOTICE_KEY) !== null;
+    if (!found) {
+      if (told) storage.removeItem(KEPT_IN_PLACE_NOTICE_KEY);
+      return false;
+    }
+    if (told) return false;
+  } catch {
+    return found;
+  }
+  try {
+    storage.setItem(KEPT_IN_PLACE_NOTICE_KEY, now);
+  } catch {
+    // No room even for the marker: the notice repeats until there is.
+  }
+  return true;
 }
 
 export const browserAppDataStore = createBrowserAppDataStore();
@@ -292,116 +385,51 @@ function browserLocalStorageAdapter(): BrowserStorageAdapter {
   };
 }
 
-function draftsRecordFromLegacy(document: LegacyBrowserAppDataDocument): BrowserDraftsRecord {
-  return {
-    version: RECORD_VERSION,
-    drafts: document.drafts.map((draft) => ({ ...draft })),
-    draftFiles: decodeDraftFiles(document.draftFiles),
-  };
-}
-
-function settingsRecordFromLegacy(document: LegacyBrowserAppDataDocument): BrowserSettingsRecord {
-  return {
-    version: RECORD_VERSION,
-    settings: document.settings ? { ...document.settings } : null,
-  };
-}
-
-function speciesRecordFromLegacy(document: LegacyBrowserAppDataDocument): BrowserSpeciesRecord {
-  return {
-    version: RECORD_VERSION,
-    favoriteSpecies: [...document.favoriteSpecies],
-    recentlyViewedSpecies: [...document.recentlyViewedSpecies],
-  };
-}
-
-function stampsRecordFromLegacy(document: LegacyBrowserAppDataDocument): BrowserSavedObjectStampsRecord {
-  return {
-    version: RECORD_VERSION,
-    savedObjectStamps: document.savedObjectStamps.map((record) => ({ ...record })),
-  };
-}
-
-function legacyDocumentWithDrafts(
-  document: LegacyBrowserAppDataDocument,
-  record: BrowserDraftsRecord,
-): LegacyBrowserAppDataDocument {
-  return {
-    ...document,
-    drafts: record.drafts.map((draft) => ({ ...draft })),
-    draftFiles: { ...record.draftFiles },
-  };
-}
-
-function legacyDocumentWithSettings(
-  document: LegacyBrowserAppDataDocument,
-  record: BrowserSettingsRecord,
-): LegacyBrowserAppDataDocument {
-  return {
-    ...document,
-    settings: record.settings ? { ...record.settings } : null,
-  };
-}
-
-function legacyDocumentWithSpecies(
-  document: LegacyBrowserAppDataDocument,
-  record: BrowserSpeciesRecord,
-): LegacyBrowserAppDataDocument {
-  return {
-    ...document,
-    favoriteSpecies: [...record.favoriteSpecies],
-    recentlyViewedSpecies: [...record.recentlyViewedSpecies],
-  };
-}
-
-function legacyDocumentWithStamps(
-  document: LegacyBrowserAppDataDocument,
-  record: BrowserSavedObjectStampsRecord,
-): LegacyBrowserAppDataDocument {
-  return {
-    ...document,
-    savedObjectStamps: record.savedObjectStamps.map((stamp) => ({ ...stamp })),
-  };
-}
-
 function isSupportedDraftsRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && Array.isArray(value.drafts)
     && isRecord(value.draftFiles);
 }
 
 function isSupportedSettingsRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && (value.settings === null || isRecord(value.settings));
 }
 
 function isSupportedSpeciesRecord(value: unknown): boolean {
-  return isV2Record(value)
+  return isCurrentRecord(value)
     && Array.isArray(value.favoriteSpecies)
     && Array.isArray(value.recentlyViewedSpecies);
 }
 
 function isSupportedStampsRecord(value: unknown): boolean {
-  return isV2Record(value) && Array.isArray(value.savedObjectStamps);
+  return isCurrentRecord(value) && Array.isArray(value.savedObjectStamps);
 }
 
 function normalizeDraftsRecord(value: unknown): BrowserDraftsRecord {
-  if (!isV2Record(value)) return emptyDraftsRecord();
-  const draftFiles = decodeDraftFiles(value.draftFiles);
+  if (!isCurrentRecord(value)) return emptyDraftsRecord();
+  const { decoded: draftFiles, refused: refusedFiles } = decodeDraftFiles(value.draftFiles);
   const validDraftIds = new Set(Object.keys(draftFiles));
+  const summaries: readonly unknown[] = Array.isArray(value.drafts) ? value.drafts : [];
   return {
     version: RECORD_VERSION,
-    drafts: Array.isArray(value.drafts)
-      ? value.drafts.filter((draft): draft is BrowserDraftSummary => (
-        isDraftSummary(draft) && validDraftIds.has(draft.id)
-      ))
-      : [],
+    drafts: summaries.filter((draft): draft is BrowserDraftSummary => (
+      isDraftSummary(draft) && validDraftIds.has(draft.id)
+    )),
     draftFiles,
+    refused: {
+      summaries: summaries.filter((draft) => (
+        isRecord(draft)
+        && typeof draft.id === "string"
+        && Object.prototype.hasOwnProperty.call(refusedFiles, draft.id)
+      )),
+      files: refusedFiles,
+    },
   };
 }
 
 function normalizeSettingsRecord(value: unknown): BrowserSettingsRecord {
-  if (!isV2Record(value)) return emptySettingsRecord();
+  if (!isCurrentRecord(value)) return emptySettingsRecord();
   return {
     version: RECORD_VERSION,
     settings: isRecord(value.settings) ? { ...value.settings } : null,
@@ -409,7 +437,7 @@ function normalizeSettingsRecord(value: unknown): BrowserSettingsRecord {
 }
 
 function normalizeSpeciesRecord(value: unknown): BrowserSpeciesRecord {
-  if (!isV2Record(value)) return emptySpeciesRecord();
+  if (!isCurrentRecord(value)) return emptySpeciesRecord();
   return {
     version: RECORD_VERSION,
     favoriteSpecies: Array.isArray(value.favoriteSpecies)
@@ -422,7 +450,7 @@ function normalizeSpeciesRecord(value: unknown): BrowserSpeciesRecord {
 }
 
 function normalizeStampsRecord(value: unknown): BrowserSavedObjectStampsRecord {
-  if (!isV2Record(value)) return emptyStampsRecord();
+  if (!isCurrentRecord(value)) return emptyStampsRecord();
   return {
     version: RECORD_VERSION,
     savedObjectStamps: Array.isArray(value.savedObjectStamps)
@@ -432,7 +460,7 @@ function normalizeStampsRecord(value: unknown): BrowserSavedObjectStampsRecord {
 }
 
 function emptyDraftsRecord(): BrowserDraftsRecord {
-  return { version: RECORD_VERSION, drafts: [], draftFiles: {} };
+  return { version: RECORD_VERSION, drafts: [], draftFiles: {}, refused: { summaries: [], files: {} } };
 }
 
 function emptySettingsRecord(): BrowserSettingsRecord {
@@ -451,62 +479,60 @@ function emptyStampsRecord(): BrowserSavedObjectStampsRecord {
   return { version: RECORD_VERSION, savedObjectStamps: [] };
 }
 
-function isV2Record(value: unknown): value is Record<string, unknown> & { version: 2 } {
+function isCurrentRecord(value: unknown): value is Record<string, unknown> & { version: typeof RECORD_VERSION } {
   return isRecord(value) && value.version === RECORD_VERSION;
 }
 
-function emptyLegacyDocument(): LegacyBrowserAppDataDocument {
+function encodeDraftsRecord(record: BrowserDraftsRecord): unknown {
+  const draftFiles: Record<string, unknown> = {};
+  for (const [id, file] of Object.entries(record.refused.files)) {
+    defineOwn(draftFiles, id, file);
+  }
+  for (const [id, file] of Object.entries(record.draftFiles)) {
+    defineOwn(draftFiles, id, encodeCanopiDesign(file));
+  }
   return {
-    drafts: [],
-    draftFiles: {},
-    settings: null,
-    favoriteSpecies: [],
-    recentlyViewedSpecies: [],
-    savedObjectStamps: [],
-  };
-}
-
-function normalizeLegacyAppDataDocument(value: unknown): LegacyBrowserAppDataDocument {
-  if (!isRecord(value)) return emptyLegacyDocument();
-  const decodedDraftFiles = decodeDraftFiles(value.draftFiles);
-  const rawDraftFiles = isRecord(value.draftFiles) ? value.draftFiles : {};
-  // Unrelated v1 partition writes must not grow Drafts by adding new schema
-  // defaults. Draft readers still receive fully decoded documents.
-  const draftFiles = Object.fromEntries(Object.keys(decodedDraftFiles).map((id) => [id, rawDraftFiles[id]]));
-  const validDraftIds = new Set(Object.keys(draftFiles));
-  return {
-    drafts: Array.isArray(value.drafts)
-      ? value.drafts.filter((draft): draft is BrowserDraftSummary => (
-        isDraftSummary(draft) && validDraftIds.has(draft.id)
-      ))
-      : [],
+    version: record.version,
+    drafts: [...record.drafts, ...record.refused.summaries],
     draftFiles,
-    settings: isRecord(value.settings) ? { ...value.settings } : null,
-    favoriteSpecies: Array.isArray(value.favoriteSpecies) ? uniqueStrings(value.favoriteSpecies) : [],
-    recentlyViewedSpecies: Array.isArray(value.recentlyViewedSpecies) ? uniqueStrings(value.recentlyViewedSpecies) : [],
-    savedObjectStamps: Array.isArray(value.savedObjectStamps)
-      ? value.savedObjectStamps.filter(isSavedObjectStampRecord)
-      : [],
   };
 }
 
-function decodeDraftFiles(value: unknown): Record<string, CanopiFile> {
-  if (!isRecord(value)) return {};
+function withoutRefusedDraft(refused: RefusedDrafts, id: string): RefusedDrafts {
+  if (!Object.prototype.hasOwnProperty.call(refused.files, id)) return refused;
+  const { [id]: _removed, ...files } = refused.files;
+  return {
+    summaries: refused.summaries.filter((draft) => !isRecord(draft) || draft.id !== id),
+    files,
+  };
+}
+
+function decodeDraftFiles(value: unknown): {
+  decoded: Record<string, CanopiFile>;
+  refused: Record<string, unknown>;
+} {
   const decoded: Record<string, CanopiFile> = {};
+  const refused: Record<string, unknown> = {};
+  if (!isRecord(value)) return { decoded, refused };
   for (const [id, rawFile] of Object.entries(value)) {
     try {
-      Object.defineProperty(decoded, id, {
-        configurable: true,
-        enumerable: true,
-        value: decodeCanopiDesign(rawFile),
-        writable: true,
-      });
+      defineOwn(decoded, id, decodeCanopiDesign(rawFile));
     } catch {
-      // A corrupt Draft is local convenience data; omit it without poisoning
-      // settings, Species data, stamps, or other independently valid Drafts.
+      // A Draft that does not open is not listed, but its stored value is
+      // kept: it is the user's Design, not ours to erase.
+      defineOwn(refused, id, rawFile);
     }
   }
-  return decoded;
+  return { decoded, refused };
+}
+
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  });
 }
 
 function isDraftSummary(value: unknown): value is BrowserDraftSummary {

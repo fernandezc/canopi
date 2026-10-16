@@ -12,6 +12,14 @@ import {
   type CssDeclarationPolicy,
 } from './support/architecture/policy-harness'
 
+let cssModuleFactsCache: ReturnType<typeof discoverCssModuleFacts> | null = null
+
+/** Every CSS Module's declarations, parsed once per run for all the policies below. */
+function cssModuleFacts(): ReturnType<typeof discoverCssModuleFacts> {
+  cssModuleFactsCache ??= discoverCssModuleFacts('src')
+  return cssModuleFactsCache
+}
+
 const CSS_WIDE_VALUES = new Set(['inherit', 'initial', 'revert', 'revert-layer', 'unset'])
 const CSS_NUMBER_SOURCE = String.raw`[+-]?(?:\d*\.\d+|\d+\.?\d*)(?:e[+-]?\d+)?`
 const CSS_LENGTH_UNITS = [
@@ -31,51 +39,14 @@ const RAW_CSS_TIME = new RegExp(
   String.raw`(?:^|[^\w.-])${CSS_NUMBER_SOURCE}(?:ms|s)(?![\w-])`,
   'i',
 )
+const RAW_CSS_COLOUR =
+  /(?:^|[^\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|#[0-9a-f]{3,8}\b|(?:^|[^\w-])(?:white|black)(?![\w-])/i
+const ALLOWED_FONT_WEIGHTS = new Set(['400', '600'])
 const GLOBAL_DESIGN_TOKEN_NAMES = collectGlobalDesignTokenNames(
   readFileSync('src/styles/global.css', 'utf8'),
 )
 
 const STRUCTURAL_SPACING_EXCEPTIONS = [
-  {
-    file: 'src/components/canvas/LayerPanel.module.css',
-    rule: '.mapSlider::-webkit-slider-thumb',
-    atRules: [],
-    property: 'margin-top',
-    value: 'calc((var(--slider-thumb-size) - var(--slider-track-size)) / -2)',
-    reason: 'WebKit requires the thumb to be offset by half the difference between thumb and track geometry.',
-  },
-  {
-    file: 'src/components/canvas/LocationTab.module.css',
-    rule: '.centerCrosshair::before',
-    atRules: [],
-    property: 'margin-left',
-    value: 'calc(-1px)',
-    reason: 'Centers the two-pixel vertical crosshair on its exact screen pixel.',
-  },
-  {
-    file: 'src/components/canvas/LocationTab.module.css',
-    rule: '.centerCrosshair::after',
-    atRules: [],
-    property: 'margin-top',
-    value: 'calc(-1px)',
-    reason: 'Centers the two-pixel horizontal crosshair on its exact screen pixel.',
-  },
-  {
-    file: 'src/components/canvas/LocationTab.module.css',
-    rule: '.savedPin::before',
-    atRules: [],
-    property: 'margin-left',
-    value: 'calc((var(--space-4) + var(--space-0-5)) / -2)',
-    reason: 'Centers the structural pin silhouette around its left percentage coordinate.',
-  },
-  {
-    file: 'src/components/canvas/LocationTab.module.css',
-    rule: '.savedPin::after',
-    atRules: [],
-    property: 'margin-left',
-    value: 'calc(var(--space-1-5) / -2)',
-    reason: 'Centers the structural pin center around its left percentage coordinate.',
-  },
   {
     file: 'src/components/panels/FavoritesPanel.module.css',
     rule: '.savedStampGripDots',
@@ -83,14 +54,6 @@ const STRUCTURAL_SPACING_EXCEPTIONS = [
     property: 'gap',
     value: 'var(--saved-stamp-grip-dot-size)',
     reason: 'The structural grid gap must equal the locally defined grip-dot diameter.',
-  },
-  {
-    file: 'src/components/plant-db/PlantDb.module.css',
-    rule: '.searchInput',
-    atRules: [],
-    property: 'padding-right',
-    value: 'var(--control-size-md)',
-    reason: 'Reserves the exact width of the overlaid search control rather than visual spacing.',
   },
   {
     file: 'src/components/plant-db/RangeSlider.module.css',
@@ -127,33 +90,9 @@ const STRUCTURAL_SPACING_EXCEPTIONS = [
 ] as const
 
 const STRUCTURAL_FONT_EXCEPTIONS = [
-  {
-    file: 'src/components/plant-detail/PhotoCarousel.module.css',
-    rule: '.navBtn',
-    atRules: [],
-    property: 'font-size',
-    value: '22px',
-    reason: 'The character is a chevron icon whose font size controls glyph geometry, not text hierarchy.',
-  },
 ] as const
 
 const REVIEWED_TRANSITION_EXCEPTIONS = [
-  {
-    file: 'src/components/plant-detail/PhotoCarousel.module.css',
-    rule: '.image',
-    atRules: [],
-    property: 'transition',
-    value: 'opacity 350ms ease',
-    reason: 'Image decoding uses a deliberately slower opacity reveal than interactive controls.',
-  },
-  {
-    file: 'src/components/plant-detail/PhotoCarousel.module.css',
-    rule: '.navBtn',
-    atRules: [],
-    property: 'transition',
-    value: 'opacity 200ms ease',
-    reason: 'Carousel controls need a local fade between the normal and image-load transition speeds.',
-  },
 ] as const
 
 const CSS_MODULE_POLICIES: readonly CssDeclarationPolicy[] = [
@@ -196,6 +135,25 @@ const CSS_MODULE_POLICIES: readonly CssDeclarationPolicy[] = [
     requiredValue: /$^/,
     accepts: acceptsTransitionDeclaration,
     exceptions: REVIEWED_TRANSITION_EXCEPTIONS,
+  },
+  {
+    // A raw colour does not follow the theme, so it breaks dark mode (system.md: tokens only). Any property is
+    // checked, since shorthands (border, box-shadow, filter: drop-shadow) carry colours too.
+    name: 'CSS Modules draw colour from tokens',
+    properties: ['*'],
+    rawValue: RAW_CSS_COLOUR,
+    requiredValue: /$^/,
+    accepts: () => false,
+    exceptions: [],
+  },
+  {
+    // system.md allows two weights, 400 and 600; a third weight reads as a new level of emphasis.
+    name: 'CSS font weights are 400 or 600',
+    properties: ['font-weight', 'font'],
+    rawValue: /[\s\S]+/,
+    requiredValue: /$^/,
+    accepts: acceptsFontWeightDeclaration,
+    exceptions: [],
   },
 ]
 
@@ -243,7 +201,7 @@ describe('CSS module policy facts', () => {
   })
 
   it('discovers every CSS Module recursively in stable path order', () => {
-    const files = discoverCssModuleFacts('src')
+    const files = cssModuleFacts()
     const paths = files.map(({ path }) => path)
 
     expect(paths).toEqual([...paths].sort())
@@ -380,8 +338,47 @@ describe('CSS module policy facts', () => {
     })).toBe(false)
   })
 
+  it('rejects a raw colour in any property and a font weight other than 400 or 600', () => {
+    const planted = [{
+      path: 'src/fixture.module.css',
+      declarations: parseCssDeclarations(
+        'src/fixture.module.css',
+        `.item {
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+          border: 1px solid #fff;
+          color: white;
+          background: var(--color-surface);
+          white-space: nowrap;
+          font-weight: 700;
+          font-weight: 600 !important;
+          font: 500 var(--text-sm) var(--font-sans);
+          font: inherit;
+        }`,
+      ),
+    }]
+    expect(collectCssPolicyViolations(planted, CSS_MODULE_POLICIES.slice(-2))).toEqual([
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:2 box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2)',
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:3 border: 1px solid #fff',
+      '[CSS Modules draw colour from tokens] src/fixture.module.css:4 color: white',
+      '[CSS font weights are 400 or 600] src/fixture.module.css:7 font-weight: 700',
+      '[CSS font weights are 400 or 600] src/fixture.module.css:9 font: 500 var(--text-sm) var(--font-sans)',
+    ])
+  })
+
+  it('reads only colour tokens global.css defines, so no var(--color-*) silently draws nothing', () => {
+    const undefinedReads = cssModuleFacts().flatMap((file) => {
+      const local = new Set(file.declarations.map((declaration) => declaration.property))
+      return file.declarations.flatMap((declaration) =>
+        [...declaration.value.matchAll(/var\(\s*(--color-[\w-]+)/g)]
+          .map((match) => match[1]!)
+          .filter((token) => !GLOBAL_DESIGN_TOKEN_NAMES.has(token) && !local.has(token))
+          .map((token) => `${file.path}:${declaration.line} ${declaration.property} reads ${token}`))
+    })
+    expect(undefinedReads).toEqual([])
+  })
+
   it('keeps every CSS Module on the shared design-token policies', () => {
-    const files = discoverCssModuleFacts('src')
+    const files = cssModuleFacts()
 
     expect(collectCssPolicyViolations(files, CSS_MODULE_POLICIES)).toEqual([])
   })
@@ -395,6 +392,15 @@ function acceptsFontDeclaration({ property, value }: CssDeclarationFact): boolea
     '--text-',
     property === 'font' ? ['--font-', '--line-height'] : [],
   )
+}
+
+function acceptsFontWeightDeclaration({ property, value }: CssDeclarationFact): boolean {
+  const normalized = value.replace(/\s*!important\s*$/i, '').trim()
+  if (CSS_WIDE_VALUES.has(normalized)) return true
+  if (property === 'font-weight') return ALLOWED_FONT_WEIGHTS.has(normalized)
+  // The font shorthand may carry a weight among its components: a bare number or a weight keyword.
+  return splitTopLevelComponents(normalized, true).every((component) =>
+    !/^(?:\d+|bold|bolder|lighter)$/i.test(component) || ALLOWED_FONT_WEIGHTS.has(component))
 }
 
 function acceptsSpacingComponent(component: string): boolean {
@@ -606,12 +612,38 @@ function dangleselectorLists(css: string): string[] {
 
 describe('CSS module structural integrity', () => {
   it('keeps every selector list attached to a declaration block', () => {
-    const violations = discoverCssModuleFacts('src')
+    const violations = cssModuleFacts()
       .flatMap(({ path }) => {
         const filePath = path.replace(/^src\//, 'src/')
         const css = readFileSync(resolve(filePath), 'utf8')
         return dangleselectorLists(css).map((prelude) => `${path}: ${prelude}`)
       })
     expect(violations).toEqual([])
+  })
+})
+
+/** The Layers and Site data row files: one layer row look, shared (U49 Q7; architecture review finding 5). */
+const LAYER_ROW_FILES = [
+  { component: 'src/components/canvas/LayerPanel.tsx', module: 'src/components/canvas/LayerPanel.module.css' },
+  { component: 'src/components/panels/lidar/SiteData.tsx', module: 'src/components/panels/lidar/site-data.module.css' },
+] as const
+
+/** An inset bar drawn with box-shadow: the open-row marker the shared module owns. */
+const OPEN_BAR = /box-shadow:\s*inset\s/
+
+describe('one layer row look in Layers and Site data', () => {
+  it('both row files compose shared/layer-row.module.css and draw no open bar of their own', () => {
+    const violations = LAYER_ROW_FILES.flatMap(({ component, module }) => [
+      ...(/from '(?:\.\.\/)+(?:components\/)?shared\/layer-row\.module\.css'/.test(readFileSync(resolve(component), 'utf8'))
+        ? []
+        : [`${component} does not import shared/layer-row.module.css`]),
+      ...(OPEN_BAR.test(readFileSync(resolve(module), 'utf8')) ? [`${module} draws its own open bar`] : []),
+    ])
+
+    expect(violations).toEqual([])
+  })
+
+  it('the shared module draws the open bar', () => {
+    expect(OPEN_BAR.test(readFileSync(resolve('src/components/shared/layer-row.module.css'), 'utf8'))).toBe(true)
   })
 })

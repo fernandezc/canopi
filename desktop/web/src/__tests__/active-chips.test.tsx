@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -115,6 +117,6 @@ describe('ActiveChips', () => {
     expect(container.textContent).toContain('Woody')
     expect(container.textContent).toContain('Edibility: 3+')
     expect(container.textContent).toContain('N')
-    expect(container.textContent).toContain('Fixer')
+    expect(container.textContent).toContain('fixer')
   })
 })

@@ -1,4 +1,4 @@
-use common_types::design::{DesignNotebookEntry, DesignNotebookSection, DesignSummary};
+use common_types::design::{DesignNotebookEntry, DesignNotebookSection};
 use rusqlite::Connection;
 
 pub fn record_design_reference(
@@ -34,27 +34,6 @@ pub fn record_design_reference(
         rusqlite::params![path, name, plant_count],
     )?;
     Ok(())
-}
-
-pub fn get_design_notebook_entries(
-    conn: &Connection,
-) -> Result<Vec<DesignSummary>, rusqlite::Error> {
-    let mut stmt = conn.prepare(
-        "SELECT path, name, updated_at, plant_count
-         FROM design_notebook_entries
-         ORDER BY sort_order ASC, last_opened DESC, created_at DESC, path ASC",
-    )?;
-
-    let rows = stmt.query_map([], |row| {
-        Ok(DesignSummary {
-            path: row.get(0)?,
-            name: row.get(1)?,
-            updated_at: row.get(2)?,
-            plant_count: row.get(3)?,
-        })
-    })?;
-
-    rows.collect()
 }
 
 pub fn remove_design_reference(conn: &Connection, path: &str) -> Result<(), rusqlite::Error> {
@@ -217,11 +196,13 @@ pub fn remove_design_reference_from_section(
     Ok(())
 }
 
+/// `updated_at` is an RFC 3339 UTC instant: the table stores SQLite's `datetime('now')`, UTC without a zone
+/// marker, which a reader would take for local time.
 pub fn get_design_notebook_entries_with_sections(
     conn: &Connection,
 ) -> Result<Vec<DesignNotebookEntry>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT e.path, e.name, e.updated_at, e.plant_count, m.section_id, e.sort_order
+        "SELECT e.path, e.name, strftime('%Y-%m-%dT%H:%M:%SZ', e.updated_at), e.plant_count, m.section_id, e.sort_order
          FROM design_notebook_entries e
          LEFT JOIN design_notebook_section_memberships m ON m.path = e.path
          ORDER BY e.sort_order ASC, e.last_opened DESC, e.created_at DESC, e.path ASC",
@@ -261,6 +242,22 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         crate::db::user_db::initialize_connection(&conn).unwrap();
         conn
+    }
+
+    #[test]
+    fn listed_entries_say_when_they_were_saved_as_a_utc_instant() {
+        // SQLite's datetime('now') is UTC with no zone marker; the Design notebook read it as local time, so near
+        // midnight a Design showed the wrong day (canopi-f47t.61's neighbour).
+        let conn = test_db();
+        super::record_design_reference(&conn, "/garden.canopi", "Garden", 1).unwrap();
+        conn.execute(
+            "UPDATE design_notebook_entries SET updated_at = '2026-10-13 23:11:59'",
+            [],
+        )
+        .unwrap();
+
+        let entries = super::get_design_notebook_entries_with_sections(&conn).unwrap();
+        assert_eq!(entries[0].updated_at, "2026-10-13T23:11:59Z");
     }
 
     #[test]
@@ -324,7 +321,7 @@ mod tests {
 
         super::record_design_reference(&conn, "/designs/forest.canopi", "Forest Edge", 7).unwrap();
 
-        let entries = super::get_design_notebook_entries(&conn).unwrap();
+        let entries = super::get_design_notebook_entries_with_sections(&conn).unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].path, "/designs/forest.canopi");
         assert_eq!(entries[0].name, "Forest Edge");
@@ -342,7 +339,7 @@ mod tests {
         super::remove_design_reference(&conn, "/designs/forest.canopi").unwrap();
 
         assert!(
-            super::get_design_notebook_entries(&conn)
+            super::get_design_notebook_entries_with_sections(&conn)
                 .unwrap()
                 .is_empty()
         );

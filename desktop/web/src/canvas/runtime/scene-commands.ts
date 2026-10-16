@@ -5,30 +5,7 @@ import {
   type ScenePersistedState,
 } from './scene'
 
-export type SceneDiffKind =
-  | 'layers'
-  | 'plants'
-  | 'zones'
-  | 'annotations'
-  | 'measurementGuides'
-  | 'groups'
-  | 'plantSpeciesColors'
-  | 'plantSpeciesSymbols'
-  | 'plantSpeciesCodes'
-  | 'guides'
-  | 'selection'
-
-type PersistedPatchKey =
-  | 'plantSpeciesColors'
-  | 'plantSpeciesSymbols'
-  | 'plantSpeciesCodes'
-  | 'layers'
-  | 'plants'
-  | 'zones'
-  | 'annotations'
-  | 'measurementGuides'
-  | 'groups'
-  | 'guides'
+type PersistedPatchKey = keyof ScenePersistedState
 
 export interface SceneCommandSnapshot {
   persisted: ScenePersistedState
@@ -42,36 +19,23 @@ export interface SceneCommandPatch {
 
 export interface SceneCommand {
   readonly type: string
-  readonly diffs: readonly SceneDiffKind[]
   readonly before: SceneCommandPatch
   readonly after: SceneCommandPatch
 }
 
-const PATCH_KEYS: PersistedPatchKey[] = [
-  'plantSpeciesColors',
-  'plantSpeciesSymbols',
-  'plantSpeciesCodes',
-  'layers',
-  'plants',
-  'zones',
-  'annotations',
-  'measurementGuides',
-  'groups',
-  'guides',
-]
-
-const DIFF_BY_KEY: Record<PersistedPatchKey, SceneDiffKind> = {
-  plantSpeciesColors: 'plantSpeciesColors',
-  plantSpeciesSymbols: 'plantSpeciesSymbols',
-  plantSpeciesCodes: 'plantSpeciesCodes',
-  layers: 'layers',
-  plants: 'plants',
-  zones: 'zones',
-  annotations: 'annotations',
-  measurementGuides: 'measurementGuides',
-  groups: 'groups',
-  guides: 'guides',
-}
+// Every persisted collection, so a new one gets undo the day it is added: tsc fails until it is listed here.
+const PATCH_KEY_SET = {
+  plantSpeciesColors: true,
+  plantSpeciesSymbols: true,
+  plantSpeciesCodes: true,
+  layers: true,
+  plants: true,
+  zones: true,
+  annotations: true,
+  measurementGuides: true,
+  groups: true,
+} as const satisfies Record<PersistedPatchKey, true>
+const PATCH_KEYS = Object.keys(PATCH_KEY_SET) as PersistedPatchKey[]
 
 export function createScenePatchCommand(
   type: string,
@@ -80,7 +44,6 @@ export function createScenePatchCommand(
 ): SceneCommand | null {
   const beforePatch: MutableSceneCommandPatch = {}
   const afterPatch: MutableSceneCommandPatch = {}
-  const diffs = new Set<SceneDiffKind>()
 
   for (const key of PATCH_KEYS) {
     const beforeValue = before.persisted[key]
@@ -90,7 +53,6 @@ export function createScenePatchCommand(
     afterPatch.persisted ??= {}
     ;(beforePatch.persisted as Record<PersistedPatchKey, unknown>)[key] = cloneValue(beforeValue)
     ;(afterPatch.persisted as Record<PersistedPatchKey, unknown>)[key] = cloneValue(afterValue)
-    diffs.add(DIFF_BY_KEY[key])
   }
 
   const beforeSelection = normalizeSceneDesignObjectTargets(before.selectedTargets)
@@ -98,14 +60,12 @@ export function createScenePatchCommand(
   if (!sceneDesignObjectTargetsEqual(beforeSelection, afterSelection)) {
     beforePatch.selection = beforeSelection
     afterPatch.selection = afterSelection
-    diffs.add('selection')
   }
 
-  if (diffs.size === 0) return null
+  if (!afterPatch.persisted && !afterPatch.selection) return null
 
   return {
     type,
-    diffs: [...diffs],
     before: beforePatch,
     after: afterPatch,
   }

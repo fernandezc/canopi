@@ -1,0 +1,5 @@
+[alias]
+# Rust coverage ratchet: the floor is the measured baseline; raise it, never lower it.
+# The GDAL comparison lane (rust_engine/comparison.rs) is test-only code whose tests are all ignored, so the
+# coverage run never executes it; counting it made added IGN-tile probes read as untested production code (2026-10-16).
+cov = "llvm-cov --workspace --locked --summary-only --ignore-filename-regex rust_engine/comparison\\.rs --fail-under-lines 86.7 --fail-under-functions 76.9 --fail-under-regions 86.3"

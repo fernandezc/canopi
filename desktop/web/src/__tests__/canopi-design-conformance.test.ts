@@ -9,7 +9,6 @@ import {
   CANOPI_DESIGN_INGESTION_ERROR_KINDS,
   CURRENT_CANOPI_FILE_VERSION,
   FUTURE_CANOPI_FILE_VERSION_POLICY,
-  MIN_SUPPORTED_CANOPI_FILE_VERSION,
   MISSING_CANOPI_FILE_VERSION,
 } from '../generated/canopi-design-format'
 
@@ -18,6 +17,8 @@ interface ConformanceCase {
   readonly input: unknown
   readonly accepted?: string
   readonly error_kind?: string
+  /** Where the refusal points: the message's path before its first ": ". */
+  readonly error_path?: string
 }
 
 interface ConformanceCorpus {
@@ -25,7 +26,6 @@ interface ConformanceCorpus {
   readonly facts: {
     readonly current_version: number
     readonly missing_version: number
-    readonly minimum_supported_version: number
     readonly future_version_policy: string
     readonly error_kinds: readonly string[]
   }
@@ -44,13 +44,12 @@ describe('shared Canopi Design conformance corpus', () => {
     expect(corpus.facts).toEqual({
       current_version: CURRENT_CANOPI_FILE_VERSION,
       missing_version: MISSING_CANOPI_FILE_VERSION,
-      minimum_supported_version: MIN_SUPPORTED_CANOPI_FILE_VERSION,
       future_version_policy: FUTURE_CANOPI_FILE_VERSION_POLICY,
       error_kinds: CANOPI_DESIGN_INGESTION_ERROR_KINDS,
     })
   })
 
-  it.each(corpus.cases)('$id', ({ accepted, error_kind: errorKind, input }) => {
+  it.each(corpus.cases)('$id', ({ accepted, error_kind: errorKind, error_path: errorPath, input }) => {
     if (accepted) {
       const expected = corpus.accepted_documents[accepted]
       const decoded = decodeCanopiDesign(input)
@@ -65,6 +64,14 @@ describe('shared Canopi Design conformance corpus', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(CanopiDesignIngestionError)
       expect((error as CanopiDesignIngestionError).kind).toBe(errorKind)
+      expect(errorPath, 'every refusal case names its path').toBeDefined()
+      expect(pathOf((error as CanopiDesignIngestionError).message)).toBe(errorPath)
     }
   })
 })
+
+/** The path a refusal message starts with ("$.plants[1].id: duplicate id" gives "$.plants[1].id"). */
+function pathOf(message: string): string {
+  const end = message.indexOf(': ')
+  return end === -1 ? message : message.slice(0, end)
+}

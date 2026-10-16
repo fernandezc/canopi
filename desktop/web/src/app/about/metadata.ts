@@ -13,5 +13,5 @@ function readCanopiVersion(configText: string): string {
 }
 
 export const CANOPI_VERSION = readCanopiVersion(tauriConfigText)
-export const CANOPI_LICENSE = 'AGPL-3.0-only'
-export const CANOPI_COPYRIGHT = 'Copyright 2026 Jean-Pierre Yin'
+export const CANOPI_LICENSE = 'AGPL-3.0-or-later'
+export const CANOPI_COPYRIGHT = 'Copyright 2026 Canopi contributors'

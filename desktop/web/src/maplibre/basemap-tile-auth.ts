@@ -1,5 +1,9 @@
+import type { SatelliteViewport } from './satellite-provider-session'
+
 /**
- * The ephemeral credential the official Google tile path needs.
+ * The ephemeral credential the official Google tile path needs, and every URL that carries it: the published tile
+ * template and the provider's session and viewport requests (S24). No other module names a Google tile endpoint
+ * (map-error-redaction.test.ts), so one file shows where the key goes.
  *
  * A session token is per-generation and expires, so it cannot live in a
  * published source descriptor: the descriptor is a stable, non-secret template
@@ -12,11 +16,36 @@
  * receive the key.
  */
 
+/** Google's Map Tiles API. */
+const GOOGLE_TILE_API = 'https://tile.googleapis.com/v1/'
+
 /** The only endpoint this transport authenticates. */
-export const GOOGLE_OFFICIAL_TILE_ENDPOINT = 'https://tile.googleapis.com/v1/2dtiles/'
+const GOOGLE_OFFICIAL_TILE_ENDPOINT = `${GOOGLE_TILE_API}2dtiles/`
 
 /** The placeholder a published descriptor carries instead of a live token. */
-export const GOOGLE_SESSION_PLACEHOLDER = '{session}'
+const GOOGLE_SESSION_PLACEHOLDER = '{session}'
+
+/**
+ * The official Map Tiles API 2D tile path. This is the published,
+ * **non-secret** template: the live session and the key are supplied per
+ * request by `BasemapTileAuth`, because a descriptor carrying a credential
+ * could be persisted, exported or logged.
+ */
+export const GOOGLE_SESSION_TILES =
+  `${GOOGLE_OFFICIAL_TILE_ENDPOINT}{z}/{x}/{y}?session=${GOOGLE_SESSION_PLACEHOLDER}`
+
+/** The provider's session request: it carries the key, so it is never logged. */
+export function googleSessionRequestUrl(key: string): string {
+  return `${GOOGLE_TILE_API}createSession?key=${encodeURIComponent(key)}`
+}
+
+/** The provider's viewport request (copyright and zoom availability): it carries the session and the key. */
+export function googleViewportRequestUrl(sessionToken: string, key: string, viewport: SatelliteViewport): string {
+  return `${GOOGLE_TILE_API}viewport?session=${encodeURIComponent(sessionToken)}`
+    + `&key=${encodeURIComponent(key)}`
+    + `&zoom=${viewport.zoom}&north=${viewport.north}&south=${viewport.south}`
+    + `&east=${viewport.east}&west=${viewport.west}`
+}
 
 export interface BasemapTileCredentials {
   readonly sessionToken: string
@@ -24,7 +53,7 @@ export interface BasemapTileCredentials {
 }
 
 /** Whether a URL addresses the fixed official tile endpoint. */
-export function isOfficialGoogleTileUrl(url: string): boolean {
+function isOfficialGoogleTileUrl(url: string): boolean {
   return url.startsWith(GOOGLE_OFFICIAL_TILE_ENDPOINT)
 }
 

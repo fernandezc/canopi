@@ -34,14 +34,6 @@ export function formatPlantSpacingIntervalInput(meters: number): string {
   return formatMetricLength(normalized)
 }
 
-export function formatPlantSpacingGuideLength(meters: number): string {
-  const normalized = Number.isFinite(meters) && meters > 0
-    ? meters
-    : 0
-
-  return formatMetricLength(normalized)
-}
-
 function formatMetricLength(meters: number): string {
   if (meters < 1) {
     return `${formatDecimal(meters * 100)} cm`
@@ -52,4 +44,16 @@ function formatMetricLength(meters: number): string {
 
 function formatDecimal(value: number): string {
   return Number(value.toFixed(3)).toString()
+}
+
+type PlantRowCountParseResult =
+  | { valid: true; count: number }
+  | { valid: false }
+
+/** Plant a row's "N plants" field: a whole number of plants from 2, the picked plant counted (the tool bounds it). */
+export function parsePlantRowCountInput(input: string): PlantRowCountParseResult {
+  const trimmed = input.trim()
+  if (!/^\d+$/.test(trimmed)) return { valid: false }
+  const count = Number(trimmed)
+  return count >= 2 && Number.isSafeInteger(count) ? { valid: true, count } : { valid: false }
 }

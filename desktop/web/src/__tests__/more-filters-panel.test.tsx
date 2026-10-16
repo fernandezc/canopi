@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,20 +16,25 @@ describe('MoreFiltersPanel outside-click behavior', () => {
   let MoreFiltersPanel: typeof import('../components/plant-db/MoreFiltersPanel').MoreFiltersPanel
   let locale: typeof import('../app/settings/state').locale
   let workbench: SpeciesCatalogWorkbench
+  let dynamicOptionsFailure: Error | null
 
   beforeEach(async () => {
     vi.resetModules()
     const settings = await import('../app/settings/state')
     locale = settings.locale
     locale.value = 'en'
+    dynamicOptionsFailure = null
     workbench = await createTestSpeciesCatalogWorkbench({
       locale,
-      loadDynamicFilterOptions: async (fields) => fields.map((field) => ({
+      loadDynamicFilterOptions: async (fields) => {
+        if (dynamicOptionsFailure) throw dynamicOptionsFailure
+        return fields.map((field) => ({
         field,
         field_type: 'numeric',
         values: null,
         range: [1, 13],
-      })),
+        }))
+      },
     })
     vi.doMock('../app/plant-browser', async () => {
       const actual = await vi.importActual<typeof import('../app/plant-browser')>('../app/plant-browser')
@@ -95,7 +102,7 @@ describe('MoreFiltersPanel outside-click behavior', () => {
     })
 
     const climateButton = Array.from(container.querySelectorAll('button'))
-      .find((button) => button.textContent?.includes('Climate & Soil'))
+      .find((button) => button.textContent?.includes('Climate & soil'))
     expect(climateButton).toBeTruthy()
 
     await act(async () => {
@@ -115,5 +122,97 @@ describe('MoreFiltersPanel outside-click behavior', () => {
     const rangeInputs = Array.from(container.querySelectorAll('input[type="range"]'))
     expect(rangeInputs).toHaveLength(2)
     expect(rangeInputs.every((input) => (input as HTMLInputElement).step === '1')).toBe(true)
+  })
+
+  it('a filter whose options cannot load says the plant catalog could not load, with Retry, never the raw error (canopi-etzh)', async () => {
+    const diagnostics = await import('../app/problem-report/diagnostics')
+    diagnostics.resetFrontendDiagnosticsForTests()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    dynamicOptionsFailure = new SyntaxError('JSON.parse: unexpected character at line 1 column 1 of the JSON data')
+    try {
+      await act(async () => {
+        render(<MoreFiltersPanel open onClose={vi.fn()} />, container)
+        await flushEffects()
+      })
+      const button = (text: string) => Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.includes(text))!
+      await act(async () => {
+        button('Climate & soil').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+      })
+      await act(async () => {
+        button('Hardiness zone min').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+        await flushEffects()
+      })
+
+      await vi.waitFor(async () => {
+        await act(flushEffects)
+        expect(container.textContent).toContain('The plant catalog couldn’t load.')
+      })
+      expect(container.textContent).not.toContain('JSON.parse')
+      expect(diagnostics.recentFrontendDiagnostics().map((entry) => [entry.source, entry.message]))
+        .toEqual([['plant-catalog', expect.stringContaining('JSON.parse')]])
+      expect(consoleError).not.toHaveBeenCalled()
+
+      dynamicOptionsFailure = null
+      await act(async () => {
+        button('Retry').dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        await flushEffects()
+        await flushEffects()
+      })
+      await vi.waitFor(async () => {
+        await act(flushEffects)
+        expect(container.querySelectorAll('input[type="range"]')).toHaveLength(2)
+      })
+      expect(container.textContent).not.toContain('The plant catalog couldn’t load.')
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('leaves Esc to the tool while it waits hidden under a phone tool\'s options, and takes it again once they close', async () => {
+    const { PhoneSheet } = await import('../components/shared/PhoneSheet')
+    const { phoneToolOptions } = await import('../app/shell/phone-layout')
+    const { navigateTo, sidePanel } = await import('../app/shell/state')
+    const { ESCAPE_PRIORITY, registerEscapeLayer, runEscape } = await import('../app/keyboard/escape-chain')
+    const onClose = vi.fn()
+    const leaveTool = vi.fn(() => true)
+    const disposeTool = registerEscapeLayer({ priority: ESCAPE_PRIORITY.tool, isActive: () => true, escape: leaveTool })
+    const escape = () => runEscape({ event: { key: 'Escape', shiftKey: false, ctrlKey: false, altKey: false, metaKey: false }, focus: 'map' } as Parameters<typeof runEscape>[0])
+    sidePanel.value = 'plant-db'
+    phoneToolOptions.value = null
+    function Catalog() {
+      return (
+        <PhoneSheet
+          layout="portrait"
+          tabs={[{ panel: 'plant-db', id: 'panel.plant-db', label: 'Catalog', disabled: false, active: sidePanel.value === 'plant-db', action: () => navigateTo('plant-db') }]}
+          options={<p data-tool-options-content />}
+        >
+          <MoreFiltersPanel open onClose={onClose} />
+        </PhoneSheet>
+      )
+    }
+
+    try {
+      await act(async () => {
+        render(<Catalog />, container)
+        await flushEffects()
+      })
+      // A tool armed from the keyboard: its options show in front of the catalog, whose More filters stays open under them.
+      await act(async () => { phoneToolOptions.value = 'half' })
+      expect(container.querySelector<HTMLElement>('[role="tabpanel"]')?.hidden).toBe(true)
+      escape()
+      expect(onClose, 'the hidden More filters does not take the Esc').not.toHaveBeenCalled()
+      expect(leaveTool, 'the Esc leaves the tool').toHaveBeenCalledTimes(1)
+
+      await act(async () => { phoneToolOptions.value = null })
+      escape()
+      expect(onClose, 'shown again, More filters takes the Esc').toHaveBeenCalledTimes(1)
+      expect(leaveTool).toHaveBeenCalledTimes(1)
+    } finally {
+      disposeTool()
+      sidePanel.value = null
+      phoneToolOptions.value = null
+    }
   })
 })

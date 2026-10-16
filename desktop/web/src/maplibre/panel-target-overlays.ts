@@ -1,7 +1,8 @@
-import type {
-  TargetMapFeature,
-  TargetMapProjectionResult,
-} from '../target'
+import {
+  getCanvasInteractionStrokeVisual,
+  type CanvasInteractionStrokeVisual,
+} from '../canvas/runtime/scene-visuals'
+import type { TargetMapFeature } from '../target'
 
 export type PanelTargetMapOverlayVariant = 'hover' | 'selection'
 
@@ -10,14 +11,14 @@ export interface PanelTargetMapOverlayFeatureCollection {
   readonly features: readonly TargetMapFeature[]
 }
 
-export interface PanelTargetMapOverlaySourceSpec {
+interface PanelTargetMapOverlaySourceSpec {
   readonly id: string
   readonly type: 'geojson'
   readonly data: PanelTargetMapOverlayFeatureCollection
 }
 
 type PanelTargetMapOverlayKindFilter =
-  readonly ['==', readonly ['get', 'kind'], 'plant' | 'zone']
+  readonly ['==', readonly ['get', 'kind'], 'zone']
 
 type PanelTargetMapOverlayGeometryFilter =
   readonly ['==', readonly ['geometry-type'], 'Polygon' | 'LineString' | 'Point']
@@ -26,7 +27,7 @@ type PanelTargetMapOverlayLayerFilter =
   | PanelTargetMapOverlayKindFilter
   | readonly ['all', PanelTargetMapOverlayKindFilter, PanelTargetMapOverlayGeometryFilter]
 
-export interface PanelTargetMapOverlayLayerSpec {
+interface PanelTargetMapOverlayLayerSpec {
   readonly id: string
   readonly source: string
   readonly type: 'circle' | 'fill' | 'line'
@@ -38,73 +39,61 @@ export interface PanelTargetMapOverlayContract {
   readonly variant: PanelTargetMapOverlayVariant
   readonly source: PanelTargetMapOverlaySourceSpec
   readonly layers: readonly PanelTargetMapOverlayLayerSpec[]
-  readonly unresolvedTargets: TargetMapProjectionResult['unresolvedTargets']
-  readonly skippedSceneIds: readonly string[]
-  readonly skippedReason: TargetMapProjectionResult['skippedReason']
   readonly hasRenderableFeatures: boolean
 }
 
-const OVERLAY_STYLE = {
-  hover: {
-    plantColor: '#f59e0b',
-    zoneFillColor: '#f59e0b',
-    zoneLineColor: '#b45309',
-    zoneFillOpacity: 0.22,
-    lineWidth: 2,
-    circleRadius: 6,
-    circleStrokeColor: '#fff7ed',
-  },
-  selection: {
-    plantColor: '#0f766e',
-    zoneFillColor: '#0f766e',
-    zoneLineColor: '#134e4a',
-    zoneFillOpacity: 0.24,
-    lineWidth: 2.5,
-    circleRadius: 7,
-    circleStrokeColor: '#ecfeff',
-  },
-} as const
+/**
+ * Zone highlights speak the scene's ring language: a selection is the accent
+ * highlight stroke over its casing, a panel hover the hover stroke; both read the
+ * canvas colour tokens. Plants are ringed by the canvas at their drawn size.
+ */
+function overlayVisual(variant: PanelTargetMapOverlayVariant): CanvasInteractionStrokeVisual {
+  return getCanvasInteractionStrokeVisual(variant === 'selection' ? 'highlight' : 'hover')
+}
+
+const ZONE_FILL_OPACITY: Readonly<Record<PanelTargetMapOverlayVariant, number>> = {
+  hover: 0.08,
+  selection: 0.12,
+}
 
 function createLayerSpecs(
   variant: PanelTargetMapOverlayVariant,
   sourceId: string,
 ): readonly PanelTargetMapOverlayLayerSpec[] {
   const prefix = `panel-target-${variant}`
-  const style = OVERLAY_STYLE[variant]
+  const visual = overlayVisual(variant)
+  const zoneFilter = ['==', ['get', 'kind'], 'zone'] as const
 
   return [
     {
       id: `${prefix}-zones-fill`,
       source: sourceId,
       type: 'fill',
-      filter: ['all', ['==', ['get', 'kind'], 'zone'], ['==', ['geometry-type'], 'Polygon']],
+      filter: ['all', zoneFilter, ['==', ['geometry-type'], 'Polygon']],
       paint: {
-        'fill-color': style.zoneFillColor,
-        'fill-opacity': style.zoneFillOpacity,
+        'fill-color': visual.color,
+        'fill-opacity': ZONE_FILL_OPACITY[variant],
+      },
+    },
+    {
+      id: `${prefix}-zones-casing`,
+      source: sourceId,
+      type: 'line',
+      filter: zoneFilter,
+      paint: {
+        'line-color': visual.casingColor,
+        'line-width': visual.casingWidthPx,
       },
     },
     {
       id: `${prefix}-zones-line`,
       source: sourceId,
       type: 'line',
-      filter: ['==', ['get', 'kind'], 'zone'],
+      filter: zoneFilter,
       paint: {
-        'line-color': style.zoneLineColor,
-        'line-opacity': 0.95,
-        'line-width': style.lineWidth,
-      },
-    },
-    {
-      id: `${prefix}-plants`,
-      source: sourceId,
-      type: 'circle',
-      filter: ['==', ['get', 'kind'], 'plant'],
-      paint: {
-        'circle-color': style.plantColor,
-        'circle-opacity': 0.95,
-        'circle-radius': style.circleRadius,
-        'circle-stroke-color': style.circleStrokeColor,
-        'circle-stroke-width': 2,
+        'line-color': visual.color,
+        'line-opacity': visual.alpha,
+        'line-width': visual.widthPx,
       },
     },
   ]
@@ -112,9 +101,10 @@ function createLayerSpecs(
 
 export function createPanelTargetMapOverlayContract(
   variant: PanelTargetMapOverlayVariant,
-  projection: TargetMapProjectionResult,
+  features: readonly TargetMapFeature[],
 ): PanelTargetMapOverlayContract {
   const sourceId = `panel-target-${variant}-source`
+  const zones = features.filter((feature) => feature.properties.kind === 'zone')
   return {
     variant,
     source: {
@@ -122,13 +112,10 @@ export function createPanelTargetMapOverlayContract(
       type: 'geojson',
       data: {
         type: 'FeatureCollection',
-        features: projection.features,
+        features: zones,
       },
     },
     layers: createLayerSpecs(variant, sourceId),
-    unresolvedTargets: projection.unresolvedTargets,
-    skippedSceneIds: projection.skippedSceneIds,
-    skippedReason: projection.skippedReason,
-    hasRenderableFeatures: projection.features.length > 0,
+    hasRenderableFeatures: zones.length > 0,
   }
 }

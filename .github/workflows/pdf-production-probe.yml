@@ -49,16 +49,16 @@ jobs:
             label: windows
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/web/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         if: runner.os == 'Windows'
         with:
           dotnet-version: '8.0.x'
@@ -78,7 +78,7 @@ jobs:
       - name: Run macOS or Windows WebView
         if: runner.os != 'Linux'
         run: python scripts/pdf-native-webview/run.py production-results/${{ matrix.label }} --fixture desktop/web/dist-pdf-validation --script desktop/web/scripts/pdf-validation/run-native.js
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pdf-production-${{ matrix.label }}
@@ -90,9 +90,9 @@ jobs:
     needs: native
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y poppler-utils python3-pil
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: pdf-production-*
           path: production-results
@@ -100,7 +100,7 @@ jobs:
         run: python3 -m unittest discover -s desktop/web/scripts/pdf-validation -p 'test_*.py'
       - name: Independently verify geometry, text and identical page plans
         run: /usr/bin/python3 desktop/web/scripts/pdf-validation/verify.py production-results/*/pdfkit.pdf
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pdf-production-verification

@@ -1,0 +1,28 @@
+/* A chip that is the phone's context bar (PhoneContextBar): a flat row of the panel sheet, on the sheet's own surface,
+   in place of the floating chip it is over the map elsewhere; a one-line chip is one touch row and its rule (answer 30). */
+.row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: calc(var(--control-size-touch) + 1px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.row > * {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row:empty {
+  display: none;
+}
+
+.row > * {
+  max-width: none;
+  padding-left: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}

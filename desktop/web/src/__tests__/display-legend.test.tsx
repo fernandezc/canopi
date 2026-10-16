@@ -1,14 +1,17 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDefaultScenePersistedState, type ScenePlantEntity } from '../canvas/runtime/scene'
-import { SCALE_BAR_RESERVED_BOTTOM_PX } from '../canvas/scale-bar'
+import { readFileSync } from 'node:fs'
 import { setCurrentCanvasSession } from '../canvas/session'
 import { DisplayLegend } from '../components/canvas/DisplayLegend'
+import { phoneLayout } from '../app/shell/phone-layout'
+import { registerMapArea, registerMapOccluder, visibleMapFrame } from '../app/shell/visible-map-area'
 import { createTestCanvasQuerySurface } from './support/canvas-query-surface'
 import { createTestCanvasRuntimeSurfaces } from './support/canvas-runtime-surfaces'
 
-const DISPLAY_LEGEND_TOP_RESERVED_PX = 32
 
 describe('DisplayLegend', () => {
   let container: HTMLDivElement
@@ -47,6 +50,61 @@ describe('DisplayLegend', () => {
     expect(container.querySelectorAll('[data-pinned-plant-name-entry]')).toHaveLength(1)
     expect(container.textContent).toContain('Pommier')
     expect(container.querySelector('[data-pinned-plant-name-count]')?.textContent).toBe('2')
+  })
+
+  it('is not shown on a phone, where the pinned names show on the map alone', async () => {
+    const scene = createDefaultScenePersistedState()
+    scene.plants = [plant({ id: 'plant-1', pinnedName: true, color: '#112233', symbol: 'tree' })]
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: createTestCanvasQuerySurface({ scene }) }))
+    try {
+      phoneLayout.value = 'landscape'
+      await act(async () => { render(<DisplayLegend />, container) })
+      expect(container.querySelector('[data-pinned-plant-name-legend]')).toBeNull()
+      await act(async () => { phoneLayout.value = null })
+      expect(container.querySelector('[data-pinned-plant-name-legend]')).not.toBeNull()
+    } finally {
+      phoneLayout.value = null
+    }
+  })
+
+  // The Web edition's desktop layout under 761 px: an open panel is a bottom sheet over the legend's place. A legend
+  // covering the left edge there would keep framing and the map notice clear of chrome no one sees.
+  it('covers the map\'s left edge only while no bottom chrome spans its place', async () => {
+    const boxes = new Map<Element, { left: number; top: number; width: number; height: number }>()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const box = this.hasAttribute('data-pinned-plant-name-legend')
+        ? { left: 76, top: 500, width: 164, height: 136 }
+        : boxes.get(this) ?? { left: 0, top: 0, width: 0, height: 0 }
+      const { left, top, width, height } = box
+      return { left, top, width, height, x: left, y: top, right: left + width, bottom: top + height, toJSON: () => ({}) } as DOMRect
+    })
+    const area = document.createElement('div')
+    const sheet = document.createElement('div')
+    document.body.append(area, sheet)
+    boxes.set(area, { left: 0, top: 0, width: 750, height: 700 })
+    boxes.set(sheet, { left: 12, top: 252, width: 726, height: 384 })
+    const scene = createDefaultScenePersistedState()
+    scene.plants = [plant({ id: 'plant-1', pinnedName: true, color: '#112233', symbol: 'tree' })]
+    setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({ queries: createTestCanvasQuerySurface({ scene }) }))
+    const releaseArea = registerMapArea(area)
+    try {
+      await act(async () => { render(<DisplayLegend />, container) })
+      const legend = () => container.querySelector('[data-pinned-plant-name-legend]')!
+      expect(legend().hasAttribute('data-covers-map')).toBe(true)
+      expect(visibleMapFrame.value.left).toBe(240)
+
+      let releaseSheet = () => {}
+      await act(async () => { releaseSheet = registerMapOccluder(sheet, 'bottom') })
+      expect(legend().hasAttribute('data-covers-map')).toBe(false)
+      expect(visibleMapFrame.value.left).toBe(0)
+
+      await act(async () => { releaseSheet() })
+      expect(legend().hasAttribute('data-covers-map')).toBe(true)
+    } finally {
+      render(null, container)
+      releaseArea()
+      vi.restoreAllMocks()
+    }
   })
 
   it('groups pinned names by localized name, effective symbol, and color', async () => {
@@ -91,11 +149,12 @@ describe('DisplayLegend', () => {
       await Promise.resolve()
     })
 
-    const legend = container.querySelector<HTMLElement>('[data-pinned-plant-name-legend]')
-    expect(legend?.style.maxHeight).toBe(
-      `calc(100% - ${SCALE_BAR_RESERVED_BOTTOM_PX + DISPLAY_LEGEND_TOP_RESERVED_PX}px)`,
-    )
-    expect(legend?.style.overflowY).toBe('auto')
+    expect(container.querySelectorAll('[data-pinned-plant-name-entry]')).toHaveLength(12)
+    // Between the title bar and the bottom chrome, then it scrolls.
+    const css = readFileSync('src/components/canvas/DisplayLegend.module.css', 'utf8')
+    const legendRule = /\.legend \{(?<body>[^}]*)\}/.exec(css)?.groups?.body ?? ''
+    expect(legendRule).toContain('max-height: calc(100% - var(--chrome-rail-top) - var(--chrome-bottom))')
+    expect(legendRule).toContain('overflow-y: auto')
   })
 
   it('updates pinned plant names when pins or localized names change', async () => {
@@ -163,11 +222,9 @@ function plant(overrides: Partial<ScenePlantEntity> = {}): ScenePlantEntity {
     color: null,
     symbol: null,
     pinnedName: false,
-    stratum: 'tree',
     canopySpreadM: null,
     position: { x: 0, y: 0 },
     rotationDeg: null,
-    scale: null,
     notes: null,
     plantedDate: null,
     quantity: null,

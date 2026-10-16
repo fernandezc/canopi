@@ -1,6 +1,8 @@
 import {
   DEM_ENCODING,
   DEM_MAX_ZOOM,
+  TERRAIN_DATA_ATTRIBUTION,
+  type DemSource,
   getContourLayerConfigs,
   getContourSourceConfig,
   getHillshadeLayerConfig,
@@ -14,16 +16,8 @@ export const TERRAIN_CONTOUR_LAYER_IDS = [
   'contour-major',
 ] as const
 
-export interface TerrainProtocolSupport {
-  readonly sharedDemProtocolUrl: string
-  readonly contourProtocolUrl: (options: {
-    thresholds: Record<number, number | number[]>
-    elevationKey?: string
-    levelKey?: string
-    contourLayer?: string
-    overzoom?: number
-  }) => string
-}
+/** What the terrain layers read from the DemSource once it is set up on MapLibre. */
+export type TerrainProtocolSupport = Pick<DemSource, 'sharedDemProtocolUrl' | 'contourProtocolUrl'>
 
 export interface TerrainLayerState {
   readonly contourIntervalMeters: number
@@ -86,6 +80,7 @@ export function createTerrainSources(
         maxzoom: DEM_MAX_ZOOM,
         tileSize: 256,
         encoding: DEM_ENCODING,
+        attribution: TERRAIN_DATA_ATTRIBUTION,
       },
     })
   }

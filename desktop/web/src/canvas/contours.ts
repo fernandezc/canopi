@@ -10,21 +10,11 @@
 // via the contour interval signal in app/canvas-settings/signals.
 // ---------------------------------------------------------------------------
 
-/**
- * Contour tile options matching the maplibre-contour API.
- * Defined here to avoid deep path imports from the package.
- */
-interface ContourThresholds {
-  [zoom: number]: number | number[]
-}
+import type mapLibreContour from 'maplibre-contour'
 
-interface ContourProtocolOptions {
-  thresholds: ContourThresholds
-  elevationKey?: string
-  levelKey?: string
-  contourLayer?: string
-  overzoom?: number
-}
+/** maplibre-contour's DemSource, as set up on MapLibre. */
+export type DemSource = InstanceType<typeof mapLibreContour.DemSource>
+type ContourThresholds = Parameters<DemSource['contourProtocolUrl']>[0]['thresholds']
 
 // ── Interval ladder ─────────────────────────────────────────────────────────
 
@@ -57,6 +47,12 @@ export const DEM_TILES_URL =
   'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
 export const DEM_MAX_ZOOM = 15
 export const DEM_ENCODING = 'terrarium' as const
+/**
+ * The credit the Terrain Tiles ask for: Mapzen's tiles and the public elevation sources they merge, listed on
+ * the linked page. Every source drawn from them carries it, so the map credits show it only while one draws.
+ */
+export const TERRAIN_DATA_ATTRIBUTION =
+  '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Terrain Tiles © Mapzen and its sources</a>'
 
 /**
  * Return the contour protocol URL and source configuration for MapLibre.
@@ -65,9 +61,9 @@ export const DEM_ENCODING = 'terrarium' as const
  * @param userInterval - optional user override interval in meters (0 = use adaptive)
  */
 export function getContourSourceConfig(
-  contourProtocolUrl: (options: ContourProtocolOptions) => string,
+  contourProtocolUrl: DemSource['contourProtocolUrl'],
   userInterval: number,
-): { tiles: string[]; type: 'vector'; maxzoom: number } {
+): { tiles: string[]; type: 'vector'; maxzoom: number; attribution: string } {
   const thresholds = userInterval > 0
     ? thresholdsForInterval(userInterval)
     : DEFAULT_THRESHOLDS
@@ -84,6 +80,7 @@ export function getContourSourceConfig(
     tiles: [url],
     type: 'vector' as const,
     maxzoom: DEM_MAX_ZOOM + 1,
+    attribution: TERRAIN_DATA_ATTRIBUTION,
   }
 }
 

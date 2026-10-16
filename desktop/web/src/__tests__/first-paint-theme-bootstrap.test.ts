@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +27,7 @@ describe('first-paint theme bootstrap', () => {
       expect(entry.moduleEntryIndex).toBeGreaterThan(entry.bootstrapIndex)
       for (const cachedTheme of ['light', 'dark'] as const) {
         document.documentElement.removeAttribute('data-theme')
-        localStorage.setItem('canopi-theme', cachedTheme)
+        localStorage.setItem('canopi:first-paint-theme', cachedTheme)
         executeBootstrap(entry.code)
         expect(document.documentElement.getAttribute('data-theme')).toBe(cachedTheme)
       }
@@ -35,7 +37,7 @@ describe('first-paint theme bootstrap', () => {
   it.each(HTML_ENTRIES)(
     'ignores an invalid cached theme in the %s entry',
     (_edition, entryPath) => {
-      localStorage.setItem('canopi-theme', 'sepia')
+      localStorage.setItem('canopi:first-paint-theme', 'sepia')
 
       executeBootstrap(readEntryBootstrap(entryPath).code)
 
@@ -64,7 +66,7 @@ function readEntryBootstrap(entryPath: string): {
   const entryDocument = new DOMParser().parseFromString(source, 'text/html')
   const scripts = Array.from(entryDocument.scripts)
   const bootstrapIndex = scripts.findIndex((script) => (
-    script.textContent?.includes('canopi-theme') ?? false
+    script.textContent?.includes('canopi:first-paint-theme') ?? false
   ))
   return {
     bootstrapIndex,

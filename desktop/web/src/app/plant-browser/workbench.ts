@@ -12,7 +12,9 @@ import {
   DYNAMIC_OPTIONS_BACKEND_MISMATCH_ERROR,
   isActiveSpeciesSearchText,
   isPlantSearchLoading,
+  recordCatalogFailure,
   type DynamicFilterOptionsAdapter,
+  type SpeciesBrowseSort,
   type PlantSearchAdapter,
   type PlantSearchIntent,
   type PlantSearchResultState,
@@ -22,8 +24,10 @@ import {
 import { plantFilterCatalog, plantFilterModel, type StripControlField } from './plant-filter-model'
 
 export { DYNAMIC_OPTIONS_BACKEND_MISMATCH_ERROR }
+export type { SpeciesBrowseSort }
 
-export type ViewMode = 'list' | 'card'
+/** Every browse order, in menu order; an edition offers the ones its catalog can serve. */
+export const SPECIES_BROWSE_SORTS: readonly SpeciesBrowseSort[] = ['Recommended', 'Name', 'Height', 'Edibility']
 
 type FilterOptionsAdapter = () => Promise<FilterOptions | null>
 type SupportedFilterFieldsAdapter = () => Promise<readonly string[] | null>
@@ -32,6 +36,47 @@ type RecentlyViewedAdapter = (locale: string, limit: number) => Promise<SpeciesL
 type ToggleFavoriteAdapter = (canonicalName: string) => Promise<boolean>
 type SpeciesSelectedAdapter = (canonicalName: string) => void | Promise<void>
 type SpeciesDetailAdapter = (canonicalName: string, locale: string) => Promise<SpeciesCatalogDetail | null>
+type CommonNamesAdapter = (canonicalNames: readonly string[], locale: string) => Promise<Readonly<Record<string, string>>>
+type HabitsAdapter = (canonicalNames: readonly string[]) => Promise<Readonly<Record<string, string>>>
+
+const ENGLISH = 'en'
+const NO_DISPLAY_NAMES: SpeciesDisplayNames = { names: {}, englishFallbacks: [] }
+
+/** What every plant list, label and export shows for a species in one language. */
+export interface SpeciesDisplayNames {
+  /** Common Name in the requested language, or the English one for the species in `englishFallbacks`. */
+  readonly names: Readonly<Record<string, string>>
+  /** Species shown with their English name, marked "(en)", because the language has none; empty in English. */
+  readonly englishFallbacks: readonly string[]
+}
+
+export type SpeciesDisplayNameResolver = (canonicalNames: readonly string[], locale: string) => Promise<SpeciesDisplayNames>
+
+/**
+ * The one "(en)" projection over a Common Names lookup: the language's names,
+ * then English for the rest. A failed language lookup fails the projection; a
+ * failed English lookup only leaves those species without a fallback.
+ */
+export function composeSpeciesDisplayNames(resolveCommonNames: CommonNamesAdapter): SpeciesDisplayNameResolver {
+  return async (canonicalNames, requestedLocale) => {
+    const unique = [...new Set(canonicalNames)].filter(Boolean)
+    if (unique.length === 0) return NO_DISPLAY_NAMES
+    const names: Record<string, string> = { ...await resolveCommonNames(unique, requestedLocale) }
+    const englishFallbacks: string[] = []
+    if (requestedLocale.split('-')[0] !== ENGLISH) {
+      const missing = unique.filter((name) => !names[name]?.trim())
+      const english = missing.length > 0 ? await resolveCommonNames(missing, ENGLISH).catch((): Readonly<Record<string, string>> => ({})) : {}
+      for (const name of missing) {
+        const value = english[name]?.trim()
+        if (value) {
+          names[name] = value
+          englishFallbacks.push(name)
+        }
+      }
+    }
+    return { names, englishFallbacks }
+  }
+}
 
 export interface SpeciesCatalogFilterStripView {
   readonly options: FilterOptions | null
@@ -44,6 +89,8 @@ export interface SpeciesCatalogFilterStripView {
 export interface SpeciesCatalogFavoritesView {
   readonly items: readonly SpeciesListItem[]
   readonly loading: boolean
+  /** The last load failed: the panel says the catalog couldn't load, with Retry (`retryFavorites`), not "none yet". */
+  readonly failed: boolean
   readonly revision: number
 }
 
@@ -56,6 +103,10 @@ export interface SpeciesCatalogDynamicOptionsView {
 export interface SpeciesCatalogSidebarView {
   readonly favoriteNames: readonly string[]
   readonly recentlyViewed: readonly SpeciesListItem[]
+  /** The last Recently viewed load failed, as `SpeciesCatalogFavoritesView.failed`. */
+  readonly recentlyViewedFailed: boolean
+  /** Recently viewed is loading, as `SpeciesCatalogFavoritesView.loading` (its Retry waits). */
+  readonly recentlyViewedLoading: boolean
 }
 
 export interface SpeciesCatalogDetailImage {
@@ -82,13 +133,16 @@ export interface SpeciesCatalogDetailView {
   readonly detail: SpeciesCatalogDetail | null
   readonly loading: boolean
   readonly error: string | null
+  /** The English name shown, marked "(en)", when the species has none in the interface language. */
+  readonly englishName?: string | null
 }
 
 export interface SpeciesCatalogWorkbench {
   readonly intent: ReadonlySignal<PlantSearchIntent>
   readonly results: ReadonlySignal<PlantSearchResultState>
   readonly selectedCanonicalName: ReadonlySignal<string | null>
-  readonly viewMode: ReadonlySignal<ViewMode>
+  /** Browse orders this edition's catalog serves, in menu order. */
+  readonly browseSorts: readonly SpeciesBrowseSort[]
   readonly hasActiveFilters: ReadonlySignal<boolean>
   readonly filterStrip: ReadonlySignal<SpeciesCatalogFilterStripView>
   readonly favorites: ReadonlySignal<SpeciesCatalogFavoritesView>
@@ -99,23 +153,42 @@ export interface SpeciesCatalogWorkbench {
   dispose(): void
   reloadSidebarLists(): Promise<void>
   loadFavorites(): Promise<void>
+  /** Loads Favorites and Recently viewed again, after a failure (their Retry). */
+  retryFavorites(): void
   loadFilterOptions(): Promise<void>
   setSearchText(text: string): void
   clearSearchText(): void
   retrySearch(): void
   loadNextPage(): Promise<void>
-  setViewMode(mode: ViewMode): void
+  setBrowseSort(sort: SpeciesBrowseSort): void
   patchFilters(patch: Partial<SpeciesFilter>): void
   clearFilters(): void
   addExtraFilter(field: string, op: FilterOp, values: string[]): void
   removeExtraFilter(field: string): void
   loadDynamicOptions(fields: string[]): Promise<void>
   selectSpecies(canonicalName: string): void
+  /** Loads the open species' detail again, after a failure (its Retry). */
+  retrySpeciesDetail(): void
   closeSpeciesDetail(): void
   toggleFavorite(canonicalName: string): Promise<void>
   isFavorite(canonicalName: string): boolean
   isSearchLoading(status: PlantSearchStatus): boolean
   isActiveSearchText(text: string): boolean
+  /**
+   * Best Common Name per species in one catalog language; species without one are
+   * absent. Cached per species and language for the workbench's lifetime; a
+   * failed lookup is retried next time.
+   */
+  resolveCommonNames(canonicalNames: readonly string[], locale: string): Promise<Readonly<Record<string, string>>>
+  /** The names a list, label or export shows: `resolveCommonNames` with the English fallback, over the same cache. */
+  resolveDisplayNames: SpeciesDisplayNameResolver
+  /** Catalog habit (`Tree`, `Shrub`, `Herbaceous`, `Climber`) per species; species without one are absent. */
+  resolveHabits(canonicalNames: readonly string[]): Promise<Readonly<Record<string, string>>>
+  /**
+   * One unfiltered first page for `text` in the active locale, outside the catalog view's
+   * own search session (so the catalog panel keeps its query and results).
+   */
+  searchCloseMatches(text: string, limit: number): Promise<readonly SpeciesListItem[]>
 }
 
 export interface SpeciesCatalogWorkbenchOptions {
@@ -128,8 +201,12 @@ export interface SpeciesCatalogWorkbenchOptions {
   readonly getRecentlyViewed?: RecentlyViewedAdapter
   readonly toggleFavorite?: ToggleFavoriteAdapter
   readonly getSpeciesDetail?: SpeciesDetailAdapter
+  readonly resolveCommonNames?: CommonNamesAdapter
+  readonly resolveHabits?: HabitsAdapter
   readonly onSpeciesSelected?: SpeciesSelectedAdapter
   readonly locale?: ReadonlySignal<string>
+  /** Browse orders the search adapter serves; defaults to all of them. */
+  readonly browseSorts?: readonly SpeciesBrowseSort[]
   readonly favoritesIncludeRecentlyViewed?: boolean
   readonly pageSize?: number
   readonly textDebounceMs?: number
@@ -145,6 +222,8 @@ const emptyFavoriteItemsAdapter: FavoriteItemsAdapter = async () => []
 const emptyRecentlyViewedAdapter: RecentlyViewedAdapter = async () => []
 const emptyToggleFavoriteAdapter: ToggleFavoriteAdapter = async () => false
 const emptySpeciesDetailAdapter: SpeciesDetailAdapter = async () => null
+const emptyCommonNamesAdapter: CommonNamesAdapter = async () => ({})
+const emptyHabitsAdapter: HabitsAdapter = async () => ({})
 
 export function createSpeciesCatalogWorkbench({
   search = missingSearchAdapter,
@@ -156,8 +235,11 @@ export function createSpeciesCatalogWorkbench({
   getRecentlyViewed: getRecentlyViewedAdapter = emptyRecentlyViewedAdapter,
   toggleFavorite: toggleFavoriteAdapter = emptyToggleFavoriteAdapter,
   getSpeciesDetail: getSpeciesDetailAdapter = emptySpeciesDetailAdapter,
+  resolveCommonNames: resolveCommonNamesAdapter = emptyCommonNamesAdapter,
+  resolveHabits: resolveHabitsAdapter = emptyHabitsAdapter,
   onSpeciesSelected,
   locale: localeSignal = locale,
+  browseSorts = SPECIES_BROWSE_SORTS,
   favoritesIncludeRecentlyViewed = false,
   pageSize,
   textDebounceMs,
@@ -198,11 +280,14 @@ export function createSpeciesCatalogWorkbench({
     pageSize,
     textDebounceMs,
   })
+  const defaultBrowseSort = browseSorts[0]
+  if (defaultBrowseSort && !browseSorts.includes(plantSearchSession.intent.peek().browseSort)) {
+    plantSearchSession.setBrowseSort(defaultBrowseSort)
+  }
   const filterOptions = signal<FilterOptions | null>(null)
   const supportedFilterFields = signal<ReadonlySet<string> | null>(
     getSupportedFilterFieldsAdapter ? new Set() : null,
   )
-  const viewMode = signal<ViewMode>('list')
   const selectedCanonicalName = signal<string | null>(null)
   const detail = signal<SpeciesCatalogDetailView>({
     canonicalName: null,
@@ -213,6 +298,9 @@ export function createSpeciesCatalogWorkbench({
   const favoriteNames = signal<string[]>([])
   const favoriteItems = signal<SpeciesListItem[]>([])
   const favoriteItemsLoading = signal(false)
+  const favoriteItemsFailed = signal(false)
+  const recentlyViewedFailed = signal(false)
+  const recentlyViewedLoading = signal(false)
   const favoriteItemsRevision = signal(0)
   const recentlyViewed = signal<SpeciesListItem[]>([])
   const projectedResults = computed<PlantSearchResultState>(() => {
@@ -242,7 +330,6 @@ export function createSpeciesCatalogWorkbench({
   })
 
   const selectedCanonical = computed(() => selectedCanonicalName.value)
-  const currentViewMode = computed(() => viewMode.value)
 
   const filterStrip = computed<SpeciesCatalogFilterStripView>(() => ({
     options: filterOptions.value,
@@ -255,6 +342,7 @@ export function createSpeciesCatalogWorkbench({
   const favorites = computed<SpeciesCatalogFavoritesView>(() => ({
     items: favoriteItems.value,
     loading: favoriteItemsLoading.value,
+    failed: favoriteItemsFailed.value,
     revision: favoriteItemsRevision.value,
   }))
 
@@ -267,6 +355,8 @@ export function createSpeciesCatalogWorkbench({
   const sidebar = computed<SpeciesCatalogSidebarView>(() => ({
     favoriteNames: favoriteNames.value,
     recentlyViewed: recentlyViewed.value,
+    recentlyViewedFailed: recentlyViewedFailed.value,
+    recentlyViewedLoading: recentlyViewedLoading.value,
   }))
 
   let favoriteItemsGeneration = 0
@@ -405,6 +495,7 @@ export function createSpeciesCatalogWorkbench({
     const generation = ++sidebarListsGeneration
     const favoriteGeneration = includeFavorites ? ++favoriteNamesGeneration : favoriteNamesGeneration
     const currentLocale = localeSignal.value
+    recentlyViewedLoading.value = true
     try {
       const [favorites, recent] = await Promise.all([
         includeFavorites && hasAuthoritativeFavoritesAdapter
@@ -418,9 +509,16 @@ export function createSpeciesCatalogWorkbench({
           favoriteNames.value = favorites.map((item) => item.canonical_name)
         }
         recentlyViewed.value = recent.map(projectFavoriteState)
+        recentlyViewedFailed.value = false
       })
-    } catch {
-      // Non-fatal: sidebar affordances stay stale rather than blocking search.
+    } catch (error) {
+      // Search goes on; Recently viewed says the catalog couldn't load.
+      if (disposed || generation !== sidebarListsGeneration || currentLocale !== localeSignal.value) return
+      recordCatalogFailure(error)
+      recentlyViewedFailed.value = true
+    } finally {
+      // The newest load ends the pending state; a superseded one leaves it to its successor.
+      if (!disposed && generation === sidebarListsGeneration) recentlyViewedLoading.value = false
     }
   }
 
@@ -480,9 +578,56 @@ export function createSpeciesCatalogWorkbench({
         if (favoriteGeneration === favoriteNamesGeneration) {
           favoriteNames.value = items.map((item) => item.canonical_name)
         }
+        favoriteItemsFailed.value = false
       })
+    } catch (error) {
+      // The panel says the catalog couldn't load, with Retry; the raw error goes to the diagnostics only.
+      if (disposed || generation !== favoriteItemsGeneration || requestedLocale !== localeSignal.value) return
+      recordCatalogFailure(error)
+      favoriteItemsFailed.value = true
+    }
+  }
+
+  // One name cache for every plant list, label and export: a species and language
+  // resolve once per workbench, and concurrent callers share the lookup in flight.
+  const commonNameCache = new Map<string, Map<string, string | null>>()
+  const commonNamesInFlight = new Map<string, Promise<void>>()
+  const inFlightKey = (requestedLocale: string, canonicalName: string) => `${requestedLocale}\u0000${canonicalName}`
+
+  async function resolveCommonNamesCached(
+    canonicalNames: readonly string[],
+    requestedLocale: string,
+  ): Promise<Record<string, string>> {
+    let cache = commonNameCache.get(requestedLocale)
+    if (!cache) commonNameCache.set(requestedLocale, cache = new Map())
+    const unique = [...new Set(canonicalNames)].filter(Boolean)
+    const missing = unique.filter((name) => !cache.has(name) && !commonNamesInFlight.has(inFlightKey(requestedLocale, name)))
+    if (missing.length > 0) {
+      const lookup = resolveCommonNamesAdapter(missing, requestedLocale)
+        .then((resolved) => {
+          for (const name of missing) cache.set(name, resolved[name]?.trim() || null)
+        })
+        .finally(() => {
+          for (const name of missing) commonNamesInFlight.delete(inFlightKey(requestedLocale, name))
+        })
+      for (const name of missing) commonNamesInFlight.set(inFlightKey(requestedLocale, name), lookup)
+    }
+    await Promise.all(unique.map((name) => commonNamesInFlight.get(inFlightKey(requestedLocale, name))))
+    const names: Record<string, string> = {}
+    for (const name of unique) {
+      const value = cache.get(name)
+      if (value) names[name] = value
+    }
+    return names
+  }
+
+  async function resolveEnglishName(canonicalName: string): Promise<string | null> {
+    try {
+      const names = await resolveCommonNamesCached([canonicalName], ENGLISH)
+      return names[canonicalName] ?? null
     } catch {
-      // Non-fatal: the favorites panel keeps its previous content.
+      // Without an English name the title falls back to the scientific name.
+      return null
     }
   }
 
@@ -500,14 +645,20 @@ export function createSpeciesCatalogWorkbench({
     try {
       const nextDetail = await getSpeciesDetailAdapter(canonicalName, requestedLocale)
       if (disposed || generation !== detailGeneration || selectedCanonicalName.value !== canonicalName) return
+      const englishName = nextDetail && !nextDetail.common_name?.trim() && requestedLocale.split('-')[0] !== ENGLISH
+        ? await resolveEnglishName(canonicalName)
+        : null
+      if (disposed || generation !== detailGeneration || selectedCanonicalName.value !== canonicalName) return
       detail.value = {
         canonicalName,
         detail: nextDetail,
         loading: false,
         error: null,
+        englishName,
       }
     } catch (error) {
       if (disposed || generation !== detailGeneration || selectedCanonicalName.value !== canonicalName) return
+      recordCatalogFailure(error)
       detail.value = {
         canonicalName,
         detail: null,
@@ -549,7 +700,7 @@ export function createSpeciesCatalogWorkbench({
     intent: plantSearchSession.intent,
     results: projectedResults,
     selectedCanonicalName: selectedCanonical,
-    viewMode: currentViewMode,
+    browseSorts,
     hasActiveFilters,
     filterStrip,
     favorites,
@@ -572,6 +723,7 @@ export function createSpeciesCatalogWorkbench({
     dispose() {
       if (disposed) return
       disposed = true
+      commonNameCache.clear()
       disposeViewEffects.forEach(dispose => dispose())
       stopPlantDbController()
       plantSearchSession.dispose()
@@ -606,14 +758,20 @@ export function createSpeciesCatalogWorkbench({
       void loadSidebarLists(false)
     },
 
+    retryFavorites() {
+      if (disposed) return
+      void loadFavoriteItems()
+      void loadSidebarLists(false)
+    },
+
     loadNextPage() {
       if (disposed) return Promise.resolve()
       return plantSearchSession.loadNextPage()
     },
 
-    setViewMode(mode) {
-      if (disposed) return
-      viewMode.value = mode
+    setBrowseSort(sort) {
+      if (disposed || !browseSorts.includes(sort)) return
+      plantSearchSession.setBrowseSort(sort)
     },
 
     patchFilters(patch) {
@@ -647,12 +805,21 @@ export function createSpeciesCatalogWorkbench({
       selectedCanonicalName.value = canonicalName
       if (alreadySelected || !viewsActive.peek()) void loadSpeciesDetail(canonicalName)
       try {
-        void Promise.resolve(onSpeciesSelected?.(canonicalName)).catch(() => {
-          // Non-fatal: selection should still open even if recents persistence fails.
-        })
+        void Promise.resolve(onSpeciesSelected?.(canonicalName))
+          // The recorded view is what "Recently viewed" lists, so it reloads once the record lands.
+          .then(() => { if (recentActive.peek()) void loadSidebarLists(false) })
+          .catch(() => {
+            // Non-fatal: selection should still open even if recents persistence fails.
+          })
       } catch {
         // Non-fatal: selection should still open even if recents persistence fails.
       }
+    },
+
+    retrySpeciesDetail() {
+      if (disposed) return
+      const canonicalName = selectedCanonicalName.peek()
+      if (canonicalName) void loadSpeciesDetail(canonicalName)
     },
 
     closeSpeciesDetail() {
@@ -676,6 +843,35 @@ export function createSpeciesCatalogWorkbench({
     isSearchLoading: isPlantSearchLoading,
 
     isActiveSearchText: isActiveSpeciesSearchText,
+
+    resolveCommonNames(canonicalNames, requestedLocale) {
+      if (disposed || canonicalNames.length === 0) return Promise.resolve({})
+      return resolveCommonNamesCached(canonicalNames, requestedLocale)
+    },
+
+    resolveDisplayNames: composeSpeciesDisplayNames((canonicalNames, requestedLocale) => {
+      if (disposed) return Promise.resolve({})
+      return resolveCommonNamesCached(canonicalNames, requestedLocale)
+    }),
+
+    resolveHabits(canonicalNames) {
+      if (disposed || canonicalNames.length === 0) return Promise.resolve({})
+      return resolveHabitsAdapter(canonicalNames)
+    },
+
+    async searchCloseMatches(text, limit) {
+      if (disposed || !isActiveSpeciesSearchText(text)) return []
+      const page = await search({
+        text,
+        filters: plantFilterModel.toRequestFilters(plantFilterModel.createEmpty(), []),
+        cursor: null,
+        limit,
+        sort: 'Relevance',
+        locale: localeSignal.peek(),
+        include_total: false,
+      })
+      return page.items
+    },
   }
 }
 

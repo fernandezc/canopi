@@ -1,10 +1,12 @@
+// @vitest-environment jsdom
+
 import { render } from 'preact'
 import { act } from 'preact/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlantSymbolMenu } from '../components/canvas/PlantSymbolMenu'
 import { setCurrentCanvasSession } from '../canvas/session'
 import { plantSymbolMenuOpen } from '../canvas/plant-symbol-menu-state'
-import { selectedObjectIds } from '../canvas/session-state'
+import { currentCanvasSelection } from '../canvas/session-state'
 import { createTestCanvasQuerySurface } from './support/canvas-query-surface'
 import {
   createTestCanvasCommandSurface,
@@ -16,7 +18,6 @@ describe('PlantSymbolMenu', () => {
   let querySurface: ReturnType<typeof createTestCanvasQuerySurface>
   const setSelectedPlantSymbol = vi.fn()
   const setPlantSymbolForSpecies = vi.fn()
-  const clearPlantSpeciesSymbol = vi.fn()
   const getSelectedPlantSymbolContext = vi.fn()
   const buttonRef = { current: null as HTMLButtonElement | null }
 
@@ -27,7 +28,6 @@ describe('PlantSymbolMenu', () => {
     document.body.appendChild(container)
     setSelectedPlantSymbol.mockReset()
     setPlantSymbolForSpecies.mockReset()
-    clearPlantSpeciesSymbol.mockReset()
     getSelectedPlantSymbolContext.mockReset()
     querySurface = createTestCanvasQuerySurface()
     setCurrentCanvasSession(createTestCanvasRuntimeSurfaces({
@@ -35,7 +35,6 @@ describe('PlantSymbolMenu', () => {
         plantPresentation: {
           setSelectedPlantSymbol,
           setPlantSymbolForSpecies,
-          clearPlantSpeciesSymbol,
         },
       }),
       queries: {
@@ -44,7 +43,7 @@ describe('PlantSymbolMenu', () => {
       },
     }))
     buttonRef.current = document.createElement('button')
-    selectedObjectIds.value = new Set(['plant-1'])
+    currentCanvasSelection.value = new Set(['plant-1'])
     plantSymbolMenuOpen.value = true
   })
 
@@ -52,7 +51,7 @@ describe('PlantSymbolMenu', () => {
     vi.unstubAllGlobals()
     render(null, container)
     container.remove()
-    selectedObjectIds.value = new Set()
+    currentCanvasSelection.value = new Set()
     plantSymbolMenuOpen.value = false
     setCurrentCanvasSession(null)
   })
@@ -78,7 +77,7 @@ describe('PlantSymbolMenu', () => {
     const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
     options[0]!.focus()
     await act(async () => { options[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })) })
-    expect(document.activeElement).toBe(options[3])
+    expect(document.activeElement).toBe(options[5])
 
     const coniferButton = document.querySelector<HTMLButtonElement>('button[aria-label="Conifer"]')
     expect(coniferButton).not.toBeNull()
@@ -103,7 +102,7 @@ describe('PlantSymbolMenu', () => {
     expect(plantSymbolMenuOpen.value).toBe(false)
   })
 
-  it('offers the twelve botanical forms in one keyboard grid', async () => {
+  it('offers every symbol in one keyboard grid, grouped by family with localized names', async () => {
     getSelectedPlantSymbolContext.mockReturnValue({
       plantIds: ['plant-1'],
       singleSpeciesCanonicalName: 'Malus domestica',
@@ -122,7 +121,13 @@ describe('PlantSymbolMenu', () => {
 
     const symbolRows = document.querySelectorAll('[role="listbox"]')
     expect(symbolRows).toHaveLength(1)
-    expect(symbolRows[0]?.querySelectorAll('[role=option]')).toHaveLength(16)
+    expect(symbolRows[0]?.querySelectorAll('[role=option]')).toHaveLength(33)
+    const families = [...document.querySelectorAll('[role="group"]')]
+    expect(families.map((group) => [group.getAttribute('aria-label'), group.querySelectorAll('[role="option"]').length])).toEqual([
+      ['Plant form', 12], ['What it gives', 6], ['What it does', 11], ['Abstract', 4],
+    ])
+    expect(families[1]?.querySelector('button[aria-label="Nitrogen fixer"]')?.getAttribute('data-symbol')).toBe('pod')
+    expect(families[2]?.querySelector('button[aria-label="Pollinator"]')?.getAttribute('data-symbol')).toBe('bee')
     expect(symbolRows[0]?.textContent).toContain('Groundcover')
     expect(symbolRows[0]?.querySelector('button[aria-label="Groundcover"]')).toBeTruthy()
     expect(symbolRows[0]?.querySelector('button[aria-label="Fern"]')).toBeTruthy()
@@ -155,7 +160,7 @@ describe('PlantSymbolMenu', () => {
       singleSpeciesDefaultSymbol: null, canClearSelectedSymbol: true,
     })
     await act(async () => { render(<PlantSymbolMenu buttonRef={buttonRef} />, container) })
-    expect(document.querySelector('[role="group"][aria-label="Botanical"]')).not.toBeNull()
+    expect(document.querySelector('[role="group"][aria-label="Plant form"]')).not.toBeNull()
     expect(document.querySelector('[role="group"][aria-label="Abstract"]')?.querySelectorAll('[role="option"]')).toHaveLength(4)
     const canopy = document.querySelector<HTMLButtonElement>('[aria-label="Canopy tree"]')!
     await act(async () => { canopy.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })) })

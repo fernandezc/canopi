@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from "vite";
+import { configDefaults } from "vitest/config";
 import preact from "@preact/preset-vite";
 import { fileURLToPath, URL } from "node:url";
 import { resolveWebEditionDevHtmlUrl } from "./src/web/dev-entry";
@@ -34,8 +35,22 @@ export default defineConfig(({ mode }) => {
         '#platform': platformAdapter,
         '#canvas-pdf-platform': fileURLToPath(new URL(isWebEdition ? './src/app/canvas-pdf/platform.browser.ts' : './src/app/canvas-pdf/platform.desktop.ts', import.meta.url)),
         '#budget-export-platform': fileURLToPath(new URL(isWebEdition ? './src/app/budget/platform.browser.ts' : './src/app/budget/platform.desktop.ts', import.meta.url)),
+        '#geocoding-transport': fileURLToPath(new URL(isWebEdition ? './src/app/geocoding/transport.browser.ts' : './src/app/geocoding/transport.desktop.ts', import.meta.url)),
         '#species-catalog-live': speciesCatalogLiveAdapter,
       },
+    },
+    optimizeDeps: {
+      // The WASM decoder packages resolve their .wasm files relative to their
+      // own module URL; pre-bundling would move them away from those files.
+      exclude: ['cog-tiler-wasm', 'whitebox-wasm'],
+      // Lazily imported by the PDF export; discovering them at runtime makes Vite
+      // re-optimize and reload the page mid-session.
+      include: ['pdfkit', 'fontkit'],
+      esbuildOptions: { target: 'es2022' },
+    },
+    worker: {
+      // The raster decode lane imports geotiff codecs dynamically.
+      format: 'es' as const,
     },
     server: {
       port: isWebEdition ? 1421 : 1420,
@@ -49,6 +64,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
+      target: 'es2022',
       outDir: isWebEdition ? "dist-web" : "dist",
       emptyOutDir: true,
       rollupOptions: {
@@ -56,6 +72,7 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             if (!id.includes("node_modules")) return undefined;
+            if (id.includes("maplibre-gl-raster") || id.includes("@deck.gl") || id.includes("@luma.gl") || id.includes("@developmentseed") || id.includes("@math.gl") || id.includes("@loaders.gl")) return "raster-display";
             if (id.includes("maplibre-gl")) return "maplibre-gl";
             if (id.includes("@tauri-apps")) return "tauri";
             if (id.includes("i18next")) return "i18n";
@@ -65,7 +82,26 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
-      environment: "jsdom",
+      // Plain Node by default: jsdom's setup cost more than the tests it served (576 s of worker time per run,
+      // 2026-10-16). A test file that needs the DOM starts with `// @vitest-environment jsdom`; without it,
+      // `document` and `window` are undefined and the file fails, so no test passes without the page it needs.
+      environment: "node",
+      // Test-only: MapLibre's TypeScript sources, for tests that run MapLibre's own code (view/camera-contract.test.ts,
+      // maplibre/camera-driver.test.ts, maplibre/workspace-map.test.ts, __tests__/openfreemap-basemap.test.ts). Builds
+      // never resolve it.
+      alias: { 'maplibre-gl-source': fileURLToPath(new URL('./node_modules/maplibre-gl/src', import.meta.url)) },
+      // Playwright specs (e2e/) run under Playwright's own runner; its `test()` throws in vitest.
+      exclude: [...configDefaults.exclude, "e2e/**"],
+      // An unhandled error or rejection fails the run even when every test passes.
+      dangerouslyIgnoreUnhandledErrors: false,
+      coverage: {
+        provider: "v8",
+        include: ["src/**/*.{ts,tsx}"],
+        exclude: ["src/**/*.test.{ts,tsx}", "src/__tests__/**", "src/generated/**"],
+        reporter: ["text-summary", "json-summary"],
+        // Ratchet: the floor is the measured baseline; raise it, never lower it.
+        thresholds: { statements: 92.0, branches: 85.4, functions: 92.9, lines: 94.8 },
+      },
     },
   };
 });

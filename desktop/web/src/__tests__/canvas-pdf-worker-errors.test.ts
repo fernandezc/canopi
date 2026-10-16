@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import { expect, it, vi } from 'vitest'
 vi.mock('../app/canvas-pdf/prepare', () => ({ preparePdf: vi.fn() }))
 import { preparePdf } from '../app/canvas-pdf/prepare'

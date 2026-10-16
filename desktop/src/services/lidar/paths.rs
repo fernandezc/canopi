@@ -11,6 +11,17 @@
 
 use std::path::{Path, PathBuf};
 
+/// Catalogue file name inside the library root.
+pub const CATALOGUE_FILE: &str = "lidar-library.sqlite";
+
+/// Name prefix of an analysis job's scratch directory; the rest is its job id.
+pub const ANALYSIS_SCRATCH_PREFIX: &str = "scratch-analysis-";
+
+/// Managed library root under the app data directory.
+pub fn library_root(app_data_dir: &Path) -> PathBuf {
+    app_data_dir.join("lidar")
+}
+
 #[derive(Debug, Clone)]
 pub struct LidarPaths {
     root: PathBuf,
@@ -18,15 +29,16 @@ pub struct LidarPaths {
 
 impl LidarPaths {
     pub fn open(app_data_dir: &Path) -> Result<Self, String> {
-        let root = app_data_dir.join("lidar");
+        let root = library_root(app_data_dir);
         for dir in [
             root.clone(),
             self_sources_dir(&root),
             self_prepared_dir(&root),
-            self_display_dir(&root),
-            root.join("display-tiles"),
+            root.join("display-cog"),
+            root.join("display-cog-staging"),
             root.join("assets"),
             root.join("jobs"),
+            root.join("engine-logs"),
         ] {
             std::fs::create_dir_all(&dir)
                 .map_err(|e| format!("Failed to create LiDAR dir {}: {e}", dir.display()))?;
@@ -35,7 +47,7 @@ impl LidarPaths {
     }
 
     pub fn catalogue_path(&self) -> PathBuf {
-        self.root.join("lidar-library.sqlite")
+        self.root.join(CATALOGUE_FILE)
     }
 
     /// Library root. Catalogue asset references stay relative to it, so a
@@ -46,12 +58,6 @@ impl LidarPaths {
 
     pub fn display_cache_path(&self) -> PathBuf {
         self.root.join("lidar-display-cache.sqlite")
-    }
-
-    /// Reproducible on-demand display tiles. Never authority: entries are
-    /// derivatives of immutable generations and may be evicted at any time.
-    pub fn tile_cache_dir(&self) -> PathBuf {
-        self.root.join("display-tiles")
     }
 
     /// Content-addressed immutable resolved/quality COG assets.
@@ -78,41 +84,45 @@ impl LidarPaths {
         self.source_dir(sha256).join("original")
     }
 
-    pub fn source_manifest(&self, sha256: &str) -> PathBuf {
-        self.source_dir(sha256).join("manifest.json")
+    /// The derived record beside an original that a catalogue rebuild reads
+    /// (`source_meta.rs`).
+    pub fn source_meta(&self, sha256: &str) -> PathBuf {
+        self.source_dir(sha256).join(super::source_meta::META_FILE)
     }
 
-    /// Prepared per-layer generation mosaics, staging dirs and coverage masks.
-    pub fn layer_pipeline_dir(&self, layer_id: &str) -> PathBuf {
-        self.prepared_dir().join("layers").join(layer_id)
+    /// Catalogues an older or corrupt library left behind, kept byte for byte.
+    pub fn set_aside_dir(&self) -> PathBuf {
+        self.root.join(super::recovery::SET_ASIDE_DIR)
     }
 
-    /// Prepared analysis outputs, staging dirs and quality masks.
-    pub fn analysis_pipeline_dir(&self, definition_id: &str) -> PathBuf {
-        self.prepared_dir().join("analysis").join(definition_id)
-    }
-
+    /// Holds only per-job analysis scratch directories.
     pub fn prepared_dir(&self) -> PathBuf {
         self.root.join("prepared")
     }
 
-    pub fn display_dir(&self) -> PathBuf {
-        self.root.join("display")
+    /// One analysis job's scratch; removed when the job settles and swept at
+    /// startup if a crash left it.
+    pub fn analysis_scratch_dir(&self, job_id: &str) -> PathBuf {
+        self.prepared_dir()
+            .join(format!("{ANALYSIS_SCRATCH_PREFIX}{job_id}"))
     }
 
-    /// Bounded display tile pyramid for one published entity generation.
-    pub fn display_generation_dir(
-        &self,
-        entity_kind: &str,
-        entity_id: &str,
-        generation_id: &str,
-        style: &str,
-    ) -> PathBuf {
-        self.display_dir()
-            .join(entity_kind)
-            .join(entity_id)
-            .join(generation_id)
-            .join(style)
+    /// Captured stdout and stderr of running engine children; swept at startup.
+    pub fn engine_log_dir(&self) -> PathBuf {
+        self.root.join("engine-logs")
+    }
+
+    /// Published display derivatives: immutable, content-keyed tiled COGs the
+    /// WebView reads through the scoped asset protocol. Regenerable, never
+    /// numeric authority.
+    pub fn display_cog_dir(&self) -> PathBuf {
+        self.root.join("display-cog")
+    }
+
+    /// Derivatives being written; outside the asset scope so a partial file is
+    /// never readable. A file is renamed into `display_cog_dir` only once complete.
+    pub fn display_cog_staging_dir(&self) -> PathBuf {
+        self.root.join("display-cog-staging")
     }
 
     pub fn jobs_dir(&self) -> PathBuf {
@@ -128,7 +138,8 @@ impl LidarPaths {
 /// Fail unless `directory` can hold `required_bytes` more data.
 ///
 /// `what` names the work the requirement belongs to so a failed job reports
-/// which output could not be safely written. An unreadable capacity is an
+/// which output could not be safely written; the folder is never named, since
+/// its path can spell out the user's name. An unreadable capacity is an
 /// error, never a silent pass: guessing here is what produces truncated
 /// numeric outputs.
 pub(crate) fn require_free_space(
@@ -139,9 +150,8 @@ pub(crate) fn require_free_space(
     let available = available_bytes(directory)?;
     if available < required_bytes {
         return Err(format!(
-            "{what} needs at least {} MiB ({required_bytes} bytes) free in {}, but only {} MiB ({available} bytes) is available",
+            "{what} needs at least {} MiB ({required_bytes} bytes) free on the data library's disk, but only {} MiB ({available} bytes) is available",
             required_bytes / (1024 * 1024),
-            directory.display(),
             available / (1024 * 1024),
         ));
     }
@@ -160,12 +170,8 @@ pub(crate) fn available_bytes(directory: &Path) -> Result<u64, String> {
             return Ok(available);
         }
     }
-    platform_available_bytes(directory).map_err(|error| {
-        format!(
-            "Cannot verify free space in {}: {error}",
-            directory.display()
-        )
-    })
+    platform_available_bytes(directory)
+        .map_err(|error| format!("Cannot verify free space on the data library's disk: {error}"))
 }
 
 #[cfg(unix)]
@@ -227,10 +233,6 @@ fn self_prepared_dir(root: &Path) -> PathBuf {
     root.join("prepared")
 }
 
-fn self_display_dir(root: &Path) -> PathBuf {
-    root.join("display")
-}
-
 /// Test-only seam for the capacity observation.
 ///
 /// Tests that must exercise a specific budget override the observation for
@@ -265,5 +267,21 @@ pub(crate) mod capacity_probe {
         fn drop(&mut self) {
             set(None);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// canopi-bkbh: a free-space refusal names the work and the sizes, never
+    /// the folder, whose path can spell out the user's name.
+    #[test]
+    fn a_free_space_refusal_names_no_directory() {
+        let _full = capacity_probe::override_available(1024);
+        let directory = Path::new("/home/someone/.local/share/canopi/lidar/display-cog");
+        let error = require_free_space(directory, 1 << 30, "The display derivative").unwrap_err();
+        assert!(error.contains("The display derivative"), "{error}");
+        assert!(!error.contains("/home/someone"), "{error}");
     }
 }
