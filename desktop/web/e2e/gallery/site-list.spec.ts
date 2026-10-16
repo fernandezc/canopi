@@ -180,7 +180,9 @@ test.describe('missing and pending Site data', () => {
     await library.getByRole('button', { name: 'Retry', exact: true }).click()
     await library.getByRole('button', { name: 'Cancel import' }).click()
     await expect(library.getByRole('option', { name: /Survey tile 0712/ })).toHaveCount(1)
-    await expect(library.getByText('The file is not a readable raster.')).toBeVisible()
+    // A failed job's reason goes to the log, not the page (user, 2026-10-15): the item shows its status only.
+    await expect(library.getByRole('status').filter({ hasText: 'Import failed' })).toBeVisible()
+    await expect(library.getByText('The file is not a readable raster.')).toHaveCount(0)
     await expect(library.getByRole('button', { name: 'Retry', exact: true })).toBeVisible()
     await expect(library.getByRole('button', { name: 'Dismiss' })).toBeVisible()
   })
