@@ -58,7 +58,9 @@ export default defineConfig({
   // A flaky screenshot is a bug to fix (settle first), never something to retry past.
   retries: 0,
   forbidOnly: isCI,
-  // The same on a workstation as on the hosted runner (four cores); a spec file's tests run in order.
+  // The same on a workstation as on the hosted runner (four cores). No spec shares state between its tests
+  // (each has its own page; no beforeAll or serial mode), so CI shards split tests, not files (2026-10-16).
+  fullyParallel: true,
   workers: 2,
   reporter: isCI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   // Measured in the pinned image with tracing on (retain-on-failure records every run): at four
