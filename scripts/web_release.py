@@ -311,8 +311,9 @@ def verify_web_edition(site: Path, *, version: str, commit: str | None = None) -
     if manifest.get("version") != version:
         violations.append(f"manifest version is {manifest.get('version')!r}, expected {version!r}")
     short = manifest.get("commit")
-    if not isinstance(short, str) or not re.fullmatch(r"[0-9a-f]{12}", short):
-        violations.append(f"manifest commit {short!r} is not a 12-character commit")
+    # The packager records 12 characters from a checkout, 40 when given --commit.
+    if not isinstance(short, str) or not re.fullmatch(r"[0-9a-f]{12}|[0-9a-f]{40}", short):
+        violations.append(f"manifest commit {short!r} is not a commit")
     elif commit is not None and not commit.startswith(short):
         violations.append(f"manifest commit {short} is not the release commit {commit}")
     if manifest.get("basePath") != "/":
@@ -414,7 +415,7 @@ def verify_archive(
         _verify_checksum(archive, checksums)
     safe_extract(archive, output_dir)
     identity = verify_web_edition(output_dir, version=version, commit=commit)
-    if identity.commit != match.group(2):
+    if identity.commit[:12] != match.group(2):
         raise ReleaseError(f"archive name commit {match.group(2)} differs from manifest commit {identity.commit}")
     if deploy_files:
         add_deploy_files(output_dir)
