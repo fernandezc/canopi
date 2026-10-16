@@ -65,6 +65,8 @@ with (root / "calls.jsonl").open("a") as f: f.write(json.dumps(args) + "\\n")
 if args[:2] == ["release", "view"]:
     if state["release"] is None: sys.exit(1)
     print(json.dumps(state["release"]))
+elif args[:2] == ["release", "delete-asset"]:
+    pass
 elif args[0] == "release" and args[1] in ["create", "edit", "upload"]:
     if args[1] == "create" and state.get("rewrite_local_on_create"):
         Path(state["rewrite_local_on_create"]).write_bytes(b"changed after verification")
@@ -346,6 +348,19 @@ else: raise SystemExit("Unexpected command: " + repr(args))
         self.assertEqual([call[1] for call in self.mutations()], ["edit", "upload"])
         edit = self.mutations()[0]
         self.assertEqual(edit[edit.index("--target") + 1], SHA)
+
+    def test_re_promotion_removes_web_archives_of_an_earlier_candidate_from_the_draft(self):
+        stale = "canopi-web-edition-root-v1.1.1-000000000000.tar.gz"
+        current = Path(WEB).name
+        self.state["release"] = {"isDraft": True, "assets": [
+            {"name": stale}, {"name": current}, {"name": "canopi-linux-x64.deb"}]}
+        self.state["tag_sha"] = SHA
+        result = self.promote()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        deletes = [call for call in self.calls() if call[:2] == ["release", "delete-asset"]]
+        self.assertEqual(deletes, [["release", "delete-asset", "v1.1.1", stale, "--repo", "example/canopi", "--yes"]])
+        order = [call[1] for call in self.calls() if call[:1] == ["release"] and call[1] in ["delete-asset", "upload"]]
+        self.assertEqual(order, ["delete-asset", "upload"])
 
     def test_existing_tag_must_resolve_to_the_candidate_commit(self):
         self.state["tag_sha"] = "3" * 40

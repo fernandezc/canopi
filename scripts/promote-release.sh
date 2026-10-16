@@ -285,7 +285,7 @@ if [[ "$existing_tag" == "yes" ]]; then
   fi
 fi
 
-if gh release view "$tag" --repo "$repo" --json isDraft > "$tmpdir/release.json" 2>/dev/null; then
+if gh release view "$tag" --repo "$repo" --json isDraft,assets > "$tmpdir/release.json" 2>/dev/null; then
   python3 - "$tmpdir/release.json" <<'PY'
 import json
 import sys
@@ -296,6 +296,25 @@ if json.loads(Path(sys.argv[1]).read_text()).get("isDraft") is not True:
 PY
   log "Updating existing release $repo@$tag"
   gh release edit "$tag" --repo "$repo" --target "$source_sha" --title "$title" --notes-file "$notes_file"
+  # Web archives are named by commit, so --clobber never replaces an earlier
+  # candidate's; publish-web-release.sh needs exactly one on the release.
+  mapfile -t stale_web_archives < <(python3 - "$tmpdir/release.json" "${release_files[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+keep = {Path(path).name for path in sys.argv[2:]}
+for asset in json.loads(Path(sys.argv[1]).read_text()).get("assets") or []:
+    name = asset.get("name", "")
+    if re.fullmatch(r"canopi-web-edition-root-.*\.tar\.gz", name) and name not in keep:
+        print(name)
+PY
+  )
+  for stale_web_archive in "${stale_web_archives[@]}"; do
+    log "Removing an earlier candidate's Web archive: $stale_web_archive"
+    gh release delete-asset "$tag" "$stale_web_archive" --repo "$repo" --yes
+  done
 else
   log "Creating draft release $repo@$tag"
   gh release create "$tag" --repo "$repo" --target "$source_sha" --draft --title "$title" --notes-file "$notes_file"
