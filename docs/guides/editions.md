@@ -63,13 +63,22 @@ Toolchain: Node `^22.13.0` (`engines` in `desktop/web/package.json`), Python 3, 
 ```bash
 cd desktop/web && npm run package:web        # /app/ base, SPA fallback /app/* -> /app/index.html
 cd desktop/web && npm run package:web:root   # CANOPI_WEB_BASE_PATH=/ for web.projectcanopi.com
+scripts/publish-web-release.sh --tag v<version> [--artifact <archive>] [--verify-only]
 ```
 
-Both need the generated catalog (`npm run generate:web-catalog`) and write to ignored `desktop/web/dist-web-artifacts/`. Production (`web.projectcanopi.com`, ADR 0005) deploys the root artifact. Desktop release promotion never publishes Web archives; a deployment names the exact commit and artifact it serves.
+Both packagers need the generated catalog (`npm run generate:web-catalog`) and write to ignored `desktop/web/dist-web-artifacts/`; the `/app/` artifact serves local review ([review checklist](../review-checklist.md)). Every release ships the Web Edition:
 
-Hosting rules: `index.html`, the manifest and `canopi-catalog/**` are not content-hashed, so the host revalidates them; only `assets/*` is cached immutably. Unknown routes fall back to `index.html` after static files. Any CSP allows `cdn.jsdelivr.net` (DuckDB loads its WASM from there: script, worker and connect), `tiles.openfreemap.org`, `mt1.google.com`, `tile.googleapis.com`, `s3.amazonaws.com` (terrain), `nominatim.openstreetmap.org` and the catalog's photo hosts `inaturalist-open-data.s3.amazonaws.com`, `commons.wikimedia.org` and `upload.wikimedia.org`.
+- `publish-db-release.sh` puts the Web catalog, generated from the DB's export, on `canopi-core-db` under its identity name; the Release Candidate's `web` job packages the root artifact with it at the release commit; promotion attaches the archive with `WEB-RELEASE-SHA256SUMS.txt`.
+- After publishing, `publish-web-release.sh` deploys the release's archive to Cloudflare Pages project `canopi-web` (production branch `production`, `web.projectcanopi.com`, ADR 0005) with the operator's logged-in wrangler; GitHub holds no Cloudflare secret.
+- It verifies the archive (`scripts/web_release.py`), deploys and checks the preview branch `release-<version>`, then deploys production, waits for its manifest and checks it; a production that already serves the release and passes its HTTP checks is only checked. Deploys name the exact commit.
 
-Smoke check at the configured base: the shell loads with no missing assets or Tauri requests, Parquet files are served directly, browse, a two-character search and a filter work, and placement, `.canopi` download and reload recovery work. At root also confirm `basePath: "/"` in the manifest and that an unknown route returns `index.html`.
+Hosting rules: the deploy owns `_headers` and an empty `404.html` in `assets/`, `canopi-catalog/` and `pdf-fonts/`, so a missing file there is a 404 while other routes fall back to `index.html` (Pages' own SPA fallback: no top-level `404.html`, no `_redirects`). `index.html`, the manifest, `canopi-catalog/**` and `pdf-fonts/**` are not content-hashed, so the host revalidates them; only `assets/*` is cached immutably. Every response carries `nosniff` and `strict-origin-when-cross-origin`.
+
+Any CSP allows `cdn.jsdelivr.net` (DuckDB loads its WASM from there: script, worker and connect), `tiles.openfreemap.org`, `mt1.google.com`, `tile.googleapis.com`, `s3.amazonaws.com` (terrain), `nominatim.openstreetmap.org` and the catalog's photo hosts `inaturalist-open-data.s3.amazonaws.com`, `commons.wikimedia.org` and `upload.wikimedia.org`.
+
+Release checks (`web_release.py`; `desktop/web/e2e-release/` in the pinned Playwright image, Chromium and WebKit): manifest identity and no-cache; `/`, `/designs` and `/a/b/c` serve the shell; one asset per extension with its checksum and content type; missing assets answer 404; TLS on the custom domain. Cloudflare injects a hidden link into HTML on the custom domain, so HTML is compared byte for byte only on the preview.
+
+The browser smoke walks a new Design, place search, catalog search (a cold DuckDB-WASM load takes 15-20 s) and filter, a drawn zone and undo, a `.canopi` download free of the key and location, reload and a deep route, with no page or console error or failed response.
 
 ## Where to look
 

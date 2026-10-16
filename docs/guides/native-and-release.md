@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Rules for the Rust/Tauri backend (execution policy, files, network, redaction, the debug MCP bridge), the check commands, the bundled plant DB and the desktop release workflow. LiDAR engines: [data library](data-library.md). Web publishing: [editions](editions.md#web-publishing).
+Rules for the Rust/Tauri backend (execution policy, files, network, redaction, the debug MCP bridge), the check commands, the bundled plant DB and the release workflow. LiDAR engines: [data library](data-library.md). Web publishing: [editions](editions.md#web-publishing).
 
 ## Authorities and boundaries
 
@@ -62,18 +62,19 @@ cd desktop/web && npm audit --omit=dev && npm audit     # before a release
 
 - `CANOPI_SKIP_BUNDLED_DB=1` (read by `desktop/build.rs`) drops the DB from the bundle so the crate builds without `desktop/resources/canopi-core.db`; CI sets it and a release build with it warns. Only debug builds fall back to the repository DB (`lib.rs`).
 - Release builds derive an immutable asset name (`species_catalog_contract.py value prepared-db-asset-name`), download it from the `canopi-core-db` tag and verify the prepared profile before packaging.
-- Publish: `scripts/publish-db-release.sh --export-path <export>.db [--tag <tag>] [--repo <owner/repo>]` verifies the export against the pin, prepares the DB and refuses to overwrite an existing identity asset. A catalog change publishes its asset before same-repository PR packaging can pass ([species catalog](species-catalog.md)).
+- Publish: `scripts/publish-db-release.sh --export-path <export>.db [--tag <tag>] [--repo <owner/repo>]` prepares the DB and the Web catalog from the pinned export and uploads each under its identity name with a `.sha256`, never over one; `--web-catalog-only` adds the catalog to a published DB; `--dry-run` uploads nothing. A catalog change publishes its asset before same-repository PR packaging can pass ([species catalog](species-catalog.md)).
 
 ## Release workflow
 
-1. Merge through PRs into `main` with CI green (v2 branch rule: `AGENTS.md`).
+1. Merge through PRs into `main` with CI green.
 2. Bump `desktop/tauri.conf.json`; keep `Cargo.toml`, `desktop/web/package.json` and `package-lock.json` in sync (preflight fails on drift).
-3. Run `Release Candidate` (`.github/workflows/release-candidate.yml`) from `main` (until v2 merges, `--ref feature/geolibre-adoption -f ref=feature/geolibre-adoption`; `ref` defaults to `main`) with `ref`, `release_version` and `db_release_tag` (usually `canopi-core-db`). Every packaging job checks out the resolved commit and matches the DB checksum from preflight.
+3. Run `Release Candidate` (`.github/workflows/release-candidate.yml`) with `ref` (default `main`), `release_version` and `db_release_tag` (usually `canopi-core-db`). Every job builds the preflight commit: installers with the checksummed DB, `web` the root Web Edition with the tag's Web catalog; `SHA256SUMS.txt` covers both.
 4. Smoke test the exact artifacts on Linux (start; create, edit, save, reopen Designs; search, placement; undo; layers; place search moves the view only; theme and locale) and record run id, commit, DB SHA-256, tester and results. No Windows or Mac hand check gates a release (U20): each is recorded as untested, its evidence `Build & Test` running the native tests on that runner and the Web Edition driven in Chromium (WebView2's engine) and WebKit (WKWebView's). macOS needs 12 or later (`bundle.macOS.minimumSystemVersion`) for the WebKit the canvas uses.
-5. Promote: `scripts/promote-release.sh --run-id <run-id> --tag v<version> --title "Canopi <version>" [--artifact-dir <root>]` admits only a matching successful candidate, verifies every checksum and creates a draft with `docs/release-notes/v<version>.md` as its body, plus the six stable copies from `STABLE_PACKAGES` (`scripts/release_candidate_artifacts.py`, used by the website's download buttons) and `RELEASE-SHA256SUMS.txt` (`scripts/test_promote_release.py`).
+5. Promote: `scripts/promote-release.sh --run-id <run-id> --tag v<version> --title "Canopi <version>" [--artifact-dir <root>]` admits only a matching successful candidate and creates a checksum-verified draft: body `docs/release-notes/v<version>.md`, the six `STABLE_PACKAGES` copies the website's download buttons use (`release_candidate_artifacts.py`) with `RELEASE-SHA256SUMS.txt`, and the Web archive with `WEB-RELEASE-SHA256SUMS.txt`.
 6. Publish: `gh release edit v<version> --draft=false --latest`. Never mark DB-only or prereleases as latest; never replace a published release.
+7. Deploy the Web Edition: `scripts/publish-web-release.sh --tag v<version>` ([editions](editions.md#web-publishing)).
 
-The release body offers the Corresponding Source of the AGPL components it ships: Canopi's tagged source archive plus the `geolibre-rust` and `whitebox-wasm` revisions in `desktop/THIRD_PARTY_NOTICES.md` (`promote-release.sh`, `test_promote_release.py`); the user-facing release notes carry the same offer in their own words.
+The release notes repeat the release body's Corresponding Source offer (Rules) in their own words.
 
 ## Where to look
 
@@ -83,5 +84,5 @@ The release body offers the Corresponding Source of the AGPL components it ships
 | Files and exports | `desktop/src/design/mod.rs`, `services/export.rs` | module tests |
 | Problem reports | `desktop/src/services/problem_report/`, `services/folder_reveal.rs`, `app/problem-report/` | module tests, `problem-report-*.test.ts(x)` |
 | Tauri config and bridge | `desktop/tauri.conf.json`, `capabilities*/`, `build.rs`, `lib.rs` | `lib.rs` bridge test |
-| Release tooling | `scripts/promote-release.sh`, `release_candidate_artifacts.py`, `publish-db-release.sh`, `.github/workflows/` | `scripts/test_promote_release.py` |
+| Release tooling | `scripts/promote-release.sh`, `release_candidate_artifacts.py`, `publish-db-release.sh`, `publish-web-release.sh`, `web_release.py`, `.github/workflows/` | `scripts/test_promote_release.py`, `test_web_release.py`, `desktop/web/e2e-release/` |
 | Sidecar packaging | `desktop/build.rs`, `scripts/build-geolibre-cli.sh`, `smoke-bundled-sidecar.sh`, `.github/actions/build-geolibre-cli/` | `geolibre.rs` tests, CI smoke step |

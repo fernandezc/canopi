@@ -20,13 +20,15 @@ PACKAGES = {
     "canopi-x86_64-pc-windows-msvc/nsis/Canopi_1.1.1_x64-setup.exe": "canopi-windows-x64.exe",
     "canopi-x86_64-pc-windows-msvc/msi/Canopi_1.1.1_x64_en-US.msi": "canopi-windows-x64.msi",
 }
+# The root Web Edition archive keeps its versioned name; SHA's first 12 characters name the commit.
+WEB = "canopi-web-edition/canopi-web-edition-root-v1.1.1-111111111111.tar.gz"
 ARTIFACTS = [(1, "canopi-x86_64-unknown-linux-gnu"), (2, "canopi-release-candidate-manifest"),
              (3, "canopi-aarch64-apple-darwin"), (4, "canopi-x86_64-apple-darwin"),
-             (5, "canopi-x86_64-pc-windows-msvc")]
+             (5, "canopi-x86_64-pc-windows-msvc"), (6, "canopi-web-edition")]
 
 
 def candidate_manifest(payload):
-    return "".join(hashlib.sha256(payload).hexdigest() + "  ./" + name + "\n" for name in PACKAGES)
+    return "".join(hashlib.sha256(payload).hexdigest() + "  ./" + name + "\n" for name in [*PACKAGES, WEB])
 
 
 class PromotionTests(unittest.TestCase):
@@ -41,7 +43,7 @@ class PromotionTests(unittest.TestCase):
         self.manifest = candidate_manifest(self.payload)
         self.local_dir = self.root / "cached packages"
         self.local_package = self.local_dir / "canopi-x86_64-unknown-linux-gnu/deb/canopi_1.1.1.deb"
-        for name in PACKAGES:
+        for name in [*PACKAGES, WEB]:
             package = self.local_dir / name
             package.parent.mkdir(parents=True, exist_ok=True)
             package.write_bytes(self.payload)
@@ -63,6 +65,8 @@ with (root / "calls.jsonl").open("a") as f: f.write(json.dumps(args) + "\\n")
 if args[:2] == ["release", "view"]:
     if state["release"] is None: sys.exit(1)
     print(json.dumps(state["release"]))
+elif args[:2] == ["release", "delete-asset"]:
+    pass
 elif args[0] == "release" and args[1] in ["create", "edit", "upload"]:
     if args[1] == "create" and state.get("rewrite_local_on_create"):
         Path(state["rewrite_local_on_create"]).write_bytes(b"changed after verification")
@@ -101,7 +105,7 @@ else: raise SystemExit("Unexpected command: " + repr(args))
             if artifact_id == 2:
                 continue
             with zipfile.ZipFile(self.root / f"{artifact_id}.zip", "w") as archive:
-                for name in PACKAGES:
+                for name in [*PACKAGES, WEB]:
                     if name.startswith(artifact_name + "/"):
                         archive.writestr(name.removeprefix(artifact_name + "/"), self.payload)
                 archive.writestr("unlisted.exe", b"not in the candidate manifest")
@@ -129,13 +133,14 @@ else: raise SystemExit("Unexpected command: " + repr(args))
         self.assertEqual(self.local_package.read_bytes(), self.payload)
         uploaded = json.loads((self.root / "uploaded.json").read_text())
         self.assertEqual(set(uploaded), {Path(name).name for name in PACKAGES} | set(PACKAGES.values())
+                         | {Path(WEB).name, "WEB-RELEASE-SHA256SUMS.txt"}
                          | {"SHA256SUMS.txt", "RELEASE-SHA256SUMS.txt", "release-metadata.json"})
 
     def test_default_path_still_downloads_packages_and_ignores_unlisted_installers(self):
         result = self.promote()
         self.assertEqual(result.returncode, 0, result.stderr)
         downloads = [call[1] for call in self.calls() if call[0] == "api" and "/actions/artifacts/" in call[1]]
-        self.assertEqual(len(downloads), 5)
+        self.assertEqual(len(downloads), 6)
         uploaded = json.loads((self.root / "uploaded.json").read_text())
         self.assertNotIn("unlisted.exe", uploaded)
 
@@ -151,6 +156,9 @@ else: raise SystemExit("Unexpected command: " + repr(args))
             self.assertEqual(uploaded[Path(original).name]["sha256"], uploaded[alias]["sha256"])
         for name, digest in checksums.items():
             self.assertEqual(uploaded[name]["sha256"], digest)
+        web = Path(WEB).name
+        self.assertEqual(uploaded["WEB-RELEASE-SHA256SUMS.txt"]["text"], f"{uploaded[web]['sha256']}  {web}\n")
+        self.assertEqual(uploaded[web]["sha256"], hashlib.sha256(self.payload).hexdigest())
 
     def test_incomplete_ambiguous_unsupported_or_colliding_downloads_fail_before_mutation(self):
         complete = self.manifest
@@ -174,19 +182,19 @@ else: raise SystemExit("Unexpected command: " + repr(args))
         self.state["metadata"]["release_version"] = "1.2.0"
         self.manifest = ""
         expected = {}
-        for name, alias in PACKAGES.items():
+        for name, alias in [*PACKAGES.items(), (WEB, None)]:
             versioned = name.replace("1.1.1", "1.2.0")
             payload = versioned.encode()
             (self.local_dir / versioned).write_bytes(payload)
             digest = hashlib.sha256(payload).hexdigest()
             self.manifest += f"{digest}  ./{versioned}\n"
-            expected[alias] = digest
+            expected[alias or Path(versioned).name] = digest
         result = self.promote(tag="v1.2.0", artifact_dir=self.local_dir)
         self.assertEqual(result.returncode, 0, result.stderr)
         uploaded = json.loads((self.root / "uploaded.json").read_text())
         for alias, digest in expected.items():
             self.assertEqual(uploaded[alias]["sha256"], digest)
-        for name in PACKAGES:
+        for name in [*PACKAGES, WEB]:
             self.assertIn(Path(name.replace("1.1.1", "1.2.0")).name, uploaded)
             self.assertNotIn(Path(name).name, uploaded)
 
@@ -204,12 +212,39 @@ else: raise SystemExit("Unexpected command: " + repr(args))
     def test_local_snapshot_preserves_a_package_larger_than_the_copy_buffer(self):
         self.payload = b"installer bytes" * 150000
         self.manifest = candidate_manifest(self.payload)
-        for name in PACKAGES:
+        for name in [*PACKAGES, WEB]:
             (self.local_dir / name).write_bytes(self.payload)
         result = self.promote(artifact_dir=self.local_dir)
         self.assertEqual(result.returncode, 0, result.stderr)
         uploaded = json.loads((self.root / "uploaded.json").read_text())["canopi_1.1.1.deb"]
         self.assertEqual(uploaded["sha256"], hashlib.sha256(self.payload).hexdigest())
+
+    def test_the_web_archive_is_required_and_must_name_the_candidate(self):
+        digest = hashlib.sha256(self.payload).hexdigest()
+        desktop = "".join(line + "\n" for line in self.manifest.splitlines() if "canopi-web-edition" not in line)
+        other_commit = WEB.replace("111111111111", "222222222222")
+        other_version = WEB.replace("v1.1.1", "v1.1.0")
+        for name in [other_commit, other_version]:
+            (self.local_dir / name).write_bytes(self.payload)
+        for manifest, error in [
+            (desktop, "one canopi-web-edition root archive"),
+            (desktop + f"{digest}  ./{other_commit}\n", "does not name this release"),
+            (desktop + f"{digest}  ./{other_version}\n", "does not name this release"),
+            (self.manifest + f"{digest}  ./{other_commit}\n", "Duplicate Web Edition archives"),
+        ]:
+            with self.subTest(error=error, manifest=manifest[-90:]):
+                self.manifest = manifest
+                result = self.promote(artifact_dir=self.local_dir)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
+                self.assertEqual(self.mutations(), [])
+
+    def test_a_changed_web_archive_fails_its_checksum_before_mutation(self):
+        (self.local_dir / WEB).write_bytes(b"changed web archive")
+        result = self.promote(artifact_dir=self.local_dir)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Checksum mismatch", result.stderr)
+        self.assertEqual(self.mutations(), [])
 
     def test_a_missing_second_package_cannot_upload_a_partial_release(self):
         (self.local_dir / list(PACKAGES)[-1]).unlink()
@@ -313,6 +348,19 @@ else: raise SystemExit("Unexpected command: " + repr(args))
         self.assertEqual([call[1] for call in self.mutations()], ["edit", "upload"])
         edit = self.mutations()[0]
         self.assertEqual(edit[edit.index("--target") + 1], SHA)
+
+    def test_re_promotion_removes_web_archives_of_an_earlier_candidate_from_the_draft(self):
+        stale = "canopi-web-edition-root-v1.1.1-000000000000.tar.gz"
+        current = Path(WEB).name
+        self.state["release"] = {"isDraft": True, "assets": [
+            {"name": stale}, {"name": current}, {"name": "canopi-linux-x64.deb"}]}
+        self.state["tag_sha"] = SHA
+        result = self.promote()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        deletes = [call for call in self.calls() if call[:2] == ["release", "delete-asset"]]
+        self.assertEqual(deletes, [["release", "delete-asset", "v1.1.1", stale, "--repo", "example/canopi", "--yes"]])
+        order = [call[1] for call in self.calls() if call[:1] == ["release"] and call[1] in ["delete-asset", "upload"]]
+        self.assertEqual(order, ["delete-asset", "upload"])
 
     def test_existing_tag_must_resolve_to_the_candidate_commit(self):
         self.state["tag_sha"] = "3" * 40

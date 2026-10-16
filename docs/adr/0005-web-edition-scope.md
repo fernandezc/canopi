@@ -1,6 +1,6 @@
 # Web Edition scope
 
-Status: Accepted (2026-09-25, Canopi v2)
+Status: Accepted (2026-09-25, Canopi v2); amended 2026-10-16 (canopi-afru: every release deploys the Web Edition)
 
 ## Context
 
@@ -8,7 +8,7 @@ The Web Edition is a browser build of the real Canopi app. It must stay deployab
 
 ## Decision
 
-- **Static app.** The Canopi repository builds a versioned static artifact with a manifest (app version, commit, base path, asset inventory, SHA-256 checksums). Website repositories publish that artifact and never import app source. The production host is `web.projectcanopi.com` (root base); a `/app/` subpath artifact stays supported. No backend, tile proxy, service worker, PWA install or offline-first cache.
+- **Static app.** The Canopi repository builds a versioned static artifact with a manifest (app version, commit, base path, asset inventory, SHA-256 checksums). Every release builds that artifact and deploys it (`scripts/publish-web-release.sh`); website repositories never import app source. The production host is `web.projectcanopi.com` (root base); a `/app/` subpath artifact stays supported. No backend, tile proxy, service worker, PWA install or offline-first cache.
 - **Real Designs.** Web creates, opens, edits and downloads real `.canopi` files through the normal Design Session seams. The only Design save format is a `.canopi` download; Canvas PDF and GeoJSON are derived exports. There are no other export formats.
 - **Browser-local data.** Design Drafts (the home of every Web Design, saved continuously per [ADR 0009](0009-continuous-save.md) and listed on the welcome screen), settings, species favourites and activity, and saved object stamps live in independent browser-local records. No accounts or sync. Clearing site data loses them; a downloaded `.canopi` file is the portable copy.
 - **Geocoding allowed.** Web uses the shared geocoding provider registry from the browser: Nominatim first, search on Enter only, at least 1.1 s between requests, OSM attribution on results. Coordinates are parsed locally without a request. No proxy.

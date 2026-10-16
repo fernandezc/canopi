@@ -1,4 +1,4 @@
-"""Admit only manifest-listed release packages, optionally snapshotting local bytes."""
+"""Admit only manifest-listed release packages (desktop installers and the root Web Edition archive)."""
 
 import argparse
 import hashlib
@@ -7,7 +7,11 @@ import re
 import shutil
 
 
-PACKAGE_SUFFIXES = {".deb", ".AppImage", ".dmg", ".msi", ".exe"}
+PACKAGE_SUFFIXES = {".deb", ".AppImage", ".dmg", ".msi", ".exe", ".tar.gz"}
+# The candidate's `web` job uploads the root Web Edition archive; it keeps its
+# versioned name and gets its own public checksum file for publish-web-release.sh.
+WEB_ARTIFACT_ROOT = "canopi-web-edition"
+WEB_ARCHIVE_RE = re.compile(r"canopi-web-edition-root-v(.+)-([0-9a-f]{12})\.tar\.gz")
 
 # Artifact roots come from the Release Candidate target matrix. Public names
 # are a website contract: changing a build filename must not change these URLs.
@@ -21,12 +25,27 @@ STABLE_PACKAGES = {
 }
 
 
-def release_packages(manifest: Path, source_root: Path, release_root: Path):
+def package_suffix(relative: PurePosixPath) -> str:
+    return ".tar.gz" if relative.name.endswith(".tar.gz") else relative.suffix
+
+
+def release_packages(manifest: Path, source_root: Path, release_root: Path,
+                     version: str | None = None, commit: str | None = None):
     packages = manifest_packages(manifest)
+    web = [(relative, digest) for relative, digest in packages if relative.parts[0] == WEB_ARTIFACT_ROOT]
+    if len(web) != 1:
+        raise ValueError("Missing required release packages: one canopi-web-edition root archive"
+                         if not web else "Duplicate Web Edition archives in the candidate")
+    web_match = WEB_ARCHIVE_RE.fullmatch(web[0][0].name)
+    if (len(web[0][0].parts) != 2 or web_match is None
+            or (version is not None and web_match.group(1) != version)
+            or (commit is not None and not commit.startswith(web_match.group(2)))):
+        raise ValueError(f"Web Edition archive does not name this release: {web[0][0]}")
+    desktop = [(relative, digest) for relative, digest in packages if relative.parts[0] != WEB_ARTIFACT_ROOT]
     aliases = {}
     original_names = {relative.name for relative, _ in packages}
-    for relative, _ in packages:
-        alias = STABLE_PACKAGES.get((relative.parts[0], relative.suffix))
+    for relative, _ in desktop:
+        alias = STABLE_PACKAGES.get((relative.parts[0], package_suffix(relative)))
         if alias is None:
             raise ValueError(f"Unsupported release package target or format: {relative}")
         if alias in aliases or alias in original_names:
@@ -43,14 +62,18 @@ def release_packages(manifest: Path, source_root: Path, release_root: Path):
     files = list(originals)
     checksums = []
     for (relative, digest), original in zip(packages, originals):
-        alias = STABLE_PACKAGES[(relative.parts[0], relative.suffix)]
+        if relative.parts[0] == WEB_ARTIFACT_ROOT:
+            continue
+        alias = STABLE_PACKAGES[(relative.parts[0], package_suffix(relative))]
         target = public_root / alias
         shutil.copyfile(original, target)
         files.append(target)
         checksums.extend([f"{digest}  {original.name}\n", f"{digest}  {alias}\n"])
     checksum_path = release_root / "RELEASE-SHA256SUMS.txt"
     checksum_path.write_text("".join(sorted(checksums)))
-    return files + [checksum_path]
+    web_checksum_path = release_root / "WEB-RELEASE-SHA256SUMS.txt"
+    web_checksum_path.write_text(f"{web[0][1]}  {web[0][0].name}\n")
+    return files + [checksum_path, web_checksum_path]
 
 
 def manifest_packages(manifest: Path):
@@ -64,7 +87,7 @@ def manifest_packages(manifest: Path):
         relative = PurePosixPath(name)
         if (relative.is_absolute() or ".." in relative.parts or "\\" in name or "#" in name
                 or any(ord(char) < 32 for char in name)
-                or relative.suffix not in PACKAGE_SUFFIXES):
+                or package_suffix(relative) not in PACKAGE_SUFFIXES):
             raise ValueError(f"Invalid candidate package path: {name}")
         if relative.name in names:
             raise ValueError(f"Duplicate release asset name: {relative.name}")
@@ -112,11 +135,14 @@ def main():
     output = parser.add_mutually_exclusive_group()
     output.add_argument("--stage-dir", type=Path)
     output.add_argument("--release-dir", type=Path,
-                        help="Stage a complete desktop release with stable copies and public checksums")
+                        help="Stage a complete release: desktop stable copies, the Web archive and public checksums")
+    parser.add_argument("--release-version", help="With --release-dir: the version the Web archive must name")
+    parser.add_argument("--commit", help="With --release-dir: the commit the Web archive must name")
     args = parser.parse_args()
     try:
         if args.release_dir:
-            files = release_packages(args.manifest, args.source_dir, args.release_dir)
+            files = release_packages(args.manifest, args.source_dir, args.release_dir,
+                                     args.release_version, args.commit)
         else:
             files = verified_packages(args.manifest, args.source_dir, args.stage_dir)
     except (OSError, ValueError) as error:

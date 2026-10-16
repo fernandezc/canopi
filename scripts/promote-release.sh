@@ -188,12 +188,6 @@ if [[ ! -f "$manifest_path" || ! -f "$metadata_path" ]]; then
   exit 1
 fi
 
-log "Verifying and staging complete desktop downloads with stable filenames"
-python3 "$repo_root/scripts/release_candidate_artifacts.py" \
-  --manifest "$manifest_path" --source-dir "${local_artifact_dir:-$tmpdir}" \
-  --release-dir "$tmpdir/release" > "$tmpdir/release-files.txt"
-mapfile -t release_files < "$tmpdir/release-files.txt"
-
 release_identity="$(python3 - "$metadata_path" "$repo" "$tag" <<'PY'
 import json
 import re
@@ -215,6 +209,13 @@ print(version, commit)
 PY
 )"
 read -r release_version source_sha <<< "$release_identity"
+
+log "Verifying and staging desktop downloads with stable filenames and the Web Edition archive"
+python3 "$repo_root/scripts/release_candidate_artifacts.py" \
+  --manifest "$manifest_path" --source-dir "${local_artifact_dir:-$tmpdir}" \
+  --release-dir "$tmpdir/release" --release-version "$release_version" --commit "$source_sha" \
+  > "$tmpdir/release-files.txt"
+mapfile -t release_files < "$tmpdir/release-files.txt"
 release_notes_path="$repo_root/docs/release-notes/v${release_version}.md"
 notes_file="$tmpdir/release-notes.md"
 
@@ -242,6 +243,8 @@ print(f"- App version: {metadata['release_version']}")
 print(f"- Bundled DB: {metadata['db_asset_name']} from tag {metadata['db_release_tag']}")
 print(f"- Bundled DB sha256: {metadata['db_sha256']}")
 print(f"- Expected DB schema version: {metadata['expected_db_schema_version']}")
+if metadata.get("web_catalog_asset_name"):
+    print(f"- Web catalog: {metadata['web_catalog_asset_name']} from tag {metadata['db_release_tag']}")
 print()
 print("Promoted artifacts were checksum-verified before upload.")
 PY
@@ -282,7 +285,7 @@ if [[ "$existing_tag" == "yes" ]]; then
   fi
 fi
 
-if gh release view "$tag" --repo "$repo" --json isDraft > "$tmpdir/release.json" 2>/dev/null; then
+if gh release view "$tag" --repo "$repo" --json isDraft,assets > "$tmpdir/release.json" 2>/dev/null; then
   python3 - "$tmpdir/release.json" <<'PY'
 import json
 import sys
@@ -293,6 +296,25 @@ if json.loads(Path(sys.argv[1]).read_text()).get("isDraft") is not True:
 PY
   log "Updating existing release $repo@$tag"
   gh release edit "$tag" --repo "$repo" --target "$source_sha" --title "$title" --notes-file "$notes_file"
+  # Web archives are named by commit, so --clobber never replaces an earlier
+  # candidate's; publish-web-release.sh needs exactly one on the release.
+  mapfile -t stale_web_archives < <(python3 - "$tmpdir/release.json" "${release_files[@]}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+keep = {Path(path).name for path in sys.argv[2:]}
+for asset in json.loads(Path(sys.argv[1]).read_text()).get("assets") or []:
+    name = asset.get("name", "")
+    if re.fullmatch(r"canopi-web-edition-root-.*\.tar\.gz", name) and name not in keep:
+        print(name)
+PY
+  )
+  for stale_web_archive in "${stale_web_archives[@]}"; do
+    log "Removing an earlier candidate's Web archive: $stale_web_archive"
+    gh release delete-asset "$tag" "$stale_web_archive" --repo "$repo" --yes
+  done
 else
   log "Creating draft release $repo@$tag"
   gh release create "$tag" --repo "$repo" --target "$source_sha" --draft --title "$title" --notes-file "$notes_file"
@@ -307,4 +329,5 @@ gh release upload "$tag" \
   --clobber
 
 log "Promoted run $run_id to release $repo@$tag"
-log "Uploaded desktop installers, stable copies, release checksums and candidate metadata."
+log "Uploaded desktop installers, stable copies, the Web Edition archive, release checksums and candidate metadata."
+log "After publishing: scripts/publish-web-release.sh --tag $tag"

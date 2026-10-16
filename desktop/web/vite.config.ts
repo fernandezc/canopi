@@ -90,8 +90,8 @@ export default defineConfig(({ mode }) => {
       // maplibre/camera-driver.test.ts, maplibre/workspace-map.test.ts, __tests__/openfreemap-basemap.test.ts). Builds
       // never resolve it.
       alias: { 'maplibre-gl-source': fileURLToPath(new URL('./node_modules/maplibre-gl/src', import.meta.url)) },
-      // Playwright specs (e2e/) run under Playwright's own runner; its `test()` throws in vitest.
-      exclude: [...configDefaults.exclude, "e2e/**"],
+      // Playwright specs (e2e/, e2e-release/) run under Playwright's own runner; its `test()` throws in vitest.
+      exclude: [...configDefaults.exclude, "e2e/**", "e2e-release/**"],
       // An unhandled error or rejection fails the run even when every test passes.
       dangerouslyIgnoreUnhandledErrors: false,
       coverage: {
