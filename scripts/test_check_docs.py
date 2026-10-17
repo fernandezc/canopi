@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from scripts.check_docs import BYTE_BUDGETS, LINE_BUDGETS, PARAGRAPH_EXEMPT, ROOT, anchors, check_document, check_placement
+from scripts.check_docs import BYTE_BUDGETS, LINE_BUDGETS, PARAGRAPH_EXEMPT, ROOT, anchors, check_document, check_ledger, check_placement
 
 
 class DocumentationChecks(unittest.TestCase):
@@ -20,7 +20,7 @@ class DocumentationChecks(unittest.TestCase):
     def test_docs_outside_the_v2_layout_are_refused(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("docs/README.md", "docs/guides/frontend.md", "docs/adr/0001-x.md", "docs/release-notes/v2.0.0.md", "docs/plans/hydrology.md", "docs/review-checklist.md", "docs/design/plan.md", "docs/evidence.md"):
+            for name in ("docs/README.md", "docs/decisions/2-1.md", "docs/guides/frontend.md", "docs/adr/0001-x.md", "docs/release-notes/v2.0.0.md", "docs/plans/hydrology.md", "docs/review-checklist.md", "docs/design/plan.md", "docs/evidence.md"):
                 (root / name).parent.mkdir(parents=True, exist_ok=True)
                 (root / name).write_text("# Doc\n", encoding="utf-8")
             errors = check_placement(root)
@@ -76,6 +76,38 @@ class DocumentationChecks(unittest.TestCase):
         # A deleted document takes its budget and exemption entries with it.
         for name in list(LINE_BUDGETS) + list(BYTE_BUDGETS) + list(PARAGRAPH_EXEMPT):
             self.assertTrue((ROOT / name).exists(), name)
+
+    def test_decision_ledger_rows_need_an_id_a_date_and_an_existing_implementation(self):
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "docs/adr").mkdir(parents=True)
+            (root / "docs/adr/0026-stored-data.md").write_text("Status: Accepted\n", encoding="utf-8")
+            ledger = root / "docs/decisions/2-1.md"
+            ledger.parent.mkdir(parents=True)
+            header = "# 2.1\n\n| id | date | decision | implemented by |\n|---|---|---|---|\n"
+            ledger.write_text(header + "| 2.1-Q6 | 2026-10-16 | chained steps | ADR 0026 one rule |\n| 2.1-Q35r | 2026-10-17 | backup copy | ADR 0026 |\n", encoding="utf-8")
+            self.assertEqual(check_ledger(ledger, root), [])
+            ledger.write_text(header + "| Q6 | 2026-10-16 | a | ADR 0026 |\n| 2.1-Q7 | soon | b | ADR 0026 |\n| 2.1-Q8 | 2026-10-16 | c |  |\n| 2.1-Q9 | 2026-10-16 | d | ADR 0099 |\n| 2.1-Q9 | 2026-10-16 | e | ADR 0026 |\n", encoding="utf-8")
+            errors = check_ledger(ledger, root)
+            self.assertEqual(len(errors), 5)
+            self.assertIn("ledger id 'Q6'", errors[0])
+            self.assertIn("2.1-Q7 has no YYYY-MM-DD date", errors[1])
+            self.assertIn("2.1-Q8 names no implementation", errors[2])
+            self.assertIn("cites ADR 0099, which does not exist", errors[3])
+            self.assertIn("duplicate ledger id 2.1-Q9", errors[4])
+            ledger.write_text(header + "| 2.1-Q10 | 2026-10-16 | f | ADRs 0026, 0099 and 0098 |\n| 2.1-Q11 | 2026-10-16 | replaces ADR 0097 | ADR 0026 |\n| 2.2-Q1 | 2026-10-16 | g | ADR 0026 |\n", encoding="utf-8")
+            errors = check_ledger(ledger, root)
+            self.assertEqual(len(errors), 4)
+            self.assertIn("2.1-Q10 cites ADR 0098, which does not exist", errors[0])
+            self.assertIn("2.1-Q10 cites ADR 0099, which does not exist", errors[1])
+            self.assertIn("2.1-Q11 cites ADR 0097, which does not exist", errors[2])
+            self.assertIn("ledger id 2.2-Q1 is not of this file's release 2.1", errors[3])
+            ledger.write_text("# 2.1\n\n| id | decision |\n|---|---|\n| 2.1-Q1 | x |\n", encoding="utf-8")
+            errors = check_ledger(ledger, root)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("needs the columns", errors[0])
+            ledger.write_text("# 2.1\n\nNo table.\n", encoding="utf-8")
+            self.assertIn("needs a table of decisions", check_ledger(ledger, root)[0])
 
     def test_superseded_adr_requires_existing_replacement(self):
         with TemporaryDirectory() as directory:

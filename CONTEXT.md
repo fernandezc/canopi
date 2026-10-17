@@ -1,12 +1,12 @@
 # Canopi Design Domain
 
-Canopi helps people create agroecological designs for permaculture, syntropic agriculture and food forests. This glossary defines the product's domain language. Every term is the name the interface uses (`desktop/web/src/i18n/en.json`; translations in the [UI glossary](docs/guides/ui-glossary.md)); the few architecture terms at the end name authorities, not screens. Code, guides, ADRs and bd use these words.
+Canopi helps people create agroecological designs for permaculture, syntropic agriculture and food forests. This glossary defines the product's domain language. Every term is the name the interface uses (`desktop/web/src/i18n/en.json`; translations in the [UI glossary](docs/guides/ui-glossary.md)); the concept map at the end gives each architecture noun its one owner. Code, guides, ADRs and bd use these words.
 
 ## Designs and files
 
 **Design**: An agroecological plan drawn on the map: plants, zones, notes, measurements, planning (Calendar, Budget, Consortium), saved views and stories. Saved as a `.canopi` file; "Design" is always capitalised. _Avoid:_ Document, file, project
 
-**Draft**: A Design that has no `.canopi` file yet. Every new Design starts as one; Desktop keeps drafts in app data until Save as…, the Web Edition in the browser, their only home. _Avoid:_ Autosave backup, untitled file
+**Draft**: A Design that has no `.canopi` file yet. Every new Design starts as one; Desktop keeps drafts in app data until Save as…, Web in the browser, their only home. _Avoid:_ Autosave backup, untitled file
 
 **Home**: Where a Design Session writes: the `.canopi` file it was opened from or saved as (Desktop), or a Draft. Save as… moves it to a file; a Web download never changes it. _Avoid:_ Save location, target
 
@@ -16,15 +16,13 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 **Start screen**: What the app shows when no Design Session is active: New Design, Open Design… (Web: Open a .canopi file…), Drafts and, on Desktop, Recent Designs. A Design that cannot open says why, never a path. _Avoid:_ Welcome screen, homepage
 
-**Recent Design**: A Desktop reference to a `.canopi` file opened or saved before, with its sketch and counts. A file that cannot open shows its name and why. _Avoid:_ Recent file, history item
+**Recent Design**: A reference to a `.canopi` file (on Web a Draft) opened or saved before, with its sketch and counts. A file that cannot open shows its name and why. _Avoid:_ Recent file, history item
 
-**Design notebook**: The Desktop panel that lists saved Designs in user-named sections. It stores references and organisation only; the `.canopi` file stays the authority. Not in the Web Edition. _Avoid:_ File browser, project folder
+**Design notebook**: The panel that lists saved Designs in user-named sections, keyed by Home on both editions (2.1). It stores references only; the file or Draft stays the authority. _Avoid:_ File browser, project folder
 
-**Web Edition**: Canopi in a browser: the same map canvas, panels, stories and PDF export with a reduced Plant catalog and browser-local Drafts; it cannot import or show terrain data but keeps a Design's terrain layers for Desktop. It is a real editor, not a demo or a website. _Avoid:_ Web sketch, demo app
+**Web Edition**: Canopi in a browser, aligned with Desktop except where ADR 0030 says why: the full Plant catalog, browser-local Drafts, contours, hillshading, and Site data up to a measured size limit with the terrain analyses (2.1); larger data and hydrology stay Desktop. A real editor, not a demo. _Avoid:_ Web sketch, demo app
 
 **GeoJSON import and export**: A Design's objects as a WGS84 FeatureCollection. Import adds ordinary Design objects in one undoable step. _Avoid:_ Shapefile import
-
-**Design template**: A static `.canopi` file offered as a starting Design. Web Edition only, hidden unless templates are configured. _Avoid:_ Community template
 
 ## Map and coordinates
 
@@ -34,7 +32,7 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 **Background**: The choice in Layers' Map section: Satellite, Street map or None (plain paper), with its opacity and Soften background. An app setting shared by every Design. _Avoid:_ Basemap layer, Design layer
 
-**Online elevation**: Contour lines and Hillshading, drawn from online elevation, not from imported data, listed in Layers' Map section. App settings, not Design content. _Avoid:_ Map layers, Site data
+**Online elevation**: Contour lines and Hillshading, drawn from online elevation, not imported data, listed in Layers' Map section. App settings, not Design content. _Avoid:_ Map layers, Site data
 
 **Place search**: The title-bar field (Search a place…, Ctrl K) that finds a place by name (on Enter) or by typed coordinates and moves the view there. Only the camera moves; objects never do. _Avoid:_ Location editing, geocoding
 
@@ -76,9 +74,9 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 **Lock**: A saved constraint on a Design object that stops selection, moving, deleting and copying while keeping it visible. Edit › Unlock all releases every lock as one Undo. _Avoid:_ Selection lock
 
-**Selection chip**: The chip at the bottom of the map that names the selection ("12 plants · 3 species · 0.52 m apart", "Zone · Z04 · 118 m² · 46 m") with Select all of this species, Rename… and Clear selection. _Avoid:_ Status bar, inspector
+**Selection chip**: The chip at the bottom of the map that names the selection ("12 plants · 3 species · 0.52 m apart") with Select all of this species, Rename… and Clear selection. _Avoid:_ Status bar, inspector
 
-**Right-click menu**: The one context menu for objects and the empty map (a still right-click, the Menu key or Shift F10; a right-drag pans): Cut, Copy, Paste, Duplicate, Plant color, Plant symbol, Arrange, Save as stamp, Lock, Rotate…, Species details, Add to calendar…, Set unit cost… and more. _Avoid:_ Selection toolbar, action bar
+**Right-click menu**: The one context menu for objects and the empty map (a still right-click, the Menu key or Shift F10; a right-drag pans): Cut, Copy, Paste, Duplicate, Plant color, Plant symbol, Arrange, Save as stamp, Lock, Rotate… and more. _Avoid:_ Selection toolbar, action bar
 
 **Tool card**: The card beside the tool rail that names the active tool, what to do now and its keys. _Avoid:_ Toolbar hint, status text
 
@@ -100,7 +98,7 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 **Species**: A catalog entry describing a plant taxon, identified by its canonical name. _Avoid:_ Plant, catalog plant
 
-**Canonical name**: The scientific name Canopi uses to identify a species; one per species. _Avoid:_ Latin name, species name
+**Canonical name**: The scientific name Canopi uses to identify a species; one per species. Labels and legends show it in full when a plant has no common name. _Avoid:_ Latin name, species name
 
 **Common name**: A language-scoped everyday name. Lists show the name in the interface language; when none exists they show the English name marked "(en)". A common name never stands in for another language. _Avoid:_ Species identifier
 
@@ -128,9 +126,9 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 ## Data and analyses
 
-**Data library**: The Desktop store of imported terrain and height rasters (single-band GeoTIFF: ground elevation, surface elevation, height above ground) and calculated results, shared by every Design; it needs no GDAL or other install. Delete everywhere removes an item from the library and every Design. _Avoid:_ LiDAR panel, layer store
+**Data library**: The store (`canopi-library`, `app/data-library/`, 2.1; on Web up to a size limit) of imported terrain and height rasters (single-band GeoTIFF: ground elevation, surface elevation, height above ground), vectors and calculated results, shared by every Design; it needs no GDAL or other install. Delete everywhere removes an item from the library and every Design. _Avoid:_ LiDAR panel, layer store
 
-**Site data**: The Desktop panel listing the Data library items this Design shows, results nested under their source; Layers shows it as one row. Remove from Design keeps the item in the library. _Avoid:_ Data layer, terrain layer
+**Site data**: The panel listing the Data library items this Design shows, results nested under their source; Layers shows it as one row. Remove from Design keeps the item in the library. _Avoid:_ Data layer, terrain layer
 
 **Analysis**: A calculation run on a Data library item with recorded parameters and history, such as Slope from ground elevation. A result knows when its source changed (Out of date, Refresh). _Avoid:_ Filter, derived layer
 
@@ -144,14 +142,32 @@ Canopi helps people create agroecological designs for permaculture, syntropic ag
 
 ## Support
 
-**Problem report**: Help › Report a problem… (Desktop): a summary and a diagnostic bundle the user shares by hand, never with screenshots, raw paths or keys, and with the Design only when the user opts in. _Avoid:_ Bug report, telemetry
+**Problem report**: Help › Report a problem…: a summary and a diagnostic bundle the user shares by hand, never with screenshots, raw paths or keys, and with the Design only when the user opts in; Web downloads it. _Avoid:_ Bug report, telemetry
 
-## Architecture authorities
+## Architecture terms: the domain concept map
 
-**Scene Edit**: A runtime transaction on canvas-owned state (objects, layers, species colours and symbols) that owns undo history and dirty state. _Avoid:_ Canvas mutation, scene patch
+Each noun has one owner, written states and a closed list of who may change it ([ADR 0024](docs/adr/0024-ownership-and-lifecycle.md)). Rows marked 2.1 are the target the foundation phases build.
 
-**Design Edit**: A change to non-canvas Design state: Budget, Calendar, Consortium, saved views, stories, description and extra fields. _Avoid:_ Panel action, direct write
-
-**App Command Graph**: The one registry of user commands: labels, availability, shortcuts and dispatch for menus, the Command palette (Ctrl Shift P) and rails. _Avoid:_ Menu registry, shortcut map
-
-**Browser App Shell**: The Web Edition chrome (title bar, menus, phone layout) around the shared app core. _Avoid:_ Website navigation
+| Noun | One owner | States | Who may change it |
+|---|---|---|---|
+| **Scene Edit** | the scene runtime (`transactions.ts`) | applied, undone | runtime transactions only; the Session core owns the one Design history and dirty (2.1). _Avoid:_ canvas mutation |
+| **Design Edit** | `app/design-edit/` | applied | Design Edit updaters only: Budget, Calendar, Consortium, saved views, stories, description, extra fields. _Avoid:_ panel action |
+| Design | the Design Session core | idle, opening, open, replacing, closing (2.1) | Scene Edits and Design Edits |
+| Design Session, Home | one Session core (2.1); `DesignHome`: a file grant or a Draft id | as Design; save idle, pending, writing, busy, failed, refused, conflict, quota, copy-blocked (2.1) | the core only |
+| Design scope | the Session core (2.1) | open, closing, closed | modules register with it; none watches the session identity |
+| Draft | one Draft store per edition | present, absent, unreadable, quota-refused, conflict, refused-newer, unavailable | the Design Session's writes and deletes |
+| Placed plant, Zone, Text note, Measurement, Selection | `SceneStore` | per object: present, locked | Scene Edits only |
+| Highlight | the canvas | shown, hidden | panels set origins; only the canvas draws (zones too, 2.1) |
+| Tool, armed source | the interaction session's tool owner | one typed record | the owner's arm command only (2.1) |
+| Background, Map layer | the settings map-layer slice (2.1); the map layer store is its actions and read model, with a story's override | Satellite, Street map, None | settings writes and the presented story |
+| Canvas surface | the canvas host lease and one map-lifetime module (2.1) | creating, admitted, ready, failed, released | the host only |
+| Settings record | `app/settings/`, from one field table (2.1) | loading, ready (notice), degraded | `patchSettings` only |
+| `.canopi`, settings record, user DB, LiDAR catalogue, `meta.json`, browser records | each store's chain; `.canopi`'s in `canopi-format`, on Web in the core worker ([ADR 0026](docs/adr/0026-stored-data-after-2-0.md)) | opening, migrating, ready, refused-newer, set-aside-damaged, unavailable | that store's frozen steps |
+| Data library item | the `canopi-library` repository; `kinds.rs` owns its kind (2.1) | importing, ready, failed; result current or stale | import and analysis jobs, Rename, Delete everywhere |
+| Result, Display derivative | `analyses/` (a result and its generations); `display_cog.rs` (a display copy) | result: unpublished, head, superseded; display: preparing, ready, failed | jobs and display preparation |
+| Site data entry display | one read model per entry in `app/data-library` | requested, ready, failed | the Site data panel and Design Edits |
+| Job | the `jobs.rs` runner (2.1) | Queued, Running, Settling, Settled | the runner; users cancel through it |
+| Library file (asset, original, staging) | the janitor (2.1) | claimed, unclaimed | writers claim before writing; only the janitor deletes |
+| Failure | the failure catalogue in `canopi-types` and `reportFailure` ([ADR 0025](docs/adr/0025-failure-model-and-native-scheduling.md)) | one stable code | producers emit codes; only the sink records them |
+| **App Command Graph** | one shell command catalog over the edition's capabilities | available, unavailable | command modules; menus, the Command palette and rails read it. _Avoid:_ menu registry |
+| **Browser App Shell** | the Web edition root | n/a | the Web Edition chrome (title bar, menus, phone layout) around the shared app. _Avoid:_ website navigation |

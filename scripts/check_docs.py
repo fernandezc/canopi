@@ -1,4 +1,4 @@
-"""Offline checks for repository Markdown links, ADR status, docs placement and size budgets.
+"""Offline checks for repository Markdown links, ADR status, docs placement, size budgets and decision ledgers.
 
 Checks inline links/images, reference definitions, and Markdown heading fragments.
 Fenced code, inline code, and external URLs are excluded. This is intentionally
@@ -18,7 +18,7 @@ REFERENCE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(<[^>]+>|\S+)", re.MULTILINE)
 # The v2 documentation layout: anything else under docs/ is evidence or history
 # that belongs in bd or nowhere.
 DOCS_FILES = {"README.md", "architecture.md", "workflow.md", "review-checklist.md"}
-DOCS_DIRECTORIES = {"adr", "guides", "plans", "release-notes"}
+DOCS_DIRECTORIES = {"adr", "decisions", "guides", "plans", "release-notes"}
 LINE_BUDGETS = {
     "AGENTS.md": 120,
     "README.md": 80,
@@ -32,7 +32,7 @@ LINE_BUDGETS = {
 # tests. Budgets in bytes stop the guides from growing by accretion again.
 BYTE_BUDGETS = {
     "AGENTS.md": 9_500,
-    "CONTEXT.md": 14_000,
+    "CONTEXT.md": 17_000,
     "docs/README.md": 4_000,
     "docs/architecture.md": 12_000,
     "docs/workflow.md": 8_000,
@@ -52,6 +52,16 @@ PARAGRAPH_EXEMPT = (
     "docs/release-notes/",
     "docs/plans/onf-plugin-adaptation.md",
 )
+
+
+# A decision ledger (docs/decisions/<release>.md) is the one append-only
+# document: each row is a dated user decision and names what implements it.
+LEDGER_COLUMNS = ("id", "date", "implemented by")
+LEDGER_ID = re.compile(r"^\d+\.\d+-[A-Z]+\d+[a-z]?$")
+LEDGER_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# "ADR 0026", and lists such as "ADRs 0022, 0023 and 0030" or "ADRs 0015 to 0020".
+ADR_CITATION = re.compile(r"\bADRs? (\d{4}(?:(?:, |,? and | to )\d{4})*)\b")
+LEDGER_RELEASE = re.compile(r"^(\d+)-(\d+)$")
 
 
 def prose(text):
@@ -135,6 +145,57 @@ def check_document(file, root):
     return errors
 
 
+def check_ledger(file, root):
+    """Every ledger row has a unique id of the file's release, a date and an implementation, and each ADR any cell cites exists."""
+    errors = []
+    relative = file.relative_to(root).as_posix()
+    adrs = {path.name[:4] for path in (root / "docs/adr").glob("[0-9][0-9][0-9][0-9]-*.md")}
+    release = LEDGER_RELEASE.match(file.stem)
+    prefix = f"{release[1]}.{release[2]}-" if release else None
+    header, skip, seen, rows, bad_tables = None, False, set(), 0, 0
+    for number, line in enumerate(prose(file.read_text(encoding="utf-8")).splitlines(), start=1):
+        if not line.lstrip().startswith("|"):
+            header, skip = None, False
+            continue
+        if skip:
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if header is None:
+            header = [cell.lower() for cell in cells]
+            missing = [column for column in LEDGER_COLUMNS if column not in header]
+            if missing:
+                errors.append(f"{relative}:{number}: a ledger table needs the columns {', '.join(LEDGER_COLUMNS)}")
+                # Its rows cannot be read against columns it lacks.
+                skip, bad_tables = True, bad_tables + 1
+            continue
+        if all(set(cell) <= set("-: ") for cell in cells):
+            continue
+        rows += 1
+        if len(cells) != len(header):
+            errors.append(f"{relative}:{number}: row has {len(cells)} cells, the header {len(header)}")
+            continue
+        row = dict(zip(header, cells))
+        ident = row.get("id", "")
+        if not LEDGER_ID.match(ident):
+            errors.append(f"{relative}:{number}: ledger id {ident!r} is not <release>-<letter><number>")
+        elif prefix and not ident.startswith(prefix):
+            errors.append(f"{relative}:{number}: ledger id {ident} is not of this file's release {prefix[:-1]}")
+        elif ident in seen:
+            errors.append(f"{relative}:{number}: duplicate ledger id {ident}")
+        seen.add(ident)
+        if not LEDGER_DATE.match(row.get("date", "")):
+            errors.append(f"{relative}:{number}: {ident} has no YYYY-MM-DD date")
+        implementation = row.get("implemented by", "")
+        if not implementation:
+            errors.append(f"{relative}:{number}: {ident} names no implementation")
+        cited = {adr for cell in cells for group in ADR_CITATION.findall(cell) for adr in re.findall(r"\d{4}", group)}
+        for adr in sorted(cited - adrs):
+            errors.append(f"{relative}:{number}: {ident} cites ADR {adr}, which does not exist")
+    if not rows and not bad_tables:
+        errors.append(f"{relative}: a decision ledger needs a table of decisions")
+    return errors
+
+
 def check_placement(root):
     errors = []
     docs = root / "docs"
@@ -152,9 +213,10 @@ def check(root):
     files = [root / p for p in ("AGENTS.md", "CONTEXT.md", "README.md", "desktop/web/ui-gallery/README.md", ".beads/README.md")]
     for directory in ("docs", ".interface-design"):
         files.extend((root / directory).rglob("*.md"))
+    ledgers = sorted((root / "docs/decisions").glob("*.md"))
     return check_placement(root) + [
         error for file in sorted(set(files)) if file.is_file() for error in check_document(file, root)
-    ]
+    ] + [error for file in ledgers for error in check_ledger(file, root)]
 
 
 if __name__ == "__main__":
