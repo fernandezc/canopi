@@ -1,6 +1,6 @@
 # Architecture fitness and verification
 
-Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q47, Q45 pass; enforcement first: ledger 2.1-Q75, 2.1-E2, 2.1-E3, 2.1-M14)
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q47, Q45 pass; enforcement first: ledger 2.1-Q75, 2.1-E2, 2.1-E3, 2.1-M14; a move carries its rewrites: 2.1-M20)
 
 ## Context
 
@@ -18,7 +18,7 @@ In 2.0 the policy tests hold boundaries through tombstones, phase-named lists an
 - **Ratchets only shrink:** layer-order sites, feature SCCs, deep imports, multi-writer signals, exceptions, String-error commands, Rust SCCs, primitive sites, file size over 600 lines (generated files exempt), clones, complexity, quarantined flakes and performance budgets (ADR 0029).
 - **Generated rules** (Q13). Policy tables stay data and generate the dependency-cruiser and ast-grep configs. A fail-closed checker refuses a missing source, path drift, an unused exemption and a missing required rule. A policy kind confines `patchSettings(slice, {field})` callers to the field's patching features. Tombstones, phase-named lists, wiring pins and source-text pins are retired.
   - cargo-shear replaces `check_unused_crates.py`; knip replaces the in-house unused-code checker and its snapshot, and the user's rules of 2026-10-02 (a new unused name fails; a kept entry names its bead) stay as its shrink-only ratchet (2.1-E2).
-- **Tests go through public surfaces.** Tests that read private fields or assert source text are rewritten in Phase 0. A unit test sits beside its module; `src/__tests__/` holds cross-module suites only, and existing files leave it through a ratchet (2.1-E3). A suite moves to the browser lane only where it asserts layout or real renderer and input behaviour.
+- **Tests go through public surfaces.** Tests that read private fields or assert source text are shrink-only ratchets from Phase 0; each is rewritten by the stream that moves its module, and Phase 0 rewrites those whose module no stream moves (2.1-M20). A unit test sits beside its module; `src/__tests__/` holds cross-module suites only, and existing files leave it through a ratchet (2.1-E3). A suite moves to the browser lane only where it asserts layout or real renderer and input behaviour.
 - **Model-based tests.** Each written state machine with interleavings (the Session union and its write lane, pool lanes, display descriptors, LiDAR jobs against the SQLite CHECK, map lifetime) ships a command-sequence test against the real implementation. A small synchronous union gets an exhaustive transition-table test. fast-check and proptest also cover geo, CRS and camera maths.
 - **Faults and hostile input** (Q47). The model-based Session, Draft, user-DB and LiDAR suites also run over the fault seams (`DurableFs`, the Draft store's `IDBFactory`): after any fault a reopen gives the last or previous acknowledged revision and no Draft is lost. cargo-fuzz runs on `canopi-format` admission and chain and on the LiDAR and raster readers in a scheduled lane: no panic, always a typed refusal, each crash a corpus case and a test.
 - **Diagrams** (Q47). Each phase close generates the module and crate diagrams from dependency-cruiser and `cargo tree`.
@@ -41,7 +41,7 @@ In 2.0 the policy tests hold boundaries through tombstones, phase-named lists an
 
 ## Consequences
 
-- AGENTS.md's coverage-floor rule changed with this ADR. Each AGENTS.md line naming a check is rewritten in the commit that converts or retires that check; Phase 4 D1 rewrites only what is left.
+- AGENTS.md's coverage-floor rule changed with this ADR. Each AGENTS.md, guide or `CONTEXT.md` line a change makes stale, a check's name included, is rewritten in that change (2.1-M20); Phase 4 D1 is a final consistency pass.
 - tauri-specta, Sheriff, CodeScene and nextest are dropped.
 
 ## Checks
