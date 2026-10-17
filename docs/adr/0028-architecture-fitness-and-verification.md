@@ -1,6 +1,6 @@
 # Architecture fitness and verification
 
-Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q47, Q45 pass; enforcement first: ledger 2.1-Q75, 2.1-E2, 2.1-E3, 2.1-M14; a move carries its rewrites: 2.1-M20)
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q47, Q45 pass; enforcement first: ledger 2.1-Q75, 2.1-E2, 2.1-E3, 2.1-M14; a move carries its rewrites: 2.1-M20; the durable-files seam in 2b: 2.1-M28)
 
 ## Context
 
@@ -51,5 +51,5 @@ In 2.0 the policy tests hold boundaries through tombstones, phase-named lists an
 - ast-grep `no-private-field-cast-in-tests` and `no-src-read-outside-policies` (to be created by Phase 0, shrink-only).
 - The scenario owner fixtures and their re-walk diff (to be created by Phase 0: `scenario-owners`).
 - The upstream register, checked both ways (to be created by Phase 0: `upstream-register`).
-- The fault-seam runs of the model-based suites (to be created by Phases 2b and 3 N1) and the scheduled fuzz lane (to be created by Phases 2b and 3 N1); a policy test that `__tests__/support/` copies no runtime guard (to be created by Phase 0 F4).
+- The fault-seam runs of the model-based suites, over `DurableFs` from Phase 2b's first native change (2.1-M28, 2.1-M35) and the Draft store's `IDBFactory` (to be created by Phases 2b and 3 N1) and the scheduled fuzz lane (to be created by Phases 2b and 3 N1); a policy test that `__tests__/support/` copies no runtime guard (to be created by Phase 0 F4).
 - Coverage floors in `desktop/web/vite.config.ts` and `.cargo/config.toml` (exist).
