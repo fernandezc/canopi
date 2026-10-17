@@ -1,6 +1,6 @@
 # Rust crates and native layering
 
-Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34 format core, Q37 engine procedure, Q47 fault seam, Q45 pass; the job-runner prototype and the module-map run: ledger 2.1-M4, 2.1-M5, 2.1-Q65, 2.1-Q79, 2.1-Q122)
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34 format core, Q37 engine procedure, Q47 fault seam, Q45 pass; the job-runner prototype and the module-map run: ledger 2.1-M4, 2.1-M5, 2.1-Q65, 2.1-Q79, 2.1-Q122); amended 2026-10-17 (the reader release: 2.1-Q138, 2.1-M21)
 
 ## Context
 
@@ -11,7 +11,7 @@ In 2.0 almost all native code is one Tauri crate. LiDAR is 57% of production cod
 - **Twelve crates, leaf first.**
   - `canopi-types` (renamed `common-types`): shared shapes and `DESIGN_FILE_FIELDS`, the failure catalogue (ADR 0025), the settings field table, the quantity table, the TS-facing command map (no `OpSpec`, which lives with each facade).
   - `canopi-format`: a leaf over `canopi-types` owning stored user work (ADR 0026): `.canopi` read checks, the frozen chain, the writer with admission, the wire conversion, the one new-Design builder, typed refusals, the spec emitter, the Draft content rules and the saved-stamp payload chain. It replaces `desktop/src/design/format.rs`; no tauri, tokio, sqlite or wasm-bindgen.
-  - `canopi-search-text`: the one implementation of search normalisation (ADR 0027), with a key CLI for the catalog build. `canopi-format-wasm` (Phase 2b), `canopi-search-text-wasm` (Phase 3 N4) and `canopi-library-wasm` (Phase 3 N5, 2.1-Q122: the library's leaves and engines for the Web terrain worker) are thin exports, each loaded by one adapter (ADR 0022).
+  - `canopi-search-text`: the one implementation of search normalisation (ADR 0027), with a key CLI for the catalog build. `canopi-format-wasm` (its read half in Step 2.0.4, the whole core in Phase 2b), `canopi-search-text-wasm` (Phase 3 N4) and `canopi-library-wasm` (Phase 3 N5, 2.1-Q122: the library's leaves and engines for the Web terrain worker) are thin exports, each loaded by one adapter (ADR 0022).
   - `bindings-gen`: emits TS from `canopi-types`; never depends on Tauri.
   - `canopi-support`: the executor, durable files, hash, time, `acquire`, `move_aside`, the store migration runner and the one private `blocking::run`. Durable files sit behind a `DurableFs` seam with a fault implementation (kill after any step, disk full, read-only, rename failure, 2.1-Q47); `publish_durably(bytes or staged, target, role)` is the only way a Design, export, store, image-cache or library file is published.
   - `canopi-library` (renamed from the planned `canopi-lidar` at the crate split, 2.1-M4): the Data library, with no Tauri. `canopi-catalog`: the plant DB and search. `canopi-store`: the user DB, settings record, favourites, recently viewed, saved stamps, Recent Designs, the notebook, Design files and Drafts. `canopi-desktop`: the Tauri shell, commands, host and composition. Crown detection adds `canopi-vegetation`, a pure-algorithm leaf called by `canopi-library`'s crown extension (L3).
@@ -45,7 +45,7 @@ In 2.0 almost all native code is one Tauri crate. LiDAR is 57% of production cod
 
 ## Checks
 
-- cargo-deny (to be created by Phase 0; bans by Phase 3): Tauri only in `canopi-desktop`; tauri, tokio and sqlite never under `canopi-format`; wasm-bindgen only in the `-wasm` crates (one from Phase 2b, the second from Phase 3 N4; N5 adds the third, 2.1-Q122); only `canopi-desktop` depends on both catalog and store; `sha2` only in `canopi-support` (wrappers). `cargo tree -p bindings-gen -i tauri` is empty.
+- cargo-deny (to be created by Phase 0; bans by Phase 3): Tauri only in `canopi-desktop`; tauri, tokio and sqlite never under `canopi-format`; wasm-bindgen only in the `-wasm` crates (one from Step 2.0.4, the second from Phase 3 N4; N5 adds the third, 2.1-Q122); only `canopi-desktop` depends on both catalog and store; `sha2` only in `canopi-support` (wrappers). `cargo tree -p bindings-gen -i tauri` is empty.
 - `cargo check --target wasm32-unknown-unknown -p canopi-library --no-default-features` (the leaves and engines) in CI (to be created by Phase 3 N1).
 - Rust SCC count 0 (`rust-scc` ratchet, Phase 0); `module_layering.rs` (exists), narrowed to the library order with the module-to-layer list and no extension-to-extension edge (Phase 3 N1).
 - ast-grep (Phase 0, as ratchets): `tauri-only-in-shell`, `sql-only-in-repository`, `no-formatted-sql` (every crate), `canopi-decode-only-in-format`, `tracing-warn-only-in-failure-logger`, `http-client-only-in-http`; `crs-only-in-crs` (Phase 3, replacing the projection-crate test in `crs.rs`, which exists).

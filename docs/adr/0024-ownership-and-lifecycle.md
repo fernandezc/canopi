@@ -1,6 +1,6 @@
 # Ownership and lifecycle
 
-Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34, Q38 to Q41, Q45 pass; the Session-core, settings and job-runner prototypes; ledger 2.1-Q61, 2.1-Q66 to 2.1-Q68, 2.1-Q80, 2.1-Q125, 2.1-Q135, 2.1-E6, 2.1-M6)
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34, Q38 to Q41, Q45 pass; the Session-core, settings and job-runner prototypes; ledger 2.1-Q61, 2.1-Q66 to 2.1-Q68, 2.1-Q80, 2.1-Q125, 2.1-Q135, 2.1-E6, 2.1-M6, 2.1-M21)
 
 ## Context
 
@@ -19,7 +19,7 @@ Every domain noun has one owner, written states and a closed list of writers (th
 | Canvas surface | the canvas host lease and the map-lifetime module in `maplibre/` | lease free, held, releasing; map creating, admitted, ready, failed, released; a per-layer sub-state under ready | one release order: each scene layer, then contributions, then the map; a later `style.load` fails the map with Retry (ADR 0004), never a silent empty map |
 | ToolHost | the interaction session's `_tool` | one typed state record of reducer sections | a fault aborts open edits and is reported (ADR 0025) |
 | Renderer snapshot | the scene runtime | self-contained per frame | no process globals |
-| Settings store | `app/settings/` | loading; ready (notice: fields-reset or write-failed); degraded (refused-newer or unavailable) | flush and drop on dispose; reading never writes; a degraded store is never written (2.1-Q67) |
+| Settings store | `app/settings/` | loading; ready (notice: fields-reset or write-failed); degraded (refused-newer, newer-read-only or unavailable) | flush and drop on dispose; reading never writes; a degraded store is never written (2.1-Q67); a newer-read-only record applies its known fields (ADR 0026) |
 | Native executor | the `canopi-desktop` composition | running, draining, closed | drain cancels with reason `Shutdown`: the runner's job settles Interrupted with Run again, never Cancelled; once draining starts no Queued job starts (the drain flag and the runner's registration share one lock); then the janitor, the sidecar child killed and reaped, then the request lanes; after close a request settles `unavailable` |
 | Web IndexedDB connections | one per database: the Web Draft-store adapter (Drafts) and the browser library adapter (Data library items, N5); the `localStorage` record adapters (species lists, stamps, Notebook) hold none | opening, open, version-change-blocked, closed | each closed on `pagehide`; reopened on `pageshow` with `persisted` and on the next write; another tab's upgrade of either reaches the core as a store version change (Q40, ADR 0026) |
 | Workers | the module that starts each (raster pool, design core, DuckDB, PDF) | starting, ready, broken or poisoned, terminated | a deadline per task; mosaic sources released on dispose; terminated with their owner's scope; the design core respawns after a trap and after a large open |

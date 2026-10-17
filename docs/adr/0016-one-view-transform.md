@@ -1,6 +1,6 @@
 # One view transform
 
-Status: Accepted (2026-09-29, Canopi v2); amended 2026-09-30, 2026-10-01, 2026-10-05 (U33: no rulers), 2026-10-06 (U34: turns jump; a bearing-free zoom floor) and 2026-10-17 (ledger [2.1-Q78d](../decisions/2-1.md): the view transform is an affine over ground metres; built by Phase 2a)
+Status: Accepted (2026-09-29, Canopi v2); amended 2026-09-30, 2026-10-01, 2026-10-05 (U33: no rulers), 2026-10-06 (U34: turns jump; a bearing-free zoom floor) and 2026-10-17 (ledger [2.1-Q78d](../decisions/2-1.md): the view transform is an affine over ground metres; built by Phase 2's true-metres change, 2m)
 
 Amends [ADR 0004](0004-one-renderer.md) (camera ownership) and [ADR 0001](0001-geolocated-map-canvas.md) (bearing is a view property). Product rules: [ADR 0015](0015-rotating-map-and-canvas-controls.md).
 
@@ -39,6 +39,6 @@ Screen to world conversion was derived in several places (renderer, scene camera
 ## Consequences
 
 - The camera code, the shared-scene viewport derivation, `createMapFrame` (`bearing: 0`) and the clamp-learning path are deleted; policy tests keep one camera writer, no projection caller outside the World map and a view module that imports no MapLibre, Pixi or DOM node.
-- A headless/MapLibre contract test runs the same camera scripts through both drivers over MapLibre's real `MercatorTransform` and requires 1e-6 px agreement with its forward projection, under the ground-metre plane at several latitudes from Phase 2a (its own inverse drifts by up to 8e-6 px above zoom 19; multi-move scripts stay below zoom 20).
+- A headless/MapLibre contract test runs the same camera scripts through both drivers over MapLibre's real `MercatorTransform` and requires 1e-6 px agreement with its forward projection, under the ground-metre plane at several latitudes from Phase 2 (2m) (its own inverse drifts by up to 8e-6 px above zoom 19; multi-move scripts stay below zoom 20).
 - The zoom floor ignores the bearing (user, 2026-10-06, U34): zoom ≥ log2(hypot(w, h) / 512), and the pan hold keeps the centre half the screen diagonal inside one world. A turn never changes the zoom; the world view stops 0.14–0.5 zoom levels sooner and panning stops short near ±85° and ±180°.
 - Details: `docs/plans/canvas-v2-spec.md`, deleted at the 2.0 release close; `git log -1 --diff-filter=D -- docs/plans/canvas-v2-spec.md` names the deleting commit, whose parent holds it.

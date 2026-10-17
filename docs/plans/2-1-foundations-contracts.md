@@ -1,6 +1,6 @@
 # Canopi 2.1 foundations: contracts
 
-Status: Agreed 2026-10-16, amended 2026-10-17 (the answers to 2.1-Q133, Q78d, E1 to E7 and M1 to M19 in the [decision ledger](../decisions/2-1.md); the Session-core, canvas-map, settings, job-runner and true-metres prototypes) (canopi-f47t.52); to be deleted when built. Each contract then lives in its code, module comment and test.
+Status: Agreed 2026-10-16, amended 2026-10-17 (the answers to 2.1-Q133, Q78d, E1 to E7 and M1 to M19 in the [decision ledger](../decisions/2-1.md); the Session-core, canvas-map, settings, job-runner and true-metres prototypes; the order review, 2.1-Q137, 2.1-Q138, 2.1-M20 to 2.1-M22) (canopi-f47t.52); to be deleted when built. Each contract then lives in its code, module comment and test.
 Contracts only: shapes, states, rules and the tests that hold them. Order of work is in [2-1-foundations.md](2-1-foundations.md); the reasons are in ADRs [0022](../adr/0022-module-map-and-dependency-direction.md) to [0030](../adr/0030-edition-parity.md).
 
 ## 1. Typed command map
@@ -322,22 +322,23 @@ interface DesignCore {
 | display COG cache, previews, image cache | derived | none | none | wiped and rebuilt on a bump |
 
 - A runner per store: `FLOOR`, ordered `STEPS`, `CURRENT = FLOOR + STEPS.len()`, so a bump without a step does not compile. Below the floor follows ADR 0021; newer is refused unchanged.
-- Open lifecycle: opening, migrating, then ready, recovered{counts}, refused-newer, set-aside-damaged{file} or unavailable{code} (for settings, a reset field is ready with a notice, not a state): the `StoreOpenStatus` union in `canopi-types`. `SubsystemHealth` is one record from store id to it, filled by each runner on Desktop and the browser adapters on Web, read by one model in `failures/`; the plant catalog row is read-only (ready or unavailable). The status feeds the problem report.
+- Open lifecycle: opening, migrating, then ready, recovered{counts}, newer-read-only (a newer form this build can read: it is shown and never written, Step 2.0.4), refused-newer, set-aside-damaged{file} or unavailable{code} (for settings, a reset field is ready with a notice, not a state): the `StoreOpenStatus` union in `canopi-types`. `SubsystemHealth` is one record from store id to it, filled by each runner on Desktop and the browser adapters on Web, read by one model in `failures/`; the plant catalog row is read-only (ready or unavailable). The status feeds the problem report.
 - Degraded stores: ADR 0026 (2.1-Q67); reading a store never writes it. Durable files go through `canopi-support`'s `publish_durably` behind the `DurableFs` seam; each writer's sidecar name is unique.
 - A migration works on a copy and swaps it in durably once verified; the original is never half-migrated. SQLite steps run in one transaction on the copy and write their store's own version marker: `user_version` for the user DB, the `lidar_catalogue_meta` row `schema_version` for the catalogue.
 - Settings (2.1-Q54): a bad value resets only that field; the original record is kept once as `settings.before-reset` (a user-DB row on Desktop; secret, never read by the app, replaced by the next reset) before the reset is written; writes are patches of changed fields; one fixture corpus in `canopi-types` runs through both editions' runners.
-- Rollback and the kept copy: ADR 0026 (2.1-E4, 2.1-M9, 2.1-M15, 2.1-M16, 2.1-E7). The new homes are `user-v10.db`, `library-v26/`, `drafts-v10/`, a `settings.v2` user-DB row and new browser keys; Desktop settings stay user-DB rows (2.1-M17), so the `user-v10.db` copy carries `settings` and `settings.v2`. A kept copy is `<name>.replaced.<ext>` natively, a `<key>.replaced` user-DB row or a `.replaced` Web key; `StoreOpenStatus` ready carries `kept_copy{file}`.
-- Tests: a fixture per store from each release tag; the chain runs from each to head; per 2.1 store step, a rollback fixture test in the step's own stream runs the 2.0 reader on its output and finds the pre-upgrade form unchanged, then writes the 2.0 form, re-upgrades and finds the replaced 2.1 form kept once beside the store, unchanged (2.1-E7); the D3 rollback test names each 2.1 store step and checks that 2.0 opens its pre-upgrade content and prunes none of 2.1's library files, and a re-upgrade keeps the latest work and the kept copy.
+- Rollback: ADR 0026 (2.1-E4, 2.1-Q138, 2.1-M21). The reader release (Step 2.0.4) reads every 2.1 form and writes none, so each store migrates in place: no new homes, no unwritten previous forms, no kept copy of a replaced form. Desktop settings stay the user DB's `settings` row (2.1-M17). Kept for their own reasons: the `.canopi` pre-upgrade copy (2.1-Q35r), each migrated Desktop Draft's v9 form in `drafts/before-v10/`, the 2.0 Web Drafts key and a new Web key for settings and each record whose shape 2.1 changes (older tabs, 2.1-Q83).
+- Tests: a fixture per store from each release tag; the chain runs from each to head; the rollback lane (Step 2.0.4) runs the readers, from the latest stable 2.0.x tag, on each 2.1 store step's output and finds it read and no byte written; the D3 rollback test installs the latest 2.0.x stable release, then 2.0.3, over 2.1.0's stores and finds each shown read-only or refused unchanged, no library file pruned.
 
 **Web Drafts move to IndexedDB** (the first Web step):
 - Object store `drafts`, key `id`; a record holds `id`, `canopi_version`, `revision`, `name`, `updated_at` and the Design as `.canopi` text, read through the core's chain. Web settings carry the settings record's version (from 1) and species its own record version; the container version counts from 3. Settings and every record whose shape 2.1 changes move to a new key, leaving the v3 key to 2.0 tabs (ADR 0026 Rollback). Saved stamps get their own browser record (2.1-Q112).
-- Persistent storage is requested on the first Draft with a one-line reason; if refused, the welcome screen and save status warn and offer Download .canopi (2.1-Q82).
+- Persistent storage is requested on the first Draft with a one-line reason; if refused, the welcome screen and save status warn and offer Download .canopi (2.1-Q82). Step 2.0.3 builds it on the localStorage store; the grant is per origin, so this store keeps it unchanged.
 - A write gets, compares and puts the revision inside one readwrite transaction; a mismatch is `draft_conflict`. Writes are async. The adapter flushes on `visibilitychange` to hidden, and again on `pagehide`; the pending-write marker covers a write the page did not live to commit. A quota failure is `draft_quota_refused`.
-- The step copies every Draft from the old localStorage key, refused ones included, each into its own record in one transaction. The comparison form is the canonical encode of each draft object: the old key holds parsed objects and a record holds `.canopi` text, so the copy writes the canonical encode and the read-back compares every id and its canonical encode with the record. The old key then stays, unwritten by 2.1, so a rollback to 2.0 finds its Drafts; 2.2 removes it (2.1-E4). On a mismatch the failure is reported and the step runs again at the next open.
+- The step copies every Draft from the old localStorage key, refused ones included, each into its own record in one transaction. The comparison form is the canonical encode of each draft object: the old key holds parsed objects and a record holds `.canopi` text, so the copy writes the canonical encode and the read-back compares every id and its canonical encode with the record. The old key then stays unwritten, for tabs older than the reader release and as the lossy v10 step's 2.0 form; 2.2 removes it (2.1-M21). On a mismatch the failure is reported and the step runs again at the next open.
 - The step runs whenever the old key exists, at open and on a `storage` event for that key, so a 2.0 tab that writes after the move is caught.
   - Each old-key id maps to at most one "copied from an older tab" Draft, kept in the store's id map with the canonical encode copied at the move. An id whose canonical encode equals that moved encode, or its existing copy, is skipped; the record's current content is never the comparison, because a 2.0 tab rewrites every id, including Drafts edited since in 2.1. Otherwise the first such write creates that id's copy and later writes update the same copy, so the user's original record is never overwritten, a 2.0 tab left open adds at most one Draft per id, and each copy is reported once.
-  - A two-tab e2e (a 2.0 build writing Drafts, settings, favourites and recently viewed after the 2.1 deploy) is in the Draft-store suite; the 2.1 records stay unchanged.
+  - A two-tab e2e (a 2.0.3 build writing Drafts, settings, favourites and recently viewed after the 2.1 deploy, and a reader-release build holding the Draft store open) is in the Draft-store suite; the 2.1 records stay unchanged and the upgrade is not blocked.
 - An old tab meets a newer database (Q40): on `versionchange` it saves, closes and shows the one "New version: Reload" notice (2.1-Q83). If that save fails, it keeps the Design in memory, offers Download .canopi before the reload message and arms the leave prompt, then closes.
+- The reader release lists this store's Drafts read-only through the format worker and hides an old-key Draft with the same id; it reads settings and the species-list record read-only from their 2.1 keys, and writes none of them. It checks the store exists with `indexedDB.databases()` (or aborts the upgrade at `oldVersion` 0), so it creates no database, and its connection follows Q40 below.
 - While the upgrade is blocked, the new tab shows `draft_store_blocked` from the `blocked` event. An older build refuses a newer store with `draft_store_newer`.
 - The pending-write marker is a localStorage entry per Draft id, written synchronously before each write and cleared when its transaction completes. Found at open, it shows a notice naming the Draft whose last change may be missing, and the event is reported.
 - The connection closed on `pagehide` goes back to opening on `pageshow` with `persisted` and on the next write.
@@ -455,13 +456,13 @@ One data file beside the normalisation contract, `canopi-types/species-search-ra
 
 ## 18. Primitive owners
 
-Each raw primitive a second copy would use has one owner and one rule (ADR 0028), landed in Phase 0 as a shrink-only ratchet whose baseline is the count below (sites / files, at 2.0.1); the ratchet reaches 0 in the phase named. A rule's failure message names its owner and a canonical example.
+Each raw primitive a second copy would use has one owner and one rule (ADR 0028), landed in Phase 0 as a shrink-only ratchet whose baseline is the count below (sites / files, at 2.0.1); the ratchet reaches 0 in the last phase or stream named. A rule's failure message names its owner and a canonical example.
 
 | # | Primitive | Owner | Rule | Baseline | Phase |
 |---|---|---|---|---|---|
 | F1 | Tauri `invoke` | `ipc/` generated `invoke<K>` | `invoke-only-in-ipc` | 2 / 2 | 2a |
 | F2 | Tauri window, dialogs, `convertFileSrc` | the `platform/*.desktop.ts` adapters: file access (dialogs, display URLs; 2.1-M12) and window control | `tauri-only-in-ipc-and-platform` | 9 / 8 | 2a, 2b |
-| F3 | Notices and toasts (plugin-dialog `message`) | the `failures/` notice signal, its one notice row and one window-level toast slot | `notice-only-in-failures` | 2 / 2 | 1b |
+| F3 | Notices and toasts (plugin-dialog `message`) | the `failures/` notice signal, its one notice row and one window-level toast slot | `notice-only-in-failures` | 2 / 2 | 1b, 2a, N2 |
 | F4 | `new maplibregl.Map`, style readiness | `maplibre/map-lifetime.ts` and its factory | `map-constructor-only-in-factory`, `style-load-only-in-map-lifetime` | 3 / 3; 12 / 5 | 2d |
 | F5 | `addSource`, `addLayer` and removals | each workspace map contribution | `layer-order`; the `ownsResource` contract | 1 / 1 outside | 2d |
 | F6 | `maplibregl-*` classes, the MapLibre CSS | `maplibre/` constants and import | `maplibre-class-only-in-maplibre` | 7 / 3; 2 / 2 | 2c, 2d |
@@ -481,8 +482,8 @@ Each raw primitive a second copy would use has one owner and one rule (ADR 0028)
 | F20 | Module-level `effect(` | `installAppLifetime` and the Design scope | `no-module-effect` | 8 / 7 | 2a, 2b |
 | F21 | `sessionIdentity` reads | `core.onDesignOpened` | `no-session-identity-watch` | 88 / 30 | 2b |
 | F22 | Hand-written request counters | `latest()` in the scope module | `no-hand-generation-guard` | 10 controllers | 2b |
-| F23 | `console.*`, bare `catch`, window hooks | `failures/` `reportFailure` | `console-only-in-sink`, `bare-catch-names-reason` | 46 / 30; 72 | 1b |
-| F24 | Redaction | `failures/redact.ts` | the redaction corpus | 2 redactors | 1b, 1c |
+| F23 | `console.*`, bare `catch`, window hooks | `failures/` `reportFailure` | `console-only-in-sink`, `bare-catch-names-reason` | 46 / 30; 72 | 1b, each moving stream (0 at Phase 3) |
+| F24 | Redaction | `failures/redact.ts` | the redaction corpus | 2 redactors | 1b |
 | F25 | Layout breakpoints | `app/shell/phone-layout.ts` (`data-layout`) | `no-shell-breakpoint-media-query` | 11 / 11 | 2a |
 | F26 | Dialog filters, sanitisers, downloads | the FileDelivery rows and file-kind table | `file-delivery-rows`, `no-inline-dialog-filters` | 7 / 5; 5 sanitisers | 2a, N2 |
 | F27 | Import extensions | the generated accepted-format list | `no-hard-coded-import-extension` | 1 / 1 | N3 |
@@ -494,7 +495,7 @@ Each raw primitive a second copy would use has one owner and one rule (ADR 0028)
 | F33 | Zone shape decoding | the zone kernel | zone-decoder count | 22 | 2c |
 | F34 | `keydown` listeners | `app/keyboard/key-router.ts`; focus-owned text entry | ADR 0020 tests (exist) | 2 / 2, both owners | none |
 | F35 | Unit conversion constants and maths | the quantity table and `utils/format.ts` | `unit-maths-only-in-quantity-owner` | counted at 2c's start | 2c |
-| F36 | Ground scale: Earth radii, latitude-based scale, zoom to pixels per metre, shown lengths and areas | the session plane in `geo/` (§20) | `scale-only-through-plane`; `PlanePoint` and `ConformalPoint` brands | counted at 2a's start | 2a |
+| F36 | Ground scale: Earth radii, latitude-based scale, zoom to pixels per metre, shown lengths and areas | the session plane in `geo/` (§20) | `scale-only-through-plane`; `PlanePoint` and `ConformalPoint` brands | counted at 2m's start | 2m |
 | R1 | `tauri::`, `AppHandle` | `canopi-desktop` | `tauri-only-in-shell`; cargo-deny | 5 / 3 | N1 |
 | R2 | `thread::spawn`, `spawn_blocking`, `rayon` | `blocking::run` in `canopi-support` | clippy `disallowed-methods`; `BLOCKING_ESCAPE_ALLOWLIST` (exist) | 0 outside | N1 |
 | R3 | Executor calls in commands | facade methods with their `OpSpec` | `native_command_policy` | 81 / 10 | N1 |
@@ -507,9 +508,9 @@ Each raw primitive a second copy would use has one owner and one rule (ADR 0028)
 | R10 | `sha2`, hashers | `canopi-support` hash | cargo-deny `wrappers` | 15 / 7 | N1 |
 | R11 | `SystemTime::now` | `canopi-support` time | clippy `disallowed-methods` | 16 / 8 | N1 |
 | R12 | `proj4rs`, EPSG codes | the `crs` leaf | `crs-only-in-crs` | 13 / 6 | N1 |
-| R13 | `Result<_, String>` | the failure catalogue | `no-string-error-command`, widened to `From<String>` | 69 commands | 1a |
+| R13 | `Result<_, String>` | the failure catalogue | `no-string-error-command`, widened to `From<String>` | 69 commands | 1a, 2b, 2e, N1, N2 (0 at Phase 3) |
 | R14 | `"cancelled"`, `check_cancel`, flags | `CancelToken` | `no-cancelled-literal` | 13 / 7; 51 / 14 | 1a, N1 |
-| R15 | `warn!`, `error!` | the failure logger | `tracing-warn-only-in-failure-logger` | 68 / 20 | 1a |
+| R15 | `warn!`, `error!` | the failure logger | `tracing-warn-only-in-failure-logger` | 68 / 20 | 1a, each moving stream (0 at Phase 3) |
 | R16 | `reqwest` and other clients | `http.rs`; `geocoder_fetch(url)` | `http-client-only-in-http` | 4 / 1 | N1, N2 |
 | R17 | `Command::new` | the tool runner and `FolderRevealer` | clippy `disallowed-methods` | 0 outside | N0, N1 |
 | R18 | Search folds | `canopi-search-text` | the shared corpus | 6 implementations | N4 |
@@ -534,14 +535,14 @@ Every 2.0 difference that is not a row of ADR 0030 (the ED ids of the 2.0 invent
 | ED-13 | Report a problem with Desktop's contents and redaction | 2.1-Q60 | 1b |
 | ED-14 | a root error boundary and one per surface | 2.1-Q111 | 1b |
 | ED-15 | one degraded-store notice | 2.1-Q67 | 1b |
-| ED-16 | one in-app notice row, no native dialogs | 2.1-Q86 | 1b |
+| ED-16 | one in-app notice row, no native dialogs | 2.1-Q86 | 1b, 2a, N2 |
 | ED-17 | the title bar's "Open a .canopi file" button | 2.1-Q128 | 2a |
 | ED-18 | one responsive composition chosen by window size, so a narrow Desktop window gets the phone layout | 2.1-Q129 | 2a |
 | ED-19 | Catalog and Favorites open without a Design | 2.1-Q130 | 2a |
 | ED-20, ED-21 | the panel "Favorites and stamps" with saved stamps, holding only the user's picks; Recently viewed sits inside the Catalog | 2.1-Q112, 2.1-Q131 | N2 |
 | ED-22 | Templates and the World map deleted | 2.1-Q24, 2.1-E5 | 2a |
 | ED-24 | one generated settings decoder; a bad value resets only that field | 2.1-Q54 | 2e |
-| ED-25 | one favourites and recently-viewed record shape with instants | 2.1-Q102, 2.1-Q103 | N2 |
+| ED-25 | one favourites and recently-viewed record shape with instants | 2.1-Q102, 2.1-Q103 | N2 (the Web record's shape frozen by Step 2.0.4) |
 | ED-30, ED-31, ED-32 | the full catalog, every filter and sort, one ranking contract | 2.1-Q113, 2.1-Q59, 2.1-Q43 to 2.1-Q51 | N4 |
 | ED-33 | one Commons rendition; source links on both, Desktop opening them in the system browser | 2.1-Q109 | N4 |
 | ED-34, ED-35 | common names, stratum colour and width on placement; the same stored plant data | 2.1-Q25, 2.1-Q113 | 2c |
