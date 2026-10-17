@@ -1,6 +1,6 @@
 # Vegetation analysis: ONF methods and Canopi-authored science in Rust
 
-Status: Accepted (2026-09-26, Canopi v2)
+Status: Accepted (2026-09-26, Canopi v2); amended 2026-10-17 (point clouds are seen and profiled, ledger 2.1-Q79; Web Site data, 2.1-Q114, 2.1-Q122; terrain engines, 2.1-Q37, 2.1-Q58, 2.1-Q65; the job runner, ADR 0024)
 
 ## Context
 
@@ -33,11 +33,11 @@ The better source is the ONF plugin for Computree (`ct_pluginonf`, https://gitla
   - DSM holes filled with the minimum.
 
   Fidelity tests compare with Computree only on inputs where the two agree.
-- **Native lane.** The analysis registry gains a `native` lane. Analyses run in process on the `Raster` executor class (admitted 4, running 2), never `Local`, so saves and sampling never queue behind them. They hold the heavy-job lease, cancel cooperatively at bounded intervals, and are admitted under a 25-million-cell cap (and point-list caps for point metrics). No new sidecar, child process or CI engine is needed: goldens make fidelity a plain `cargo test`.
-- **GeoLibre stays** the engine for slope, hillshade, contours and hydrology. ADR 0011's optional Computree integration is dropped.
+- **Native lane.** The analysis registry gains a `native` lane. Analyses run in process as jobs of the job runner ([ADR 0024](0024-ownership-and-lifecycle.md), [ADR 0025](0025-failure-model-and-native-scheduling.md)), within its heavy-job capacity and outside the request lanes, so saves and sampling never queue behind them. They cancel through their `CancelToken` at bounded intervals, and are admitted under a 25-million-cell cap (and point-list caps for point metrics). No new sidecar, child process or CI engine is needed: goldens make fidelity a plain `cargo test`.
+- **Terrain engines.** The terrain and hydrology engines are decided by ADR 0023's N0 check (2.1-Q37, 2.1-Q65); the Hillshade result is dropped (2.1-Q58). ADR 0011's optional Computree integration is dropped.
 - **Scope.** The work is ordered as follows:
   1. Raster canopy from above-ground height: gaps, tree tops, and cover facts.
-  2. Point-cloud library items (library-only, with a footprint outline in Site data) and terrain models from points.
+  2. Point-cloud library items that are seen and profiled (map display coloured by class, height or intensity; a profile through the points; 2.1-Q79, replacing the library-only scope of 2026-09-26) and terrain models from points.
   3. Crowns, gap depth, vegetation structure grids for the syntropic strata, and point cleaning.
 
   Terrestrial scans, stems, voxels and inventory tools are out of scope. ONF defaults ship with "Forest" and "Orchard / agroforestry" presets over the same recipes.
@@ -48,4 +48,4 @@ The better source is the ONF plugin for Computree (`ct_pluginonf`, https://gitla
 - New library item kinds: point cloud, and vector tree tops, gaps and crowns. Provenance records the engine (`onf` or `canopi`), the method reference and resolved parameters, such as the sigma a recipe chose.
 - Detected trees are library data. Turning them into "existing tree" design objects is a later product step through a runtime transaction.
 - Validation fixtures include a small IGN LiDAR HD crop (Licence Ouverte Etalab 2.0) with goldens. Reference runs come from Canopi-written `CompuTreeBatch` scripts, with a dev-only harness as a fallback, and from lidR/lidaRtRee; none of them runs in CI or ships.
-- Canopy analysis is Desktop-only, like the data library.
+- Web gets Site data up to a size limit and the terrain analyses in 2.1 (2.1-Q122, ADR 0030). The edition scope of canopy analysis and crown detection is asked at that release's design check, aligned by default (2.1-Q111).

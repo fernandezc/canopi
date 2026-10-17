@@ -1,7 +1,7 @@
 # No backward compatibility in Canopi v2
 
-Status: Superseded (2026-09-28)
-superseded_by: 0013-stored-data-migrations.md
+Status: Superseded (2026-09-28 by ADR 0013; 2026-10-16 by ADR 0026)
+superseded_by: 0026-stored-data-after-2-0.md
 
 ## Context
 

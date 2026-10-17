@@ -1,7 +1,7 @@
 # Stored data migrates forward
 
-Status: Superseded (2026-10-02)
-superseded_by: 0021-canopi-2-breaks-stored-data.md
+Status: Superseded (2026-10-02 by ADR 0021; 2026-10-16 by ADR 0026)
+superseded_by: 0026-stored-data-after-2-0.md
 
 ## Context
 

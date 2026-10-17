@@ -1,0 +1,60 @@
+# Module map and dependency direction
+
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34 format core; Q45 pass; the module-map run, the clean sheet and the prototypes: ledger 2.1-Q47, 2.1-M4 to 2.1-M6, 2.1-M11, 2.1-M12, 2.1-M19, 2.1-Q122)
+
+## Context
+
+In 2.0 the frontend has 37 of 40 areas in one cycle. The edition is picked three ways: vite aliases, `src/web` composition and `edition` props. `platform/` mixes adapters with an edition bootstrap, and `web/` mixes adapters with session and panel code. The shell command catalog, the modal check and the key-router install exist twice. The user chose target B, layered domains with edition roots (2.1-Q1), and confirmed the likely-change list (2.1-Q2). The module-map run on today's code found 137 violations of this table.
+
+## Decision
+
+- **Layers.** Every top-level path under `desktop/web/src/`, directory or root file, belongs to exactly one layer, or the layer table names its destination and the phase that moves it; the fail-closed checker refuses a path with no layer. A layer imports only from layers below it; inside L1 and L2 a directory imports only those before it in the listed order (`<`; names sharing a rank import none of each other), and L3 features import each other with no cycle. Test files sit outside the order and no product module imports one. A path marked "new" does not exist at the v2.0.0 tag.
+  - The layer table's one owner is `desktop/web/policy/layers.json` (Phase 0 F1: path, layer, rank, destination, phase), which generates the dependency-cruiser and ast-grep configs, the checker, the module-map run and the Web build boundary lists; Phase 4 D1 replaces the path lists below with it.
+  - L0 pure (may import `@preact/signals` and no other npm package): `generated/`, `types/`, `i18n/` (it owns the active-locale signal; `app/settings/` sets it only through `i18n`'s `setActiveLocale()`), `utils/`, the ambient `*.d.ts`, `styles/`, `assets/`.
+    - Also L0: `geo/` (new, 2a: session plane, projection, camera policy and the view module); `planning/` (new, 2a: civil date, time model, succession phases); `types/design-scope.ts` (the Design scope type and its registration API) and `types/design-fields.ts` (`SceneFields` and `DocumentFields`, generated from `DESIGN_FILE_FIELDS`); `types/map-overlay-visuals.ts` (fixed overlay tokens; colours that follow the theme are arguments).
+  - L1 adapters: `failures/` (new, Phase 1: `reportFailure`, the diagnostics ring, the notice signal, the per-store open status and `redact.ts`; imported directly, no port) < `ipc/` < `maplibre/`, `platform/` (each port with its `.desktop.ts` and `.browser.ts` adapter beside it). `maplibre/` imports nothing from `canvas/` and hosts a scene through `SceneHostLayer<Snapshot>` (`maplibre/scene-host-layer.ts`); `platform/design-home.ts` declares `DesignHome`, its store and `DesignSource`, and `platform/settings.ts` the settings store port.
+  - L2 runtimes: `app/settings/` (all of it: it owns every settings-backed signal but the locale, and `utils/theme.ts` moves in) < `app/command-table/` (new, 2a: command descriptors, label keys, keys, placement, capabilities and an availability query; it imports no feature; the roots bind handlers) < `canvas/` (with renderer snapshot types) < `app/design-edit/document/` (new, 2b: Document-field state, history and `admission.ts`) < `app/document-session/core/` (new, 2b: the one scope implementation and the Session core, composing the Scene serializer and the Document state by direct import).
+  - L3 features: the other `app/*`, with `app/mutation-queue.ts`; the Document writer commands (views, stories, timeline, budget, consortium, data library, plant display) stay in `app/design-edit/` and edit through `core.document()`; `app/lidar/` becomes `app/data-library/` (2.1-M4); `commands/` merges into `app/command-table/` and `app/shell-commands/`, its Desktop window and keymap bindings into `editions/desktop/` (2a). Panels never import each other. L4 surfaces: `components/*`, an error boundary per surface; `app.tsx` moves to `components/shell/` (2a).
+  - L5 edition roots: `editions/desktop/`, `editions/web/` and `editions/gallery/` (new, 2a). A root builds one `EditionPorts` record (every port binding plus the edition-capabilities set, ADR 0030), installs it once before mounting, calls `installAppLifetime(ports)` and installs the key router. An upward callback a root binds (`SessionCoreHost`: the flush-failed dialog, save without copy, schedule) is not a port.
+    - The gallery root has a command adapter typed `Partial<CommandMap>` whose stateful fakes call the real pure helpers or return fixed results, and replays library transcripts the real commands write; it runs no contract suite and implements no port rule; fixtures from L0, no Tauri import, imported by no other bundle.
+- **One edition mechanism.** A root imports its adapters. Vite aliases and `edition` props are deleted; `web/` is dissolved into adapters beside their ports, `editions/web/` and the Session core. The `.browser.ts` and `.desktop.ts` suffixes mean only "this edition's adapter of the port beside it". Feature code never checks the edition (ADR 0030). The Web bundle never contains Tauri (ADR 0005). Menus, the modal check and key routing read the one command table; shortcut text comes only from the keymap.
+- **Ports only where two implementations exist** (Desktop and Web, or a fake with behaviour): DesignHome and picker (L10, L17), the design core (L5), FileDelivery (L12), file access (pick by file-kind row, a library file's display URL; L9, 2.1-M12), the app lifecycle (ADR 0024), the Draft store (L21), the scene host layer (L8: the Pixi layer, the snapshot map's fake) and the species reader (L20, while two remain, 2.1-E1). One implementation gets an adapter: MapPorts as `Pick<maplibregl.Map>` (L7), the Pixi kit, the geocoder (L23), Desktop window control (bound only by `editions/desktop/`).
+  - Also ports: the settings store (`platform/settings.ts`, L16), the Data library (`platform/library.ts`: the Desktop adapter from N3, the browser one from N5; L21), and the saved-stamp and Design Notebook stores (the user DB and a browser record, N2; L21). Each abstraction names the L-row change it protects against.
+- **Earlier ADRs read as claims.** ADRs 0015 to 0020 stay as written except ADR 0016 (true ground metres, 2.1-Q78d) and ADR 0018, edited where this target contradicts them; ADR 0021's after-2.0 rule is replaced by ADR 0026; ADRs 0005, 0006, 0007 and 0012 follow ADR 0030.
+- **Canopi Rust on Web.** One wasm adapter per `-wasm` crate, each the only importer of its glue (ADR 0002): `platform/design-core.browser.ts` runs `canopi-format-wasm` in a worker (Phase 2b); `platform/search-text.ts` loads `canopi-search-text-wasm` in the page (Phase 3 N4), because list search runs synchronously there. Phase 3 N5 (2.1-Q65, 2.1-Q122) adds `canopi-library-wasm` and its worker adapter. Web stays without cross-origin isolation, because COEP `require-corp` would block the cross-origin Google tiles and Commons photos, so wasm on Web runs single-threaded.
+
+| # | Likely change | One owner |
+|---|---|---|
+| L1 | New analysis | `analyses/<x>.rs` + registry row (display recipe, output quantity) + item-type descriptor |
+| L2 | Global-lane and vector results | `kinds.rs` (closed enum, a variant per output kind, 2.1-Q10) + `maplibre/library-layers.ts`; never a Design object |
+| L3 | Point clouds (see and profile, 2.1-Q79), crowns | `import/formats/*` with its generated accepted-format list + the `PointCloud` kind + `canopi-vegetation`; CRS from the `crs` leaf |
+| L4 | Bring-your-own result | `lineage` (one field, ADR 0023) + the descriptor's lineage table; panels never read `role` or `provenance` |
+| L5 | New `.canopi` field | `DESIGN_FILE_FIELDS` + `canopi-format`; generated `types/design-fields.ts`, factory and admission constants |
+| L6 | New locale | locale registry in `canopi-types`; glossary as data; the catalog side crosses L20 |
+| L7 | MapLibre major | `maplibre/`: per-consumer `Pick<>` ports, DOM class constants, CSS import, `createFakeMap()` |
+| L8 | Pixi major | `canvas/runtime/renderers/` + the Pixi kit + `maplibre/scene-host-layer.ts` |
+| L9 | Tauri, WebKitGTK, WebView2, WKWebView | the `platform/*.desktop.ts` adapters + Rust `host/` |
+| L10 | Open from URL on Web | the Session core's `openFrom(source)` |
+| L11 | Snapping, press point | one ToolHost reducer section (ADR 0024) |
+| L12 | Export format | one FileDelivery row per format |
+| L13 | Map layer source | a workspace map contribution with `ownsResource` |
+| L14 | Failure kind, report line | the failure catalogue + `reportFailure` |
+| L15 | Long native job | the `jobs.rs` runner |
+| L16 | Settings field | the settings field table in `canopi-types` |
+| L17 | Session behaviour | `app/document-session/core/*` |
+| L18 | Canvas tool | tool module + its descriptor row (ToolHost sections); `_tool` the owner |
+| L19 | Dependency bumps | the L7-L9 adapters, `deny.toml`, Renovate |
+| L20 | Catalog schema | `scripts/schema-contract.json` |
+| L21 | Web browser storage backend (Drafts, Data library, saved stamps, Notebook; 2.1-M19) | each store's browser adapter in `platform/` |
+| L22 | Global-lane engine | a `canopi-library` engine module (open, ADR 0023) |
+| L23 | Geocoder provider | `app/geocoding/` provider adapter |
+| L24 | Unit system or quantity | the quantity table in `canopi-types` + `utils/format.ts` |
+
+## Alternatives rejected
+
+- **A, owners in place**, keeps kinds raster-shaped and editions mixed, so hydrology and crowns touch every area; **C, ports for every service**, adds abstractions with one implementation.
+- **Splitting `app/settings/` into a record (L2) and a projection (L3).** The prototype found no edge it removes once settings owns every settings-backed signal.
+
+## Checks
+
+- dependency-cruiser `layer-order`, `edition-roots`, `tauri-only-in-ipc-and-platform`, `pixi-only-in-renderers` and `command-table-imports-no-feature` (Phase 0, generated from the layer table, as ratchets); `one-command-catalog` and `edition-ports-installed-only-by-roots` (to be created by Phase 2a); `wasm-glue-only-in-adapter` per adapter, created with its crate (Phases 2b, N4, N5). The Web build boundary check (exists), its lists generated from the layer table (Phase 0 F1). `frontend-architecture-policies.test.ts` (exists) holds the 2.0 rules until then.

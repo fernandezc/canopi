@@ -31,3 +31,7 @@ Codec tests for the HTML document (no external requests, every image inline, att
 ## 6. Decisions (the user adopted the recommendations)
 
 - **D3 Export map:** static snapshots, not an interactive web map (Google imagery cannot be embedded outside Canopi).
+
+## 7. Open questions
+
+- Saved-view thumbnails with Site data: decided with story maps (ledger [2.1-Q30](../decisions/2-1.md)).

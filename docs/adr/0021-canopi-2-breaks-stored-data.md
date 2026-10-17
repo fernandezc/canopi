@@ -1,6 +1,6 @@
 # Canopi 2.0 breaks stored data
 
-Status: Accepted (2026-10-02, Canopi 2.0); amended 2026-10-03 and 2026-10-05 (U33: older local data stays in place; no backward compatibility before 2.0 ships)
+Status: Accepted (2026-10-02, Canopi 2.0); amended 2026-10-03 and 2026-10-05 (U33: older local data stays in place; no backward compatibility before 2.0 ships) and 2026-10-16 (this ADR now covers only data from before 2.0; [ADR 0026](0026-stored-data-after-2-0.md) governs version 9 on)
 
 ## Context
 
@@ -10,18 +10,18 @@ Canopi has two users, and the maintainer converts their `.canopi` files by hand.
 
 ## Decision
 
-- **Designs (`.canopi`).** Only `CURRENT_CANOPI_FILE_VERSION` (9) opens, on both trust boundaries. Versions 1 to 8, and a missing version, fail with `unsupported_version` and the typed kind `OlderVersion`, which reads "Made with Canopi before 2.0; Canopi 2.0 and later can’t open it"; a newer version reads as newer. The file is never changed. There is no ladder, no converter and no code that reads an older format.
+- **Designs (`.canopi`).** Version 9 up to the current version opens, on both trust boundaries (a version below the current one through ADR 0026's steps). Versions 1 to 8, and a missing version, fail with `unsupported_version` and the typed kind `OlderVersion`, which reads "Made with Canopi before 2.0; Canopi 2.0 and later can’t open it"; a newer version reads as newer. The file is never changed. No converter or code reads a format from before 2.0.
 - **Admission stays.** Current-format checks are not migration: every object needs a unique, non-empty id (a file missing one is refused, nothing repairs it), the fields Canopi always writes (the root lists, each view's ground) are required, and ranges are checked; unknown root keys, 1.x ones included, are carried, never refused. They also catch mistakes in hand-converted files.
-- **Older local data stays in place, never read, never deleted, never upgraded** (user, 2026-10-05, U33, replacing the dated move-aside of 2026-10-02, whose backup naming, read-back checks, rollback and quota fallback cost about 300 lines for data only development builds and 1.x hold). Canopi 2.0 starts fresh and says once that older data can't be opened.
+- **Local data from before 2.0 stays in place, never read, never deleted, never upgraded** (user, 2026-10-05, U33, replacing the dated move-aside of 2026-10-02, whose backup naming, read-back checks, rollback and quota fallback cost about 300 lines for data only development builds and 1.x hold). Canopi 2.0 starts fresh and says once that older data can't be opened.
   - Desktop user database (Favorites, Recent Designs, Design notebook, saved stamps, settings): schema 1 to 8, or tables without a version, is renamed `<file>.before-2.0-<unix-seconds>` with its journal files, since 2.0 needs that path. A newer schema is refused untouched; a damaged file is renamed `<file>.corrupt-<unix-seconds>`.
   - Desktop Drafts in an older format and the retired 1.x autosave store stay where they are, unread.
-  - LiDAR library: an older or damaged catalogue is set aside under `lidar-library.set-aside/` and rebuilt from the originals it keeps (recovery, not migration); a newer one is refused.
+  - LiDAR library: a catalogue from before 2.0 (below version 25) or a damaged one is set aside under `lidar-library.set-aside/` and rebuilt from the originals it keeps (recovery, not migration); a newer one is refused.
   - Web: 2.0 stores under new keys (`canopi:web-app-data:v3:*`); the 1.x keys (`canopi:web-app-data:v1` and `v2:*`, Drafts included) stay unread and unchanged, so 1.x Web still opens them.
-- **Saved stamps.** Only payload version 2 is read.
-- **Settings.** New fields have defaults; an unreadable record is set aside under `settings.set-aside`. That is not a migration and stays.
-- **Additive `.canopi` changes** (amended 2026-10-03 with U21, whose camera-zoom fallback for a view without the ground size U33 replaced on 2026-10-05: the field is required). An optional additive field, or the removal of a field nothing reads, does not move the version: admission has no `deny_unknown_fields` and the schema allows extra properties, so files on either side of the change still open.
+- **Saved stamps.** Only payload version 2 is read; after 2.0 payloads migrate on their own chain from floor 2 (ADR 0026).
+- **Settings.** New fields have defaults. From 2.1 a bad value resets only that field and the original is kept once as `settings.before-reset` ([ADR 0026](0026-stored-data-after-2-0.md), ledger 2.1-Q54); the 2.0 `settings.set-aside` of a whole record is replaced.
+- **Additive `.canopi` changes** (amended 2026-10-03 with U21; U33 made the view's ground size required on 2026-10-05) follow ADR 0026's additions rule: from `.canopi` v10, an optional field valid alone, or a new literal of a set v10 made an open string, keeps the version. Admission has no `deny_unknown_fields`, so files on either side of such a change still open.
 - **No backward compatibility before 2.0 ships** (user, 2026-10-05, U33): "we should not waste any time and energy on backward compatibility". No fallback reads an older shape and no test covers a version that never shipped; a field only development files lack may become required at version 9.
-- **Later format changes.** The `.canopi` format and local data (user database, Drafts, Web storage, LiDAR catalogue, settings) may change when that improves the project, without asking the user first; each change is named in the handoff. Before 2.0 ships, any other change moves the current version and older files are refused as above. After 2.0, each format change decides, case by case, between refusing older files (older local data left in place, as above) and a migration; there is no ladder by default. The plant catalog database (`canopi-core.db`) never changes.
+- **Format changes.** The `.canopi` format and local data (user database, Drafts, Web storage, LiDAR catalogue, settings) may change when that improves the project, without asking the user first; each change is named in the handoff. From 2.0 on, every change to a user-work store's shape is a frozen migration step or an additive annex ([ADR 0026](0026-stored-data-after-2-0.md)); derived stores are rebuilt. The plant catalog database (`canopi-core.db`) never changes.
 
 ## Consequences
 

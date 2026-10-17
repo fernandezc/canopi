@@ -1,0 +1,55 @@
+# Architecture fitness and verification
+
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q47, Q45 pass; enforcement first: ledger 2.1-Q75, 2.1-E2, 2.1-E3, 2.1-M14)
+
+## Context
+
+In 2.0 the policy tests hold boundaries through tombstones, phase-named lists and source-text pins, and many tests read private fields. Several state machines have no sequence test, though canopi-ana9 was a sequence bug. Mutation testing never runs in CI and the LiDAR oracle lane runs on one machine. Of the 259 rules the docs state, 34 code rules have no check and 24 are process rules held only by prose; agents copy the nearest example, trust gate output and invent names. The user set the stopping rule (2.1-Q3), the verification tools (2.1-Q13 to 2.1-Q19) and enforcement first (2.1-Q75).
+
+## Decision
+
+- **Stopping rule** (2.1-Q3). All 11 scenarios are re-walked; each touches only its owners, within the ideal count plus 25%, from a checked-in owner fixture per scenario; a cross-area edge target is fixed at Phase 0 close.
+  - The agent change trials (`scripts/agent-trials/`: eight roadmap and maintenance tasks, each run three times by fresh agents with no plan context, scored as the median for files read and changed, owners touched, gate failures before green, wrong-owner edits and violations caught only by review, all but the last computed by `score.py`) re-run at every phase close against the 2026-10-17 baseline. Both are read as diffs at each phase close; at Phase 4 every scenario passes and no trial score is worse than its baseline.
+- **The policy inventory** (`desktop/web/policy/inventory.json`, Phase 0 F1) lists every rule the ADRs, guides and AGENTS.md state, with its check or the mark advice or process. Every check has a planted violation that must fail; a rule naming a check that does not exist fails `check_docs.py`. A failure message names the rule, its ADR, the owner and a canonical example module.
+- **Primitive ownership.** Each raw primitive a second copy would use (Tauri, MapLibre and Pixi constructors and classes, storage, workers, ids, dates, numbers and units, SQL, hashes, time, HTTP, child processes, durable writes, `sessionIdentity` and lineage reads) has one owner and one rule, landed in Phase 0 as a ratchet of today's sites (contracts §18). It is the main defence against semantic copies.
+- **Agent enforcement** (2.1-M14). Claude Code hooks and a pre-commit gate, tracked in `.githooks/` and set through `core.hooksPath`, run the affected checks and the ratchets on every commit; a SessionStart hook refuses a worktree without the hooks, and CI runs the same gate over every commit of a PR, so a bypassed or missing hook fails the PR.
+  - A ratchet exception or raised baseline is refused unless its bead is open and its ledger id is a Q row.
+  - A guard refuses a commit that deletes a test unless the commit adds a test whose title it names (checked in the same diff), cites a Q row, or carries `Retires-test: <title> — <why no user sees it>` and deletes the code under test; a removed or loosened `expect` in a kept test needs the same. Gates are deterministic and isolated: fixed seeds, fake clocks, a per-worktree cargo target and e2e port, the affected set computed from the dependency graph.
+- **Ratchets only shrink:** layer-order sites, feature SCCs, deep imports, multi-writer signals, exceptions, String-error commands, Rust SCCs, primitive sites, file size over 600 lines (generated files exempt), clones, complexity, quarantined flakes and performance budgets (ADR 0029).
+- **Generated rules** (Q13). Policy tables stay data and generate the dependency-cruiser and ast-grep configs. A fail-closed checker refuses a missing source, path drift, an unused exemption and a missing required rule. A policy kind confines `patchSettings(slice, {field})` callers to the field's patching features. Tombstones, phase-named lists, wiring pins and source-text pins are retired.
+  - cargo-shear replaces `check_unused_crates.py`; knip replaces the in-house unused-code checker and its snapshot, and the user's rules of 2026-10-02 (a new unused name fails; a kept entry names its bead) stay as its shrink-only ratchet (2.1-E2).
+- **Tests go through public surfaces.** Tests that read private fields or assert source text are rewritten in Phase 0. A unit test sits beside its module; `src/__tests__/` holds cross-module suites only, and existing files leave it through a ratchet (2.1-E3). A suite moves to the browser lane only where it asserts layout or real renderer and input behaviour.
+- **Model-based tests.** Each written state machine with interleavings (the Session union and its write lane, pool lanes, display descriptors, LiDAR jobs against the SQLite CHECK, map lifetime) ships a command-sequence test against the real implementation. A small synchronous union gets an exhaustive transition-table test. fast-check and proptest also cover geo, CRS and camera maths.
+- **Faults and hostile input** (Q47). The model-based Session, Draft, user-DB and LiDAR suites also run over the fault seams (`DurableFs`, the Draft store's `IDBFactory`): after any fault a reopen gives the last or previous acknowledged revision and no Draft is lost. cargo-fuzz runs on `canopi-format` admission and chain and on the LiDAR and raster readers in a scheduled lane: no panic, always a typed refusal, each crash a corpus case and a test.
+- **Diagrams** (Q47). Each phase close generates the module and crate diagrams from dependency-cruiser and `cargo tree`.
+- **Contract suites** (Q16) only where a fake carries behaviour or two real sides exist: runtime surfaces (commands and queries), RasterDisplay (the fake and the real layer manager), Session ports on both editions, the Draft store, the Web species reader (the user-reviewed ranking corpus), species user lists (favourites and recently viewed, Rust store and Web adapter), the settings store, the stamp store, the Data library port (N5), redaction, native scheduling, the failure report, and the TS edit-time predicates against the format core (ADR 0026); the contracts' suite table is the full list.
+- **Fakes record and inject; they never re-implement a runtime rule.** Where a fake would carry behaviour, the real code runs instead: the gallery replays transcripts the real LiDAR commands write (a freshness check replaces the LiDAR facade suite), the raster pool tests drive the real worker handler in process, and the reduced catalog fake is deleted for the real DuckDB reader.
+- **Complexity** (Q14). FTA fails CI when a hotspot rises by more than 2 or enters "Needs improvement". A file a phase splits gets a per-file FTA target set from its measured baseline. Rust gets a shrink-only per-file ratchet on `too_many_lines` and `cognitive_complexity` hits at a threshold with signal, named in Phase 0; split LiDAR files get targets when Phase 3 splits them. Clippy `cognitive_complexity` is denied.
+- **Mutation** (Q15). A non-blocking, sharded `--in-diff` job runs on every PR: cargo-mutants per crate and Stryker incremental for TS. Survivors show as PR annotations. A full per-area run closes each phase; each survivor becomes a test or a bead. There is no score ratchet. Slow LiDAR tests get small fixtures or an optimised test profile, not `mutants::skip`.
+- **Updates** (Q17). Renovate runs weekly, grouped minor and patch per ecosystem; each major is its own PR; exact pins are excluded; security updates come at once.
+- **Upstream** (Q18). Each local workaround is a row in the upstream register with its pinning test, tagged `// upstream: W<n>` at its site. The agent drafts each report as a bead with a repro; the user posts or refuses it.
+- **Coverage** (Q19). Floors count production files only; out-of-line test files are excluded, re-baselined once with both numbers named. A floor is never lowered for the same file set. The coverage exclusion globs are a named ratchet entry; a new exclusion or a re-measured floor needs a bead and a Q row, and its commit names both numbers.
+- **Flakes** are found by repeat runs and Vitest shuffle; a flaky test is quarantined with an owner and a bead, and the quarantine list is empty at each phase close; every test needs an assertion.
+
+## Alternatives rejected
+
+- **Hand-written policy tests beside the new tools.** Two rule homes drift.
+- **A contract suite for every fake.** Many fakes are type-checked stubs; their suites cannot fail.
+- **A blocking mutation score.** Scores are noisy; a gate costs more than it finds.
+- **A line-count cap per file.** It can be met without improving the design, and a cap on every file fails 109 today.
+- **Checking the stopping rule once, at the end.** It could only accept or reject the work, not steer it.
+
+## Consequences
+
+- AGENTS.md's coverage-floor rule changed with this ADR. Each AGENTS.md line naming a check is rewritten in the commit that converts or retires that check; Phase 4 D1 rewrites only what is left.
+- tauri-specta, Sheriff, CodeScene and nextest are dropped.
+
+## Checks
+
+- dependency-cruiser, ast-grep with rule tests, oxlint, knip, cargo-deny, cargo-shear and clippy extra lints (to be created by Phase 0); the policy inventory and its rule-names-a-check test, the agent hooks, the pre-commit gate and the test-deletion guard (Phase 0 F1 and F3); the agent trials (Phase 0 F3).
+- The fail-closed policy checker and a planted violation per rule (to be created by Phase 0: `policy-tables-check`).
+- ast-grep `no-private-field-cast-in-tests` and `no-src-read-outside-policies` (to be created by Phase 0, shrink-only).
+- The scenario owner fixtures and their re-walk diff (to be created by Phase 0: `scenario-owners`).
+- The upstream register, checked both ways (to be created by Phase 0: `upstream-register`).
+- The fault-seam runs of the model-based suites (to be created by Phases 2b and 3 N1) and the scheduled fuzz lane (to be created by Phases 2b and 3 N1); a policy test that `__tests__/support/` copies no runtime guard (to be created by Phase 0 F4).
+- Coverage floors in `desktop/web/vite.config.ts` and `.cargo/config.toml` (exist).

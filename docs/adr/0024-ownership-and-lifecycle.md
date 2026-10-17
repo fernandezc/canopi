@@ -1,0 +1,54 @@
+# Ownership and lifecycle
+
+Status: Accepted (2026-10-16, Canopi 2.1 target; built by the 2.1 foundation phases); amended 2026-10-17 (Q34, Q38 to Q41, Q45 pass; the Session-core, settings and job-runner prototypes; ledger 2.1-Q61, 2.1-Q66 to 2.1-Q68, 2.1-Q80, 2.1-Q125, 2.1-Q135, 2.1-E6, 2.1-M6)
+
+## Context
+
+In 2.0 nothing owns a Design's scope: about 30 modules watch `sessionIdentity` to reset themselves, and seven start effects at import time that are never disposed. Dirty state is three counters in two halves. The tool has three copies. The canvas host and the map lifetime are separate, and four modules decide style readiness. Drawing reads process globals. LiDAR jobs wait on a polled single-slot lease, and three code paths free library files by three rules.
+
+## Decision
+
+Every domain noun has one owner, written states and a closed list of writers (the concept map in `CONTEXT.md`). Every long-lived thing has one owner, a written state machine and one cleanup rule:
+
+| Thing | Owner | States | Cleanup rule |
+|---|---|---|---|
+| App scope | the edition root, through `installAppLifetime(ports)` | live, disposed | app-lifetime effects register here and dispose in reverse order; one `latest()` request guard per controller publishes only the newest request |
+| Close and hide | the Session core, fed by the app-lifecycle port | close requested, hidden (`visibilitychange` to hidden; `pagehide` repeats it), shown{persisted}, store version change | flush the Design, then settings, then close each IndexedDB connection or drain native; Desktop asks first while a job runs (2.1-Q61); adapters never act on page events themselves. The Desktop adapter turns `WindowEvent::CloseRequested` and `RunEvent::ExitRequested` into the one close request; macOS-specific Quit paths wait for the user's macOS decision; the dmg keeps today's behaviour (2.1-Q125, 2.1-Q135) |
+| Design Session | the Session core | `idle`, `opening{source, current?}`, `open{design}`, `replacing{current, next}`, `closing{current}`; `design = {scope, home, rev, ackRev, save, scene: attached or detached{fields}, migratedFrom}`; `save = idle, pending, writing{rev}, busy, failed, refused, conflict, quota, copy-blocked` | one write lane per Design; replace and close await it; dispose runs synchronously after the write that acknowledged the last rev; `current` stays open and saveable in every transition (2.1-Q66) |
+| Design scope | the Session core (type in `types/design-scope.ts`) | open, closing while its cleanups run, closed | an `AbortSignal` and a dispose list; modules register through `core.onDesignOpened` (a late registration gets the open scope), never watch `sessionIdentity`; a late `changed` on a disposed scope is ignored |
+| Canvas surface | the canvas host lease and the map-lifetime module in `maplibre/` | lease free, held, releasing; map creating, admitted, ready, failed, released; a per-layer sub-state under ready | one release order: each scene layer, then contributions, then the map; a later `style.load` fails the map with Retry (ADR 0004), never a silent empty map |
+| ToolHost | the interaction session's `_tool` | one typed state record of reducer sections | a fault aborts open edits and is reported (ADR 0025) |
+| Renderer snapshot | the scene runtime | self-contained per frame | no process globals |
+| Settings store | `app/settings/` | loading; ready (notice: fields-reset or write-failed); degraded (refused-newer or unavailable) | flush and drop on dispose; reading never writes; a degraded store is never written (2.1-Q67) |
+| Native executor | the `canopi-desktop` composition | running, draining, closed | drain cancels with reason `Shutdown`: the runner's job settles Interrupted with Run again, never Cancelled; once draining starts no Queued job starts (the drain flag and the runner's registration share one lock); then the janitor, the sidecar child killed and reaped, then the request lanes; after close a request settles `unavailable` |
+| Web IndexedDB connections | one per database: the Web Draft-store adapter (Drafts) and the browser library adapter (Data library items, N5); the `localStorage` record adapters (species lists, stamps, Notebook) hold none | opening, open, version-change-blocked, closed | each closed on `pagehide`; reopened on `pageshow` with `persisted` and on the next write; another tab's upgrade of either reaches the core as a store version change (Q40, ADR 0026) |
+| Workers | the module that starts each (raster pool, design core, DuckDB, PDF) | starting, ready, broken or poisoned, terminated | a deadline per task; mosaic sources released on dispose; terminated with their owner's scope; the design core respawns after a trap and after a large open |
+| Display descriptors | `app/data-library/display.ts` | per key requested, ready, failed | cleared on Design change, item delete and dispose |
+| Library jobs | the `jobs.rs` runner | Queued, Running, Settling, Settled (stored, with a CHECK) | below |
+| Library files | the janitor | claimed, unclaimed | below |
+| Caches | each owner | empty, filled | cache successes only; a Design cache registers with the Design scope; the species cache is keyed by locale |
+
+- **One Undo order** (2.1-Q80). The Session core owns the one Design history: each change carries its owner token; an edit of either half ends both redo branches; the canvas Undo key routes to the core; a detach drops the Scene tokens. **Dirty is `rev > ackRev`** (2.1-Q68): Scene transactions and Document edits advance `rev` only through `changed()`; a write carries the `rev` read when its encode starts and only `written` sets `ackRev`; undo back to the saved point does not read clean.
+- **Surface lifetime.** One module owns the map-lifetime union and hands one style-readiness signal to every contribution; layer and raster status derive from it. The snapshot map goes through the same factory and lifetime.
+- **Tool owner.** `_tool` is the only owner of the active tool and its armed source; panels arm through `tools.arm(id, source)`. Each tool has one descriptor row (id, title key, cursor, read traits, guidance). A tool picked while no Design is open is dropped; each Design starts from its default tool (Q41).
+- **Renderer snapshot.** Plant display, backdrop ink, paint tokens and the annotation font epoch are part of the snapshot; each surface (workspace, thumbnails, overview, story, lens, print) renders from its own.
+- **Settings own their signals** (Q45). `app/settings/` owns every settings-backed signal except the active locale, which `i18n/` owns and settings sets through `setActiveLocale()` (the multi-writer rule counts an owner's setter as an owner write); a slice is the unit features patch (`patchSettings`), several features may patch one slice, and a policy on the patch call says which feature patches which field.
+  - One field table in `canopi-types` (key, default, range, slice, capability (optional, an `edition-capabilities.json` id; a field without one exists on both editions, ADR 0030), privacy of secret, reported or omitted) generates the TS draft, normalisers, apply, serialise, the browser reader, the Rust `Debug`, the report's settings section and, from its declared steps, both editions' migration runners (2.1-E6). A bad value resets only that field (ADR 0026). The Desktop boot read has a reserved slot that Busy never rejects.
+- **Library jobs.** The runner is the job lane, one FIFO queue with a heavy-job capacity of one for imports and analyses (U32). A job that never started, or was drained at quit, settles Interrupted with Run again (Q38, 2.1-Q61). State changes are a revision watch plus a re-read, which cancel, Delete, Dismiss and the janitor wait on, and reach the frontend as one `library-changed` event; no polls. `CancelToken` carries its reason, User or Shutdown. Facade calls wait for open recovery and the janitor's open run; if recovery fails the library is read-only and drain treats the runner as done.
+- **Library file rule.** Every writer, and Delete and Dismiss (Q39), records its claim before its first write. Delete of an item a queued or running job reads is refused, naming the job. The janitor is the only module that deletes a library file, only what no claim covers, rows before files; it runs after each settle, Delete and Dismiss and once after open recovery. Design-write sidecars have a recognisable name and are swept only beside their target on its next save; user folders are never walked.
+- **Display preparation** runs on the job lane's display slot, outside the heavy-job capacity, with no deadline or Busy; requests per key coalesce; its recipe is the analysis row's; its state (preparing, ready, failed with a typed reason) comes through the library status read, and the frontend's back-off, busy regex and call cap are deleted.
+
+## Alternatives rejected
+
+- **"Adopt a Design scope only if it removes reset code."** About 30 hand-written resets already exist.
+- **Reference counting for library files.** It can delete a referenced file when the counts drift.
+- **A lossy event broadcast for job state.** A dropped settle event hangs the waiter (job-runner prototype).
+- **An old-epoch refusal for writes.** The per-Design write lane makes it unnecessary.
+
+## Checks
+
+- ast-grep `no-module-effect` and `no-session-identity-watch` (to be created by Phase 0, ratchets 7 and 30 files to 0 at Phase 2's close); `no-renderer-module-state` (Phase 2c), widened to `maplibre/` and `app/`; `style-load-only-in-map-lifetime` and `map-constructor-only-in-factory` (Phase 2d); `janitor-only-deletes` (Phase 3).
+- A model-based test for each machine with interleavings (ADR 0028), including an edit during an in-flight write, a same-home reopen, quit while a job runs and recovery before the open sweep; a property test interleaving a sweep with each writer kind.
+- A ToolHost owner test (Phase 2c); a policy that lease and publish happen only in `app/canvas-map-surface/canvas-host.ts` and `data-map-active` only from the map-surface visibility (Phase 2b).
+- dependency-cruiser `settings-no-upward` and the `patchSettings` caller policy (Phase 2e); a model test that no write reaches a degraded store (Phase 1b).
+- `frontend-architecture-policies.test.ts` (exists): panels read the canvas by read-only queries; only the canvas draws highlights.
